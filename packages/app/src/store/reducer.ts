@@ -126,10 +126,12 @@ function initialUiState(): WorkspaceEphemeralState {
     fitToContentRequestToken: 0,
     zoomRequestToken: 0,
     zoomRequestDirection: null,
-    leftPanelWidth: 340,
-    rightPanelWidth: 280,
     showSourcePanel: true,
     showInspectorPanel: true,
+    showObjectsPanel: true,
+    showStylesPanel: true,
+    showFiguresPanel: false,
+    showAssistantPanel: false,
     rightSidebarTab: "inspector",
     showDevPanel: false
   };
@@ -264,10 +266,12 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     fitToContentRequestToken: ui.fitToContentRequestToken,
     zoomRequestToken: ui.zoomRequestToken,
     zoomRequestDirection: ui.zoomRequestDirection,
-    leftPanelWidth: ui.leftPanelWidth,
-    rightPanelWidth: ui.rightPanelWidth,
     showSourcePanel: ui.showSourcePanel,
     showInspectorPanel: ui.showInspectorPanel,
+    showObjectsPanel: ui.showObjectsPanel,
+    showStylesPanel: ui.showStylesPanel,
+    showFiguresPanel: ui.showFiguresPanel,
+    showAssistantPanel: ui.showAssistantPanel,
     rightSidebarTab: ui.rightSidebarTab,
     showDevPanel: ui.showDevPanel
   };
@@ -1193,10 +1197,17 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       };
       break;
 
-    case "SET_PANEL_WIDTH":
-      ui = action.panel === "left"
-        ? { ...ui, leftPanelWidth: action.width }
-        : { ...ui, rightPanelWidth: action.width };
+    case "SYNC_LAYOUT_STATE":
+      ui = {
+        ...ui,
+        showSourcePanel: action.sourceVisible,
+        showInspectorPanel: action.inspectorVisible,
+        showObjectsPanel: action.objectsVisible,
+        showStylesPanel: action.stylesVisible,
+        showFiguresPanel: action.figuresVisible,
+        showAssistantPanel: action.assistantVisible,
+        rightSidebarTab: action.activeRightTab,
+      };
       break;
 
     case "TOGGLE_PANEL":

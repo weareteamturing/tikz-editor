@@ -823,17 +823,34 @@ describe("editorReducer – SET_HOVERED_ELEMENT", () => {
   });
 });
 
-// ── SET_PANEL_WIDTH ────────────────────────────────────────────────────────────
+// ── Layout ────────────────────────────────────────────────────────────────────
 
 describe("editorReducer – layout", () => {
-  it("SET_PANEL_WIDTH updates left panel width", () => {
-    const state = applyActions([{ type: "SET_PANEL_WIDTH", panel: "left", width: 450 }]);
-    expect(state.leftPanelWidth).toBe(450);
+  it("initial layout flags match dock defaults", () => {
+    const initial = makeInitialState();
+    expect(initial.showSourcePanel).toBe(true);
+    expect(initial.showInspectorPanel).toBe(true);
+    expect(initial.showObjectsPanel).toBe(true);
+    expect(initial.showStylesPanel).toBe(true);
+    expect(initial.showFiguresPanel).toBe(false);
+    expect(initial.showAssistantPanel).toBe(false);
   });
 
-  it("SET_PANEL_WIDTH updates right panel width", () => {
-    const state = applyActions([{ type: "SET_PANEL_WIDTH", panel: "right", width: 350 }]);
-    expect(state.rightPanelWidth).toBe(350);
+  it("SYNC_LAYOUT_STATE updates layout flags", () => {
+    const state = applyActions([{
+      type: "SYNC_LAYOUT_STATE",
+      sourceVisible: false,
+      inspectorVisible: false,
+      objectsVisible: true,
+      stylesVisible: true,
+      figuresVisible: false,
+      assistantVisible: false,
+      activeRightTab: "objects" as const
+    }]);
+    expect(state.showSourcePanel).toBe(false);
+    expect(state.showInspectorPanel).toBe(false);
+    expect(state.showObjectsPanel).toBe(true);
+    expect(state.rightSidebarTab).toBe("objects");
   });
 
   it("TOGGLE_PANEL toggles source panel", () => {

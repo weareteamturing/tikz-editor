@@ -1,5 +1,6 @@
 import { useMemo, useRef } from "react";
 import { APP_MENU_COMMAND_IDS, type AppMenuCommandId } from "../app-menu";
+import { getDockLayoutHandle } from "./DockLayout";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import type { EditAnalysisView } from "tikz-editor/edit/analysis";
 import type { EmitSvgResult } from "tikz-editor/svg/index";
@@ -101,6 +102,10 @@ type RuntimeInput = {
   showDocumentBounds: boolean;
   showSourcePanel: boolean;
   showInspectorPanel: boolean;
+  showObjectsPanel: boolean;
+  showStylesPanel: boolean;
+  showFiguresPanel: boolean;
+  showAssistantPanel: boolean;
   rightSidebarTab: "inspector" | "objects" | "styles" | "assistant";
   assistantAvailable: boolean;
   assistantRunning: boolean;
@@ -152,6 +157,10 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     showDocumentBounds,
     showSourcePanel,
     showInspectorPanel,
+    showObjectsPanel,
+    showStylesPanel,
+    showFiguresPanel,
+    showAssistantPanel,
     rightSidebarTab,
     assistantAvailable,
     assistantRunning,
@@ -318,6 +327,28 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const canMatrixTranspose = canTransposeMatrix(commandContext);
   const canMatrixRemoveRow = canRemoveMatrixRow(commandContext);
   const canMatrixRemoveColumn = canRemoveMatrixColumn(commandContext);
+  const dispatchLayoutFallback = (
+    patch: Partial<{
+      sourceVisible: boolean;
+      inspectorVisible: boolean;
+      objectsVisible: boolean;
+      stylesVisible: boolean;
+      figuresVisible: boolean;
+      assistantVisible: boolean;
+      activeRightTab: "inspector" | "objects" | "styles" | "assistant";
+    }>
+  ) => {
+    dispatch({
+      type: "SYNC_LAYOUT_STATE",
+      sourceVisible: patch.sourceVisible ?? showSourcePanel,
+      inspectorVisible: patch.inspectorVisible ?? showInspectorPanel,
+      objectsVisible: patch.objectsVisible ?? showObjectsPanel,
+      stylesVisible: patch.stylesVisible ?? showStylesPanel,
+      figuresVisible: patch.figuresVisible ?? showFiguresPanel,
+      assistantVisible: patch.assistantVisible ?? showAssistantPanel,
+      activeRightTab: patch.activeRightTab ?? rightSidebarTab
+    });
+  };
 
   const bindings: CommandBindings = {
     [APP_MENU_COMMAND_IDS.NEW_DOCUMENT]: {
@@ -820,17 +851,78 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     [APP_MENU_COMMAND_IDS.TOGGLE_SOURCE_PANEL]: {
       enabled: true,
       checked: showSourcePanel,
-      run: () => dispatch({ type: "TOGGLE_PANEL", panel: "source" })
+      run: () => {
+        const handle = getDockLayoutHandle();
+        if (handle) handle.togglePanel("source");
+        else dispatch({ type: "TOGGLE_PANEL", panel: "source" });
+      }
     },
     [APP_MENU_COMMAND_IDS.TOGGLE_INSPECTOR_PANEL]: {
       enabled: true,
       checked: showInspectorPanel,
-      run: () => dispatch({ type: "TOGGLE_PANEL", panel: "inspector" })
+      run: () => {
+        const handle = getDockLayoutHandle();
+        if (handle) handle.togglePanel("inspector");
+        else dispatch({ type: "TOGGLE_PANEL", panel: "inspector" });
+      }
+    },
+    [APP_MENU_COMMAND_IDS.TOGGLE_OBJECTS_PANEL]: {
+      enabled: true,
+      checked: showObjectsPanel,
+      run: () => {
+        const handle = getDockLayoutHandle();
+        if (handle) {
+          handle.togglePanel("objects");
+          return;
+        }
+        dispatchLayoutFallback({
+          objectsVisible: !showObjectsPanel,
+          activeRightTab: !showObjectsPanel ? "objects" : rightSidebarTab
+        });
+      }
+    },
+    [APP_MENU_COMMAND_IDS.TOGGLE_STYLES_PANEL]: {
+      enabled: true,
+      checked: showStylesPanel,
+      run: () => {
+        const handle = getDockLayoutHandle();
+        if (handle) {
+          handle.togglePanel("styles");
+          return;
+        }
+        dispatchLayoutFallback({
+          stylesVisible: !showStylesPanel,
+          activeRightTab: !showStylesPanel ? "styles" : rightSidebarTab
+        });
+      }
+    },
+    [APP_MENU_COMMAND_IDS.TOGGLE_FIGURES_PANEL]: {
+      enabled: true,
+      checked: showFiguresPanel,
+      run: () => {
+        const handle = getDockLayoutHandle();
+        if (handle) {
+          handle.togglePanel("figure-navigator");
+          return;
+        }
+        dispatchLayoutFallback({ figuresVisible: !showFiguresPanel });
+      }
     },
     [APP_MENU_COMMAND_IDS.TOGGLE_ASSISTANT_PANEL]: {
       enabled: assistantAvailable,
-      checked: assistantAvailable && rightSidebarTab === "assistant",
-      run: () => onFocusAssistant?.()
+      checked: showAssistantPanel,
+      run: () => {
+        const handle = getDockLayoutHandle();
+        if (handle) {
+          handle.togglePanel("assistant");
+          return;
+        }
+        onFocusAssistant?.();
+        dispatchLayoutFallback({
+          assistantVisible: !showAssistantPanel,
+          activeRightTab: !showAssistantPanel ? "assistant" : rightSidebarTab
+        });
+      }
     },
     [APP_MENU_COMMAND_IDS.INTERRUPT_ASSISTANT_TURN]: {
       enabled: assistantAvailable && assistantRunning,
@@ -840,6 +932,82 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       enabled: true,
       checked: showDevPanel,
       run: () => dispatch({ type: "TOGGLE_DEV_PANEL" })
+    },
+    [APP_MENU_COMMAND_IDS.RESET_LAYOUT]: {
+      enabled: true,
+      run: () => {
+        const handle = getDockLayoutHandle();
+        if (handle) {
+          handle.resetLayout();
+          return;
+        }
+        dispatchLayoutFallback({
+          sourceVisible: true,
+          inspectorVisible: true,
+          objectsVisible: true,
+          stylesVisible: true,
+          figuresVisible: false,
+          assistantVisible: assistantAvailable,
+          activeRightTab: "inspector"
+        });
+      }
+    },
+    [APP_MENU_COMMAND_IDS.LAYOUT_PRESET_SOURCE_ON_TOP]: {
+      enabled: true,
+      run: () => {
+        const handle = getDockLayoutHandle();
+        if (handle) {
+          handle.applyPreset("sourceOnTop");
+          return;
+        }
+        dispatchLayoutFallback({
+          sourceVisible: true,
+          inspectorVisible: true,
+          objectsVisible: true,
+          stylesVisible: true,
+          figuresVisible: true,
+          assistantVisible: assistantAvailable,
+          activeRightTab: "inspector"
+        });
+      }
+    },
+    [APP_MENU_COMMAND_IDS.LAYOUT_PRESET_CANVAS_ONLY]: {
+      enabled: true,
+      run: () => {
+        const handle = getDockLayoutHandle();
+        if (handle) {
+          handle.applyPreset("canvasOnly");
+          return;
+        }
+        dispatchLayoutFallback({
+          sourceVisible: false,
+          inspectorVisible: false,
+          objectsVisible: false,
+          stylesVisible: false,
+          figuresVisible: false,
+          assistantVisible: false,
+          activeRightTab: "inspector"
+        });
+      }
+    },
+    [APP_MENU_COMMAND_IDS.LAYOUT_PRESET_WIDE_INSPECTOR]: {
+      enabled: true,
+      run: () => {
+        const handle = getDockLayoutHandle();
+        if (handle) {
+          handle.applyPreset("wideInspector");
+          return;
+        }
+        dispatchLayoutFallback({
+          sourceVisible: true,
+          inspectorVisible: true,
+          objectsVisible: true,
+          stylesVisible: true,
+          figuresVisible: true,
+          assistantVisible: assistantAvailable,
+          activeRightTab: "inspector"
+        });
+      }
     },
     [APP_MENU_COMMAND_IDS.OPEN_SETTINGS]: {
       enabled: onOpenSettings != null,
@@ -911,6 +1079,10 @@ export function useEditorCommandRuntime(
   const showDocumentBounds = useEditorStore((s) => s.showDocumentBounds);
   const showSourcePanel = useEditorStore((s) => s.showSourcePanel);
   const showInspectorPanel = useEditorStore((s) => s.showInspectorPanel);
+  const showObjectsPanel = useEditorStore((s) => s.showObjectsPanel);
+  const showStylesPanel = useEditorStore((s) => s.showStylesPanel);
+  const showFiguresPanel = useEditorStore((s) => s.showFiguresPanel);
+  const showAssistantPanel = useEditorStore((s) => s.showAssistantPanel);
   const rightSidebarTab = useEditorStore((s) => s.rightSidebarTab);
   const assistantRunning = useEditorStore((s) => {
     const doc = s.documents[s.activeDocumentId];
@@ -985,6 +1157,10 @@ export function useEditorCommandRuntime(
         showDocumentBounds,
         showSourcePanel,
         showInspectorPanel,
+        showObjectsPanel,
+        showStylesPanel,
+        showFiguresPanel,
+        showAssistantPanel,
         rightSidebarTab,
         assistantAvailable,
         assistantRunning,
@@ -1025,6 +1201,10 @@ export function useEditorCommandRuntime(
       showDocumentBounds,
       showSourcePanel,
       showInspectorPanel,
+      showObjectsPanel,
+      showStylesPanel,
+      showFiguresPanel,
+      showAssistantPanel,
       activeCanvasDragKind,
       rightSidebarTab,
       assistantAvailable,

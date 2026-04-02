@@ -15,7 +15,7 @@ import { emitSvgModel, type SvgRenderModel } from "tikz-editor/svg";
 import type { SceneFigure } from "tikz-editor/semantic/types";
 import { AppMenuBar } from "./AppMenuBar";
 import { Toolbar } from "./Toolbar";
-import { ResizableLayout } from "./ResizableLayout";
+import { DockLayout } from "./DockLayout";
 import { StatusBar } from "./StatusBar";
 import { isCodeMirrorEventTarget } from "./editor-commands";
 import { useEditorCommandRuntime } from "./editor-command-runtime";
@@ -37,29 +37,9 @@ import { resolveOpenedFileForDocument, dataTransferHasFilePayload } from "./svg-
 import type { AssistantComposerImageAttachment } from "./assistant-image-attachments";
 import { formatEquationText, type EquationNodeTarget } from "./equation-utils";
 
-const SourcePanel = lazy(async () => {
-  const mod = await import("./SourcePanel");
-  return { default: mod.SourcePanel };
-});
-
-const CanvasPanel = lazy(async () => {
-  const mod = await import("./CanvasPanel");
-  return { default: mod.CanvasPanel };
-});
-
 const DevPanel = lazy(async () => {
   const mod = await import("./DevPanel");
   return { default: mod.DevPanel };
-});
-
-const RightSidebar = lazy(async () => {
-  const mod = await import("./RightSidebar");
-  return { default: mod.RightSidebar };
-});
-
-const FigureNavigator = lazy(async () => {
-  const mod = await import("./FigureNavigator");
-  return { default: mod.FigureNavigator };
 });
 
 const OpenExampleModal = lazy(async () => {
@@ -1353,27 +1333,10 @@ export function App() {
         }}
       />
       <div className={css.body}>
-        <ResizableLayout
-          left={(
-            <Suspense fallback={<div className={css.panelLoading}>Loading source editor…</div>}>
-              <SourcePanel />
-            </Suspense>
-          )}
-          center={(
-            <div className={css.centerColumn}>
-              <Suspense fallback={<div className={css.panelLoading}>Loading canvas…</div>}>
-                <CanvasPanel repeatPreviewModel={repeatPreviewModel} />
-              </Suspense>
-              <Suspense fallback={null}>
-                <FigureNavigator />
-              </Suspense>
-            </div>
-          )}
-          right={(
-            <Suspense fallback={<div className={css.panelLoading}>Loading…</div>}>
-              <RightSidebar onSubmitPrompt={handleAssistantPrompt} onInterruptTurn={handleInterruptAssistantTurn} />
-            </Suspense>
-          )}
+        <DockLayout
+          repeatPreviewModel={repeatPreviewModel}
+          onSubmitPrompt={handleAssistantPrompt}
+          onInterruptTurn={handleInterruptAssistantTurn}
         />
       </div>
       <StatusBar />

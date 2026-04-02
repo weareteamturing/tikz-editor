@@ -17,6 +17,7 @@
     "@remixicon/react": "^4.9.0",
     "@tikz-editor/core": "0.1.0",
     "codemirror": "^6.0.2",
+    "flexlayout-react": "^0.8.19",
     "jspdf": "^4.2.0",
     "keynote-clipboard": "^1.2.0",
     "mathlive": "^0.107.1",

@@ -140,10 +140,12 @@ export type WorkspaceEphemeralState = {
   zoomRequestDirection: ZoomRequestDirection | null;
 
   // ── layout slice ─────────────────────────────────────────────────────────────
-  leftPanelWidth: number;
-  rightPanelWidth: number;
   showSourcePanel: boolean;
   showInspectorPanel: boolean;
+  showObjectsPanel: boolean;
+  showStylesPanel: boolean;
+  showFiguresPanel: boolean;
+  showAssistantPanel: boolean;
   rightSidebarTab: "inspector" | "objects" | "styles" | "assistant";
 
   // ── debug ─────────────────────────────────────────────────────────────────────
@@ -214,10 +216,12 @@ export type EditorState = {
   zoomRequestDirection: ZoomRequestDirection | null;
 
   // ── layout slice ─────────────────────────────────────────────────────────────
-  leftPanelWidth: number;
-  rightPanelWidth: number;
   showSourcePanel: boolean;
   showInspectorPanel: boolean;
+  showObjectsPanel: boolean;
+  showStylesPanel: boolean;
+  showFiguresPanel: boolean;
+  showAssistantPanel: boolean;
   rightSidebarTab: "inspector" | "objects" | "styles" | "assistant";
 
   // ── debug ─────────────────────────────────────────────────────────────────────
@@ -303,7 +307,7 @@ export type EditorAction =
   | { type: "REQUEST_FIT_TO_CONTENT" }
   | { type: "REQUEST_ZOOM"; direction: ZoomRequestDirection }
   // Layout
-  | { type: "SET_PANEL_WIDTH"; panel: "left" | "right"; width: number }
   | { type: "TOGGLE_PANEL"; panel: "source" | "inspector" }
+  | { type: "SYNC_LAYOUT_STATE"; sourceVisible: boolean; inspectorVisible: boolean; objectsVisible: boolean; stylesVisible: boolean; figuresVisible: boolean; assistantVisible: boolean; activeRightTab: "inspector" | "objects" | "styles" | "assistant" }
   // Debug
   | { type: "TOGGLE_DEV_PANEL" };

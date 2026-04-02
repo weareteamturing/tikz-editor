@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { APP_MENU_COMMAND_IDS } from "../../packages/app/src/app-menu/index.js";
 import { renderTikzToSvg } from "../../packages/core/src/render/index.js";
 import { createEditorCommandRuntime } from "../../packages/app/src/ui/editor-command-runtime.js";
+import * as DockLayoutModule from "../../packages/app/src/ui/DockLayout.js";
 import type { EditorAction } from "../../packages/app/src/store/types.js";
 import { setActiveEditorPlatform } from "../../packages/app/src/platform/current.js";
 
@@ -35,6 +36,7 @@ function uniqueMatrixCellIds(
 
 describe("editor-command-runtime", () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     svgToTikzMock.mockReset();
     setActiveEditorPlatform({
       id: "test-platform",
@@ -812,6 +814,97 @@ describe("editor-command-runtime", () => {
     expect(dispatch).toHaveBeenNthCalledWith(2, { type: "REQUEST_ZOOM", direction: "out" });
   });
 
+  it("dispatches a layout-state fallback when dock handle is unavailable", () => {
+    vi.spyOn(DockLayoutModule, "getDockLayoutHandle").mockReturnValue(null);
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        showSourcePanel: true,
+        showInspectorPanel: true,
+        showObjectsPanel: true,
+        showStylesPanel: true,
+        showFiguresPanel: false,
+        showAssistantPanel: false
+      })
+    );
+
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.TOGGLE_OBJECTS_PANEL, "menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "SYNC_LAYOUT_STATE",
+      sourceVisible: true,
+      inspectorVisible: true,
+      objectsVisible: false,
+      stylesVisible: true,
+      figuresVisible: false,
+      assistantVisible: false,
+      activeRightTab: "inspector"
+    });
+  });
+
+  it("dispatches preset fallback state when dock handle is unavailable", () => {
+    vi.spyOn(DockLayoutModule, "getDockLayoutHandle").mockReturnValue(null);
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        showSourcePanel: false,
+        showInspectorPanel: false,
+        showObjectsPanel: false,
+        showStylesPanel: false,
+        showFiguresPanel: true,
+        showAssistantPanel: true
+      })
+    );
+
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.LAYOUT_PRESET_CANVAS_ONLY, "menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "SYNC_LAYOUT_STATE",
+      sourceVisible: false,
+      inspectorVisible: false,
+      objectsVisible: false,
+      stylesVisible: false,
+      figuresVisible: false,
+      assistantVisible: false,
+      activeRightTab: "inspector"
+    });
+  });
+
+  it("delegates layout commands to the dock handle when available", () => {
+    const togglePanel = vi.fn();
+    const applyPreset = vi.fn();
+    const resetLayout = vi.fn();
+    vi.spyOn(DockLayoutModule, "getDockLayoutHandle").mockReturnValue({
+      getModel: vi.fn(),
+      togglePanel,
+      applyPreset,
+      resetLayout
+    } as unknown as ReturnType<typeof DockLayoutModule.getDockLayoutHandle>);
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set()
+      })
+    );
+
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.TOGGLE_OBJECTS_PANEL, "menu")).toBe(true);
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.LAYOUT_PRESET_SOURCE_ON_TOP, "menu")).toBe(true);
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.RESET_LAYOUT, "menu")).toBe(true);
+    expect(togglePanel).toHaveBeenCalledWith("objects");
+    expect(applyPreset).toHaveBeenCalledWith("sourceOnTop");
+    expect(resetLayout).toHaveBeenCalledTimes(1);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
   it("routes open settings command to host callback", () => {
     const dispatch = vi.fn<(action: EditorAction) => void>();
     const onOpenSettings = vi.fn();
@@ -1055,6 +1148,10 @@ function makeInput({
   showDocumentBounds = true,
   showSourcePanel = true,
   showInspectorPanel = true,
+  showObjectsPanel = true,
+  showStylesPanel = true,
+  showFiguresPanel = true,
+  showAssistantPanel = false,
   showDevPanel = false,
   snapHapticsEnabled = true,
   updateCanvasSettings = () => undefined,
@@ -1086,6 +1183,10 @@ function makeInput({
   showDocumentBounds?: boolean;
   showSourcePanel?: boolean;
   showInspectorPanel?: boolean;
+  showObjectsPanel?: boolean;
+  showStylesPanel?: boolean;
+  showFiguresPanel?: boolean;
+  showAssistantPanel?: boolean;
   showDevPanel?: boolean;
   snapHapticsEnabled?: boolean;
   updateCanvasSettings?: (patch: { snapHapticsEnabled?: boolean }) => void;
@@ -1125,6 +1226,10 @@ function makeInput({
     showDocumentBounds,
     showSourcePanel,
     showInspectorPanel,
+    showObjectsPanel,
+    showStylesPanel,
+    showFiguresPanel,
+    showAssistantPanel,
     showDevPanel,
     updateCanvasSettings,
     dispatch,

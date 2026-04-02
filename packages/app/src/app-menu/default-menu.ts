@@ -528,6 +528,21 @@ export const APP_MENU_DEFINITION = [
       },
       {
         kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.TOGGLE_OBJECTS_PANEL,
+        label: "Objects Panel"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.TOGGLE_STYLES_PANEL,
+        label: "Styles Panel"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.TOGGLE_FIGURES_PANEL,
+        label: "Figures Panel"
+      },
+      {
+        kind: "command",
         commandId: APP_MENU_COMMAND_IDS.TOGGLE_ASSISTANT_PANEL,
         label: "Assistant Panel",
         platforms: ["desktop"]
@@ -537,6 +552,34 @@ export const APP_MENU_DEFINITION = [
         commandId: APP_MENU_COMMAND_IDS.INTERRUPT_ASSISTANT_TURN,
         label: "Interrupt Assistant",
         platforms: ["desktop"]
+      },
+      { kind: "separator" },
+      {
+        kind: "submenu",
+        label: "Layout",
+        items: [
+          {
+            kind: "command",
+            commandId: APP_MENU_COMMAND_IDS.RESET_LAYOUT,
+            label: "Reset Layout"
+          },
+          { kind: "separator" },
+          {
+            kind: "command",
+            commandId: APP_MENU_COMMAND_IDS.LAYOUT_PRESET_SOURCE_ON_TOP,
+            label: "Source on Top"
+          },
+          {
+            kind: "command",
+            commandId: APP_MENU_COMMAND_IDS.LAYOUT_PRESET_CANVAS_ONLY,
+            label: "Canvas Only"
+          },
+          {
+            kind: "command",
+            commandId: APP_MENU_COMMAND_IDS.LAYOUT_PRESET_WIDE_INSPECTOR,
+            label: "Wide Inspector"
+          }
+        ]
       },
       { kind: "separator" },
       {

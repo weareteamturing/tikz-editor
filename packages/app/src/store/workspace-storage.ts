@@ -1,8 +1,10 @@
 import { getActiveEditorPlatform } from "../platform/current";
 import type { DocumentFileRef } from "./types";
 import { WORKSPACE_VERSION, type WorkspaceSeed } from "./reducer";
+import type { IJsonModel } from "flexlayout-react";
 
 const WORKSPACE_STORAGE_KEY = "tikz-editor:workspace";
+const DOCK_LAYOUT_STORAGE_KEY = "tikz-editor:dock-layout";
 
 type PersistedWorkspaceV1 = {
   workspaceVersion: number;
@@ -156,6 +158,29 @@ export function saveWorkspace(state: {
   };
   try {
     getActiveEditorPlatform().persistence.save(WORKSPACE_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // Ignore persistence failures.
+  }
+}
+
+// ── Dock layout persistence ───────────────────────────────────────────────────
+
+export function loadDockLayout(): IJsonModel | null {
+  try {
+    const raw = getActiveEditorPlatform().persistence.load(DOCK_LAYOUT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as IJsonModel;
+    // Basic sanity check
+    if (!parsed || typeof parsed !== "object" || !parsed.layout) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function saveDockLayout(json: IJsonModel): void {
+  try {
+    getActiveEditorPlatform().persistence.save(DOCK_LAYOUT_STORAGE_KEY, JSON.stringify(json));
   } catch {
     // Ignore persistence failures.
   }

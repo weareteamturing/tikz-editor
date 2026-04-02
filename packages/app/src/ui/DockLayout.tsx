@@ -1,0 +1,484 @@
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Layout, Model, Actions, DockLocation, type IJsonModel, type TabNode, type Action } from "flexlayout-react";
+import { useEditorStore } from "../store/store";
+import { getActiveEditorPlatform } from "../platform/current";
+import { loadDockLayout, saveDockLayout } from "../store/workspace-storage";
+import { SourcePanel } from "./SourcePanel";
+import { CanvasPanel } from "./CanvasPanel";
+import { FigureNavigator } from "./FigureNavigator";
+import { InspectorPanel } from "./InspectorPanel";
+import { ObjectsPanel } from "./ObjectsPanel";
+import { StylesPanel } from "./StylesPanel";
+import { AssistantPanel } from "./AssistantPanel";
+import type { AssistantComposerImageAttachment } from "./assistant-image-attachments";
+import type { SvgRenderModel } from "tikz-editor/svg";
+import "flexlayout-react/style/gray.css";
+import "./DockLayout.css";
+
+// ── Panel IDs ─────────────────────────────────────────────────────────────────
+
+export const PANEL_IDS = {
+  source: "source",
+  canvas: "canvas",
+  figureNavigator: "figure-navigator",
+  inspector: "inspector",
+  objects: "objects",
+  styles: "styles",
+  assistant: "assistant",
+} as const;
+
+// ── Default layout ────────────────────────────────────────────────────────────
+
+function isAssistantAvailable(): boolean {
+  return typeof getActiveEditorPlatform().assistant?.startTurn === "function";
+}
+
+function buildDefaultLayout(): IJsonModel {
+  const rightTabs: Array<{ type: "tab"; id: string; name: string; component: string; enableClose?: boolean }> = [
+    { type: "tab", id: PANEL_IDS.inspector, name: "Inspector", component: "inspector" },
+    { type: "tab", id: PANEL_IDS.objects, name: "Objects", component: "objects" },
+    { type: "tab", id: PANEL_IDS.styles, name: "Styles", component: "styles" },
+  ];
+  if (isAssistantAvailable()) {
+    rightTabs.push({ type: "tab", id: PANEL_IDS.assistant, name: "Assistant", component: "assistant" });
+  }
+
+  return {
+    global: {
+      tabEnableClose: true,
+      tabEnableRename: false,
+      tabEnablePopout: false,
+      splitterSize: 4,
+      splitterExtra: 4,
+      tabSetEnableMaximize: false,
+      tabSetEnableSingleTabStretch: true,
+      tabSetMinWidth: 150,
+      tabSetMinHeight: 100,
+    },
+    layout: {
+      type: "row",
+      children: [
+        {
+          type: "tabset",
+          weight: 30,
+          id: "source-tabset",
+          children: [
+            { type: "tab", id: PANEL_IDS.source, name: "Source", component: "source" },
+          ],
+        },
+        {
+          type: "tabset",
+          weight: 50,
+          id: "canvas-tabset",
+          children: [
+            { type: "tab", id: PANEL_IDS.canvas, name: "Canvas", component: "canvas", enableClose: false },
+          ],
+        },
+        {
+          type: "tabset",
+          weight: 20,
+          id: "right-tabset",
+          children: rightTabs,
+        },
+      ],
+    },
+  };
+}
+
+/** Strip assistant tabs if assistant is not available on this platform. */
+function sanitizeLayout(json: IJsonModel): IJsonModel {
+  const normalizedGlobal = {
+    ...(json.global ?? {}),
+    tabSetEnableMaximize: false
+  };
+  const jsonWithNormalizedGlobal: IJsonModel = {
+    ...json,
+    global: normalizedGlobal
+  };
+
+  if (isAssistantAvailable()) return jsonWithNormalizedGlobal;
+
+  function stripAssistantTabs(node: any): any {
+    if (node.type === "tab" && node.component === "assistant") return null;
+    if (node.children) {
+      node = { ...node, children: node.children.map(stripAssistantTabs).filter(Boolean) };
+    }
+    return node;
+  }
+  return { ...jsonWithNormalizedGlobal, layout: stripAssistantTabs(jsonWithNormalizedGlobal.layout) };
+}
+
+// ── Preset layouts ────────────────────────────────────────────────────────────
+
+function buildSourceOnTopLayout(): IJsonModel {
+  const rightTabs: Array<{ type: "tab"; id: string; name: string; component: string; enableClose?: boolean }> = [
+    { type: "tab", id: PANEL_IDS.inspector, name: "Inspector", component: "inspector" },
+    { type: "tab", id: PANEL_IDS.objects, name: "Objects", component: "objects" },
+    { type: "tab", id: PANEL_IDS.styles, name: "Styles", component: "styles" },
+  ];
+  if (isAssistantAvailable()) {
+    rightTabs.push({ type: "tab", id: PANEL_IDS.assistant, name: "Assistant", component: "assistant" });
+  }
+
+  return {
+    global: buildDefaultLayout().global,
+    layout: {
+      type: "row",
+      children: [
+        {
+          type: "row",
+          weight: 75,
+          children: [
+            {
+              type: "tabset",
+              weight: 40,
+              id: "source-tabset",
+              children: [
+                { type: "tab", id: PANEL_IDS.source, name: "Source", component: "source" },
+              ],
+            },
+            {
+              type: "tabset",
+              weight: 60,
+              id: "canvas-tabset",
+              children: [
+                { type: "tab", id: PANEL_IDS.canvas, name: "Canvas", component: "canvas", enableClose: false },
+                { type: "tab", id: PANEL_IDS.figureNavigator, name: "Figures", component: "figure-navigator" },
+              ],
+            },
+          ],
+        },
+        {
+          type: "tabset",
+          weight: 25,
+          id: "right-tabset",
+          children: rightTabs,
+        },
+      ],
+    },
+  };
+}
+
+function buildCanvasOnlyLayout(): IJsonModel {
+  return {
+    global: buildDefaultLayout().global,
+    layout: {
+      type: "row",
+      children: [
+        {
+          type: "tabset",
+          weight: 100,
+          id: "canvas-tabset",
+          children: [
+            { type: "tab", id: PANEL_IDS.canvas, name: "Canvas", component: "canvas", enableClose: false },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+function buildWideInspectorLayout(): IJsonModel {
+  const rightTabs: Array<{ type: "tab"; id: string; name: string; component: string; enableClose?: boolean }> = [
+    { type: "tab", id: PANEL_IDS.inspector, name: "Inspector", component: "inspector" },
+    { type: "tab", id: PANEL_IDS.objects, name: "Objects", component: "objects" },
+    { type: "tab", id: PANEL_IDS.styles, name: "Styles", component: "styles" },
+  ];
+  if (isAssistantAvailable()) {
+    rightTabs.push({ type: "tab", id: PANEL_IDS.assistant, name: "Assistant", component: "assistant" });
+  }
+
+  return {
+    global: buildDefaultLayout().global,
+    layout: {
+      type: "row",
+      children: [
+        {
+          type: "tabset",
+          weight: 50,
+          id: "canvas-tabset",
+          children: [
+            { type: "tab", id: PANEL_IDS.canvas, name: "Canvas", component: "canvas", enableClose: false },
+            { type: "tab", id: PANEL_IDS.source, name: "Source", component: "source" },
+            { type: "tab", id: PANEL_IDS.figureNavigator, name: "Figures", component: "figure-navigator" },
+          ],
+        },
+        {
+          type: "tabset",
+          weight: 50,
+          id: "right-tabset",
+          children: rightTabs,
+        },
+      ],
+    },
+  };
+}
+
+export const LAYOUT_PRESETS = {
+  default: buildDefaultLayout,
+  sourceOnTop: buildSourceOnTopLayout,
+  canvasOnly: buildCanvasOnlyLayout,
+  wideInspector: buildWideInspectorLayout,
+} as const;
+
+// ── Sync helpers ──────────────────────────────────────────────────────────────
+
+function syncLayoutStateToStore(model: Model, dispatch: (action: any) => void) {
+  const sourceVisible = model.getNodeById(PANEL_IDS.source) != null;
+  const inspectorVisible = model.getNodeById(PANEL_IDS.inspector) != null;
+  const objectsVisible = model.getNodeById(PANEL_IDS.objects) != null;
+  const stylesVisible = model.getNodeById(PANEL_IDS.styles) != null;
+  const figuresVisible = model.getNodeById(PANEL_IDS.figureNavigator) != null;
+  const assistantVisible = model.getNodeById(PANEL_IDS.assistant) != null;
+
+  // Determine active right sidebar tab
+  let activeRightTab: "inspector" | "objects" | "styles" | "assistant" = "inspector";
+  const rightPanelIds = ["inspector", "objects", "styles", "assistant"] as const;
+  for (const id of rightPanelIds) {
+    const node = model.getNodeById(id);
+    if (node && node.getParent()) {
+      const parent = node.getParent()!;
+      if ("getSelectedNode" in parent) {
+        const selected = (parent as any).getSelectedNode();
+        if (selected && selected.getId() === id) {
+          activeRightTab = id;
+          break;
+        }
+      }
+    }
+  }
+
+  dispatch({
+    type: "SYNC_LAYOUT_STATE",
+    sourceVisible,
+    inspectorVisible,
+    objectsVisible,
+    stylesVisible,
+    figuresVisible,
+    assistantVisible,
+    activeRightTab,
+  });
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export type DockLayoutProps = {
+  repeatPreviewModel: SvgRenderModel | null;
+  onSubmitPrompt: (
+    prompt: string,
+    model: string | null,
+    attachments: AssistantComposerImageAttachment[]
+  ) => Promise<void>;
+  onInterruptTurn: () => Promise<void>;
+};
+
+/** Ref handle exposed to allow external code to manipulate the layout model. */
+export type DockLayoutHandle = {
+  getModel(): Model;
+  togglePanel(panelId: string): void;
+  applyPreset(preset: keyof typeof LAYOUT_PRESETS): void;
+  resetLayout(): void;
+};
+
+// Module-level ref so editor commands can access the handle without prop drilling.
+let activeDockHandle: DockLayoutHandle | null = null;
+
+export function getDockLayoutHandle(): DockLayoutHandle | null {
+  return activeDockHandle;
+}
+
+function createInitialModel(): Model {
+  const persisted = loadDockLayout();
+  const json = persisted ? sanitizeLayout(persisted) : buildDefaultLayout();
+  try {
+    return Model.fromJson(json);
+  } catch {
+    return Model.fromJson(buildDefaultLayout());
+  }
+}
+
+export function DockLayout({ repeatPreviewModel, onSubmitPrompt, onInterruptTurn }: DockLayoutProps) {
+  const dispatch = useEditorStore((s) => s.dispatch);
+  const [model, setModel] = useState(createInitialModel);
+
+  // Factory — renders panel content for each tab
+  const factory = useCallback(
+    (node: TabNode) => {
+      const component = node.getComponent();
+      switch (component) {
+        case "source":
+          return (
+            <Suspense fallback={<div style={{ display: "grid", placeItems: "center", height: "100%" }}>Loading source editor…</div>}>
+              <SourcePanel />
+            </Suspense>
+          );
+        case "canvas":
+          return (
+            <Suspense fallback={<div style={{ display: "grid", placeItems: "center", height: "100%" }}>Loading canvas…</div>}>
+              <CanvasPanel repeatPreviewModel={repeatPreviewModel} />
+            </Suspense>
+          );
+        case "figure-navigator":
+          return (
+            <Suspense fallback={null}>
+              <FigureNavigator />
+            </Suspense>
+          );
+        case "inspector":
+          return <InspectorPanel />;
+        case "objects":
+          return <ObjectsPanel />;
+        case "styles":
+          return <StylesPanel />;
+        case "assistant":
+          return <AssistantPanel onSubmitPrompt={onSubmitPrompt} onInterruptTurn={onInterruptTurn} />;
+        default:
+          return <div>Unknown panel: {component}</div>;
+      }
+    },
+    [repeatPreviewModel, onSubmitPrompt, onInterruptTurn]
+  );
+
+  // On model change: persist + sync to Zustand
+  const onModelChange = useCallback(
+    (_model: Model, _action: Action) => {
+      saveDockLayout(_model.toJson());
+      syncLayoutStateToStore(_model, dispatch);
+    },
+    [dispatch]
+  );
+
+  // Expose handle. We use a ref to always point to the latest model via closure,
+  // so that handle identity stays stable but always operates on current model.
+  const modelRef = useRef(model);
+  modelRef.current = model;
+
+  const setModelRef = useRef(setModel);
+  setModelRef.current = setModel;
+
+  const dispatchRef = useRef(dispatch);
+  dispatchRef.current = dispatch;
+
+  const handle = useMemo<DockLayoutHandle>(() => ({
+    getModel: () => modelRef.current,
+    togglePanel(panelId: string) {
+      const m = modelRef.current;
+      const existing = m.getNodeById(panelId);
+      if (existing) {
+        m.doAction(Actions.deleteTab(panelId));
+      } else {
+        // Choose best target tabset and dock location for re-adding
+        let targetTabset: string;
+        let dockLocation = DockLocation.CENTER;
+        if (panelId === "source") {
+          targetTabset = "source-tabset";
+        } else if (panelId === PANEL_IDS.figureNavigator) {
+          targetTabset = "canvas-tabset";
+          dockLocation = DockLocation.BOTTOM;
+        } else {
+          targetTabset = "right-tabset";
+        }
+        const target = m.getNodeById(targetTabset);
+        const actualTarget = target ? targetTabset : m.getFirstTabSet().getId();
+        const nameMap: Record<string, string> = {
+          source: "Source",
+          canvas: "Canvas",
+          "figure-navigator": "Figures",
+          inspector: "Inspector",
+          objects: "Objects",
+          styles: "Styles",
+          assistant: "Assistant",
+        };
+        const added = m.doAction(
+          Actions.addNode(
+            { type: "tab", id: panelId, name: nameMap[panelId] ?? panelId, component: panelId },
+            actualTarget,
+            dockLocation,
+            -1
+          )
+        );
+        // For figure-navigator docked below canvas, use a small weight
+        if (added && panelId === PANEL_IDS.figureNavigator) {
+          const figTabset = m.getNodeById(PANEL_IDS.figureNavigator)?.getParent();
+          if (figTabset) {
+            m.doAction(Actions.updateNodeAttributes(figTabset.getId(), { weight: 15 }));
+            const canvasTs = m.getNodeById("canvas-tabset");
+            if (canvasTs) m.doAction(Actions.updateNodeAttributes("canvas-tabset", { weight: 85 }));
+          }
+        }
+      }
+      saveDockLayout(m.toJson());
+      syncLayoutStateToStore(m, dispatchRef.current);
+    },
+    applyPreset(preset: keyof typeof LAYOUT_PRESETS) {
+      const builder = LAYOUT_PRESETS[preset];
+      const json = builder();
+      const newModel = Model.fromJson(json);
+      saveDockLayout(json);
+      syncLayoutStateToStore(newModel, dispatchRef.current);
+      setModelRef.current(newModel);
+    },
+    resetLayout() {
+      this.applyPreset("default");
+    },
+  }), []); // stable — uses refs internally
+
+  useEffect(() => {
+    activeDockHandle = handle;
+    syncLayoutStateToStore(model, dispatch);
+    return () => {
+      if (activeDockHandle === handle) activeDockHandle = null;
+    };
+  }, [handle, model, dispatch]);
+
+  // Auto-show/hide FigureNavigator based on figure count
+  const figureCount = useEditorStore((s) => s.snapshot.figures.length);
+  const prevFigureCountRef = useRef(figureCount);
+  useEffect(() => {
+    const prev = prevFigureCountRef.current;
+    prevFigureCountRef.current = figureCount;
+    const m = modelRef.current;
+    const figTabExists = m.getNodeById(PANEL_IDS.figureNavigator) != null;
+
+    if (figureCount > 1 && !figTabExists && prev <= 1) {
+      // Multi-figure document — auto-open below canvas with small height
+      const canvasTabset = m.getNodeById("canvas-tabset");
+      const target = canvasTabset ? "canvas-tabset" : m.getFirstTabSet().getId();
+      const added = m.doAction(
+        Actions.addNode(
+          { type: "tab", id: PANEL_IDS.figureNavigator, name: "Figures", component: "figure-navigator" },
+          target,
+          DockLocation.BOTTOM,
+          -1
+        )
+      );
+      // Shrink the new tabset so it doesn't take half the space
+      if (added) {
+        const figTabset = m.getNodeById(PANEL_IDS.figureNavigator)?.getParent();
+        if (figTabset) {
+          m.doAction(Actions.updateNodeAttributes(figTabset.getId(), { weight: 15 }));
+          // Also bump the canvas tabset weight to keep it dominant
+          if (canvasTabset) {
+            m.doAction(Actions.updateNodeAttributes("canvas-tabset", { weight: 85 }));
+          }
+        }
+      }
+      saveDockLayout(m.toJson());
+      syncLayoutStateToStore(m, dispatchRef.current);
+    } else if (figureCount <= 1 && figTabExists) {
+      // Single-figure — auto-close, including startup with a persisted/open figures tab
+      m.doAction(Actions.deleteTab(PANEL_IDS.figureNavigator));
+      saveDockLayout(m.toJson());
+      syncLayoutStateToStore(m, dispatchRef.current);
+    }
+  }, [figureCount]);
+
+  return (
+    <Layout
+      model={model}
+      factory={factory}
+      onModelChange={onModelChange}
+      realtimeResize
+    />
+  );
+}
