@@ -79,14 +79,53 @@ The repository includes `pgf-docs/`, a copy of the PGF manual source files used 
 
 ## Profiling
 
-Performance profiling scripts are in `apps/web/profiling/`. Run from `apps/web/`:
+Performance profiling is organized under `apps/web/profiling/` and exposed through scripts instead of ad hoc Playwright commands.
+
+Run from the repo root:
 
 ```bash
-npx playwright test --config profiling/playwright.config.ts profiling/profile-paper-drag.spec.ts
+npm run profile:web
+npm run profile:web -- --scenario paper-drag
+npm run profile:web -- --category canvas-edit
 ```
 
-Set `TIKZ_PROFILE_VERBOSE=1` for verbose output. Analyze profiles with:
+Run from `apps/web/` if you want the app-local entrypoint instead:
 
 ```bash
-node scripts/analyze-cpuprofile.mjs apps/web/profiling/traces/paper-drag-visible.cpuprofile
+npm run profile
+npm run profile -- --scenario scope-edit
+npm run profile -- --category paper
+```
+
+Supported scenario ids:
+
+- `actions`
+- `basic-drag`
+- `paper-selection`
+- `paper-drag`
+- `paper-color`
+- `scope-edit`
+- `dense-path-edit`
+- `path-tool`
+
+Supported categories:
+
+- `actions`
+- `basic-drag`
+- `paper`
+- `canvas-edit`
+
+Artifacts are written to `apps/web/profiling/traces/`:
+
+- `<scenario-id>-<variant-id>.cpuprofile`
+- `<scenario-id>-report.json`
+
+Set `TIKZ_PROFILE_VERBOSE=1` for verbose scenario logging.
+
+Analyze or compare profiles:
+
+```bash
+npm run profile:web:analyze -- apps/web/profiling/traces/paper-drag-visible.cpuprofile --dist apps/web/dist
+npm run profile:web:compare -- apps/web/profiling/traces/paper-drag-visible.cpuprofile apps/web/profiling/traces/paper-drag-hidden-both-panels.cpuprofile --dist apps/web/dist --app-only
+npm run profile:web:compare-report -- apps/web/profiling/traces/paper-drag-report.json apps/web/profiling/traces/scope-edit-report.json
 ```

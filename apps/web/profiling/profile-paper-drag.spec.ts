@@ -1,18 +1,16 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
 import { expect, test } from "@playwright/test";
-import { gotoApp, openMenuCommand } from "../e2e/helpers";
+import { gotoApp, openMenuCommand, readActiveFigureId, readFigureCount } from "../e2e/helpers";
 import {
+  PAPER_PATH,
   clearSelection,
   resolvePaperTarget,
   resolveVisibleSamplePointForSelector,
   seedWorkspace,
-  startCDPProfile,
-  stopCDPProfile,
-  TRACES_DIR,
   waitForActiveFigure,
   type PaperTarget
 } from "./helpers";
+import { captureProfileVariant, writeScenarioReport } from "./framework";
+import { getProfilingScenarioById } from "./scenario-registry";
 
 const TARGET_DRAW_LINES = [
   String.raw`\draw[thick,->,magenta] (0.0, 0.0) -- (0.0, 4.5);`,
@@ -47,24 +45,6 @@ type ProbeSnapshot = {
   frameStats: FrameStats;
 };
 
-type ProfileSummary = {
-  label: string;
-  cpuProfilePath: string;
-  dragDxPx: number;
-  dragDyPx: number;
-  metrics: {
-    msToFirstHandleMove: number | null;
-    msToFirstComputing: number | null;
-    msToFirstStatusChange: number | null;
-    finalHandleDeltaPx: { dx: number; dy: number } | null;
-    frameP95Ms: number | null;
-    frameMaxMs: number | null;
-    frameAvgMs: number | null;
-    frameCount: number;
-  };
-  snapshot: ProbeSnapshot;
-};
-
 type DebugState = {
   activeFigureId: string | null;
   figureCount: number;
@@ -76,6 +56,12 @@ type DebugState = {
   handleCount: number;
   statusBarText: string | null;
 };
+
+const MANIFEST = getProfilingScenarioById("paper-drag");
+
+if (!MANIFEST) {
+  throw new Error("Missing profiling manifest for paper-drag.");
+}
 
 
 async function installProbe(page: import("@playwright/test").Page, targetSourceId: string): Promise<void> {
@@ -405,13 +391,7 @@ async function performDrag(
   await page.mouse.up();
 }
 
-function summarizeSnapshot(
-  label: string,
-  cpuProfilePath: string,
-  snapshot: ProbeSnapshot,
-  dragDxPx: number,
-  dragDyPx: number
-): ProfileSummary {
+function summarizeSnapshot(snapshot: ProbeSnapshot, dragDxPx: number, dragDyPx: number) {
   const baselineHandle = snapshot.records.find((record) => record.type === "endpoint-handle-center");
   const baselineX = baselineHandle?.x != null ? Number(baselineHandle.x) : null;
   const baselineY = baselineHandle?.y != null ? Number(baselineHandle.y) : null;
@@ -437,10 +417,6 @@ function summarizeSnapshot(
   const finalHandle = snapshot.endpointHandleCenter;
 
   return {
-    label,
-    cpuProfilePath,
-    dragDxPx,
-    dragDyPx,
     metrics: {
       msToFirstHandleMove: firstHandleMove ? Number(firstHandleMove.t.toFixed(2)) : null,
       msToFirstComputing: firstComputing ? Number(firstComputing.t.toFixed(2)) : null,
@@ -457,11 +433,16 @@ function summarizeSnapshot(
       frameAvgMs: snapshot.frameStats.avgMs != null ? Number(snapshot.frameStats.avgMs.toFixed(2)) : null,
       frameCount: snapshot.frameStats.count
     },
-    snapshot
+    frameStats: snapshot.frameStats,
+    probeSnapshot: {
+      ...snapshot,
+      dragDxPx,
+      dragDyPx
+    }
   };
 }
 
-test("profile paper drag for the magenta axis endpoint", async ({ page }) => {
+test("profile paper drag for the magenta axis endpoint", async ({ page }, testInfo) => {
   const target = resolvePaperTarget(TARGET_DRAW_LINES);
   if (VERBOSE_PROFILE_LOGS) {
     console.log(
@@ -490,7 +471,7 @@ test("profile paper drag for the magenta axis endpoint", async ({ page }) => {
     console.log(`[paper-drag] target-point=${JSON.stringify(pathPoint)}`);
   }
 
-  const summaries: ProfileSummary[] = [];
+  const variants = [];
 
   async function prepareSelectedPath() {
     const currentPathPoint = await resolveVisibleSamplePointForSelector(page, targetPathSelector);
@@ -503,45 +484,44 @@ test("profile paper drag for the magenta axis endpoint", async ({ page }) => {
     await waitForEndpointHandles(page, target.targetSourceId);
   }
 
-  async function runScenario(label: string, filename: string) {
+  async function runScenario(
+    variantId: string,
+    label: string,
+    dimensions: Record<string, string | number | boolean | null>
+  ) {
     await prepareSelectedPath();
     const handlePoint = await resolveEndpointHandlePoint(page, target.targetSourceId);
     if (VERBOSE_PROFILE_LOGS) {
       console.log(`[paper-drag] ${label}-handle-point=${JSON.stringify(handlePoint)}`);
     }
     await resetProbe(page, label);
-    const client = await startCDPProfile(page);
-    await performDrag(page, handlePoint, DRAG_DX_PX, DRAG_DY_PX);
-    await page.waitForTimeout(900);
-    summaries.push(
-      summarizeSnapshot(
-        label,
-        await stopCDPProfile(client, filename),
-        await readProbe(page),
-        DRAG_DX_PX,
-        DRAG_DY_PX
-      )
-    );
+    variants.push(await captureProfileVariant({
+      page,
+      scenarioId: MANIFEST.id,
+      variantId,
+      label,
+      dimensions,
+      run: async () => {
+        await performDrag(page, handlePoint, DRAG_DX_PX, DRAG_DY_PX);
+        await page.waitForTimeout(900);
+        const snapshot = await readProbe(page);
+        return summarizeSnapshot(snapshot, DRAG_DX_PX, DRAG_DY_PX);
+      }
+    }));
   }
 
-  await runScenario("drag-visible", "paper-drag-visible.cpuprofile");
+  await runScenario("visible", "drag-visible", {
+    sourcePanelVisible: true,
+    inspectorPanelVisible: true
+  });
 
   await openMenuCommand(page, "view", "view.toggle-source-panel");
   await openMenuCommand(page, "view", "view.toggle-inspector-panel");
-  await runScenario("drag-hidden-both-panels", "paper-drag-hidden-both-panels.cpuprofile");
+  await runScenario("hidden-both-panels", "drag-hidden-both-panels", {
+    sourcePanelVisible: false,
+    inspectorPanelVisible: false
+  });
 
-  const reportPath = path.join(TRACES_DIR, "paper-drag-report.json");
-  fs.mkdirSync(TRACES_DIR, { recursive: true });
-  const report = {
-    paperPath: PAPER_PATH,
-    targetLine: target.targetLine,
-    activeFigureId: target.activeFigureId,
-    activeFigureNumber: target.activeFigureNumber,
-    targetSourceId: target.targetSourceId,
-    dragDxPx: DRAG_DX_PX,
-    dragDyPx: DRAG_DY_PX,
-    summaries
-  };
-  fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), "utf8");
+  const reportPath = writeScenarioReport(MANIFEST, testInfo, variants);
   console.log(`[paper-drag] wrote ${reportPath}`);
 });

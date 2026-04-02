@@ -1,24 +1,21 @@
-/**
- * CDP profiling for editor actions (menu commands).
- *
- * Run from apps/web/:
- *   npx playwright test --config profiling/playwright.config.ts profiling/profile-actions.spec.ts
- *
- * Produces .cpuprofile files in apps/web/profiling/traces/ openable in
- * Chrome DevTools → Performance → Load profile.
- */
 import { expect, test } from "@playwright/test";
 import {
   canvasViewport,
   clickHitRegion,
   gotoApp,
   openMenuCommand,
-  openMenuSection,
   resetStorageBeforeNavigation,
   setSource,
   waitForHitRegions
 } from "../e2e/helpers";
-import { startCDPProfile, stopCDPProfile } from "./helpers";
+import { captureProfileVariant, readSourceRevision, writeScenarioReport } from "./framework";
+import { getProfilingScenarioById } from "./scenario-registry";
+
+const MANIFEST = getProfilingScenarioById("actions");
+
+if (!MANIFEST) {
+  throw new Error("Missing profiling manifest for actions.");
+}
 
 const SIMPLE_FIGURE = String.raw`\begin{tikzpicture}
 \node[draw] at (2,2) {Hello};
@@ -30,7 +27,7 @@ test.beforeEach(async ({ page }) => {
   await resetStorageBeforeNavigation(page);
 });
 
-async function selectNode(page: import("@playwright/test").Page) {
+async function prepareSelectedNode(page: import("@playwright/test").Page): Promise<void> {
   await gotoApp(page, "/editor/");
   await setSource(page, SIMPLE_FIGURE);
   await page.getByRole("button", { name: "Select" }).click();
@@ -39,34 +36,104 @@ async function selectNode(page: import("@playwright/test").Page) {
   await expect(page.locator("[data-handle-kind]").first()).toBeVisible();
 }
 
-test("profile: rotate right 90° on a node", async ({ page }) => {
-  await selectNode(page);
-  const client = await startCDPProfile(page);
-  for (let i = 0; i < REPETITIONS; i++) {
-    await openMenuCommand(page, "edit", "edit.rotate-right-90");
-    await page.waitForTimeout(300);
-  }
-  await stopCDPProfile(client, "action-rotate-right-90.cpuprofile");
-});
+test("profile action commands", async ({ page}, testInfo) => {
+  const variants = [];
 
-test("profile: nudge right on a node", async ({ page }) => {
-  await selectNode(page);
-  await canvasViewport(page).focus();
-  const client = await startCDPProfile(page);
-  for (let i = 0; i < REPETITIONS; i++) {
-    await page.keyboard.press("ArrowRight");
-    await page.waitForTimeout(300);
-  }
-  await stopCDPProfile(client, "action-nudge-right.cpuprofile");
-});
+  await prepareSelectedNode(page);
+  variants.push(await captureProfileVariant({
+    page,
+    scenarioId: MANIFEST.id,
+    variantId: "rotate-right-90",
+    label: "Rotate Right 90°",
+    dimensions: {
+      commandId: "edit.rotate-right-90",
+      interaction: "menu-command"
+    },
+    run: async () => {
+      const sourceRevisionBefore = await readSourceRevision(page);
+      for (let index = 0; index < REPETITIONS; index += 1) {
+        await openMenuCommand(page, "edit", "edit.rotate-right-90");
+        await page.waitForTimeout(300);
+      }
+      const sourceRevisionAfter = await readSourceRevision(page);
+      return {
+        metrics: {
+          repetitions: REPETITIONS,
+          sourceRevisionDelta: sourceRevisionAfter - sourceRevisionBefore
+        },
+        frameStats: null,
+        probeSnapshot: {
+          sourceRevisionBefore,
+          sourceRevisionAfter
+        }
+      };
+    }
+  }));
 
-test("profile: menu open/close overhead (no action)", async ({ page }) => {
-  await selectNode(page);
-  const client = await startCDPProfile(page);
-  for (let i = 0; i < REPETITIONS; i++) {
-    await openMenuSection(page, "edit");
-    await page.keyboard.press("Escape");
-    await page.waitForTimeout(300);
-  }
-  await stopCDPProfile(client, "action-menu-overhead.cpuprofile");
+  await prepareSelectedNode(page);
+  variants.push(await captureProfileVariant({
+    page,
+    scenarioId: MANIFEST.id,
+    variantId: "nudge-right",
+    label: "Nudge Right",
+    dimensions: {
+      key: "ArrowRight",
+      interaction: "keyboard"
+    },
+    run: async () => {
+      await canvasViewport(page).focus();
+      const sourceRevisionBefore = await readSourceRevision(page);
+      for (let index = 0; index < REPETITIONS; index += 1) {
+        await page.keyboard.press("ArrowRight");
+        await page.waitForTimeout(300);
+      }
+      const sourceRevisionAfter = await readSourceRevision(page);
+      return {
+        metrics: {
+          repetitions: REPETITIONS,
+          sourceRevisionDelta: sourceRevisionAfter - sourceRevisionBefore
+        },
+        frameStats: null,
+        probeSnapshot: {
+          sourceRevisionBefore,
+          sourceRevisionAfter
+        }
+      };
+    }
+  }));
+
+  await prepareSelectedNode(page);
+  variants.push(await captureProfileVariant({
+    page,
+    scenarioId: MANIFEST.id,
+    variantId: "menu-overhead",
+    label: "Menu Open/Close Overhead",
+    dimensions: {
+      interaction: "menu-toggle",
+      mutatesSource: false
+    },
+    run: async () => {
+      const sourceRevisionBefore = await readSourceRevision(page);
+      for (let index = 0; index < REPETITIONS; index += 1) {
+        await page.getByTestId("menu-section-edit").click();
+        await page.keyboard.press("Escape");
+        await page.waitForTimeout(300);
+      }
+      const sourceRevisionAfter = await readSourceRevision(page);
+      return {
+        metrics: {
+          repetitions: REPETITIONS,
+          sourceRevisionDelta: sourceRevisionAfter - sourceRevisionBefore
+        },
+        frameStats: null,
+        probeSnapshot: {
+          sourceRevisionBefore,
+          sourceRevisionAfter
+        }
+      };
+    }
+  }));
+
+  const reportPath = writeScenarioReport(MANIFEST, testInfo, variants);
+  console.log(`[profiling] wrote ${reportPath}`);
 });

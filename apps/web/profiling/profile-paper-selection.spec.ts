@@ -1,18 +1,16 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
 import { expect, test } from "@playwright/test";
 import { gotoApp, openMenuCommand, readActiveFigureId, readFigureCount } from "../e2e/helpers";
 import {
+  PAPER_PATH,
   clearSelection,
   resolvePaperTarget,
   resolveVisibleSamplePointForSelector,
   seedWorkspace,
-  startCDPProfile,
-  stopCDPProfile,
-  TRACES_DIR,
   waitForActiveFigure,
   type PaperTarget
 } from "./helpers";
+import { captureProfileVariant, writeScenarioReport } from "./framework";
+import { getProfilingScenarioById } from "./scenario-registry";
 
 const VERBOSE_PROFILE_LOGS = process.env.TIKZ_PROFILE_VERBOSE === "1";
 const TARGET_DRAW_LINES = [
@@ -36,19 +34,11 @@ type ProbeSnapshot = {
   sourcePanelVisible: boolean;
 };
 
-type ProfileSummary = {
-  label: string;
-  cpuProfilePath: string;
-  metrics: {
-    msToSelectionRequest: number | null;
-    msToFirstHighlight: number | null;
-    msToFirstSelection: number | null;
-    msToFirstScroll: number | null;
-    msToFirstHandle: number | null;
-  };
-  snapshot: ProbeSnapshot;
-};
+const MANIFEST = getProfilingScenarioById("paper-selection");
 
+if (!MANIFEST) {
+  throw new Error("Missing profiling manifest for paper-selection.");
+}
 
 async function installProbe(page: import("@playwright/test").Page): Promise<void> {
   await page.evaluate(() => {
@@ -300,15 +290,13 @@ async function waitForTargetFigureReady(
 }
 
 
-function summarizeSnapshot(label: string, cpuProfilePath: string, snapshot: ProbeSnapshot): ProfileSummary {
+function summarizeSnapshot(snapshot: ProbeSnapshot) {
   const firstOfType = (type: string, predicate?: (record: ProbeRecord) => boolean): number | null => {
     const match = snapshot.records.find((record) => record.type === type && (predicate ? predicate(record) : true));
     return match ? Number(match.t.toFixed(2)) : null;
   };
 
   return {
-    label,
-    cpuProfilePath,
     metrics: {
       msToSelectionRequest: firstOfType("source-selection-request"),
       msToFirstHighlight: firstOfType("highlight-count", (record) => Number(record.highlightCount ?? 0) > 0),
@@ -316,11 +304,12 @@ function summarizeSnapshot(label: string, cpuProfilePath: string, snapshot: Prob
       msToFirstScroll: firstOfType("editor-scroll-event"),
       msToFirstHandle: firstOfType("handle-count", (record) => Number(record.handleCount ?? 0) > 0)
     },
-    snapshot
+    frameStats: null as FrameStats | null,
+    probeSnapshot: snapshot
   };
 }
 
-test("profile paper selection hover vs click", async ({ page }) => {
+test("profile paper selection hover vs click", async ({ page }, testInfo) => {
   const target = resolvePaperTarget(TARGET_DRAW_LINES);
   if (VERBOSE_PROFILE_LOGS) {
     console.log(
@@ -347,46 +336,50 @@ test("profile paper selection hover vs click", async ({ page }) => {
   if (VERBOSE_PROFILE_LOGS) {
     console.log(`[paper-selection] target-point=${JSON.stringify(point)}`);
   }
-  const summaries: ProfileSummary[] = [];
+  const variants = [];
 
   // Hover with source panel visible.
   await page.mouse.move(Math.max(0, point.x - 80), Math.max(0, point.y - 80));
   await page.waitForTimeout(120);
+  const hoverRegion = page.locator(`[data-hit-region-target-id='${target.targetSourceId}']`).first();
   await resetProbe(page, "hover-visible");
-  const hoverClient = await startCDPProfile(page);
-  await page.mouse.move(point.x, point.y, { steps: 4 });
-  await page.waitForFunction(
-    () =>
-      (window as typeof window & {
-        __PW_PROFILE_PROBE__?: { snapshot: () => ProbeSnapshot };
-      }).__PW_PROFILE_PROBE__?.snapshot().records.some(
-        (record) => record.type === "highlight-count" && Number(record.highlightCount ?? 0) > 0
-      ) ?? false
-  );
-  await page.waitForTimeout(250);
-  summaries.push(
-    summarizeSnapshot(
-      "hover-visible",
-      await stopCDPProfile(hoverClient, "paper-selection-hover-visible.cpuprofile"),
-      await readProbe(page)
-    )
-  );
+  variants.push(await captureProfileVariant({
+    page,
+    scenarioId: MANIFEST.id,
+    variantId: "hover-visible",
+    label: "hover-visible",
+    dimensions: {
+      interaction: "hover",
+      sourcePanelVisible: true,
+      inspectorPanelVisible: true
+    },
+    run: async () => {
+      await hoverRegion.dispatchEvent("pointerenter");
+      await page.waitForTimeout(250);
+      return summarizeSnapshot(await readProbe(page));
+    }
+  }));
 
   // Click with source panel visible.
   await clearSelection(page);
   await page.waitForTimeout(100);
   await resetProbe(page, "click-visible");
-  const clickVisibleClient = await startCDPProfile(page);
-  await page.mouse.click(point.x, point.y);
-  await page.waitForTimeout(1_500);
-  await page.waitForTimeout(1_000);
-  summaries.push(
-    summarizeSnapshot(
-      "click-visible",
-      await stopCDPProfile(clickVisibleClient, "paper-selection-click-visible.cpuprofile"),
-      await readProbe(page)
-    )
-  );
+  variants.push(await captureProfileVariant({
+    page,
+    scenarioId: MANIFEST.id,
+    variantId: "click-visible",
+    label: "click-visible",
+    dimensions: {
+      interaction: "click",
+      sourcePanelVisible: true,
+      inspectorPanelVisible: true
+    },
+    run: async () => {
+      await page.mouse.click(point.x, point.y);
+      await page.waitForTimeout(2_500);
+      return summarizeSnapshot(await readProbe(page));
+    }
+  }));
 
   // Click with source panel hidden.
   await openMenuCommand(page, "view", "view.toggle-source-panel");
@@ -401,16 +394,22 @@ test("profile paper selection hover vs click", async ({ page }) => {
   await clearSelection(page);
   await page.waitForTimeout(100);
   await resetProbe(page, "click-hidden-source-panel");
-  const clickHiddenClient = await startCDPProfile(page);
-  await page.mouse.click(pointHiddenSourcePanel.x, pointHiddenSourcePanel.y);
-  await page.waitForTimeout(1_500);
-  summaries.push(
-    summarizeSnapshot(
-      "click-hidden-source-panel",
-      await stopCDPProfile(clickHiddenClient, "paper-selection-click-hidden-source-panel.cpuprofile"),
-      await readProbe(page)
-    )
-  );
+  variants.push(await captureProfileVariant({
+    page,
+    scenarioId: MANIFEST.id,
+    variantId: "click-hidden-source-panel",
+    label: "click-hidden-source-panel",
+    dimensions: {
+      interaction: "click",
+      sourcePanelVisible: false,
+      inspectorPanelVisible: true
+    },
+    run: async () => {
+      await page.mouse.click(pointHiddenSourcePanel.x, pointHiddenSourcePanel.y);
+      await page.waitForTimeout(1_500);
+      return summarizeSnapshot(await readProbe(page));
+    }
+  }));
 
   // Click with both source and inspector panels hidden.
   await openMenuCommand(page, "view", "view.toggle-inspector-panel");
@@ -424,29 +423,25 @@ test("profile paper selection hover vs click", async ({ page }) => {
   await clearSelection(page);
   await page.waitForTimeout(100);
   await resetProbe(page, "click-hidden-both-panels");
-  const clickHiddenBothClient = await startCDPProfile(page);
-  await page.mouse.click(pointHiddenBothPanels.x, pointHiddenBothPanels.y);
-  await page.waitForTimeout(1_500);
-  summaries.push(
-    summarizeSnapshot(
-      "click-hidden-both-panels",
-      await stopCDPProfile(clickHiddenBothClient, "paper-selection-click-hidden-both-panels.cpuprofile"),
-      await readProbe(page)
-    )
-  );
+  variants.push(await captureProfileVariant({
+    page,
+    scenarioId: MANIFEST.id,
+    variantId: "click-hidden-both-panels",
+    label: "click-hidden-both-panels",
+    dimensions: {
+      interaction: "click",
+      sourcePanelVisible: false,
+      inspectorPanelVisible: false
+    },
+    run: async () => {
+      await page.mouse.click(pointHiddenBothPanels.x, pointHiddenBothPanels.y);
+      await page.waitForTimeout(1_500);
+      return summarizeSnapshot(await readProbe(page));
+    }
+  }));
 
-  const report = {
-    paperPath: PAPER_PATH,
-    targetLine: target.targetLine,
-    activeFigureId: target.activeFigureId,
-    activeFigureNumber: target.activeFigureNumber,
-    targetSourceId: target.targetSourceId,
-    summaries
-  };
-  fs.mkdirSync(TRACES_DIR, { recursive: true });
-  const reportPath = path.join(TRACES_DIR, "paper-selection-report.json");
-  fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), "utf8");
+  const reportPath = writeScenarioReport(MANIFEST, testInfo, variants);
   console.log(`[paper-selection] wrote ${reportPath}`);
 
-  expect(summaries).toHaveLength(4);
+  expect(variants).toHaveLength(4);
 });

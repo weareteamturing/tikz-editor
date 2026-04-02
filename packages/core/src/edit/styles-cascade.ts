@@ -37,6 +37,7 @@ import { parseLength } from "../semantic/coords/parse-length.js";
 import { readBalancedBlock, stripEnclosingBraces } from "../semantic/style/option-utils.js";
 import { parseCustomStyleDefinition } from "../semantic/style/custom-styles.js";
 import { parseOptionListRaw } from "../options/parse.js";
+import { incrementProfilingCounter } from "../profiling.js";
 
 export type StylesCascadeDeclarationStatus = "active" | "overridden" | "inactive-default" | "unsupported" | "disabled";
 
@@ -142,6 +143,7 @@ export function buildStylesCascadeModel(
   snapshot: InspectorSnapshot,
   descriptor = getInspectorDescriptor(element, snapshot)
 ): StylesCascadeModel {
+  incrementProfilingCounter("buildStylesCascadeModelCalls");
   const propertyMap = new Map(descriptor.sections.flatMap((section) => section.properties.map((property) => [property.id, property] as const)));
   const addTemplates = buildAddPropertyTemplates(descriptor, element, snapshot.source, snapshot);
   const sections: StylesCascadeSection[] = [];

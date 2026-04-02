@@ -4,6 +4,7 @@ import type { OptionListAst } from "../../options/types.js";
 import type { StyleChainEntry } from "../../semantic/style-chain.js";
 import { normalizeColor, resolveDefineColorModel } from "../../semantic/style/colors.js";
 import { readBalancedBlock, stripEnclosingBraces } from "../../semantic/style/option-utils.js";
+import { incrementProfilingCounter } from "../../profiling.js";
 
 const COLOR_OPTIONS = [
   "none",
@@ -68,6 +69,7 @@ export function resolveColorSyntaxValue(
   colorAliases: ReadonlyMap<string, string>,
   styleChain: readonly StyleChainEntry[] = []
 ): string | null {
+  incrementProfilingCounter("resolveColorSyntaxValueCalls");
   const normalizedKeys = new Set(keys.map((key) => normalizeOptionKey(key)));
   if (normalizedKeys.size === 0) {
     return null;

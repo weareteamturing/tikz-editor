@@ -1,19 +1,16 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
 import { expect, test } from "@playwright/test";
 import { gotoApp, openMenuCommand, readActiveFigureId, readFigureCount } from "../e2e/helpers";
 import {
+  PAPER_PATH,
   clearSelection,
   resolvePaperTarget,
   resolveVisibleSamplePointForSelector,
-  PAPER_PATH,
   seedWorkspace,
-  startCDPProfile,
-  stopCDPProfile,
-  TRACES_DIR,
   waitForActiveFigure,
   type PaperTarget
 } from "./helpers";
+import { captureProfileVariant, writeScenarioReport } from "./framework";
+import { getProfilingScenarioById } from "./scenario-registry";
 
 const TARGET_DRAW_LINE = String.raw`\draw[thick,->,magenta] (0.0, 0.0) -- (0.0, 4.5);`;
 const TARGET_NEXT_COLOR = "green";
@@ -39,21 +36,6 @@ type ProbeSnapshot = {
   };
 };
 
-type ProfileSummary = {
-  label: string;
-  cpuProfilePath: string;
-  metrics: {
-    msToFirstStrokeChange: number | null;
-    msToFirstComputing: number | null;
-    msToFirstStatusChange: number | null;
-    frameP95Ms: number | null;
-    frameMaxMs: number | null;
-    frameAvgMs: number | null;
-    frameCount: number;
-  };
-  snapshot: ProbeSnapshot;
-};
-
 type DebugState = {
   activeFigureId: string | null;
   figureCount: number;
@@ -64,6 +46,12 @@ type DebugState = {
   computingTextCount: number;
   statusBarText: string | null;
 };
+
+const MANIFEST = getProfilingScenarioById("paper-color");
+
+if (!MANIFEST) {
+  throw new Error("Missing profiling manifest for paper-color.");
+}
 
 
 async function installProbe(
@@ -332,20 +320,37 @@ async function prepareSelectedPath(page: import("@playwright/test").Page, target
   const targetPathSelector =
     `path[data-source-id="${target.targetSourceId}"][stroke="#ff00ff"]:not([data-arrow-tip-kind])`;
   const pathPoint = await resolveVisibleSamplePointForSelector(page, targetPathSelector);
+  if (VERBOSE_PROFILE_LOGS) {
+    console.log(`[paper-color] prepareSelectedPath-point=${JSON.stringify(pathPoint)}`);
+  }
   await clearSelection(page);
   await page.waitForTimeout(100);
   await page.mouse.click(pathPoint.x, pathPoint.y);
-  await page.getByRole("button", { name: "Inspector" }).click().catch(() => {});
+  if (VERBOSE_PROFILE_LOGS) {
+    console.log("[paper-color] prepareSelectedPath-clicked");
+  }
   await expect(page.getByRole("button", { name: "Color", exact: true }).first()).toBeVisible();
+  if (VERBOSE_PROFILE_LOGS) {
+    console.log("[paper-color] prepareSelectedPath-color-visible");
+  }
 }
 
 async function performColorChange(page: import("@playwright/test").Page): Promise<void> {
+  if (VERBOSE_PROFILE_LOGS) {
+    console.log("[paper-color] performColorChange-open");
+  }
   await page.getByRole("button", { name: "Color", exact: true }).first().click();
   await expect(page.getByRole("button", { name: "Color green", exact: true })).toBeVisible();
+  if (VERBOSE_PROFILE_LOGS) {
+    console.log("[paper-color] performColorChange-option-visible");
+  }
   await page.getByRole("button", { name: "Color green", exact: true }).click();
+  if (VERBOSE_PROFILE_LOGS) {
+    console.log("[paper-color] performColorChange-option-clicked");
+  }
 }
 
-function summarizeSnapshot(label: string, cpuProfilePath: string, snapshot: ProbeSnapshot): ProfileSummary {
+function summarizeSnapshot(snapshot: ProbeSnapshot) {
   const baselineStroke = snapshot.records.find((record) => record.type === "target-stroke");
   const baselineStrokeValue = baselineStroke?.targetStroke ?? null;
   const baselineStatus = snapshot.records.find((record) => record.type === "status-bar-text");
@@ -362,8 +367,6 @@ function summarizeSnapshot(label: string, cpuProfilePath: string, snapshot: Prob
   );
 
   return {
-    label,
-    cpuProfilePath,
     metrics: {
       msToFirstStrokeChange: firstStrokeChange ? Number(firstStrokeChange.t.toFixed(2)) : null,
       msToFirstComputing: firstComputing ? Number(firstComputing.t.toFixed(2)) : null,
@@ -373,11 +376,12 @@ function summarizeSnapshot(label: string, cpuProfilePath: string, snapshot: Prob
       frameAvgMs: snapshot.frameStats.avgMs != null ? Number(snapshot.frameStats.avgMs.toFixed(2)) : null,
       frameCount: snapshot.frameStats.count
     },
-    snapshot
+    frameStats: snapshot.frameStats,
+    probeSnapshot: snapshot
   };
 }
 
-test("profile paper inspector color change for the magenta axis", async ({ page }) => {
+test("profile paper inspector color change for the magenta axis", async ({ page }, testInfo) => {
   const target = resolvePaperTarget(TARGET_DRAW_LINE);
   if (VERBOSE_PROFILE_LOGS) {
     console.log(
@@ -397,45 +401,56 @@ test("profile paper inspector color change for the magenta axis", async ({ page 
   await installProbe(page, target.targetSourceId);
   await waitForTargetFigureReady(page, target);
 
-  const summaries: ProfileSummary[] = [];
+  const variants = [];
 
-  async function runScenario(label: string, filename: string) {
+  async function runScenario(
+    variantId: string,
+    label: string,
+    dimensions: Record<string, string | number | boolean | null>
+  ) {
+    if (VERBOSE_PROFILE_LOGS) {
+      console.log(`[paper-color] runScenario-start=${label}`);
+    }
     await resetSourceToPaper(page, target.source);
     await waitForTargetFigureReady(page, target);
+    if (VERBOSE_PROFILE_LOGS) {
+      console.log(`[paper-color] runScenario-ready=${label}`);
+    }
     await prepareSelectedPath(page, target);
     await resetProbe(page, label);
-    const client = await startCDPProfile(page);
-    await performColorChange(page);
-    await page.waitForTimeout(1200);
-    const snapshot = await readProbe(page);
-    summaries.push(summarizeSnapshot(label, await stopCDPProfile(client, filename), snapshot));
-    if (VERBOSE_PROFILE_LOGS) {
-      console.log(`[paper-color] ${label}-snapshot=${JSON.stringify({
-        targetStroke: snapshot.targetStroke,
-        targetStrokeComputed: snapshot.targetStrokeComputed,
-        computingTextCount: snapshot.computingTextCount,
-        statusBarText: snapshot.statusBarText,
-        frameStats: snapshot.frameStats
-      })}`);
-    }
+    variants.push(await captureProfileVariant({
+      page,
+      scenarioId: MANIFEST.id,
+      variantId,
+      label,
+      dimensions,
+      run: async () => {
+        await performColorChange(page);
+        await page.waitForTimeout(1200);
+        const snapshot = await readProbe(page);
+        if (VERBOSE_PROFILE_LOGS) {
+          console.log(`[paper-color] ${label}-snapshot=${JSON.stringify({
+            targetStroke: snapshot.targetStroke,
+            targetStrokeComputed: snapshot.targetStrokeComputed,
+            computingTextCount: snapshot.computingTextCount,
+            statusBarText: snapshot.statusBarText,
+            frameStats: snapshot.frameStats
+          })}`);
+        }
+        return summarizeSnapshot(snapshot);
+      }
+    }));
   }
 
-  await runScenario("color-visible", "paper-color-visible.cpuprofile");
+  await runScenario("visible", "color-visible", {
+    sourcePanelVisible: true
+  });
 
   await openMenuCommand(page, "view", "view.toggle-source-panel");
-  await runScenario("color-source-hidden", "paper-color-source-hidden.cpuprofile");
+  await runScenario("source-hidden", "color-source-hidden", {
+    sourcePanelVisible: false
+  });
 
-  const report = {
-    paperPath: PAPER_PATH,
-    targetLine: target.targetLine,
-    activeFigureId: target.activeFigureId,
-    activeFigureNumber: target.activeFigureNumber,
-    targetSourceId: target.targetSourceId,
-    nextColor: TARGET_NEXT_COLOR,
-    summaries
-  };
-  fs.mkdirSync(TRACES_DIR, { recursive: true });
-  const reportPath = path.join(TRACES_DIR, "paper-color-report.json");
-  fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), "utf8");
+  const reportPath = writeScenarioReport(MANIFEST, testInfo, variants);
   console.log(`[paper-color] wrote ${reportPath}`);
 });

@@ -1,16 +1,3 @@
-/**
- * CDP profiling test for drag interactions (move & resize).
- *
- * Run (production build, recommended):
- *   npx playwright test --config profiling/playwright.config.ts profiling/profile-drag.spec.ts
- *
- * Run (dev mode, includes React dev overhead):
- *   npx playwright test profiling/profile-drag.spec.ts
- *
- * Produces JSON trace files in apps/web/profiling/traces/ that can be:
- *  - Opened in Chrome DevTools → Performance → Load profile
- *  - Inspected programmatically
- */
 import { expect, test } from "@playwright/test";
 import {
   clickHitRegion,
@@ -20,14 +7,23 @@ import {
   setSource,
   waitForHitRegions
 } from "../e2e/helpers";
-import { startCDPProfile, stopCDPProfile } from "./helpers";
+import { captureProfileVariant, readSourceRevision, writeScenarioReport } from "./framework";
+import { getProfilingScenarioById } from "./scenario-registry";
+
+const MANIFEST = getProfilingScenarioById("basic-drag");
+
+if (!MANIFEST) {
+  throw new Error("Missing profiling manifest for basic-drag.");
+}
 
 test.beforeEach(async ({ page }) => {
   await resetStorageBeforeNavigation(page);
 });
 
-test("profile: move element drag", async ({ page }) => {
-  await gotoApp(page);
+test("profile basic canvas drags", async ({ page }, testInfo) => {
+  const variants = [];
+
+  await gotoApp(page, "/editor/");
   await setSource(
     page,
     String.raw`\begin{tikzpicture}
@@ -37,38 +33,50 @@ test("profile: move element drag", async ({ page }) => {
 \end{tikzpicture}`
   );
   await page.getByRole("button", { name: "Select" }).click();
-
-  // Select the rectangle
   await clickHitRegion(page, 0);
   await waitForHitRegions(page);
+  variants.push(await captureProfileVariant({
+    page,
+    scenarioId: MANIFEST.id,
+    variantId: "move-element",
+    label: "Move Element Drag",
+    dimensions: {
+      interaction: "drag-element"
+    },
+    run: async () => {
+      const sourceRevisionBefore = await readSourceRevision(page);
+      const hitRegion = page.locator("[data-hit-region-target-id]").first();
+      const box = await hitRegion.boundingBox();
+      expect(box).toBeTruthy();
+      const startX = box!.x + box!.width / 2;
+      const startY = box!.y + box!.height / 2;
+      await page.mouse.move(startX, startY);
+      await page.mouse.down();
+      for (const [dx, dy] of [
+        [80, 0],
+        [0, 80],
+        [-80, 0],
+        [0, -80]
+      ] as const) {
+        await page.mouse.move(startX + dx, startY + dy, { steps: 20 });
+      }
+      await page.mouse.up();
+      await page.waitForTimeout(300);
+      const sourceRevisionAfter = await readSourceRevision(page);
+      return {
+        metrics: {
+          sourceRevisionDelta: sourceRevisionAfter - sourceRevisionBefore
+        },
+        frameStats: null,
+        probeSnapshot: {
+          sourceRevisionBefore,
+          sourceRevisionAfter
+        }
+      };
+    }
+  }));
 
-  const client = await startCDPProfile(page);
-
-  // Drag the selected element around with many steps to stress the system
-  const hitRegion = page.locator("[data-hit-region-target-id]").first();
-  const box = await hitRegion.boundingBox();
-  expect(box).toBeTruthy();
-  const startX = box!.x + box!.width / 2;
-  const startY = box!.y + box!.height / 2;
-
-  await page.mouse.move(startX, startY);
-  await page.mouse.down();
-  // Drag in a square pattern with fine-grained steps
-  for (const [dx, dy] of [
-    [80, 0],
-    [0, 80],
-    [-80, 0],
-    [0, -80]
-  ]) {
-    await page.mouse.move(startX + dx, startY + dy, { steps: 20 });
-  }
-  await page.mouse.up();
-
-  await stopCDPProfile(client, "move-element.cpuprofile");
-});
-
-test("profile: resize element drag", async ({ page }) => {
-  await gotoApp(page);
+  await gotoApp(page, "/editor/");
   await setSource(
     page,
     String.raw`\begin{tikzpicture}
@@ -76,52 +84,81 @@ test("profile: resize element drag", async ({ page }) => {
 \end{tikzpicture}`
   );
   await page.getByRole("button", { name: "Select" }).click();
-
-  // Select and find resize handle
   await clickHitRegion(page, 0);
-  const resizeHandle = page
-    .locator('[data-handle-kind="resize-element"]')
-    .first();
-  await expect(resizeHandle).toBeVisible();
-
-  const client = await startCDPProfile(page);
-
-  // Drag resize handle back and forth
-  const box = await resizeHandle.boundingBox();
-  expect(box).toBeTruthy();
-  const cx = box!.x + box!.width / 2;
-  const cy = box!.y + box!.height / 2;
-
-  await page.mouse.move(cx, cy);
-  await page.mouse.down();
-  for (let i = 0; i < 3; i++) {
-    await page.mouse.move(cx + 60, cy + 40, { steps: 15 });
-    await page.mouse.move(cx - 30, cy - 20, { steps: 15 });
-  }
-  await page.mouse.up();
-
-  await stopCDPProfile(client, "resize-element.cpuprofile");
-});
-
-test("profile: create rectangle via tool drag", async ({ page }) => {
-  await gotoApp(page);
-  await setSource(
+  variants.push(await captureProfileVariant({
     page,
-    String.raw`\begin{tikzpicture}
-\end{tikzpicture}`
-  );
+    scenarioId: MANIFEST.id,
+    variantId: "resize-element",
+    label: "Resize Element Drag",
+    dimensions: {
+      interaction: "resize-element"
+    },
+    run: async () => {
+      const resizeHandle = page.locator('[data-handle-kind="resize-element"]').first();
+      await expect(resizeHandle).toBeVisible();
+      const sourceRevisionBefore = await readSourceRevision(page);
+      const box = await resizeHandle.boundingBox();
+      expect(box).toBeTruthy();
+      const centerX = box!.x + box!.width / 2;
+      const centerY = box!.y + box!.height / 2;
+      await page.mouse.move(centerX, centerY);
+      await page.mouse.down();
+      for (let index = 0; index < 3; index += 1) {
+        await page.mouse.move(centerX + 60, centerY + 40, { steps: 15 });
+        await page.mouse.move(centerX - 30, centerY - 20, { steps: 15 });
+      }
+      await page.mouse.up();
+      await page.waitForTimeout(300);
+      const sourceRevisionAfter = await readSourceRevision(page);
+      return {
+        metrics: {
+          sourceRevisionDelta: sourceRevisionAfter - sourceRevisionBefore
+        },
+        frameStats: null,
+        probeSnapshot: {
+          sourceRevisionBefore,
+          sourceRevisionAfter
+        }
+      };
+    }
+  }));
 
+  await gotoApp(page, "/editor/");
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
   await page.getByRole("button", { name: "Rect" }).click();
-  const layer = interactionLayer(page);
+  variants.push(await captureProfileVariant({
+    page,
+    scenarioId: MANIFEST.id,
+    variantId: "create-rectangle",
+    label: "Create Rectangle Drag",
+    dimensions: {
+      interaction: "tool-create"
+    },
+    run: async () => {
+      const layer = interactionLayer(page);
+      const sourceRevisionBefore = await readSourceRevision(page);
+      const box = await layer.boundingBox();
+      expect(box).toBeTruthy();
+      await page.mouse.move(box!.x + 100, box!.y + 100);
+      await page.mouse.down();
+      await page.mouse.move(box!.x + 300, box!.y + 250, { steps: 30 });
+      await page.mouse.up();
+      await page.waitForTimeout(300);
+      const sourceRevisionAfter = await readSourceRevision(page);
+      return {
+        metrics: {
+          sourceRevisionDelta: sourceRevisionAfter - sourceRevisionBefore
+        },
+        frameStats: null,
+        probeSnapshot: {
+          sourceRevisionBefore,
+          sourceRevisionAfter
+        }
+      };
+    }
+  }));
 
-  const client = await startCDPProfile(page);
-
-  const layerBox = await layer.boundingBox();
-  expect(layerBox).toBeTruthy();
-  await page.mouse.move(layerBox!.x + 100, layerBox!.y + 100);
-  await page.mouse.down();
-  await page.mouse.move(layerBox!.x + 300, layerBox!.y + 250, { steps: 30 });
-  await page.mouse.up();
-
-  await stopCDPProfile(client, "create-rectangle.cpuprofile");
+  const reportPath = writeScenarioReport(MANIFEST, testInfo, variants);
+  console.log(`[profiling] wrote ${reportPath}`);
 });

@@ -13,6 +13,7 @@ import {
 import { parseCustomStyleDefinition } from "../semantic/style/custom-styles.js";
 import { readBalancedBlock } from "../semantic/style/option-utils.js";
 import { resolveMatrixCellEditTarget, resolveMatrixMode } from "../semantic/nodes/matrix.js";
+import { incrementProfilingCounter } from "../profiling.js";
 
 export type PropertyTargetKind =
   | "figure"
@@ -90,6 +91,7 @@ export type PropertyTargetResolution =
   | { kind: "not-found"; reason: string };
 
 export function resolvePropertyTarget(source: string, elementId: string, parseOptions: EditParseOptions = {}): PropertyTargetResolution {
+  incrementProfilingCounter("resolvePropertyTargetCalls");
   if (
     parseOptions.analysisView &&
     parseOptions.analysisView.source === source &&

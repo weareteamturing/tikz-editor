@@ -1,5 +1,6 @@
 import { parseTikz, type ParseTikzResult } from "../parser/index.js";
 import type { EditAnalysisSession, EditAnalysisView } from "./analysis.js";
+import { incrementProfilingCounter } from "../profiling.js";
 
 export type EditParseOptions = {
   activeFigureId?: string | null;
@@ -10,6 +11,7 @@ export type EditParseOptions = {
 };
 
 export function parseTikzForEdit(source: string, options: EditParseOptions = {}): ParseTikzResult {
+  incrementProfilingCounter("parseTikzForEditCalls");
   if (
     options.analysisView &&
     options.analysisView.source === source &&

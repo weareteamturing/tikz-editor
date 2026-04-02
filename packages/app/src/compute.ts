@@ -16,6 +16,7 @@ import type {
   IncrementalSemanticSession,
   IncrementalSemanticTrigger
 } from "tikz-editor/semantic/index";
+import { recordProfilingComputeTiming } from "tikz-editor/profiling";
 
 /**
  * A plain-data snapshot of a fully evaluated TikZ document.
@@ -104,6 +105,7 @@ export function makeEmptySnapshot(source: string = ""): SessionSnapshot {
 export async function computeSnapshot(request: ComputeRequest): Promise<ComputeResponse> {
   const revision = ++revisionCounter;
   const requestKind = request.kind ?? "render";
+  const computeStartedAt = performance.now();
 
   try {
     const trigger = request.trigger ?? "other";
@@ -154,6 +156,18 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
           affectedStatementCount: result.semanticStats.affectedStatementCount
         }
       };
+      recordProfilingComputeTiming({
+        requestId: request.id,
+        kind: requestKind,
+        trigger,
+        durationMs: performance.now() - computeStartedAt,
+        changedSourceCount: changedSourceIds.length,
+        incremental: true,
+        parseStrategy: result.parseStats.strategy,
+        semanticStrategy: result.semanticStats.strategy,
+        recomputedStatementCount: result.semanticStats.recomputedStatementCount,
+        reusedStatementCount: result.semanticStats.reusedStatementCount
+      });
       return {
         id: request.id,
         documentId: request.documentId,
@@ -204,6 +218,14 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
       semanticResult: result.semantic,
       incremental: null
     };
+    recordProfilingComputeTiming({
+      requestId: request.id,
+      kind: requestKind,
+      trigger,
+      durationMs: performance.now() - computeStartedAt,
+      changedSourceCount: changedSourceIds.length,
+      incremental: false
+    });
 
     return {
       id: request.id,

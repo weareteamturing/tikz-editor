@@ -13,6 +13,7 @@ import { collectSourceWorldBounds } from "tikz-editor/edit/snapping";
 import { PT_PER_CM } from "tikz-editor/edit/format";
 import { emitSvgModel, type SvgRenderModel } from "tikz-editor/svg";
 import type { SceneFigure } from "tikz-editor/semantic/types";
+import { installAppProfilingRecorder, readAppProfilingSnapshot, resetAppProfilingSession } from "../profiling";
 import { AppMenuBar } from "./AppMenuBar";
 import { Toolbar } from "./Toolbar";
 import { DockLayout } from "./DockLayout";
@@ -849,10 +850,12 @@ export function App() {
   }, [commandRuntime]);
 
   useEffect(() => {
+    installAppProfilingRecorder();
     const globalLike = globalThis as typeof globalThis & {
       __TIKZ_EDITOR_APP_TEST_API__?: {
         setSource: (nextSource: string) => void;
         getSource: () => string;
+        getSourceRevision: () => number;
         getSnapshotSource: () => string;
         runCommand: (commandId: string) => boolean;
         selectFirstFigure: () => void;
@@ -865,6 +868,8 @@ export function App() {
         getActiveCanvasDragKind: () => string | null;
         getCanvasTransform: () => { translateX: number; translateY: number; scale: number };
         setCanvasTransform: (transform: { translateX: number; translateY: number; scale: number }) => void;
+        resetProfilingSession: (label?: string | null) => void;
+        getProfilingSnapshot: () => ReturnType<typeof readAppProfilingSnapshot>;
       };
     };
     globalLike.__TIKZ_EDITOR_APP_TEST_API__ = {
@@ -873,6 +878,9 @@ export function App() {
       },
       getSource: () => {
         return useEditorStore.getState().source;
+      },
+      getSourceRevision: () => {
+        return useEditorStore.getState().sourceRevision;
       },
       getSnapshotSource: () => {
         return snapshotRef.current.source;
@@ -920,6 +928,12 @@ export function App() {
       },
       setCanvasTransform: (transform) => {
         dispatch({ type: "SET_CANVAS_TRANSFORM", transform });
+      },
+      resetProfilingSession: (label) => {
+        resetAppProfilingSession(label ?? null);
+      },
+      getProfilingSnapshot: () => {
+        return readAppProfilingSnapshot();
       }
     };
     return () => {

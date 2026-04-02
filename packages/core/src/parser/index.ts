@@ -13,6 +13,7 @@ import {
   resolveParseWindowSource,
   scanFigureSpans
 } from "./shared.js";
+import { incrementProfilingCounter } from "../profiling.js";
 
 export type NodeTextValidationContext = {
   node: NodeItem;
@@ -42,6 +43,7 @@ export type ParseTikzResult = {
 };
 
 export function parseTikz(input: string, opts: ParseTikzOptions = {}): ParseTikzResult {
+  incrementProfilingCounter("parseTikzCalls");
   const recover = opts.recover ?? true;
   const figureSpans = scanFigureSpans(input);
   const activeFigureSpan = resolveActiveFigureSpan(figureSpans, opts.activeFigureId);

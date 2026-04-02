@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { diffSvgModels, type SvgDiffHints, type SvgPatchOp, type SvgRenderModel } from "tikz-editor/svg/index";
+import { recordProfilingSvgPatchTiming } from "tikz-editor/profiling";
 
 import { SvgDomPatcher } from "./svg-dom-patcher";
 import css from "../CanvasPanel.module.css";
@@ -37,6 +38,7 @@ export function CanvasSVGLayer(params: {
     }
 
     const patcher = patcherRef.current;
+    const startedAt = performance.now();
     try {
       let operations: SvgPatchOp[];
       if (forceReplaceAll) {
@@ -52,6 +54,14 @@ export function CanvasSVGLayer(params: {
       }
       patcher.applyOperations(operations);
       previousModelRef.current = model;
+      recordProfilingSvgPatchTiming({
+        durationMs: performance.now() - startedAt,
+        operationCount: operations.length,
+        forceReplaceAll,
+        hasReplaceAll: operations.some((operation) => operation.kind === "replaceAll"),
+        hasReplaceDefs: operations.some((operation) => operation.kind === "replaceDefs"),
+        fallbackReason: null
+      });
     } catch (error) {
       if (typeof console !== "undefined" && typeof console.warn === "function") {
         console.warn("[tikz-editor] SVG patch operation failed; falling back to replaceAll for this frame.", error);
@@ -59,6 +69,14 @@ export function CanvasSVGLayer(params: {
       onFallback("patch-failure");
       patcher.applyOperations([{ kind: "replaceAll", model }]);
       previousModelRef.current = model;
+      recordProfilingSvgPatchTiming({
+        durationMs: performance.now() - startedAt,
+        operationCount: 1,
+        forceReplaceAll: true,
+        hasReplaceAll: true,
+        hasReplaceDefs: false,
+        fallbackReason: "patch-failure"
+      });
     }
   }, [diffHints, forceReplaceAll, model, onFallback]);
 
