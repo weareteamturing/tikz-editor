@@ -146,6 +146,20 @@ describe("semantic evaluator / coordinates and path ops", () => {
       expect(hasThreeQuarterPoint).toBe(true);
     });
 
+    it("renders labels attached to coordinate operations", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) coordinate[label=$A$] (a) -- (1,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-coordinate-operation")).toBe(false);
+      const label = result.scene.elements.find((element) => element.kind === "Text");
+      expect(label?.kind).toBe("Text");
+      if (label?.kind === "Text") {
+        expect(label.text).toContain("A");
+      }
+    });
+
     it("supports `[turn]` polar coordinates using the previous segment direction", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw (0,0) -- +(1,0) -- ([turn]90:1) -- ([turn]90:1);
@@ -160,6 +174,21 @@ describe("semantic evaluator / coordinates and path ops", () => {
         expect(lines).toHaveLength(3);
         const uniqueTargets = new Set(lines.map((command) => `${command.to.x.toFixed(3)}:${command.to.y.toFixed(3)}`));
         expect(uniqueTargets.size).toBe(3);
+      }
+    });
+
+    it("places nodes with `pos=.5` at the center of rectangle paths", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0pt,0pt) rectangle ++(40pt,40pt) node[pos=.5] {3};
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-coordinate-operation")).toBe(false);
+      const text = result.scene.elements.find((element) => element.kind === "Text");
+      expect(text?.kind).toBe("Text");
+      if (text?.kind === "Text") {
+        expect(text.position.x).toBeCloseTo(20, 1);
+        expect(text.position.y).toBeCloseTo(20, 1);
       }
     });
 
@@ -1341,6 +1370,21 @@ describe("semantic evaluator / coordinates and path ops", () => {
           expect(cubic.c1.y).toBeLessThan(0);
           expect(cubic.c2.y).toBeLessThan(0);
         }
+      }
+    });
+
+    it("applies leading bend options to the following `to` operation", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \node (RL) at (0,0) {$R_l$};
+    \node (SL) at (3,0) {$S_l$};
+    \draw[bend left] (RL) to (SL);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.commands.some((command) => command.kind === "C")).toBe(true);
       }
     });
 

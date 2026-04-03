@@ -563,6 +563,20 @@ describe("semantic evaluator / styles and colors", () => {
       }
     });
 
+    it("treats `triangle 45` as a single arrow tip", () => {
+      const source = String.raw`\begin{tikzpicture}[>=triangle 45]
+    \draw[->] (0,0) -- (1,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const path = elementsOfKind(result.scene.elements, "Path")[0];
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.style.markerEnd?.tips).toHaveLength(1);
+        expect(path.style.markerEnd?.tips[0]?.kind).toBe("triangle");
+      }
+    });
+
     it("treats double distance as enabling a double stroke", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw[thin,double distance=2pt] (0,0) arc (180:90:1cm);

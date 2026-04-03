@@ -15,8 +15,12 @@ export function resolveNodeTargetPoint(
   options: PathOptionItem["options"] | undefined,
   segment: PlacementSegment | null,
   defaultPoint?: Point,
-  opts: { allowImplicitOriginHandle?: boolean } = {}
+  opts: { allowImplicitOriginHandle?: boolean; explicitAtSyntax?: boolean } = {}
 ): Point {
+  if (opts.explicitAtSyntax && defaultPoint) {
+    return defaultPoint;
+  }
+
   if (item.atRaw) {
     const evaluated = evaluateRawCoordinate(item.atRaw, context, item.atRelativePrefix);
     if (evaluated.world) {

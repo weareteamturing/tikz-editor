@@ -404,13 +404,11 @@ function parseNamedRgbComponents(raw: string): { r: number; g: number; b: number
     values.set(channel, value);
   }
 
-  const r = values.get("red");
-  const g = values.get("green");
-  const b = values.get("blue");
-  if (r == null || g == null || b == null) {
-    return null;
-  }
-  return { r, g, b };
+  return {
+    r: values.get("red") ?? 0,
+    g: values.get("green") ?? 0,
+    b: values.get("blue") ?? 0
+  };
 }
 
 function unwrapSingleBracePair(raw: string): string {

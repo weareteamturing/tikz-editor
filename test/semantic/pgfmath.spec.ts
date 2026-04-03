@@ -78,4 +78,44 @@ describe("semantic evaluator / pgfmath", () => {
     expect(textsFirst).toEqual(textsSecond);
     expect(first.diagnostics.some((diagnostic) => (diagnostic.code ?? "").startsWith("invalid-pgfmath"))).toBe(false);
   });
+
+  it("applies multiple pgfmathsetmacro commands from one parsed block", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \pgfmathsetmacro{\rm}{3};
+  \pgfmathsetmacro{\rc}{\rm *2/3};
+  \draw (0,0) -- (\rm cm,\rc cm);
+\end{tikzpicture}`;
+
+    const result = evaluateSemantic(source);
+    expect(result.diagnostics.some((diagnostic) => (diagnostic.code ?? "").startsWith("invalid-pgfmathsetmacro"))).toBe(false);
+
+    const path = elementsOfKind(result.scene.elements, "Path").find((entry) => entry.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const line = path.commands.find((command) => command.kind === "L");
+      expect(line?.kind).toBe("L");
+      if (line?.kind === "L") {
+        expect(line.to.x).toBeGreaterThan(0);
+        expect(line.to.y).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("accepts xcolor named rgb components with omitted channels defaulting to zero", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[circle,draw,fill={rgb:blue,115;green,158},text=white] {54};
+  \node[circle,draw,fill={rgb:blue,178;green,114},text=white] {154};
+  \node[circle,draw,fill={rgb:red,213;green,94},text=white] {155};
+\end{tikzpicture}`;
+
+    const result = evaluateSemantic(source);
+    expect(result.diagnostics.some((diagnostic) => (diagnostic.code ?? "").includes("invalid"))).toBe(false);
+
+    const circles = elementsOfKind(result.scene.elements, "Circle");
+    expect(circles).toHaveLength(3);
+    for (const circle of circles) {
+      expect(circle.style.fill).not.toBe("black");
+      expect(circle.style.fill).not.toBe("#000000");
+    }
+  });
 });

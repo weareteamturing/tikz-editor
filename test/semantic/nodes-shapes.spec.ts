@@ -1618,6 +1618,24 @@ describe("semantic evaluator / nodes and shapes", () => {
       }
     });
 
+    it("keeps an explicit node anchor when positioning also supplies a synthetic anchor", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \node[draw,minimum size=1cm,name=a,node contents=A] at (0,0);
+    \node[draw,minimum size=2cm,below=1cm of a.south east,anchor=center,name=b,node contents=B];
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("invalid-positioning"))).toBe(false);
+
+      const aText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
+      const bText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "B");
+      expect(aText?.kind).toBe("Text");
+      expect(bText?.kind).toBe("Text");
+      if (aText?.kind === "Text" && bText?.kind === "Text") {
+        expect(bText.position.y).toBeLessThan(aText.position.y - 20);
+      }
+    });
+
     it("resolves standalone node names for above=of chains", () => {
       const source = String.raw`\begin{tikzpicture}[every node/.style=draw]
     \node (a1) at (0,0) {A};
@@ -1987,6 +2005,22 @@ describe("semantic evaluator / nodes and shapes", () => {
       if (text?.kind === "Text") {
         expect(text.position.x).toBeGreaterThan(20);
         expect(text.position.y).toBeGreaterThan(20);
+      }
+    });
+
+    it("propagates picture-level `auto` to deferred path nodes", () => {
+      const source = String.raw`\begin{tikzpicture}[auto]
+    \draw (0,0) -- node {A} (3,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const label = result.scene.elements.find(
+        (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> =>
+          element.kind === "Text" && element.text === "A"
+      );
+      expect(label?.kind).toBe("Text");
+      if (label?.kind === "Text") {
+        expect(label.position.y).toBeGreaterThan(0);
       }
     });
 

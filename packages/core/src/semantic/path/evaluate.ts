@@ -11,7 +11,9 @@ import type {
   Span,
   ToOperationItem
 } from "../../ast/types.js";
+import type { OptionListAst } from "../../options/types.js";
 import { parseTikz } from "../../parser/index.js";
+import { parseOptionListRaw } from "../../options/parse.js";
 import { expandForeachList } from "../../foreach/list.js";
 import {
   readNamedCoordinate,
@@ -122,6 +124,7 @@ export function evaluatePathStatement(
   let pendingNodeNameForNodeCommand: string | null = null;
   let lastPlacementSegment: PlacementSegment | null = null;
   let previousSegmentRoundedCorners: number | null = null;
+  let leadingToLikeOptions: OptionListAst | undefined;
   let currentPointLogical: Point | null = context.currentPoint;
   let currentPointCoordinate: Pick<CoordinateItem, "form" | "x"> | null = null;
   let pendingEdgeStartCoordinateRaw: string | null = null;
@@ -173,8 +176,13 @@ export function evaluatePathStatement(
     }
 
     for (const node of pendingSegmentNodes) {
+      const scopedAutoSide = resolveScopedAutoSide(statementStyleChain);
+      const nodeOptionsWithScopedAuto =
+        scopedAutoSide != null
+          ? mergeOptionLists(parseOptionListRaw(`[auto=${scopedAutoSide}]`, node.span.from), node.options)
+          : node.options;
       const resolvedNode = evaluateNodeItem(
-        node,
+        nodeOptionsWithScopedAuto === node.options ? node : { ...node, options: nodeOptionsWithScopedAuto, optionsSpan: nodeOptionsWithScopedAuto?.span },
         statement,
         context,
         style,
@@ -725,6 +733,8 @@ export function evaluatePathStatement(
             treeFrameState.macroBindings
           );
           shouldCompoundFilledSubpaths = computeShouldCompoundFilledSubpaths(style);
+        } else if (expandedOptions && isLeadingPathOption) {
+          leadingToLikeOptions = mergeOptionLists(leadingToLikeOptions, expandedOptions);
         }
       }
     ],
@@ -774,8 +784,15 @@ export function evaluatePathStatement(
           statement.command === "node"
           && !hasPathCurrentPoint
           && !isMatrixNodeOptions(nodeItem.options);
+        const scopedAutoSide = resolveScopedAutoSide(statementStyleChain);
+        const nodeOptionsWithScopedAuto =
+          scopedAutoSide != null
+            ? mergeOptionLists(parseOptionListRaw(`[auto=${scopedAutoSide}]`, item.span.from), nodeItem.options)
+            : nodeItem.options;
+        const explicitNodeAtSyntax = hasExplicitNodeAtSyntax(statement.items, currentItemIndex);
+        const explicitNodeAtTarget = explicitNodeAtSyntax ? (currentPointLogical ?? context.currentPoint ?? undefined) : undefined;
         const resolvedNode = evaluateNodeItem(
-          nodeItem,
+          nodeOptionsWithScopedAuto === nodeItem.options ? nodeItem : { ...nodeItem, options: nodeOptionsWithScopedAuto, optionsSpan: nodeOptionsWithScopedAuto?.span },
           statement,
           context,
           style,
@@ -784,9 +801,9 @@ export function evaluatePathStatement(
           lastPlacementSegment,
           forcedMainNodeName,
           undefined,
-          standaloneNodeDefaultTarget,
+          explicitNodeAtTarget ?? standaloneNodeDefaultTarget,
           statementStyleChain,
-          { allowImplicitOriginHandle }
+          { allowImplicitOriginHandle, explicitAtSyntax: explicitNodeAtSyntax }
         );
         pendingNodeNameForNodeCommand = null;
         const edgeStartName = declaredNodeName ?? forcedMainNodeName;
@@ -1085,6 +1102,50 @@ export function evaluatePathStatement(
           return;
         }
 
+        const emitCoordinateAdornmentLabels = (basePoint: Point | null): void => {
+          if (!basePoint || !item.options) {
+            return;
+          }
+
+          const adornmentPlan = extractNodeAdornmentPlan(item.options, {
+            quoteMode: frame.nodeQuotesMode,
+            labelPosition: frame.labelPosition,
+            pinPosition: frame.pinPosition,
+            labelDistancePt: frame.labelDistancePt,
+            pinDistancePt: frame.pinDistancePt,
+            pinEdgeRaw: frame.pinEdgeRaw
+          });
+          if (adornmentPlan.adornments.length === 0) {
+            return;
+          }
+
+          for (let adornmentIndex = 0; adornmentIndex < adornmentPlan.adornments.length; adornmentIndex += 1) {
+            const spec = adornmentPlan.adornments[adornmentIndex];
+            const materialized = materializeNodeAdornment({
+              spec,
+              context,
+              mainNodeNameRaw: parsedName,
+              ownerId: item.id,
+              adornmentIndex
+            });
+            const resolvedAdornment = evaluateNodeItem(
+              materialized.node,
+              statement,
+              context,
+              style,
+              markFeature,
+              pushDiagnostic,
+              null,
+              materialized.node.name,
+              undefined,
+              undefined,
+              statementStyleChain
+            );
+            behindNodeElements.push(...resolvedAdornment.behindElements);
+            frontNodeElements.push(...resolvedAdornment.frontElements);
+          }
+        };
+
         const nextItem = statement.items[currentItemIndex + 1];
         const nextCoordinate = statement.items[currentItemIndex + 2];
         if (nextItem?.kind === "PathKeyword" && nextItem.keyword === "at" && nextCoordinate?.kind === "Coordinate") {
@@ -1103,6 +1164,7 @@ export function evaluatePathStatement(
               : currentPointLogical ?? context.currentPoint;
           if (capturePoint) {
             writeNamedCoordinate(context, applyNameScope(parsedName, context), capturePoint);
+            emitCoordinateAdornmentLabels(capturePoint);
           } else {
             pushDiagnostic(
               "invalid-coordinate-operation",
@@ -1123,7 +1185,7 @@ export function evaluatePathStatement(
       "ToOperation",
       (pathItem) => {
         const item = pathItem as ToOperationItem;
-        const toPlan = extractToLikeOptionPlan(item);
+        const toPlan = extractToLikeOptionPlan(mergeToLikePathOptions(item, leadingToLikeOptions));
         const toItem: ToOperationItem =
           toPlan.generatedNodes.length > 0
             ? {
@@ -1166,7 +1228,7 @@ export function evaluatePathStatement(
       "EdgeOperation",
       (pathItem) => {
         const item = pathItem as EdgeOperationItem;
-        const edgePlan = extractToLikeOptionPlan(item);
+        const edgePlan = extractToLikeOptionPlan(mergeToLikePathOptions(item, leadingToLikeOptions));
         const edgeItem: EdgeOperationItem =
           edgePlan.generatedNodes.length > 0
             ? {
@@ -1534,7 +1596,7 @@ export function evaluatePathStatement(
         }
       }
 
-      const evaluated =
+      const evaluated: EvaluatedCoordinate =
         evaluateTurnCoordinate(item, currentPointLogical ?? context.currentPoint, frameTransform, lastPlacementSegment) ??
         evaluateCoordinate(item, context);
       const handleKind = statement.command === "node" ? "node-position" : "path-point";
@@ -1616,6 +1678,11 @@ export function evaluatePathStatement(
             )
           );
         }
+        lastPlacementSegment = {
+          kind: "line",
+          from: pendingRectangleFrom,
+          to: evaluated.world
+        };
         markFeature("svg_path", "supported");
         pendingRectangleFrom = null;
         setCurrentPoint(evaluated.world, evaluated.world, {
@@ -2289,6 +2356,132 @@ function resolveNamedCoordinateRewriteHandleId(rawName: string, context: Semanti
     }
   }
   return undefined;
+}
+
+function mergeToLikePathOptions<T extends ToOperationItem | EdgeOperationItem>(
+  item: T,
+  leadingOptions: OptionListAst | undefined
+): T {
+  if (!leadingOptions || !item.options) {
+    if (!leadingOptions) {
+      return item;
+    }
+    return {
+      ...item,
+      options: leadingOptions,
+      optionsSpan: leadingOptions.span
+    };
+  }
+
+  return {
+    ...item,
+    options: mergeOptionLists(leadingOptions, item.options),
+    optionsSpan: {
+      from: Math.min(leadingOptions.span.from, item.options.span.from),
+      to: Math.max(leadingOptions.span.to, item.options.span.to)
+    }
+  };
+}
+
+function hasExplicitNodeAtSyntax(items: PathItem[], nodeIndex: number): boolean {
+  let meaningfulSeen = 0;
+  for (let index = nodeIndex - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (!item || item.kind === "PathComment" || item.kind === "PathOption") {
+      continue;
+    }
+
+    if (meaningfulSeen === 0) {
+      if (item.kind !== "Coordinate") {
+        return false;
+      }
+      meaningfulSeen = 1;
+      continue;
+    }
+
+    return item.kind === "PathKeyword" && item.keyword === "at";
+  }
+  return false;
+}
+
+function resolveScopedAutoSide(styleChain: StyleTraceLayerInput[]): "left" | "right" | null {
+  let autoSide: "left" | "right" | null = null;
+  let swap = false;
+
+  for (const entry of styleChain) {
+    for (const optionList of entry.rawOptions) {
+      for (const option of optionList.entries) {
+        if (option.kind === "flag") {
+          if (option.key === "auto") {
+            autoSide = "left";
+          } else if (option.key === "swap") {
+            swap = !swap;
+          }
+          continue;
+        }
+
+        if (option.kind !== "kv") {
+          continue;
+        }
+
+        if (option.key === "auto") {
+          const normalized = option.valueRaw.trim().toLowerCase();
+          if (normalized === "right") {
+            autoSide = "right";
+          } else if (
+            normalized === "left" ||
+            normalized === "true" ||
+            normalized === "yes" ||
+            normalized === "on" ||
+            normalized === "1"
+          ) {
+            autoSide = "left";
+          } else if (
+            normalized === "false" ||
+            normalized === "no" ||
+            normalized === "off" ||
+            normalized === "0"
+          ) {
+            autoSide = null;
+          }
+          continue;
+        }
+
+        if (option.key === "swap") {
+          const normalized = option.valueRaw.trim().toLowerCase();
+          if (normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
+            swap = true;
+          } else if (normalized === "false" || normalized === "no" || normalized === "off" || normalized === "0") {
+            swap = false;
+          }
+        }
+      }
+    }
+  }
+
+  if (autoSide == null) {
+    return null;
+  }
+
+  return swap ? (autoSide === "left" ? "right" : "left") : autoSide;
+}
+
+function mergeOptionLists(left: OptionListAst | undefined, right: OptionListAst | undefined): OptionListAst | undefined {
+  if (!left) {
+    return right;
+  }
+  if (!right) {
+    return left;
+  }
+
+  return {
+    span: {
+      from: Math.min(left.span.from, right.span.from),
+      to: Math.max(left.span.to, right.span.to)
+    },
+    raw: `${left.raw}, ${right.raw}`,
+    entries: [...left.entries, ...right.entries]
+  };
 }
 
 function isMatrixNodeOptions(options: NodeItem["options"] | undefined): boolean {

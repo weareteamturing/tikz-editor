@@ -287,7 +287,7 @@ export function evaluateNodeItem(
   defaultPositionFraction?: number,
   defaultTargetPoint?: Point,
   baseStyleChain?: StyleChainEntry[],
-  placementOptions: { allowImplicitOriginHandle?: boolean; textMode?: "text" | "math" } = {}
+  placementOptions: { allowImplicitOriginHandle?: boolean; explicitAtSyntax?: boolean; textMode?: "text" | "math" } = {}
 ): {
   behindElements: SceneElement[];
   frontElements: SceneElement[];
@@ -368,7 +368,9 @@ export function evaluateNodeItem(
   });
   const nodeStyle = nodeStyleTrace.style;
   const nodeStyleChain = nodeStyleTrace.chain;
-  const anchor = resolveAutoNodeAnchor(expandedNodeOptions, segment) ?? resolveNodeAnchor(expandedNodeOptions);
+  const anchor =
+    resolveAutoNodeAnchor(expandedNodeOptions, segment) ??
+    resolveNodeAnchor(expandedNodeOptions);
   const nodeHandleSourceId = item.adornment
     ? makeNodeAdornmentTargetId(item.adornment.ownerNodeId, item.adornment.adornmentIndex, item.adornment.kind)
     : statement.id;
@@ -1194,13 +1196,11 @@ function resolveEveryShapeNodeStyleLayers(frame: SemanticContext["stack"][number
   return [];
 }
 
-function resolveAutoNodeAnchor(options: NodeItem["options"], segment: PlacementSegment | null): string | null {
+function resolveAutoNodeAnchor(
+  options: NodeItem["options"],
+  segment: PlacementSegment | null
+): string | null {
   if (!options || !segment) {
-    return null;
-  }
-
-  const hasExplicitAnchor = options.entries.some((entry) => entry.kind === "kv" && entry.key === "anchor");
-  if (hasExplicitAnchor) {
     return null;
   }
 

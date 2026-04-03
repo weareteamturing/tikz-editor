@@ -1046,8 +1046,9 @@ function applyStandaloneCommandStatement(
   span: { from: number; to: number },
   featureUsage: FeatureUsage
 ): boolean {
-  const invocation = parseStandaloneCommandInvocation(raw);
-  if (invocation) {
+  let handled = false;
+  for (const invocation of parseStandaloneCommandInvocations(raw)) {
+    handled = true;
     if (invocation.command === "\\pgfmathsetseed" && invocation.args.length === 1) {
       markFeature(featureUsage, "pgfmath_expression", "supported");
       markFeature(featureUsage, "pgfmath_seed_commands", "supported");
@@ -1070,7 +1071,7 @@ function applyStandaloneCommandStatement(
       } else {
         context.mathRandom.setSeed(Math.trunc(evaluated.quantity.value));
       }
-      return true;
+      continue;
     }
 
     if (invocation.command === "\\pgfmathparse" && invocation.args.length === 1) {
@@ -1098,7 +1099,7 @@ function applyStandaloneCommandStatement(
           provenance: []
         });
       }
-      return true;
+      continue;
     }
 
     if (invocation.command === "\\pgfmathsetmacro" && invocation.args.length === 2) {
@@ -1136,8 +1137,12 @@ function applyStandaloneCommandStatement(
           provenance: []
         });
       }
-      return true;
+      continue;
     }
+  }
+
+  if (handled) {
+    return true;
   }
 
   const command = parseStandaloneCommandName(raw);
@@ -1689,32 +1694,45 @@ function parseStandaloneCommandName(raw: string): string | null {
   return stripped;
 }
 
-function parseStandaloneCommandInvocation(raw: string): { command: string; args: string[] } | null {
+function parseStandaloneCommandInvocations(raw: string): Array<{ command: string; args: string[] }> {
   const stripped = stripOptionalTrailingSemicolon(raw.trim());
-  const commandMatch = stripped.match(/^(\\[A-Za-z@]+)/);
-  if (!commandMatch) {
-    return null;
-  }
-  const command = commandMatch[1];
-  let cursor = command.length;
-  const args: string[] = [];
+  const invocations: Array<{ command: string; args: string[] }> = [];
+  let cursor = 0;
 
   while (cursor < stripped.length) {
-    while (cursor < stripped.length && /\s/.test(stripped[cursor])) {
+    while (cursor < stripped.length && /[\s;]/.test(stripped[cursor])) {
       cursor += 1;
     }
     if (cursor >= stripped.length) {
       break;
     }
-    const parsed = readSingleBracedArgument(stripped, cursor);
-    if (!parsed) {
-      return null;
+    const commandMatch = stripped.slice(cursor).match(/^(\\[A-Za-z@]+)/);
+    if (!commandMatch) {
+      break;
     }
-    args.push(parsed.value);
-    cursor = parsed.next;
+    const command = commandMatch[1];
+    cursor += command.length;
+    const args: string[] = [];
+
+    while (cursor < stripped.length) {
+      while (cursor < stripped.length && /\s/.test(stripped[cursor])) {
+        cursor += 1;
+      }
+      if (cursor >= stripped.length || stripped[cursor] !== "{") {
+        break;
+      }
+      const parsed = readSingleBracedArgument(stripped, cursor);
+      if (!parsed) {
+        return invocations;
+      }
+      args.push(parsed.value);
+      cursor = parsed.next;
+    }
+
+    invocations.push({ command, args });
   }
 
-  return { command, args };
+  return invocations;
 }
 
 function readSingleBracedArgument(source: string, from: number): { value: string; next: number } | null {
@@ -2127,24 +2145,26 @@ function markForeachFeaturesFromFigure(figure: TikzFigure, featureUsage: Feature
     }
 
     if (statement.kind === "UnknownStatement") {
-      const invocation = parseStandaloneCommandInvocation(statement.raw);
-      if (!invocation) {
+      const invocations = parseStandaloneCommandInvocations(statement.raw);
+      if (invocations.length === 0) {
         return;
       }
-      if (
-        invocation.command === "\\pgfmathsetseed"
-        || invocation.command === "\\pgfmathparse"
-        || invocation.command === "\\pgfmathsetmacro"
-      ) {
-        markFeature(featureUsage, "pgfmath_expression", "supported");
-      }
-      if (invocation.command === "\\pgfmathsetseed") {
-        markFeature(featureUsage, "pgfmath_seed_commands", "supported");
-      }
-      for (const arg of invocation.args) {
-        if (containsPgfMathRandomToken(arg)) {
-          markFeature(featureUsage, "pgfmath_random_functions", "supported");
-          break;
+      for (const invocation of invocations) {
+        if (
+          invocation.command === "\\pgfmathsetseed"
+          || invocation.command === "\\pgfmathparse"
+          || invocation.command === "\\pgfmathsetmacro"
+        ) {
+          markFeature(featureUsage, "pgfmath_expression", "supported");
+        }
+        if (invocation.command === "\\pgfmathsetseed") {
+          markFeature(featureUsage, "pgfmath_seed_commands", "supported");
+        }
+        for (const arg of invocation.args) {
+          if (containsPgfMathRandomToken(arg)) {
+            markFeature(featureUsage, "pgfmath_random_functions", "supported");
+            break;
+          }
         }
       }
       return;
