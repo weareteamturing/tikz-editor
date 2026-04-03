@@ -64,6 +64,30 @@ export function applyFlagEntry(
       diagnostics: []
     };
   }
+  if (key === "ultra nearly transparent") {
+    return applyOpacityAlias(0.05, style, transform);
+  }
+  if (key === "very nearly transparent") {
+    return applyOpacityAlias(0.1, style, transform);
+  }
+  if (key === "nearly transparent") {
+    return applyOpacityAlias(0.25, style, transform);
+  }
+  if (key === "semitransparent") {
+    return applyOpacityAlias(0.5, style, transform);
+  }
+  if (key === "nearly opaque") {
+    return applyOpacityAlias(0.75, style, transform);
+  }
+  if (key === "very nearly opaque") {
+    return applyOpacityAlias(0.9, style, transform);
+  }
+  if (key === "ultra nearly opaque") {
+    return applyOpacityAlias(0.95, style, transform);
+  }
+  if (key === "opaque") {
+    return applyOpacityAlias(1, style, transform);
+  }
   if (key === "rounded corners") {
     return { style: { ...style, roundedCorners: parseLength("4pt", "pt") ?? 4 }, transform, diagnostics: [] };
   }
@@ -204,5 +228,18 @@ export function applyFlagEntry(
     style,
     transform,
     diagnostics: [`unsupported-option-flag:${key}`]
+  };
+}
+
+function applyOpacityAlias(opacity: number, style: ResolvedStyle, transform: Matrix2D): ApplyOutcome {
+  return {
+    style: {
+      ...style,
+      strokeOpacity: opacity,
+      fillOpacity: opacity,
+      textOpacity: opacity
+    },
+    transform,
+    diagnostics: []
   };
 }

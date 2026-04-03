@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderTikzToSvg, renderTikzToSvgAsync } from "../packages/core/src/render/index.js";
-import type { SceneText } from "../packages/core/src/semantic/types.js";
+import type { ScenePath, SceneText } from "../packages/core/src/semantic/types.js";
 import type { NodeTextEngine, NodeTextMeasureRequest, NodeTextMetrics } from "../packages/core/src/text/types.js";
 
 describe("render pipeline", () => {
@@ -44,6 +44,20 @@ describe("render pipeline", () => {
 
     expect(result.svg.svg).toContain('stroke="#808080"');
     expect(result.svg.svg).toContain('stroke-dasharray="3 3"');
+  });
+
+  it("applies TikZ transparency aliases", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[fill=red!40,nearly transparent] (0,0) -- (1,0) -- (1,1) -- cycle;
+\end{tikzpicture}`;
+
+    const result = renderTikzToSvg(source);
+    const path = result.semantic.scene.elements.find((element): element is ScenePath => element.kind === "Path");
+
+    expect(path).toBeDefined();
+    expect(path?.style.fillOpacity).toBeCloseTo(0.25, 6);
+    expect(path?.style.strokeOpacity).toBeCloseTo(0.25, 6);
+    expect(result.svg.svg).toContain('fill-opacity="0.25"');
   });
 
   it("renders matrix of math nodes cells in math mode", async () => {
