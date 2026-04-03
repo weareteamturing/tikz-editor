@@ -23,6 +23,22 @@ function extractShaftLineEndpoints(svg: string, sourceId: string): { startX: num
 }
 
 describe("svg arrow geometry", () => {
+  it("treats angle 90 as a single end tip instead of splitting it", () => {
+    const source = String.raw`\begin{tikzpicture}[->,>=angle 90]
+  \draw (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const path = semantic.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.style.markerEnd?.tips).toHaveLength(1);
+    }
+    const svg = emitSvg(semantic.scene).svg;
+    const tipMatches = svg.match(/data-arrow-tip-kind="cm-rightarrow"/g) ?? [];
+    expect(tipMatches.length).toBe(1);
+  });
+
   it("emits explicit tip path metadata and does not emit SVG markers", () => {
     const source = String.raw`\begin{tikzpicture}[>=Stealth]
   \draw[arrows={-Latex[open,length=10pt,color=blue]}] (0,0) -- (2,0);

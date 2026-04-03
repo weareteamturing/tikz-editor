@@ -407,6 +407,7 @@ export const ARROW_NAME_ALIASES = ([
   { name: "kite", kind: "kite" },
   { name: "square", kind: "square" },
   { name: "circle", kind: "circle" },
+  { name: "angle", kind: "to" },
   { name: "rays", kind: "rays" },
   { name: "latex", kind: "latex" },
   { name: "implies", kind: "implies" },

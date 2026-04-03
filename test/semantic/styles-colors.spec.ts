@@ -577,6 +577,26 @@ describe("semantic evaluator / styles and colors", () => {
       }
     });
 
+    it("does not split multi-word arrow tip names without explicit [] delimiters", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[-{Computer Modern Rightarrow Stealth[]}] (0,0) -- (1,0);
+    \draw[-{Computer Modern Rightarrow[] Stealth[]}] (0,1) -- (1,1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+      const paths = elementsOfKind(result.scene.elements, "Path");
+
+      expect(paths.length).toBeGreaterThanOrEqual(2);
+
+      const withoutDelimiter = paths[0];
+      const withDelimiter = paths[1];
+      expect(withoutDelimiter?.kind).toBe("Path");
+      expect(withDelimiter?.kind).toBe("Path");
+      if (withoutDelimiter?.kind === "Path" && withDelimiter?.kind === "Path") {
+        expect(withoutDelimiter.style.markerEnd?.tips).toHaveLength(1);
+        expect(withDelimiter.style.markerEnd?.tips).toHaveLength(2);
+      }
+    });
+
     it("treats double distance as enabling a double stroke", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw[thin,double distance=2pt] (0,0) arc (180:90:1cm);

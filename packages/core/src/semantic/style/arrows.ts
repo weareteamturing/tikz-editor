@@ -923,61 +923,22 @@ function parseDefaultArrowSep(lineWidth: number): number {
 }
 
 function readArrowNamedTip(input: string, startIndex: number): { name: string; nextIndex: number } | null {
-  const remainder = input.slice(startIndex);
-  const remainderLower = remainder.toLowerCase();
-
-  for (const alias of ARROW_NAME_ALIASES) {
-    if (!remainderLower.startsWith(alias.name)) {
-      continue;
-    }
-
-    const boundary = remainder[alias.name.length];
-    if (boundary && !/\s|[.[\]{}<>|]/.test(boundary)) {
-      continue;
-    }
-    let nextIndex = startIndex + alias.name.length;
-    const numericSuffix = readArrowNumericSuffix(input, nextIndex);
-    if (numericSuffix) {
-      nextIndex = numericSuffix.nextIndex;
-    }
-    return {
-      name: input.slice(startIndex, nextIndex).trim(),
-      nextIndex
-    };
-  }
-
   let cursor = startIndex;
-  while (cursor < input.length && !/\s|[.[\]{}<>|\-]/.test(input[cursor] ?? "")) {
+  while (cursor < input.length) {
+    const char = input[cursor] ?? "";
+    if (char === "[" || char === "." || char === "{" || char === "}" || char === "_" || char === ">" || char === "<" || char === "|") {
+      break;
+    }
     cursor += 1;
   }
-  if (cursor === startIndex) {
+
+  const name = input.slice(startIndex, cursor).trim();
+  if (name.length === 0) {
     return null;
   }
+
   return {
-    name: input.slice(startIndex, cursor),
+    name,
     nextIndex: cursor
   };
-}
-
-function readArrowNumericSuffix(input: string, startIndex: number): { nextIndex: number } | null {
-  let cursor = startIndex;
-  while (cursor < input.length && /\s/.test(input[cursor] ?? "")) {
-    cursor += 1;
-  }
-
-  const tokenStart = cursor;
-  while (cursor < input.length && /[0-9.+-]/.test(input[cursor] ?? "")) {
-    cursor += 1;
-  }
-
-  if (cursor === tokenStart || cursor === startIndex) {
-    return null;
-  }
-
-  const next = input[cursor];
-  if (next && !/\s|[.[\]{}<>|]/.test(next)) {
-    return null;
-  }
-
-  return { nextIndex: cursor };
 }

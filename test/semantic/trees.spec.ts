@@ -7,6 +7,20 @@ import {
 } from "./helpers.js";
 import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../../packages/core/src/semantic/types.js";
 
+function expectLinearTransform(
+  transform: { a: number; b: number; c: number; d: number } | undefined,
+  expected: { a: number; b: number; c: number; d: number }
+): void {
+  expect(transform).toBeDefined();
+  if (!transform) {
+    return;
+  }
+  expect(transform.a).toBeCloseTo(expected.a, 3);
+  expect(transform.b).toBeCloseTo(expected.b, 3);
+  expect(transform.c).toBeCloseTo(expected.c, 3);
+  expect(transform.d).toBeCloseTo(expected.d, 3);
+}
+
 describe("semantic evaluator / trees", () => {
     it("lays out default child trees downward and auto-inserts parent edges", () => {
       const source = String.raw`\begin{tikzpicture}
@@ -194,6 +208,30 @@ describe("semantic evaluator / trees", () => {
         }
       }
       expect(result.featureUsage.tree_anchor_keys).toBe("used-supported");
+    });
+
+    it("inherits sloped tree scope for edge labels", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \tikzset{sloped}
+    \path
+      node {root}
+      child { node {leaf} edge from parent node[above] {label} };
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const label = result.scene.elements.find(
+        (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> =>
+          element.kind === "Text" && element.text === "label"
+      );
+      expect(label?.kind).toBe("Text");
+      if (label?.kind === "Text") {
+        expectLinearTransform(label.transform, {
+          a: 0,
+          b: 1,
+          c: -1,
+          d: 0
+        });
+      }
     });
 
     it("auto-names unnamed tree descendants for internal linking", () => {

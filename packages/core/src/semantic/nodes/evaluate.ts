@@ -369,7 +369,7 @@ export function evaluateNodeItem(
   const nodeStyle = nodeStyleTrace.style;
   const nodeStyleChain = nodeStyleTrace.chain;
   const anchor =
-    resolveAutoNodeAnchor(expandedNodeOptions, segment) ??
+    resolveAutoNodeAnchor(expandedNodeOptions, segment, effectiveBaseStyleChain) ??
     resolveNodeAnchor(expandedNodeOptions);
   const nodeHandleSourceId = item.adornment
     ? makeNodeAdornmentTargetId(item.adornment.ownerNodeId, item.adornment.adornmentIndex, item.adornment.kind)
@@ -447,7 +447,7 @@ export function evaluateNodeItem(
   );
   const nodeLayout = adjustNodeLayoutForShape(baseNodeLayout, nodeShape);
   const shapeGeometry = resolveNodeShapeGeometryParams(expandedNodeOptions, () => context.mathRandom.nextRaw());
-  const slopedRotation = resolveSlopedNodeRotation(expandedNodeOptions, segment);
+  const slopedRotation = resolveSlopedNodeRotation(expandedNodeOptions, segment, effectiveBaseStyleChain);
   const inheritedNodeTransform: Matrix2D = frame.transformShape
     ? { a: frame.transform.a, b: frame.transform.b, c: frame.transform.c, d: frame.transform.d, e: 0, f: 0 }
     : identityMatrix();
@@ -1198,21 +1198,26 @@ function resolveEveryShapeNodeStyleLayers(frame: SemanticContext["stack"][number
 
 function resolveAutoNodeAnchor(
   options: NodeItem["options"],
-  segment: PlacementSegment | null
+  segment: PlacementSegment | null,
+  styleChain: StyleChainEntry[] = []
 ): string | null {
   if (!options || !segment) {
     return null;
   }
 
   let autoSide: "left" | "right" | null = null;
+  let autoExplicit = false;
   let swap = false;
-  const sloped = hasSlopedOption(options);
+  let swapExplicit = false;
+  const sloped = resolveScopedBooleanOption(options, styleChain, "sloped") ?? false;
 
   for (const entry of options.entries) {
     if (entry.kind === "flag") {
       if (entry.key === "auto") {
+        autoExplicit = true;
         autoSide = "left";
       } else if (entry.key === "swap") {
+        swapExplicit = true;
         swap = !swap;
       }
       continue;
@@ -1224,6 +1229,7 @@ function resolveAutoNodeAnchor(
 
     if (entry.key === "auto") {
       const normalized = entry.valueRaw.trim().toLowerCase();
+      autoExplicit = true;
       if (normalized === "right") {
         autoSide = "right";
       } else if (
@@ -1247,10 +1253,64 @@ function resolveAutoNodeAnchor(
 
     if (entry.key === "swap") {
       const normalized = entry.valueRaw.trim().toLowerCase();
+      swapExplicit = true;
       if (normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
         swap = true;
       } else if (normalized === "false" || normalized === "no" || normalized === "off" || normalized === "0") {
         swap = false;
+      }
+    }
+  }
+
+  if (!autoExplicit || !swapExplicit) {
+    for (const styleEntry of styleChain) {
+      for (const optionList of styleEntry.rawOptions) {
+        for (const option of optionList.entries) {
+          if (option.kind === "flag") {
+            if (!autoExplicit && option.key === "auto") {
+              autoSide = "left";
+            } else if (!swapExplicit && option.key === "swap") {
+              swap = !swap;
+            }
+            continue;
+          }
+
+          if (option.kind !== "kv") {
+            continue;
+          }
+
+          if (!autoExplicit && option.key === "auto") {
+            const normalized = option.valueRaw.trim().toLowerCase();
+            if (normalized === "right") {
+              autoSide = "right";
+            } else if (
+              normalized === "left" ||
+              normalized === "true" ||
+              normalized === "yes" ||
+              normalized === "on" ||
+              normalized === "1"
+            ) {
+              autoSide = "left";
+            } else if (
+              normalized === "false" ||
+              normalized === "no" ||
+              normalized === "off" ||
+              normalized === "0"
+            ) {
+              autoSide = null;
+            }
+            continue;
+          }
+
+          if (!swapExplicit && option.key === "swap") {
+            const normalized = option.valueRaw.trim().toLowerCase();
+            if (normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
+              swap = true;
+            } else if (normalized === "false" || normalized === "no" || normalized === "off" || normalized === "0") {
+              swap = false;
+            }
+          }
+        }
       }
     }
   }
@@ -1283,7 +1343,7 @@ function resolveAutoNodeAnchor(
     }
 
     const slopedRotation =
-      resolveSlopedNodeRotation(options, segment) ??
+      resolveSlopedNodeRotation(options, segment, styleChain) ??
       (Math.atan2(tangent.y, tangent.x) * 180) / Math.PI;
     const theta = (slopedRotation * Math.PI) / 180;
     const northDirection = {
@@ -1323,12 +1383,16 @@ function resolveAutoNodeAnchor(
   return directionToAnchor(anchorDirection);
 }
 
-function resolveSlopedNodeRotation(options: NodeItem["options"], segment: PlacementSegment | null): number | null {
+function resolveSlopedNodeRotation(
+  options: NodeItem["options"],
+  segment: PlacementSegment | null,
+  styleChain: StyleChainEntry[] = []
+): number | null {
   if (!options || !segment) {
     return null;
   }
 
-  if (!hasSlopedOption(options)) {
+  if (!resolveScopedBooleanOption(options, styleChain, "sloped")) {
     return null;
   }
 
@@ -1338,7 +1402,7 @@ function resolveSlopedNodeRotation(options: NodeItem["options"], segment: Placem
   }
 
   let rotation = (Math.atan2(tangent.y, tangent.x) * 180) / Math.PI;
-  if (!allowsUpsideDown(options)) {
+  if (!allowsUpsideDown(options, styleChain)) {
     if (rotation > 90) {
       rotation -= 180;
     } else if (rotation <= -90) {
@@ -1348,52 +1412,60 @@ function resolveSlopedNodeRotation(options: NodeItem["options"], segment: Placem
   return rotation;
 }
 
-function hasSlopedOption(options: NodeItem["options"]): boolean {
-  if (!options) {
-    return false;
-  }
-
-  let sloped = false;
-  for (const entry of options.entries) {
-    if (entry.kind === "flag" && entry.key === "sloped") {
-      sloped = true;
-      continue;
-    }
-    if (entry.kind !== "kv" || entry.key !== "sloped") {
-      continue;
-    }
-    const normalized = normalizeOptionValue(entry.valueRaw).toLowerCase();
-    sloped = normalized.length === 0 || normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1";
-  }
-
-  return sloped;
+function allowsUpsideDown(options: NodeItem["options"], styleChain: StyleChainEntry[] = []): boolean {
+  return resolveScopedBooleanOption(options, styleChain, "allow upside down") ?? false;
 }
 
-function allowsUpsideDown(options: NodeItem["options"]): boolean {
-  if (!options) {
-    return false;
+function resolveScopedBooleanOption(
+  options: NodeItem["options"] | OptionListAst | undefined,
+  styleChain: StyleChainEntry[],
+  key: string
+): boolean | null {
+  const local = resolveBooleanOption(options, key);
+  if (local != null) {
+    return local;
   }
 
-  let allow = false;
+  let inherited: boolean | null = null;
+  for (const styleEntry of styleChain) {
+    for (const optionList of styleEntry.rawOptions) {
+      const resolved = resolveBooleanOption(optionList, key);
+      if (resolved != null) {
+        inherited = resolved;
+      }
+    }
+  }
+
+  return inherited;
+}
+
+function resolveBooleanOption(options: NodeItem["options"] | OptionListAst | undefined, key: string): boolean | null {
+  if (!options) {
+    return null;
+  }
+
+  let seen = false;
+  let value = false;
   for (const entry of options.entries) {
-    if (entry.kind === "flag" && entry.key === "allow upside down") {
-      allow = true;
+    if (entry.kind === "flag" && entry.key === key) {
+      seen = true;
+      value = true;
       continue;
     }
-    if (entry.kind !== "kv" || entry.key !== "allow upside down") {
+    if (entry.kind !== "kv" || entry.key !== key) {
       continue;
     }
     const normalized = normalizeOptionValue(entry.valueRaw).toLowerCase();
     if (normalized.length === 0 || normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
-      allow = true;
-      continue;
-    }
-    if (normalized === "false" || normalized === "no" || normalized === "off" || normalized === "0") {
-      allow = false;
+      seen = true;
+      value = true;
+    } else if (normalized === "false" || normalized === "no" || normalized === "off" || normalized === "0") {
+      seen = true;
+      value = false;
     }
   }
 
-  return allow;
+  return seen ? value : null;
 }
 
 function expandNodePlacementOptions(options: OptionListAst | undefined, context: SemanticContext): OptionListAst | undefined {
