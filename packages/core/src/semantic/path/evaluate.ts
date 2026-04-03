@@ -66,7 +66,7 @@ import { applyMatrix, identityMatrix } from "../transform.js";
 import { createEditHandle } from "../edit-handles.js";
 import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resolve.js";
 import { expandOptionListMacros } from "../style/macro-options.js";
-import type { StyleTraceLayerInput } from "../style-chain.js";
+import { cloneStyleChain, type StyleTraceLayerInput } from "../style-chain.js";
 import { cloneCustomStyleRegistry } from "../style/custom-styles.js";
 import { resolveFrameMeta } from "../evaluate.js";
 import {
@@ -688,7 +688,7 @@ export function evaluatePathStatement(
         }
 
         const isLeadingPathOption = !sawNonLeadingPathItem;
-        if (expandedOptions && !isLeadingPathOption) {
+        if (expandedOptions) {
           const optionSourceRef = {
             sourceId: item.id,
             sourceSpan: item.span,
@@ -727,14 +727,19 @@ export function evaluatePathStatement(
           };
           style = treeFrameState.style;
           statementStyleChain = treeFrameState.styleChain;
+          if (activePath) {
+            activePath.style = { ...style };
+            activePath.styleChain = cloneStyleChain(statementStyleChain);
+          }
           plotSettings = applyPlotSettingsFromStyleChain(
             createDefaultPlotSettings(),
             treeFrameState.styleChain,
             treeFrameState.macroBindings
           );
           shouldCompoundFilledSubpaths = computeShouldCompoundFilledSubpaths(style);
-        } else if (expandedOptions && isLeadingPathOption) {
-          leadingToLikeOptions = mergeOptionLists(leadingToLikeOptions, expandedOptions);
+          if (isLeadingPathOption) {
+            leadingToLikeOptions = mergeOptionLists(leadingToLikeOptions, expandedOptions);
+          }
         }
       }
     ],

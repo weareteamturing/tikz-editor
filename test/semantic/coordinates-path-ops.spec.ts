@@ -192,6 +192,19 @@ describe("semantic evaluator / coordinates and path ops", () => {
       }
     });
 
+    it("applies leading fill options before circle shapes", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (3.5,0) [fill=red] circle (.2cm);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const shape = result.scene.elements.find((element) => element.kind === "Circle" || element.kind === "Path");
+      expect(shape).toBeDefined();
+      if (shape && (shape.kind === "Circle" || shape.kind === "Path")) {
+        expect(shape.style.fill).toBe("#ff0000");
+      }
+    });
+
     it("emits polyline geometry for `plot coordinates` and advances the current point", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw plot coordinates {(0,0) (1,1) (2,0)} -- (3,0);
