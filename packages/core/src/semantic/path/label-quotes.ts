@@ -336,6 +336,14 @@ export function materializeNodeAdornment(params: {
   adornmentIndex: number;
 }): MaterializedNodeAdornment {
   const { spec, context, mainNodeNameRaw, ownerId, adornmentIndex } = params;
+  const frameTransform = context.stack[context.stack.length - 1]?.transform ?? {
+    a: 1,
+    b: 0,
+    c: 0,
+    d: 1,
+    e: 0,
+    f: 0
+  };
   const generatedName = `generated_pin_${sanitizeName(mainNodeNameRaw)}_${adornmentIndex}`;
   const explicitName = extractOptionValue(spec.options, "name");
   const resolvedName = explicitName ?? (spec.kind === "pin" ? generatedName : undefined);
@@ -381,7 +389,8 @@ export function materializeNodeAdornment(params: {
     entries.push(kvEntry("anchor", anchor, spec.span));
   }
   if (!hasOptionKey(entries, "at")) {
-    entries.push(kvEntry("at", `(${formatPt(target.x)}pt,${formatPt(target.y)}pt)`, spec.span));
+    const localTarget = worldPointToLocalPoint(target, frameTransform);
+    entries.push(kvEntry("at", `(${formatPt(localTarget.x)}pt,${formatPt(localTarget.y)}pt)`, spec.span));
   }
   if (resolvedName && !hasOptionKey(entries, "name")) {
     entries.push(kvEntry("name", resolvedName, spec.span));
@@ -429,6 +438,17 @@ export function materializeNodeAdornment(params: {
     mainGeometry,
     mainNameRaw: mainNodeNameRaw,
     pinEdgeOptions
+  };
+}
+
+function worldPointToLocalPoint(point: Point, transform: { a: number; b: number; c: number; d: number; e: number; f: number }): Point {
+  const inverse = inverseMatrix(transform);
+  if (!inverse) {
+    return point;
+  }
+  return {
+    x: inverse.a * point.x + inverse.c * point.y + inverse.e,
+    y: inverse.b * point.x + inverse.d * point.y + inverse.f
   };
 }
 

@@ -221,11 +221,13 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
   if (item.form === "polar") {
     const angleQuantity = parseQuantityExpression(expandCoordinateComponent(item.x.trim(), frame.macroBindings, traceCollector));
     const radius = parseLength(expandCoordinateComponent(item.y, frame.macroBindings, traceCollector), "cm");
-    if (!angleQuantity || angleQuantity.kind !== "scalar" || radius == null) {
+    if (!angleQuantity || radius == null) {
       diagnostics.push(`invalid-polar-coordinate:${item.raw}`);
       return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "polar", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
     }
 
+    // PGF/TikZ accepts both dimensionless angles and dimension-valued angles here.
+    // `\pgfmathparse{#1}` normalizes the angle expression numerically before trig.
     const angle = angleQuantity.value;
     const radians = (angle * Math.PI) / 180;
     localPoint = {

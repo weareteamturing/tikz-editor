@@ -217,6 +217,18 @@ describe("svg emitter", () => {
     expect(emitted.svg).not.toContain("marker-end=");
   });
 
+  it("emits braced dash patterns from generated TikZ output", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw [line width=2.25] [dash pattern={on 2.53pt off 3.02pt}] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain('stroke-dasharray="2.53 3.02"');
+    expect(emitted.svg).not.toContain("invalid-dash-pattern");
+  });
+
   it("emits SVG gradients for axis/radial/ball shading options", () => {
     const source = String.raw`\begin{tikzpicture}
   \shade[top color=red,bottom color=blue,shading angle=45] (0,0) rectangle (1,1);

@@ -658,7 +658,7 @@ export function applyKvEntry(
     return { style: { ...style, dashArray: parsed }, transform, diagnostics: [] };
   }
   if (key === "dash phase") {
-    const phase = parseLength(valueRaw, "pt");
+    const phase = parseLength(normalizeOptionValue(valueRaw), "pt");
     if (phase == null) {
       return { style, transform, diagnostics: [`invalid-dash-phase:${valueRaw}`] };
     }

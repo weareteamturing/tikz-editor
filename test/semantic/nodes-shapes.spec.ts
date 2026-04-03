@@ -477,6 +477,23 @@ describe("semantic evaluator / nodes and shapes", () => {
       expect(pinEdge).toBeDefined();
     });
 
+    it("applies inline font-size switches inside node labels", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \node[draw,label=above:\tiny{$v$}] at (0,0) {A};
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const label = result.scene.elements.find(
+        (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> =>
+          element.kind === "Text" && element.text === "$v$"
+      );
+      expect(label).toBeDefined();
+      if (label?.kind === "Text") {
+        expect(label.style.fontSize).toBeLessThan(8);
+        expect(label.text).toBe("$v$");
+      }
+    });
+
     it("does not apply every-node styles to labels and pins", () => {
       const source = String.raw`\begin{tikzpicture}[every node/.style={circle,draw}]
     \node[name=a,label=right:L,pin=above:P] at (0,0) {A};
@@ -681,6 +698,29 @@ describe("semantic evaluator / nodes and shapes", () => {
       expect(label?.kind).toBe("Text");
       if (label?.kind === "Text") {
         expect(label.position.x).toBeGreaterThan(0);
+      }
+    });
+
+    it("rotates sloped path nodes once the segment endpoint is known", () => {
+      const source = String.raw`\begin{tikzpicture}[node distance=2.5cm]
+    \node(x1) {$x_1$};
+    \node(y1) [below of = x1]{$y_1$};
+    \draw [->] (y1) -- node[sloped,below] {(y1) $\to$ (x1)} (x1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const label = result.scene.elements.find(
+        (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> =>
+          element.kind === "Text" && element.text.includes("(y1)")
+      );
+      expect(label?.kind).toBe("Text");
+      if (label?.kind === "Text") {
+        expectLinearTransform(label.transform, {
+          a: 0,
+          b: 1,
+          c: -1,
+          d: 0
+        });
       }
     });
 

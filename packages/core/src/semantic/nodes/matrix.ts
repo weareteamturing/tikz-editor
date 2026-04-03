@@ -39,7 +39,7 @@ import {
 } from "./elements.js";
 import { resolveNodeLayout } from "./layout.js";
 import { collectScopedNodeNames } from "./named-coordinates.js";
-import { normalizeEscapedTextSpaces } from "./normalize-text.js";
+import { normalizeEscapedTextSpaces, normalizeNodeTextFontSize } from "./normalize-text.js";
 import {
   resolveNodeLayer,
   resolveNodeOptionScale,
@@ -181,10 +181,14 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         }
       );
       const resolvedCellText = normalizeEscapedTextSpaces(expandedCellText);
+      const normalizedCellText = normalizeNodeTextFontSize(resolvedCellText, cellStyle.fontSize);
+      const cellTextStyle = normalizedCellText.fontSizePt === cellStyle.fontSize
+        ? cellStyle
+        : { ...cellStyle, fontSize: normalizedCellText.fontSizePt };
       const cellLayout = resolveNodeLayout(
-        resolvedCellText,
+        normalizedCellText.text,
         combinedCellOptions,
-        cellStyle,
+        cellTextStyle,
         cellTransformScale,
         params.context.textEngine,
         params.matrixMode.textMode

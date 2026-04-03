@@ -1196,6 +1196,34 @@ function applyTikzStyleStatement(
     sourceKind: "legacy-tikzstyle",
     label: styleName
   });
+
+  const legacyBucket = LEGACY_TIKZSTYLE_BUCKET_BY_NAME[styleName];
+  if (legacyBucket) {
+    const parsedLayer = parseProvenanceStyleLayer(
+      {
+        kind: "kv",
+        key: styleName,
+        valueRaw: statement.optionList.raw,
+        span: statement.optionList.span,
+        keySpan: statement.styleNameSpan ?? statement.span,
+        valueSpan: statement.optionList.span,
+        raw: `${styleName}=${statement.optionList.raw}`
+      },
+      {
+        sourceId: statement.id,
+        sourceSpan: statement.span,
+        sourceKind: "legacy-tikzstyle",
+        label: styleName
+      }
+    );
+    if (parsedLayer) {
+      if (statement.definitionKind === "append") {
+        frame[legacyBucket] = [...frame[legacyBucket], parsedLayer];
+      } else {
+        frame[legacyBucket] = [parsedLayer];
+      }
+    }
+  }
   defineContextSymbol(context, {
     kind: "style",
     name: styleName,
@@ -2421,6 +2449,28 @@ const FRAME_STYLE_BUCKET_BY_APPEND_KEY: Record<string, keyof FrameStyleBuckets> 
   "every cloud callout node/.append style": "everyCloudCalloutNodeStyles",
   "every single arrow node/.append style": "everySingleArrowNodeStyles",
   "every double arrow node/.append style": "everyDoubleArrowNodeStyles"
+};
+
+const LEGACY_TIKZSTYLE_BUCKET_BY_NAME: Record<string, keyof FrameStyleBuckets> = {
+  "every node": "everyNodeStyles",
+  "every rectangle node": "everyRectangleNodeStyles",
+  "every circle node": "everyCircleNodeStyles",
+  "every diamond node": "everyDiamondNodeStyles",
+  "every trapezium node": "everyTrapeziumNodeStyles",
+  "every isosceles triangle node": "everyIsoscelesTriangleNodeStyles",
+  "every kite node": "everyKiteNodeStyles",
+  "every dart node": "everyDartNodeStyles",
+  "every circular sector node": "everyCircularSectorNodeStyles",
+  "every cylinder node": "everyCylinderNodeStyles",
+  "every cloud node": "everyCloudNodeStyles",
+  "every starburst node": "everyStarburstNodeStyles",
+  "every signal node": "everySignalNodeStyles",
+  "every tape node": "everyTapeNodeStyles",
+  "every rectangle callout node": "everyRectangleCalloutNodeStyles",
+  "every ellipse callout node": "everyEllipseCalloutNodeStyles",
+  "every cloud callout node": "everyCloudCalloutNodeStyles",
+  "every single arrow node": "everySingleArrowNodeStyles",
+  "every double arrow node": "everyDoubleArrowNodeStyles"
 };
 
 type TreeMetaBuckets = {

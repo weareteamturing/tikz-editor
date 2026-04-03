@@ -1,7 +1,8 @@
 import { parseLength } from "../coords/parse-length.js";
+import { normalizeOptionValue } from "./option-utils.js";
 
 export function parseDashPattern(raw: string): number[] | null {
-  const tokens = raw.trim().split(/\s+/).filter((token) => token.length > 0);
+  const tokens = normalizeOptionValue(raw).split(/\s+/).filter((token) => token.length > 0);
   if (tokens.length < 2) {
     return null;
   }
@@ -24,7 +25,7 @@ export function parseDashPattern(raw: string): number[] | null {
 }
 
 export function parseDashValue(raw: string): { pattern: number[] | null; phase: number | null } | null {
-  const trimmed = raw.trim();
+  const trimmed = normalizeOptionValue(raw);
   if (trimmed.length === 0) {
     return null;
   }

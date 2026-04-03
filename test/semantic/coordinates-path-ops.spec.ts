@@ -22,6 +22,25 @@ describe("semantic evaluator / coordinates and path ops", () => {
       }
     });
 
+    it("accepts dimension-valued polar angles like `++(-1.0cm:-2.0cm)`", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) -- ++(-1.0cm:-2.0cm);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-polar-coordinate:(-1.0cm:-2.0cm)")).toBe(false);
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        const line = path.commands.find((command) => command.kind === "L");
+        expect(line?.kind).toBe("L");
+        if (line?.kind === "L") {
+          expect(line.to.x).toBeCloseTo(-50.0319, 2);
+          expect(line.to.y).toBeCloseTo(27.1117, 2);
+        }
+      }
+    });
+
     it("keeps `+` relative bases while advancing the drawn path cursor", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw (0,0) +(0:1) -- +(90:1) -- +(180:1);
@@ -1222,6 +1241,21 @@ describe("semantic evaluator / coordinates and path ops", () => {
         expect(topPath.style.dashOffset).toBeCloseTo(0);
         expect(bottomPath.style.dashArray).toEqual([20, 10]);
         expect(bottomPath.style.dashOffset).toBeCloseTo(10);
+      }
+    });
+
+    it("accepts braced dash patterns from generated TikZ output", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw [line width=2.25] [dash pattern={on 2.53pt off 3.02pt}] (0,0) -- (1,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-dash-pattern:{on 2.53pt off 3.02pt}")).toBe(false);
+
+      const path = elementsOfKind(result.scene.elements, "Path")[0];
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.style.dashArray).toEqual([2.53, 3.02]);
       }
     });
 

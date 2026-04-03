@@ -118,6 +118,7 @@ export function evaluatePathStatement(
   let pendingGrid: { from: Point; stepX: number; stepY: number } | null = null;
   let pendingNamedCoordinate: { name: string } | null = null;
   let pendingSegmentPlacements: Array<{ name: string; fraction: number }> = [];
+  let pendingSegmentNodes: NodeItem[] = [];
   let pendingNodeNameForNodeCommand: string | null = null;
   let lastPlacementSegment: PlacementSegment | null = null;
   let previousSegmentRoundedCorners: number | null = null;
@@ -165,6 +166,30 @@ export function evaluatePathStatement(
       writeNamedCoordinate(context, applyNameScope(pending.name, context), point);
     }
     pendingSegmentPlacements = [];
+  };
+  const flushPendingSegmentNodes = (segment: PlacementSegment | null): void => {
+    if (!segment || pendingSegmentNodes.length === 0) {
+      return;
+    }
+
+    for (const node of pendingSegmentNodes) {
+      const resolvedNode = evaluateNodeItem(
+        node,
+        statement,
+        context,
+        style,
+        markFeature,
+        pushDiagnostic,
+        segment,
+        undefined,
+        0.5,
+        undefined,
+        statementStyleChain
+      );
+      behindNodeElements.push(...resolvedNode.behindElements);
+      frontNodeElements.push(...resolvedNode.frontElements);
+    }
+    pendingSegmentNodes = [];
   };
   const flushPendingCircle = (sourceId: string, span: Span): void => {
     if (!pendingCircleCenter) {
@@ -707,6 +732,10 @@ export function evaluatePathStatement(
       "Node",
       (pathItem) => {
         const item = pathItem as Extract<PathItem, { kind: "Node" }>;
+        if (currentOperator) {
+          pendingSegmentNodes.push(item);
+          return;
+        }
         const adornmentPlan = extractNodeAdornmentPlan(item.options, {
           quoteMode: frame.nodeQuotesMode,
           labelPosition: frame.labelPosition,
@@ -1648,6 +1677,7 @@ export function evaluatePathStatement(
             activeRoundedCorners
           );
           lastPlacementSegment = appended.segment;
+          flushPendingSegmentNodes(appended.segment);
           flushPendingSegmentPlacements(appended.segment);
           previousSegmentRoundedCorners = appended.nextRoundedCorners;
           context.pathStartPoint = pathSourcePoint;
@@ -1687,6 +1717,7 @@ export function evaluatePathStatement(
           activeRoundedCorners
         );
         lastPlacementSegment = appended.segment;
+        flushPendingSegmentNodes(appended.segment);
         flushPendingSegmentPlacements(appended.segment);
         previousSegmentRoundedCorners = appended.nextRoundedCorners;
       } else {

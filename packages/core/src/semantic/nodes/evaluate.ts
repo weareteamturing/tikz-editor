@@ -73,7 +73,7 @@ import {
 import { resolveCalloutPointerOffset, resolveNodeShapeGeometryParams } from "./shape-geometry.js";
 import type { NodeShape } from "./types.js";
 import { resolveNodeTargetPoint } from "./placement.js";
-import { normalizeEscapedTextSpaces } from "./normalize-text.js";
+import { normalizeEscapedTextSpaces, normalizeNodeTextFontSize } from "./normalize-text.js";
 import { normalizeOptionValue } from "./utils.js";
 import { applyMatrixToVector, identityMatrix, multiplyMatrix, rotationMatrix } from "../transform.js";
 import type { PgfRandom } from "../pgfmath/rng.js";
@@ -231,10 +231,14 @@ export function measureNodeAnchorExtents(
     trace: context.macroTraceCollector ?? undefined
   });
   const resolvedNodeText = normalizeEscapedTextSpaces(resolveTextColorAliases(expandedNodeText, context, statement.id));
+  const normalizedText = normalizeNodeTextFontSize(resolvedNodeText, nodeLocalStyle.fontSize);
+  const nodeTextStyle = normalizedText.fontSizePt === nodeLocalStyle.fontSize
+    ? nodeLocalStyle
+    : { ...nodeLocalStyle, fontSize: normalizedText.fontSizePt };
   const baseNodeLayout = resolveNodeLayout(
-    resolvedNodeText,
+    normalizedText.text,
     expandedNodeOptions,
-    nodeLocalStyle,
+    nodeTextStyle,
     1,
     context.textEngine,
     "text"
@@ -389,6 +393,10 @@ export function evaluateNodeItem(
     trace: context.macroTraceCollector ?? undefined
   });
   const resolvedNodeText = normalizeEscapedTextSpaces(resolveTextColorAliases(expandedNodeText, context, statement.id));
+  const normalizedNodeText = normalizeNodeTextFontSize(resolvedNodeText, nodeStyle.fontSize);
+  const nodeTextStyle = normalizedNodeText.fontSizePt === nodeStyle.fontSize
+    ? nodeStyle
+    : { ...nodeStyle, fontSize: normalizedNodeText.fontSizePt };
 
   const matrixMode = resolveMatrixMode(effectiveNodeOptions);
   if (matrixMode.enabled) {
@@ -428,9 +436,9 @@ export function evaluateNodeItem(
   }
 
   const baseNodeLayout = resolveNodeLayout(
-    resolvedNodeText,
+    normalizedNodeText.text,
     expandedNodeOptions,
-    nodeStyle,
+    nodeTextStyle,
     1,
     context.textEngine,
     placementOptions.textMode ?? "text"
@@ -929,16 +937,16 @@ export function evaluateNodeItem(
     }
   }
 
-  const normalizedText = nodeLayout.textLines.join("\n");
-  if (normalizedText.length > 0) {
+  const renderedNodeText = nodeLayout.textLines.join("\n");
+  if (renderedNodeText.length > 0) {
     pushNodeElement(
       makeTextElement(
         statement.id,
         item.id,
         center,
-        nodeStyle,
+        nodeTextStyle,
         item.span,
-        normalizedText,
+        renderedNodeText,
         nodeLayout.textBlockWidth,
         nodeLayout.textBlockHeight,
         nodeLayout.visualWidth,
