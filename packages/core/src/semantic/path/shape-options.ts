@@ -1,29 +1,43 @@
 import type { PathOptionItem } from "../../ast/types.js";
-import { parseLength } from "../coords/parse-length.js";
+import { parseLength, parseLengthWithInfo } from "../coords/parse-length.js";
 import type { MacroBinding, MacroExpansionTraceEvent } from "../../macros/index.js";
 import type { DiagnosticPushFn } from "./types.js";
 import { expandPathMacroBindings } from "./macro-expansion.js";
+
+type ParsedLengthWithTransform = {
+  value: number;
+  applyFrameTransform: boolean;
+};
 
 export function extractEllipseRadii(
   item: PathOptionItem,
   pushDiagnostic: DiagnosticPushFn,
   macroBindings?: ReadonlyMap<string, MacroBinding>,
   macroTraceCollector?: MacroExpansionTraceEvent[]
-): { rx: number; ry: number } | null {
-  let rx: number | null = null;
-  let ry: number | null = null;
-  let radius: number | null = null;
+): { rx: ParsedLengthWithTransform; ry: ParsedLengthWithTransform } | null {
+  let rx: ParsedLengthWithTransform | null = null;
+  let ry: ParsedLengthWithTransform | null = null;
+  let radius: ParsedLengthWithTransform | null = null;
 
   for (const entry of item.options.entries) {
     if (entry.kind !== "kv") {
       continue;
     }
     if (entry.key === "x radius") {
-      rx = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
+      const parsed = parseLengthWithInfo(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
+      if (parsed != null) {
+        rx = { value: parsed.value, applyFrameTransform: !parsed.hasExplicitUnit };
+      }
     } else if (entry.key === "y radius") {
-      ry = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
+      const parsed = parseLengthWithInfo(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
+      if (parsed != null) {
+        ry = { value: parsed.value, applyFrameTransform: !parsed.hasExplicitUnit };
+      }
     } else if (entry.key === "radius") {
-      radius = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
+      const parsed = parseLengthWithInfo(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
+      if (parsed != null) {
+        radius = { value: parsed.value, applyFrameTransform: !parsed.hasExplicitUnit };
+      }
     }
   }
 
@@ -48,14 +62,14 @@ export function extractCircleShapeOptions(
   macroBindings?: ReadonlyMap<string, MacroBinding>,
   macroTraceCollector?: MacroExpansionTraceEvent[]
 ): {
-  radius?: number;
-  rx?: number;
-  ry?: number;
+  radius?: ParsedLengthWithTransform;
+  rx?: ParsedLengthWithTransform;
+  ry?: ParsedLengthWithTransform;
   rotation?: number;
 } {
-  let radius: number | undefined;
-  let rx: number | undefined;
-  let ry: number | undefined;
+  let radius: ParsedLengthWithTransform | undefined;
+  let rx: ParsedLengthWithTransform | undefined;
+  let ry: ParsedLengthWithTransform | undefined;
   let rotation: number | undefined;
 
   for (const entry of item.options.entries) {
@@ -63,19 +77,19 @@ export function extractCircleShapeOptions(
       continue;
     }
     if (entry.key === "radius") {
-      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
+      const parsed = parseLengthWithInfo(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
       if (parsed != null) {
-        radius = parsed;
+        radius = { value: parsed.value, applyFrameTransform: !parsed.hasExplicitUnit };
       }
     } else if (entry.key === "x radius") {
-      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
+      const parsed = parseLengthWithInfo(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
       if (parsed != null) {
-        rx = parsed;
+        rx = { value: parsed.value, applyFrameTransform: !parsed.hasExplicitUnit };
       }
     } else if (entry.key === "y radius") {
-      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
+      const parsed = parseLengthWithInfo(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
       if (parsed != null) {
-        ry = parsed;
+        ry = { value: parsed.value, applyFrameTransform: !parsed.hasExplicitUnit };
       }
     } else if (entry.key === "rotate") {
       const parsed = Number(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector));

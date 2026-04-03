@@ -162,6 +162,9 @@ function expandArrowSymbol(symbol: ">" | "<" | "|", _side: "start" | "end", styl
     if (style.arrowShorthandStart.tips.length > 0) {
       return style.arrowShorthandStart.tips.map(cloneArrowTip);
     }
+    if (style.arrowShorthandEnd.tips.length > 0) {
+      return style.arrowShorthandEnd.tips.map(cloneArrowTip);
+    }
     return [makeDefaultArrowTip("cm-rightarrow", style.lineWidth)];
   }
 

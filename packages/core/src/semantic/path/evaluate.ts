@@ -111,11 +111,21 @@ export function evaluatePathStatement(
   let activeRoundedCorners = style.roundedCorners;
   let pendingRectangleFrom: Point | null = null;
   let pendingCircleCenter: Point | null = null;
-  let pendingCircleRadius: number | null = null;
-  let pendingCircleRadii: { rx: number; ry: number } | null = null;
+  let pendingCircleRadius: { value: number; applyFrameTransform: boolean } | null = null;
+  let pendingCircleRadii:
+    | {
+        rx: { value: number; applyFrameTransform: boolean };
+        ry: { value: number; applyFrameTransform: boolean };
+      }
+    | null = null;
   let pendingCircleRotation = 0;
   let pendingEllipseCenter: Point | null = null;
-  let pendingEllipseRadii: { rx: number; ry: number } | null = null;
+  let pendingEllipseRadii:
+    | {
+        rx: { value: number; applyFrameTransform: boolean };
+        ry: { value: number; applyFrameTransform: boolean };
+      }
+    | null = null;
   let pendingArc: { from: Point } | null = null;
   let pendingGrid: { from: Point; stepX: number; stepY: number } | null = null;
   let pendingNamedCoordinate: { name: string } | null = null;
@@ -133,6 +143,12 @@ export function evaluatePathStatement(
   let sawNonLeadingPathItem = false;
   const emittedTreeHookDiagnostics = new Set<string>();
   const honorInitialCurrentPoint = options.honorInitialCurrentPoint === true;
+  if (!honorInitialCurrentPoint) {
+    // Each standalone TikZ path starts from a fresh current point; leaking the
+    // previous statement's endpoint breaks node placement for node-only paths.
+    context.currentPoint = null;
+    context.pathStartPoint = null;
+  }
   let hasPathCurrentPoint = honorInitialCurrentPoint && context.currentPoint != null;
   const frame = context.stack[context.stack.length - 1];
   let treeFrameState = frame;
@@ -203,10 +219,11 @@ export function evaluatePathStatement(
     if (!pendingCircleCenter) {
       return;
     }
-    const fallbackRadius = pendingCircleRadius ?? style.radius;
+    const fallbackRadius = pendingCircleRadius ?? (style.radius != null ? { value: style.radius, applyFrameTransform: true } : null);
     if (fallbackRadius != null) {
+      const circleTransform = fallbackRadius.applyFrameTransform ? frameTransform : identityMatrix();
       activePath = emitCircleOrEllipse({
-        geometry: transformCircleGeometry(fallbackRadius, frameTransform),
+        geometry: transformCircleGeometry(fallbackRadius.value, circleTransform),
         center: pendingCircleCenter,
         statementId: statement.id,
         itemId: sourceId,
@@ -220,11 +237,21 @@ export function evaluatePathStatement(
       });
     } else {
       const fallbackRadii = pendingCircleRadii ?? {
-        rx: style.xRadius ?? DEFAULT_GRID_STEP,
-        ry: style.yRadius ?? DEFAULT_GRID_STEP
+        rx: { value: style.xRadius ?? DEFAULT_GRID_STEP, applyFrameTransform: true },
+        ry: { value: style.yRadius ?? DEFAULT_GRID_STEP, applyFrameTransform: true }
       };
+      const ellipseTransform =
+        fallbackRadii.rx.applyFrameTransform || fallbackRadii.ry.applyFrameTransform ? frameTransform : identityMatrix();
       activePath = emitCircleOrEllipse({
-        geometry: { kind: "ellipse", ...transformEllipseGeometry(fallbackRadii.rx, fallbackRadii.ry, pendingCircleRotation, frameTransform) },
+        geometry: {
+          kind: "ellipse",
+          ...transformEllipseGeometry(
+            fallbackRadii.rx.value,
+            fallbackRadii.ry.value,
+            pendingCircleRotation,
+            ellipseTransform
+          )
+        },
         center: pendingCircleCenter,
         statementId: statement.id,
         itemId: sourceId,
@@ -792,7 +819,7 @@ export function evaluatePathStatement(
           options: adornmentPlan.mainOptions,
           optionsSpan: adornmentPlan.mainOptions?.span
         };
-        const standaloneNodeDefaultTarget = statement.command === "node" && !hasPathCurrentPoint ? defaultPathOrigin : undefined;
+        const standaloneNodeDefaultTarget = !hasPathCurrentPoint ? defaultPathOrigin : undefined;
         const allowImplicitOriginHandle =
           statement.command === "node"
           && !hasPathCurrentPoint
@@ -1491,8 +1518,9 @@ export function evaluatePathStatement(
         if (pendingCircleCenter) {
           const radius = parseCircleRadiusFromCoordinateRaw(expandPathItemRaw(item.raw, context));
           if (radius != null) {
+            const circleTransform = radius.applyFrameTransform ? frameTransform : identityMatrix();
             activePath = emitCircleOrEllipse({
-              geometry: transformCircleGeometry(radius, frameTransform),
+              geometry: transformCircleGeometry(radius.value, circleTransform),
               center: pendingCircleCenter,
               statementId: statement.id,
               itemId: item.id,
@@ -1515,8 +1543,10 @@ export function evaluatePathStatement(
 
       if (pendingEllipseCenter) {
         const parsedRadii = parseEllipseRadiiFromCoordinateRaw(expandPathItemRaw(item.raw, context));
-        if (parsedRadii) {
-          const geometry = transformEllipseGeometry(parsedRadii.rx, parsedRadii.ry, 0, frameTransform);
+      if (parsedRadii) {
+          const ellipseTransform =
+            parsedRadii.rx.applyFrameTransform || parsedRadii.ry.applyFrameTransform ? frameTransform : identityMatrix();
+          const geometry = transformEllipseGeometry(parsedRadii.rx.value, parsedRadii.ry.value, 0, ellipseTransform);
           markFeature("keyword_ellipse", "supported");
           activePath = emitCircleOrEllipse({
             geometry: { kind: "ellipse", ...geometry },
@@ -2294,10 +2324,12 @@ export function evaluatePathStatement(
 
   if (pendingEllipseCenter) {
     const radii = pendingEllipseRadii ?? {
-      rx: DEFAULT_GRID_STEP,
-      ry: DEFAULT_GRID_STEP
+      rx: { value: DEFAULT_GRID_STEP, applyFrameTransform: true },
+      ry: { value: DEFAULT_GRID_STEP, applyFrameTransform: true }
     };
-    const geometry = transformEllipseGeometry(radii.rx, radii.ry, 0, frameTransform);
+    const ellipseTransform =
+      radii.rx.applyFrameTransform || radii.ry.applyFrameTransform ? frameTransform : identityMatrix();
+    const geometry = transformEllipseGeometry(radii.rx.value, radii.ry.value, 0, ellipseTransform);
     activePath = emitCircleOrEllipse({
       geometry: { kind: "ellipse", ...geometry },
       center: pendingEllipseCenter,

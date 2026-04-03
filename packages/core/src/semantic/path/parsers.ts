@@ -1,5 +1,10 @@
 import { coordinateInner } from "./shared.js";
-import { parseLength } from "../coords/parse-length.js";
+import { parseLengthWithInfo } from "../coords/parse-length.js";
+
+export type ParsedLengthWithTransform = {
+  value: number;
+  applyFrameTransform: boolean;
+};
 
 export function parseCoordinateOperation(raw: string): { name: string } | null {
   const inlineWithAt = raw.match(/coordinate\s*\(([^\)]+)\)\s*at\s*(\([^\)]+\))/i);
@@ -14,7 +19,7 @@ export function parseCoordinateOperation(raw: string): { name: string } | null {
   return { name: simple[1].trim() };
 }
 
-export function parseCircleRadiusFromCoordinateRaw(raw: string): number | null {
+export function parseCircleRadiusFromCoordinateRaw(raw: string): ParsedLengthWithTransform | null {
   const inner = coordinateInner(raw);
   if (!inner) {
     return null;
@@ -24,10 +29,18 @@ export function parseCircleRadiusFromCoordinateRaw(raw: string): number | null {
     return null;
   }
 
-  return parseLength(inner, "cm");
+  const parsed = parseLengthWithInfo(inner, "cm");
+  if (!parsed) {
+    return null;
+  }
+
+  return {
+    value: parsed.value,
+    applyFrameTransform: !parsed.hasExplicitUnit
+  };
 }
 
-export function parseEllipseRadiiFromCoordinateRaw(raw: string): { rx: number; ry: number } | null {
+export function parseEllipseRadiiFromCoordinateRaw(raw: string): { rx: ParsedLengthWithTransform; ry: ParsedLengthWithTransform } | null {
   const inner = coordinateInner(raw);
   if (!inner) {
     return null;
@@ -38,11 +51,16 @@ export function parseEllipseRadiiFromCoordinateRaw(raw: string): { rx: number; r
     return null;
   }
 
-  const rx = parseLength(match[1].trim(), "cm");
-  const ry = parseLength(match[2].trim(), "cm");
+  const parsedRx = parseLengthWithInfo(match[1].trim(), "cm");
+  const parsedRy = parseLengthWithInfo(match[2].trim(), "cm");
+  const rx = parsedRx?.value ?? null;
+  const ry = parsedRy?.value ?? null;
   if (rx == null || ry == null) {
     return null;
   }
 
-  return { rx, ry };
+  return {
+    rx: { value: rx, applyFrameTransform: !(parsedRx?.hasExplicitUnit ?? false) },
+    ry: { value: ry, applyFrameTransform: !(parsedRy?.hasExplicitUnit ?? false) }
+  };
 }

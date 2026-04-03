@@ -418,6 +418,20 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain('data-arrow-index="0"');
   });
 
+  it("inherits the configured end tip for < shorthand start arrows", () => {
+    const source = String.raw`\begin{tikzpicture}[>=Stealth]
+  \draw[<-] (0,0) -- (2,0);
+  \draw[<-] (0,0.6) arc (45:315:0.23);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const stealthTips = emitted.svg.match(/data-arrow-tip-kind="stealth"/g) ?? [];
+    expect(stealthTips).toHaveLength(2);
+    expect(emitted.svg).not.toContain('data-arrow-tip-kind="cm-rightarrow" data-arrow-side="start"');
+  });
+
   it("suppresses tip geometry on closed paths and when tips=never", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[<->] (0,0) -- (1,0) -- cycle;

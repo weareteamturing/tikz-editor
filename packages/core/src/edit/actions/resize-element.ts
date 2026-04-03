@@ -1196,12 +1196,12 @@ function resolveCurrentLocalShapeRadii(
     if (syntax.keyword === "circle") {
       const radius = parseCircleRadiusFromCoordinateRaw(payload.raw);
       if (radius != null) {
-        return { rx: radius, ry: radius };
+        return { rx: radius.value, ry: radius.value };
       }
     } else {
       const radii = parseEllipseRadiiFromCoordinateRaw(payload.raw);
       if (radii) {
-        return radii;
+        return { rx: radii.rx.value, ry: radii.ry.value };
       }
     }
   }

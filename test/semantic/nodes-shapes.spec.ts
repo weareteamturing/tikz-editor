@@ -2250,6 +2250,18 @@ describe("semantic evaluator / nodes and shapes", () => {
       expect(everyShapeIndex).toBeLessThan(nodeCommandIndex);
     });
 
+    it("expands custom node styles before node-shape resolution", () => {
+      const source = String.raw`\begin{tikzpicture}[black_vertex/.style={circle,draw,fill,scale=0.75}]
+    \node[black_vertex] at (0,0) {};
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:black_vertex")).toBe(false);
+
+      const circle = firstElementOfKind(result.scene.elements, "Circle");
+      expect(circle?.kind).toBe("Circle");
+    });
+
     it("attaches traced style chains to edge and pin-edge outputs", () => {
       const source = String.raw`\begin{tikzpicture}[every edge/.style={draw,blue},pin edge={draw=green,dotted}]
     \path (0,0) edge[dashed] (1,0);

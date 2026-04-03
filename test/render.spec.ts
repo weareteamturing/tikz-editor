@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderTikzToSvg, renderTikzToSvgAsync } from "../packages/core/src/render/index.js";
+import type { SceneText } from "../packages/core/src/semantic/types.js";
 import type { NodeTextEngine, NodeTextMeasureRequest, NodeTextMetrics } from "../packages/core/src/text/types.js";
 
 describe("render pipeline", () => {
@@ -17,6 +18,22 @@ describe("render pipeline", () => {
     expect(result.svg.svg).toContain("<svg");
     expect(result.svg.svg).toContain("<path");
     expect(result.svg.svg).toContain("<text");
+  });
+
+  it("resets path state between standalone draw statements", () => {
+    const source = String.raw`\begin{tikzpicture}[scale = 0.8]
+  \draw[shift = {(2.5,0.5)}, color = blue] node[font=\Large] {$q$};
+  \draw[shift = {(4.5,4.5)}, color = black] node[font=\Large] {$r$};
+\end{tikzpicture}`;
+
+    const result = renderTikzToSvg(source);
+    const textElements = result.semantic.scene.elements.filter((element): element is SceneText => element.kind === "Text");
+
+    expect(textElements).toHaveLength(2);
+    expect(textElements[0]?.position.x).toBeCloseTo(56.905511811, 6);
+    expect(textElements[0]?.position.y).toBeCloseTo(11.3811023622, 6);
+    expect(textElements[1]?.position.x).toBeCloseTo(102.4299212598, 6);
+    expect(textElements[1]?.position.y).toBeCloseTo(102.4299212598, 6);
   });
 
   it("keeps help lines color when appending dashed style", () => {
@@ -64,6 +81,28 @@ describe("render pipeline", () => {
 
     expect(result.semantic.diagnostics.some((diagnostic) => (diagnostic.code ?? "").startsWith("invalid-cm:"))).toBe(false);
     expect(result.svg.svg).toMatch(/d="M 28\.45\d* 56\.90\d* L 56\.90\d* 28\.45\d* L 28\.45\d* 28\.45\d*"/);
+  });
+
+  it("keeps explicit circle radii absolute under x and y scaling", () => {
+    const source = String.raw`\begin{tikzpicture}[x=1mm,y=1mm]
+  \draw (0,0) circle (.6mm);
+\end{tikzpicture}`;
+
+    const result = renderTikzToSvg(source);
+
+    expect(result.svg.svg).toContain('r="1.7072"');
+    expect(result.semantic.scene.elements.some((element) => element.kind === "Circle" && element.radius > 1)).toBe(true);
+  });
+
+  it("still scales unitless circle radii with x and y", () => {
+    const source = String.raw`\begin{tikzpicture}[x=1mm,y=1mm]
+  \draw (0,0) circle (1);
+\end{tikzpicture}`;
+
+    const result = renderTikzToSvg(source);
+
+    expect(result.svg.svg).toContain('r="2.8453"');
+    expect(result.semantic.scene.elements.some((element) => element.kind === "Circle" && element.radius > 2)).toBe(true);
   });
 
   it("keeps recoverable flow on partial input", () => {

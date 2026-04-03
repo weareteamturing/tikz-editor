@@ -43,7 +43,7 @@ export function defaultStyle(): ResolvedStyle {
     lineJoin: "miter",
     markerStart: null,
     markerEnd: null,
-    arrowShorthandStart: cloneArrowMarker(defaultTip),
+    arrowShorthandStart: { tips: [] },
     arrowShorthandEnd: cloneArrowMarker(defaultTip),
     tipsMode: "on draw",
     opacity: 1,

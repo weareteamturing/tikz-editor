@@ -12,6 +12,7 @@ import type { NodeLayer, NodeShape } from "./types.js";
 import { normalizeOptionValue } from "./utils.js";
 import { identityMatrix, inverseMatrix, multiplyMatrix } from "../transform.js";
 import type { Matrix2D } from "../types.js";
+import { defaultStyle } from "../style/defaults.js";
 
 export function withDefaultNodePosition(options: OptionListAst | undefined, defaultPos: number | undefined): OptionListAst | undefined {
   if (defaultPos == null) {
@@ -222,6 +223,44 @@ export function resolveEffectiveNodeOptions(params: {
     params.statementOptions,
     params.nodeOptions
   ]);
+}
+
+export function expandNodeOptionsForShape(
+  options: OptionListAst | undefined,
+  context: SemanticContext
+): OptionListAst | undefined {
+  if (!options) {
+    return undefined;
+  }
+
+  const frame = context.stack[context.stack.length - 1];
+  const expanded = expandOptionListMacros([options], frame.macroBindings, context.macroTraceCollector ?? undefined);
+  if (expanded.length === 0) {
+    return options;
+  }
+
+  const resolved = resolveContextDelta(
+    defaultStyle(),
+    frame.transform,
+    [
+      {
+        kind: "command",
+        sourceRef: {
+          sourceId: "__node-options-expand__",
+          sourceSpan: options.span,
+          sourceKind: "node-options",
+          label: "node"
+        },
+        rawOptions: expanded
+      }
+    ],
+    cloneCustomStyleRegistry(frame.customStyles),
+    undefined,
+    [],
+    (raw) => resolveContextColorAliasValue(context, raw)
+  );
+
+  return resolved.expandedOptionLists[0] ?? options;
 }
 
 function resolveShapeStyleLists(
