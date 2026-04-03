@@ -1048,8 +1048,8 @@ function applyStandaloneCommandStatement(
 ): boolean {
   let handled = false;
   for (const invocation of parseStandaloneCommandInvocations(raw)) {
-    handled = true;
     if (invocation.command === "\\pgfmathsetseed" && invocation.args.length === 1) {
+      handled = true;
       markFeature(featureUsage, "pgfmath_expression", "supported");
       markFeature(featureUsage, "pgfmath_seed_commands", "supported");
       const frame = currentFrame(context);
@@ -1075,6 +1075,7 @@ function applyStandaloneCommandStatement(
     }
 
     if (invocation.command === "\\pgfmathparse" && invocation.args.length === 1) {
+      handled = true;
       markFeature(featureUsage, "pgfmath_expression", "supported");
       const frame = currentFrame(context);
       const expanded = expandMacroBindings(invocation.args[0], frame.macroBindings, {
@@ -1103,6 +1104,7 @@ function applyStandaloneCommandStatement(
     }
 
     if (invocation.command === "\\pgfmathsetmacro" && invocation.args.length === 2) {
+      handled = true;
       markFeature(featureUsage, "pgfmath_expression", "supported");
       const target = normalizeMacroName(invocation.args[0]);
       if (target == null) {

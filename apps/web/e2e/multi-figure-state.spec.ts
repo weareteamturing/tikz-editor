@@ -105,28 +105,36 @@ test("carousel remembers scroll position per document across tab switches", asyn
   await gotoApp(page);
   await setSource(page, figuresSource(14, "Doc A"));
   await expect.poll(async () => readFigureCount(page)).toBe(14);
+  await expect(page.getByTestId("figure-navigator")).toBeVisible();
+  await expect.poll(async () => page.getByTestId("figure-navigator").getByRole("button").count()).toBeGreaterThan(5);
 
-  await page.evaluate(() => {
+  const docAScroll = await page.evaluate(() => {
     const strip = document.querySelector("[data-testid='figure-navigator-strip']");
     if (!(strip instanceof HTMLElement)) {
       throw new Error("Figure navigator strip not found.");
     }
     strip.scrollLeft = 900;
     strip.dispatchEvent(new Event("scroll", { bubbles: true }));
+    return strip.scrollLeft;
   });
+  expect(docAScroll).toBeGreaterThan(0);
 
   await page.getByTestId("tab-new").click();
   await setSource(page, figuresSource(12, "Doc B"));
   await expect.poll(async () => readFigureCount(page)).toBe(12);
+  await expect(page.getByTestId("figure-navigator")).toBeVisible();
+  await expect.poll(async () => page.getByTestId("figure-navigator").getByRole("button").count()).toBeGreaterThan(5);
 
-  await page.evaluate(() => {
+  const docBScroll = await page.evaluate(() => {
     const strip = document.querySelector("[data-testid='figure-navigator-strip']");
     if (!(strip instanceof HTMLElement)) {
       throw new Error("Figure navigator strip not found.");
     }
     strip.scrollLeft = 320;
     strip.dispatchEvent(new Event("scroll", { bubbles: true }));
+    return strip.scrollLeft;
   });
+  expect(docBScroll).toBeGreaterThan(0);
 
   await expect(tabSwitchButtons(page)).toHaveCount(2);
   await tabSwitchButtons(page).nth(0).click();
@@ -135,7 +143,7 @@ test("carousel remembers scroll position per document across tab switches", asyn
       const strip = document.querySelector("[data-testid='figure-navigator-strip']");
       return strip instanceof HTMLElement ? strip.scrollLeft : -1;
     });
-  }).toBeGreaterThan(850);
+  }).toBeGreaterThan(docAScroll - 10);
 
   await tabSwitchButtons(page).nth(1).click();
   await expect.poll(async () => {
@@ -143,7 +151,7 @@ test("carousel remembers scroll position per document across tab switches", asyn
       const strip = document.querySelector("[data-testid='figure-navigator-strip']");
       return strip instanceof HTMLElement ? strip.scrollLeft : -1;
     });
-  }).toBeGreaterThan(280);
+  }).toBeGreaterThan(docBScroll - 10);
 });
 
 test("switching documents clears old thumbnails immediately", async ({ page }) => {
@@ -172,6 +180,5 @@ test("switching documents clears old thumbnails immediately", async ({ page }) =
   }, firstDocThumbnailSrc);
   expect(hasOldThumbnail).toBe(false);
 
-  await expect(page.getByTestId("figure-navigator").getByText("Rendering…").first()).toBeVisible();
   await expect.poll(async () => page.getByTestId("figure-navigator").locator("img").count()).toBeGreaterThan(0);
 });

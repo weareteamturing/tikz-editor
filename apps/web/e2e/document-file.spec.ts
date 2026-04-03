@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
 test("boots with one tab and supports new/switch/close-all workflows", async ({ page }) => {
   await gotoApp(page);
   await expect(tabSwitchButtons(page)).toHaveCount(1);
-  await expect(page.getByTestId("styles-tab")).toBeVisible();
+  await expect(page.locator(".flexlayout__tab_button_content:has-text('Styles')").first()).toBeVisible();
 
   await openMenuCommand(page, "file", "file.new-document");
   await expect(tabSwitchButtons(page)).toHaveCount(2);

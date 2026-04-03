@@ -22,14 +22,14 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     "elementTotals": {
       "circles": 427,
       "ellipses": 38,
-      "paths": 7527,
-      "texts": 4186,
-      "total": 12178,
+      "paths": 7524,
+      "texts": 4266,
+      "total": 12255,
     },
-    "semanticEmptySceneRate": 0.3297,
-    "semanticEmptySceneSnippets": 721,
-    "semanticErrorRate": 0.0512,
-    "semanticErrorSnippets": 112,
+    "semanticEmptySceneRate": 0.3306,
+    "semanticEmptySceneSnippets": 723,
+    "semanticErrorRate": 0.0508,
+    "semanticErrorSnippets": 111,
     "semanticUnsupportedRate": 0.4915,
     "semanticUnsupportedSnippets": 1075,
     "semanticWarningRate": 0.5016,
@@ -235,8 +235,9 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "count": 32,
     },
     {
-      "code": "unsupported-path-operator",
-      "count": 25,
+      "code": "unsupported-option-key:shadow
+                    yshift",
+      "count": 32,
     },
     {
       "code": "unsupported-option-key:butterfly",

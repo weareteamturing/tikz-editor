@@ -688,55 +688,63 @@ export function evaluatePathStatement(
         }
 
         const isLeadingPathOption = !sawNonLeadingPathItem;
+        const mirrorsStatementOptions =
+          isLeadingPathOption
+          && statement.options != null
+          && item.span.from === statement.options.span.from
+          && item.span.to === statement.options.span.to;
+
         if (expandedOptions) {
-          const optionSourceRef = {
-            sourceId: item.id,
-            sourceSpan: item.span,
-            sourceKind: "path-option-item",
-            label: "path option"
-          } as const;
-          const optionCustomStyles = cloneCustomStyleRegistry(treeFrameState.customStyles);
-          const optionResolved = resolveContextDelta(
-            treeFrameState.style,
-            treeFrameState.transform,
-            [
-              {
-                kind: "scope",
-                sourceRef: optionSourceRef,
-                rawOptions: [expandedOptions]
-              }
-            ],
-            optionCustomStyles,
-            (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
-            treeFrameState.styleChain,
-            (raw) => resolveContextColorAliasValue(context, raw)
-          );
-          for (const code of optionResolved.diagnostics) {
-            pushDiagnostic(code, `Path option issue: ${code}`, item.span.from, item.span.to);
-          }
+          if (!mirrorsStatementOptions) {
+            const optionSourceRef = {
+              sourceId: item.id,
+              sourceSpan: item.span,
+              sourceKind: "path-option-item",
+              label: "path option"
+            } as const;
+            const optionCustomStyles = cloneCustomStyleRegistry(treeFrameState.customStyles);
+            const optionResolved = resolveContextDelta(
+              treeFrameState.style,
+              treeFrameState.transform,
+              [
+                {
+                  kind: "scope",
+                  sourceRef: optionSourceRef,
+                  rawOptions: [expandedOptions]
+                }
+              ],
+              optionCustomStyles,
+              (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
+              treeFrameState.styleChain,
+              (raw) => resolveContextColorAliasValue(context, raw)
+            );
+            for (const code of optionResolved.diagnostics) {
+              pushDiagnostic(code, `Path option issue: ${code}`, item.span.from, item.span.to);
+            }
 
-          const optionMeta = resolveFrameMeta(treeFrameState, optionResolved.expandedOptionLists, optionSourceRef);
+            const optionMeta = resolveFrameMeta(treeFrameState, optionResolved.expandedOptionLists, optionSourceRef);
 
-          treeFrameState = {
-            ...treeFrameState,
-            ...optionMeta,
-            style: optionResolved.style,
-            styleChain: optionResolved.chain,
-            transform: optionResolved.transform,
-            customStyles: optionCustomStyles
-          };
-          style = treeFrameState.style;
-          statementStyleChain = treeFrameState.styleChain;
-          if (activePath) {
-            activePath.style = { ...style };
-            activePath.styleChain = cloneStyleChain(statementStyleChain);
+            treeFrameState = {
+              ...treeFrameState,
+              ...optionMeta,
+              style: optionResolved.style,
+              styleChain: optionResolved.chain,
+              transform: optionResolved.transform,
+              customStyles: optionCustomStyles
+            };
+            style = treeFrameState.style;
+            statementStyleChain = treeFrameState.styleChain;
+            if (activePath) {
+              activePath.style = { ...style };
+              activePath.styleChain = cloneStyleChain(statementStyleChain);
+            }
+            plotSettings = applyPlotSettingsFromStyleChain(
+              createDefaultPlotSettings(),
+              treeFrameState.styleChain,
+              treeFrameState.macroBindings
+            );
+            shouldCompoundFilledSubpaths = computeShouldCompoundFilledSubpaths(style);
           }
-          plotSettings = applyPlotSettingsFromStyleChain(
-            createDefaultPlotSettings(),
-            treeFrameState.styleChain,
-            treeFrameState.macroBindings
-          );
-          shouldCompoundFilledSubpaths = computeShouldCompoundFilledSubpaths(style);
           if (isLeadingPathOption) {
             leadingToLikeOptions = mergeOptionLists(leadingToLikeOptions, expandedOptions);
           }

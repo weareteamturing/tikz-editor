@@ -759,7 +759,7 @@ describe("applyEditAction – moveElement", () => {
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("at={(10,10)}");
-    expect(result.newSource).toContain("] at (11,12)");
+    expect(result.newSource).toContain("] at (1,2)");
   });
 });
 

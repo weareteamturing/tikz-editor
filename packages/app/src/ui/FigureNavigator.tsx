@@ -3,6 +3,8 @@ import { useEditorStore } from "../store/store";
 import { useFigureThumbnails } from "./useFigureThumbnails";
 import css from "./FigureNavigator.module.css";
 
+const stripScrollByDocumentId = new Map<string, number>();
+
 export function FigureNavigator() {
   const snapshot = useEditorStore((s) => s.snapshot);
   const source = snapshot.source;
@@ -12,7 +14,6 @@ export function FigureNavigator() {
   const dispatch = useEditorStore((s) => s.dispatch);
   const stripRef = useRef<HTMLDivElement | null>(null);
   const thumbRefByFigureId = useRef(new Map<string, HTMLButtonElement>());
-  const stripScrollByDocumentIdRef = useRef(new Map<string, number>());
   const [visibleFigureIds, setVisibleFigureIds] = useState<string[]>([]);
 
   const activeIndex = useMemo(
@@ -29,7 +30,7 @@ export function FigureNavigator() {
     let raf = 0;
     const updateVisible = () => {
       raf = 0;
-      stripScrollByDocumentIdRef.current.set(activeDocumentId, strip.scrollLeft);
+      stripScrollByDocumentId.set(activeDocumentId, strip.scrollLeft);
       const overscanPx = 220;
       const visibleMinX = strip.scrollLeft - overscanPx;
       const visibleMaxX = strip.scrollLeft + strip.clientWidth + overscanPx;
@@ -74,7 +75,7 @@ export function FigureNavigator() {
     if (!strip) {
       return;
     }
-    const targetScrollLeft = stripScrollByDocumentIdRef.current.get(activeDocumentId) ?? 0;
+    const targetScrollLeft = stripScrollByDocumentId.get(activeDocumentId) ?? 0;
     const raf = window.requestAnimationFrame(() => {
       strip.scrollLeft = targetScrollLeft;
     });

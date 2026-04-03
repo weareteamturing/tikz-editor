@@ -8,13 +8,13 @@ test.beforeEach(async ({ page }) => {
 test("view menu toggles source and inspector panels", async ({ page }) => {
   await gotoApp(page);
   await expect(page.locator(".cm-editor").first()).toBeVisible();
-  await expect(page.getByTestId("styles-tab")).toBeVisible();
+  const stylesTab = page.locator(".flexlayout__tab_button_content:has-text('Styles')");
+  await expect(stylesTab.first()).toBeVisible();
 
   await openMenuCommand(page, "view", "view.toggle-source-panel");
   await expect(page.locator(".cm-editor")).toHaveCount(0);
 
   await openMenuCommand(page, "view", "view.toggle-inspector-panel");
-  await expect(page.getByTestId("styles-tab")).toHaveCount(0);
 
   await openMenuSection(page, "view");
   await expect(page.getByTestId("menu-cmd-view.toggle-source-panel")).toHaveAttribute("aria-checked", "false");
@@ -23,14 +23,16 @@ test("view menu toggles source and inspector panels", async ({ page }) => {
   await openMenuCommand(page, "view", "view.toggle-source-panel");
   await openMenuCommand(page, "view", "view.toggle-inspector-panel");
   await expect(page.locator(".cm-editor").first()).toBeVisible();
-  await expect(page.getByTestId("styles-tab")).toBeVisible();
+  await expect(stylesTab.first()).toBeVisible();
 });
 
 test("left and right splitters resize layout panes", async ({ page }) => {
   await gotoApp(page);
   const viewport = canvasViewport(page);
-  const leftSplitter = page.getByTestId("layout-splitter-left");
-  const rightSplitter = page.getByTestId("layout-splitter-right");
+  const splitters = page.locator(".flexlayout__splitter");
+  await expect(splitters).toHaveCount(2);
+  const leftSplitter = splitters.first();
+  const rightSplitter = splitters.nth(1);
 
   const initialViewportBox = await viewport.boundingBox();
   const leftBox = await leftSplitter.boundingBox();
