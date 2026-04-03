@@ -49,8 +49,16 @@
   width: 100%;
   height: 100%;
   display: block;
+  -webkit-user-select: none;
   user-select: none;
+  -webkit-user-drag: none;
   cursor: ns-resize;
+}
+
+.topRuler,
+.topRuler * {
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .leftRulerSlot {
@@ -64,6 +72,14 @@
   width: 100%;
   height: 100%;
   display: block;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.leftRuler,
+.leftRuler * {
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -94,6 +110,7 @@
   font-size: calc(var(--app-ui-scale, 1) * 9px);
   font-family: var(--font-mono);
   text-transform: none;
+  pointer-events: none;
 }
 
 .viewport {
@@ -152,6 +169,17 @@
   background: #fff;
   box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
   pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  cursor: default;
+}
+
+.svgLayer,
+.svgLayer * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .svgLayerTransparencyGrid {

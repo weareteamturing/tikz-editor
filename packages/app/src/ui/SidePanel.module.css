@@ -22,11 +22,26 @@
   flex-shrink: 0;
 }
 
+.header,
+.header * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .content {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
   padding: 6px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.content input,
+.content textarea,
+.content [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .section {
@@ -52,6 +67,12 @@
   letter-spacing: 0.04em;
   color: var(--text-muted);
   min-height: 20px;
+}
+
+.sectionHeader,
+.sectionHeader * {
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .sectionBody {

@@ -219,12 +219,12 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
   }, [assistantApi]);
 
   if (!assistantAvailable) {
-    return <div className={css.empty}>Codex assistant is only available in the desktop app.</div>;
+    return <div className={css.empty} data-select="text">Codex assistant is only available in the desktop app.</div>;
   }
 
   if (!codexStatusChecked) {
     return (
-      <div className={css.empty}>
+      <div className={css.empty} data-select="text">
         <div className={css.checkingStatus}>
           <div className={css.spinner} />
           <span>Checking Codex CLI availability...</span>
@@ -262,7 +262,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
 
     return (
       <div className={css.empty}>
-        <p>Codex CLI is not installed.</p>
+        <p data-select="text">Codex CLI is not installed.</p>
         {methods.length > 0 ? (
           <div className={css.installButtons}>
             {methods.length === 1 ? (
@@ -295,12 +295,12 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
             )}
           </div>
         ) : (
-          <p>Install manually: <code>npm install -g @openai/codex</code></p>
+          <p data-select="text">Install manually: <code>npm install -g @openai/codex</code></p>
         )}
         {methods.length > 1 ? (
           <details className={css.installDetails}>
             <summary>Show install commands</summary>
-            <ul className={css.installCommandList}>
+            <ul className={css.installCommandList} data-select="text">
               {methods.map(({ method, label, command }) => (
                 <li key={method}><strong>{label}:</strong> <code>{command}</code></li>
               ))}
@@ -308,17 +308,17 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
           </details>
         ) : null}
         {detected.hasWsl && methods.length > 1 ? (
-          <p className={css.installHint}>WSL uses your default distro.</p>
+          <p className={css.installHint} data-select="text">WSL uses your default distro.</p>
         ) : null}
-        {codexStatusError && <p className={css.installError}>Could not detect Codex: {codexStatusError}</p>}
-        {installError && <p className={css.installError}>{installError}</p>}
-        {installOutput && <p className={css.installSuccess}>{installOutput}</p>}
+        {codexStatusError && <p className={css.installError} data-select="text">Could not detect Codex: {codexStatusError}</p>}
+        {installError && <p className={css.installError} data-select="text">{installError}</p>}
+        {installOutput && <p className={css.installSuccess} data-select="text">{installOutput}</p>}
       </div>
     );
   }
 
   if (!doc) {
-    return <div className={css.empty}>No active document.</div>;
+    return <div className={css.empty} data-select="text">No active document.</div>;
   }
 
   const running = doc.assistantTurnStatus === "starting" || doc.assistantTurnStatus === "inProgress";
@@ -403,7 +403,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
         </SidePanel.Header>
         <SidePanel.Content className={css.authRequired}>
           <div className={css.authRequiredContent}>
-            <p>Sign in to use the assistant.</p>
+            <p data-select="text">Sign in to use the assistant.</p>
             <button
               type="button"
               className={css.authButtonLarge}
@@ -413,9 +413,9 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
               {pendingLoginId ? "Waiting for browser..." : "Sign in with ChatGPT"}
             </button>
             {pendingLoginId ? (
-              <p className={css.authHint}>Complete sign-in in your browser, then return here.</p>
+              <p className={css.authHint} data-select="text">Complete sign-in in your browser, then return here.</p>
             ) : null}
-            {loginError ? <p className={css.installError}>{loginError}</p> : null}
+            {loginError ? <p className={css.installError} data-select="text">{loginError}</p> : null}
           </div>
         </SidePanel.Content>
       </SidePanel>
@@ -443,7 +443,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
         </button>
       </SidePanel.Header>
 
-      {doc.assistantError ? <div className={css.error}>{doc.assistantError}</div> : null}
+      {doc.assistantError ? <div className={css.error} data-select="text">{doc.assistantError}</div> : null}
 
       <SidePanel.Content
         className={css.timeline}
@@ -455,7 +455,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
           shouldStickToBottomRef.current = distanceFromBottom <= 48;
         }}
       >
-        {groupedItems.length === 0 ? <div className={css.empty}>Ask for help editing the current figure.</div> : null}
+        {groupedItems.length === 0 ? <div className={css.empty} data-select="text">Ask for help editing the current figure.</div> : null}
         {groupedItems.map(({ key, item }) => (
           <AssistantTimelineItem key={key} item={item} />
         ))}
@@ -572,7 +572,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
                     <span>Loading models...</span>
                   </div>
                 ) : (
-                  <div className={css.dropdownMeta}>
+                  <div className={css.dropdownMeta} data-select="text">
                     {dropdownMetaLines.map((line, index) => (
                       <div key={`${index}:${line}`}>{line}</div>
                     ))}
@@ -640,7 +640,7 @@ function AssistantTimelineItem({ item }: { item: AssistantItem }) {
     const normalized = normalizeUserMessage(contentList);
     return (
       <div className={`${css.card} ${css.userCard} ${css.userMessageBubble}`}>
-        <div className={css.messageBody}>
+        <div className={css.messageBody} data-select="text">
           <div>{renderTextWithBreaks(normalized.visibleText)}</div>
           {normalized.attachmentUrls.length > 0 ? (
             <div className={css.historyAttachments}>
@@ -653,7 +653,7 @@ function AssistantTimelineItem({ item }: { item: AssistantItem }) {
           {normalized.rawPrompt && normalized.rawPrompt !== normalized.visibleText ? (
             <details className={css.rawPrompt}>
               <summary className={css.rawPromptSummary}>Expand to see packaging</summary>
-              <pre className={css.detail}>{normalized.rawPrompt}</pre>
+              <pre className={css.detail} data-select="text">{normalized.rawPrompt}</pre>
             </details>
           ) : null}
         </div>
@@ -663,7 +663,7 @@ function AssistantTimelineItem({ item }: { item: AssistantItem }) {
 
   if (item.type === "agentMessage") {
     return (
-      <div className={css.agentMessageBare}>
+      <div className={css.agentMessageBare} data-select="text">
         <Markdown remarkPlugins={[remarkGfm]}>{asString(item.text)}</Markdown>
       </div>
     );
@@ -673,7 +673,7 @@ function AssistantTimelineItem({ item }: { item: AssistantItem }) {
     return (
       <div className={css.card}>
         <div className={css.cardTitle}>Plan</div>
-        <div className={css.messageBody}>
+        <div className={css.messageBody} data-select="text">
           <Markdown remarkPlugins={[remarkGfm]}>{asString(item.text)}</Markdown>
         </div>
       </div>
@@ -683,7 +683,7 @@ function AssistantTimelineItem({ item }: { item: AssistantItem }) {
   if (item.type === "reasoning") {
     return (
       <div className={css.reasoningInline}>
-        <div className={css.reasoningBody}>
+        <div className={css.reasoningBody} data-select="text">
           {item.summary ? <Markdown remarkPlugins={[remarkGfm]}>{asString(item.summary)}</Markdown> : null}
           {item.content ? <Markdown remarkPlugins={[remarkGfm]}>{asString(item.content)}</Markdown> : null}
         </div>
@@ -697,13 +697,13 @@ function AssistantTimelineItem({ item }: { item: AssistantItem }) {
     return (
       <details className={css.details}>
         <summary>{summarizeCommandExecution(command)}</summary>
-        <div className={css.messageBody}>
+        <div className={css.messageBody} data-select="text">
           <div className={css.attachmentHint}>
             Status: {status}
             {typeof item.exitCode === "number" ? ` · exit ${item.exitCode}` : ""}
             {typeof item.durationMs === "number" ? ` · ${item.durationMs}ms` : ""}
           </div>
-          {item.aggregatedOutput ? <pre className={css.detail}>{asString(item.aggregatedOutput)}</pre> : null}
+          {item.aggregatedOutput ? <pre className={css.detail} data-select="text">{asString(item.aggregatedOutput)}</pre> : null}
         </div>
       </details>
     );
@@ -729,7 +729,7 @@ function AssistantTimelineItem({ item }: { item: AssistantItem }) {
           Edited code
           {totals.added > 0 || totals.removed > 0 ? ` +${totals.added} -${totals.removed}` : ""}
         </summary>
-        <div className={css.messageBody}>
+        <div className={css.messageBody} data-select="text">
           {summaries.length === 0 ? (
             <div className={css.attachmentHint}>No diff available.</div>
           ) : (
@@ -737,7 +737,7 @@ function AssistantTimelineItem({ item }: { item: AssistantItem }) {
               <div key={`${index}:${change.path ?? "unknown"}`} className={css.diffBlock}>
                 {change.path ? <div className={css.attachmentHint}>{change.path}</div> : null}
                 <div className={css.diffScroll}>
-                  <pre className={css.diffPre}>
+                  <pre className={css.diffPre} data-select="text">
                     {change.diff.split("\n").map((line, lineIndex) => (
                       <span
                         key={`${lineIndex}:${line}`}
@@ -771,7 +771,7 @@ function AssistantTimelineItem({ item }: { item: AssistantItem }) {
     return (
       <details className={css.details}>
         <summary>{isPngPreview ? "Requested PNG snapshot" : "Requested tool call"}</summary>
-        <div className={css.messageBody}>
+        <div className={css.messageBody} data-select="text">
           {previewText ? <div className={css.attachmentHint}>{previewText}</div> : null}
           {previewImage ? (
             <img
@@ -789,7 +789,7 @@ function AssistantTimelineItem({ item }: { item: AssistantItem }) {
   return (
     <details className={css.details}>
       <summary>{item.type}</summary>
-      <pre className={css.detail}>{JSON.stringify(item, null, 2)}</pre>
+      <pre className={css.detail} data-select="text">{JSON.stringify(item, null, 2)}</pre>
     </details>
   );
 }
@@ -959,7 +959,7 @@ function ApprovalPreview({ approval }: { approval: AssistantPendingApproval }) {
     const reason = asString(approval.reason);
     const availableDecisions = formatAvailableDecisions(approval.availableDecisions);
     return (
-      <div className={css.messageBody}>
+      <div className={css.messageBody} data-select="text">
         {reason ? <div>{reason}</div> : null}
         {command ? <div className={css.attachmentHint}>Command: <code>{command}</code></div> : null}
         {approval.cwd ? <div className={css.attachmentHint}>CWD: {approval.cwd}</div> : null}
@@ -970,14 +970,14 @@ function ApprovalPreview({ approval }: { approval: AssistantPendingApproval }) {
 
   if (approval.kind === "fileChange") {
     return (
-      <div className={css.messageBody}>
+      <div className={css.messageBody} data-select="text">
         {approval.reason ? <div>{approval.reason}</div> : null}
         {approval.grantRoot ? <div className={css.attachmentHint}>Requested root: {approval.grantRoot}</div> : null}
       </div>
     );
   }
 
-  return <pre className={css.detail}>{JSON.stringify(approval.payload, null, 2)}</pre>;
+  return <pre className={css.detail} data-select="text">{JSON.stringify(approval.payload, null, 2)}</pre>;
 }
 
 function displayCommand(command: unknown): string | null {

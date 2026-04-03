@@ -262,6 +262,7 @@ export function CustomDropdown<TValue extends string>({
         <button
           type="button"
           className={[css.trigger, open ? css.triggerOpen : "", triggerClassName].filter(Boolean).join(" ")}
+          data-select="chrome"
           aria-haspopup="listbox"
           aria-expanded={open}
           aria-label={ariaLabel}
@@ -310,7 +311,7 @@ export function CustomDropdown<TValue extends string>({
             {menuHeader ? <div className={css.menuHeader}>{menuHeader}</div> : null}
             {displayOptions.map((item) => {
               if (!isCustomDropdownOption(item)) {
-                return <div key={item.id} role="separator" className={css.separator} />;
+                return <div key={item.id} role="separator" className={css.separator} data-select="chrome" />;
               }
 
               const selected = item.value === value;
@@ -319,6 +320,7 @@ export function CustomDropdown<TValue extends string>({
                   key={item.value}
                   type="button"
                   role="option"
+                  data-select="chrome"
                   aria-selected={selected}
                   className={[
                     css.option,

@@ -170,7 +170,7 @@ export function SvgExportModal({ svgResult, onClose }: SvgExportModalProps) {
         <div className={css.header}>
           <div>
             <h2 id="svg-export-title" className={css.title}>Export SVG</h2>
-            <p className={css.subtitle}>Review the generated SVG, make edits, then beautify, compress, copy, or download it.</p>
+            <p className={css.subtitle} data-select="text">Review the generated SVG, make edits, then beautify, compress, copy, or download it.</p>
           </div>
           <div className={css.actions}>
             <button type="button" className={css.secondaryButton} data-testid="svg-export-cancel" onClick={onClose}>
@@ -205,19 +205,19 @@ export function SvgExportModal({ svgResult, onClose }: SvgExportModalProps) {
           <div className={css.previewColumn}>
             <div className={css.previewFrame}>
               {loadingMarkup ? (
-                <div className={css.previewStatus}>Preparing SVG export...</div>
+                <div className={css.previewStatus} data-select="text">Preparing SVG export...</div>
               ) : loadError ? (
-                <div className={css.previewStatus}>{loadError}</div>
+                <div className={css.previewStatus} data-select="text">{loadError}</div>
               ) : !validation.valid ? (
-                <div className={css.previewStatus}>{validation.message}</div>
+                <div className={css.previewStatus} data-select="text">{validation.message}</div>
               ) : previewUrl ? (
                 <img className={css.previewImage} src={previewUrl} alt="SVG export preview" />
               ) : (
-                <div className={css.previewStatus}>SVG preview is unavailable in this browser.</div>
+                <div className={css.previewStatus} data-select="text">SVG preview is unavailable in this browser.</div>
               )}
             </div>
 
-            <div className={css.metaRow}>
+            <div className={css.metaRow} data-select="text">
               <span>{svgResult.viewBox.width.toFixed(1)} x {svgResult.viewBox.height.toFixed(1)}pt</span>
               <span>{markup.length.toLocaleString()} chars</span>
               <span>{lineCount.toLocaleString()} lines</span>
@@ -273,9 +273,9 @@ export function SvgExportModal({ svgResult, onClose }: SvgExportModalProps) {
                   </button>
                 </div>
                 {optimizerState.status === "error" ? (
-                  <span className={css.help}>SVGO unavailable: {optimizerState.message}</span>
+                  <span className={css.help} data-select="text">SVGO unavailable: {optimizerState.message}</span>
                 ) : null}
-                {copyFeedback ? <span className={css.help}>{copyFeedback}</span> : null}
+                {copyFeedback ? <span className={css.help} data-select="text">{copyFeedback}</span> : null}
               </div>
             </div>
 

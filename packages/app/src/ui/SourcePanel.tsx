@@ -1176,7 +1176,7 @@ export function SourcePanel() {
                 }}
               >
                 <span className={css.diagnosticIcon}>{d.severity === "error" ? "\u2298" : "\u26A0"}</span>
-                <span className={css.diagnosticMessage}>{d.message}</span>
+                <span className={css.diagnosticMessage} data-select="text">{d.message}</span>
                 {line != null && <span className={css.diagnosticLocation}>Ln {line}</span>}
               </div>
             );
@@ -1184,13 +1184,13 @@ export function SourcePanel() {
           {diagnostics.length > 5 && (
             <div className={`${css.diagnostic} ${css.diagnosticMore}`}>
               <span className={css.diagnosticIcon} />
-              <span className={css.diagnosticMessage}>…{diagnostics.length - 5} more</span>
+              <span className={css.diagnosticMessage} data-select="text">…{diagnostics.length - 5} more</span>
             </div>
           )}
         </div>
       )}
 
-      {assistantLockReason ? <div className={css.lockBanner}>{assistantLockReason}</div> : null}
+      {assistantLockReason ? <div className={css.lockBanner} data-select="text">{assistantLockReason}</div> : null}
       {activeColorPicker && inlineColorPopoverStyle ? (
         <div className={css.inlineColorPickerPopover} ref={colorPickerRef} style={inlineColorPopoverStyle}>
           <ColorPicker

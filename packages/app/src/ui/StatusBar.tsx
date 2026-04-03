@@ -63,7 +63,7 @@ export function StatusBar() {
   ].filter(Boolean).join(" + ") || "unknown";
 
   return (
-    <div className={css.bar}>
+    <div className={css.bar} data-select="chrome">
       <div className={css.cell}>
         <span className={css.label}>Mode:</span>
         <span className={css.toolMode}>{toolMode}</span>

@@ -184,7 +184,7 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
         <div className={css.header}>
           <div>
             <h2 id="png-export-title" className={css.title}>Export PNG</h2>
-            <p className={css.subtitle}>Adjust the raster resolution before saving the current SVG render as a PNG.</p>
+            <p className={css.subtitle} data-select="text">Adjust the raster resolution before saving the current SVG render as a PNG.</p>
           </div>
           <div className={css.actions}>
             <button type="button" className={css.secondaryButton} data-testid="png-export-cancel" onClick={onClose}>
@@ -223,11 +223,11 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
                     alt="PNG export preview"
                   />
                   {previewDisplay.isRefreshing && showRefreshOverlay ? (
-                    <div className={css.previewOverlay}>Rendering preview...</div>
+                    <div className={css.previewOverlay} data-select="text">Rendering preview...</div>
                   ) : null}
                 </div>
               ) : (
-                <div className={css.previewStatus}>
+                <div className={css.previewStatus} data-select="text">
                   {preview.status === "loading"
                     ? "Rendering preview..."
                     : preview.status === "error"
@@ -236,7 +236,7 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
                 </div>
               )}
             </div>
-            <div className={css.previewMeta}>
+            <div className={css.previewMeta} data-select="text">
               {previewDisplay ? (
                 <>
                   <span>{previewDisplay.pixelWidth} x {previewDisplay.pixelHeight}px</span>

@@ -31,7 +31,7 @@ export function TabStrip({
       : tabOrder;
 
   return (
-    <div className={css.strip} role="tablist" aria-label="Documents" data-testid="tab-strip">
+    <div className={css.strip} role="tablist" aria-label="Documents" data-testid="tab-strip" data-select="chrome">
       {previewOrder.map((id) => {
         const doc = documents[id];
         if (!doc) {

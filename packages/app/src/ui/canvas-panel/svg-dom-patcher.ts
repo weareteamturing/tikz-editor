@@ -25,9 +25,13 @@ export class SvgDomPatcher {
     this.rootSvg = document.createElementNS(SVG_NS, "svg");
     this.rootSvg.setAttribute("role", "img");
     this.rootSvg.setAttribute("aria-label", "TikZ SVG preview");
+    this.rootSvg.setAttribute("draggable", "false");
     this.rootSvg.style.display = "block";
     this.rootSvg.style.width = "100%";
     this.rootSvg.style.height = "100%";
+    this.rootSvg.style.webkitUserSelect = "none";
+    this.rootSvg.style.userSelect = "none";
+    this.rootSvg.style.setProperty("-webkit-user-drag", "none");
 
     this.defsElement = document.createElementNS(SVG_NS, "defs");
     this.contentLayer = document.createElementNS(SVG_NS, "g");

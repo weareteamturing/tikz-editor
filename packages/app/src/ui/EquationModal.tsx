@@ -148,7 +148,7 @@ export function EquationModal({ mode, initialLatex = "", onClose, onConfirm, onV
       <div className={css.header}>
         <div>
           <h2 id="equation-title" className={css.title}>{title}</h2>
-          <p className={css.subtitle}>
+          <p className={css.subtitle} data-select="text">
             {mode === "insert" ? "Type a LaTeX equation, then insert it as a node." : "Update the selected node equation."}
           </p>
         </div>
@@ -169,8 +169,8 @@ export function EquationModal({ mode, initialLatex = "", onClose, onConfirm, onV
           </button>
         </div>
       </div>
-      {phase === "loading" ? <div className={css.status}>Loading equation editor…</div> : null}
-      {phase === "error" ? <div className={css.statusError}>Failed to load equation editor.</div> : null}
+      {phase === "loading" ? <div className={css.status} data-select="text">Loading equation editor…</div> : null}
+      {phase === "error" ? <div className={css.statusError} data-select="text">Failed to load equation editor.</div> : null}
       <div className={css.editorHost} ref={hostRef} />
     </Modal>
   );

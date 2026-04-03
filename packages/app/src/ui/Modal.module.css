@@ -6,6 +6,8 @@
   place-items: center;
   background: color-mix(in srgb, var(--text) 45%, transparent);
   padding: 20px;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .backdropClear {
@@ -21,6 +23,17 @@
   background: var(--bg-pane);
   box-shadow: 0 14px 40px color-mix(in srgb, black 32%, transparent);
   overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.panel input,
+.panel textarea,
+.panel select,
+.panel option,
+.panel [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 @media (max-width: 720px) {

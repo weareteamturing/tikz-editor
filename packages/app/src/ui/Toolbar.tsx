@@ -331,7 +331,7 @@ export function Toolbar() {
   };
 
   return (
-    <div className={`${css.toolbar}${isMacDesktop ? ` ${css.toolbarDesktop}` : ""}`} data-tauri-drag-region>
+    <div className={`${css.toolbar}${isMacDesktop ? ` ${css.toolbarDesktop}` : ""}`} data-tauri-drag-region data-select="chrome">
       {showAppTitle ? (
         <>
           <span className={css.title}>TikZ Editor</span>

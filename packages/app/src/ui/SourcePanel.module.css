@@ -59,6 +59,14 @@
 .editorWrap :global(.cm-scroller) {
   font-family: var(--font-mono);
   line-height: 1.5;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.editorWrap :global(.cm-content),
+.editorWrap :global(.cm-content *) {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .editorWrap :global(.cm-editor.cm-scrub-hover .cm-scroller) {

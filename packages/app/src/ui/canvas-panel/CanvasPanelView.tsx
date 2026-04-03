@@ -136,13 +136,14 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
   return (
     <div className={css.panel}>
       <div className={[css.canvasGrid, showRulers ? "" : css.canvasGridNoRulers].filter(Boolean).join(" ")}>
-        {showRulers ? <div className={css.rulerCorner}>cm</div> : null}
+        {showRulers ? <div className={css.rulerCorner} data-select="chrome">cm</div> : null}
 
         {showRulers ? (
-          <div className={css.topRulerSlot}>
+          <div className={css.topRulerSlot} data-select="chrome">
             <svg
               ref={topRulerRef}
               className={css.topRuler}
+              data-select="chrome"
               viewBox={`0 0 ${Math.max(1, viewportSize.width)} ${RULER_SIZE}`}
               preserveAspectRatio="none"
               onPointerDown={onTopRulerPointerDown}
@@ -170,10 +171,11 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
         ) : null}
 
         {showRulers ? (
-          <div className={css.leftRulerSlot}>
+          <div className={css.leftRulerSlot} data-select="chrome">
             <svg
               ref={leftRulerRef}
               className={css.leftRuler}
+              data-select="chrome"
               viewBox={`0 0 ${RULER_SIZE} ${Math.max(1, viewportSize.height)}`}
               preserveAspectRatio="none"
               onPointerDown={onLeftRulerPointerDown}
@@ -233,9 +235,9 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
             onCanvasContextMenu(event);
           }}
         >
-          {assistantLockReason ? <div className={css.lockOverlay} data-testid="canvas-lock-overlay">{assistantLockReason}</div> : null}
+          {assistantLockReason ? <div className={css.lockOverlay} data-testid="canvas-lock-overlay" data-select="text">{assistantLockReason}</div> : null}
           {!svgResult ? (
-            <div className={css.noSvg} data-testid="canvas-no-svg">
+            <div className={css.noSvg} data-testid="canvas-no-svg" data-select="text">
               {noActiveFigure ? "Select a figure to edit." : (snapshot.source ? "Computing…" : "No source")}
             </div>
           ) : (
@@ -526,6 +528,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                   className={css.dragTooltipContent}
                   data-testid="canvas-drag-tooltip"
                   data-drag-tooltip-kind={dragTooltip.kind}
+                  data-select="text"
                 >
                   {dragTooltip.rows.map((row: any) => (
                     <div
@@ -548,6 +551,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
             <RenderedTooltip content="Click to copy message" block>
               <div
                 className={css.warningBar}
+                data-select="text"
                 onClick={copyWarningToClipboard}
                 onKeyDown={onWarningBarKeyDown}
                 role="button"
@@ -560,7 +564,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
             </RenderedTooltip>
           )}
           {selectionHint ? (
-            <div className={css.selectionHint} data-testid="canvas-selection-hint">
+            <div className={css.selectionHint} data-testid="canvas-selection-hint" data-select="text">
               {selectionHint}
             </div>
           ) : null}
@@ -578,7 +582,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
               <div className={css.snapDebugTitle} onPointerDown={onSnapDebugMovePointerDown}>
                 Snap Debug (drag to move)
               </div>
-              <pre className={css.snapDebugBody}>
+              <pre className={css.snapDebugBody} data-select="text">
                 {snapDebug
                   ? JSON.stringify(snapDebug, null, 2)
                   : "Trigger a snap interaction to populate diagnostics."}

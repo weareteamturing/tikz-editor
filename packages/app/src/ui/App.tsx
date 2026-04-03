@@ -37,6 +37,7 @@ import type { AssistantEvent } from "../platform/types";
 import { resolveOpenedFileForDocument, dataTransferHasFilePayload } from "./svg-import";
 import type { AssistantComposerImageAttachment } from "./assistant-image-attachments";
 import { formatEquationText, type EquationNodeTarget } from "./equation-utils";
+import "./selection.css";
 
 const DevPanel = lazy(async () => {
   const mod = await import("./DevPanel");

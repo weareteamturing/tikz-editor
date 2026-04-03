@@ -166,6 +166,8 @@
 .propertyLabel {
   font-size: calc(var(--app-ui-scale, 1) * 10px);
   color: var(--text-muted);
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .provenanceValue {
@@ -291,6 +293,11 @@
   border-radius: 2px;
 }
 
+.numberInput:not(:focus) {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .textInput {
   width: 100%;
   min-width: 0;
@@ -300,6 +307,11 @@
   font: inherit;
   font-size: calc(var(--app-ui-scale, 1) * 11px);
   padding: 4px 6px;
+}
+
+.textInput:not(:focus) {
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .textInput:disabled {
@@ -315,6 +327,8 @@
   font-size: calc(var(--app-ui-scale, 1) * 10px);
   color: var(--text-faint);
   min-width: 18px;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .rangeInput {
@@ -335,6 +349,8 @@
 .checkboxLabel {
   font-size: calc(var(--app-ui-scale, 1) * 11px);
   color: var(--text);
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .roundedCornersControl {

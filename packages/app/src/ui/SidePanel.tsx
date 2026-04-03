@@ -16,7 +16,7 @@ export type SidePanelHeaderProps = {
 };
 
 SidePanel.Header = function SidePanelHeader({ children, className }: SidePanelHeaderProps) {
-  return <div className={[css.header, className].filter(Boolean).join(" ")}>{children}</div>;
+  return <div className={[css.header, className].filter(Boolean).join(" ")} data-select="chrome">{children}</div>;
 };
 
 export type SidePanelContentProps = {
@@ -54,7 +54,7 @@ export type SidePanelSectionHeaderProps = {
 };
 
 SidePanel.SectionHeader = function SidePanelSectionHeader({ children, className }: SidePanelSectionHeaderProps) {
-  return <div className={[css.sectionHeader, className].filter(Boolean).join(" ")}>{children}</div>;
+  return <div className={[css.sectionHeader, className].filter(Boolean).join(" ")} data-select="chrome">{children}</div>;
 };
 
 export type SidePanelSectionBodyProps = {
@@ -72,5 +72,5 @@ export type SidePanelFooterProps = {
 };
 
 SidePanel.Footer = function SidePanelFooter({ children, className }: SidePanelFooterProps) {
-  return <div className={[css.footer, className].filter(Boolean).join(" ")}>{children}</div>;
+  return <div className={[css.footer, className].filter(Boolean).join(" ")} data-select="chrome">{children}</div>;
 };

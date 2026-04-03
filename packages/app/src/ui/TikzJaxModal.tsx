@@ -309,7 +309,7 @@ export function TikzJaxModal({
           </div>
         </div>
 
-        {statusText ? <div className={css.status}>{statusText}</div> : null}
+        {statusText ? <div className={css.status} data-select="text">{statusText}</div> : null}
 
         {phase === "native-error" ? (
           <div className={css.nativeError}>

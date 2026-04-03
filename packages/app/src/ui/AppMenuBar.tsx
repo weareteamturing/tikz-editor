@@ -41,7 +41,7 @@ function MenuPopup({
   );
 
   return (
-    <div className={[css.popup, nested ? css.popupNested : ""].filter(Boolean).join(" ")} role="menu">
+    <div className={[css.popup, nested ? css.popupNested : ""].filter(Boolean).join(" ")} role="menu" data-select="chrome">
       {items.map((item, index) => {
         const itemKey = `${path}-${index}`;
         if (item.kind === "separator") {
@@ -149,6 +149,7 @@ export function AppMenuBar({
   return (
     <div
       className={css.menuBar}
+      data-select="chrome"
       role="menubar"
       data-testid="app-menubar"
       ref={menuRootRef}

@@ -41,6 +41,8 @@
   height: 24px !important;
   min-height: 24px !important;
   background: var(--bg-app) !important;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .flexlayout__tab_button {
@@ -52,10 +54,14 @@
   margin-bottom: -1px;
   background: transparent !important;
   box-shadow: none !important;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .flexlayout__tab_button_content {
   gap: 2px !important;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .flexlayout__tab_button:hover {
@@ -126,11 +132,22 @@
 /* Maximize/close button styling */
 .flexlayout__tab_toolbar_button {
   color: var(--text-muted) !important;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .flexlayout__tab_toolbar_button:hover {
   color: var(--text) !important;
   background: var(--btn-hover-bg) !important;
+}
+
+.flexlayout__tabset_header,
+.flexlayout__tabset_header *,
+.flexlayout__tab_button *,
+.flexlayout__tabset_tabbar_outer *,
+.flexlayout__tab_toolbar_button * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
 }
 
 /* Remove gray-theme gradients/shadows so all panel headers match Source style */
