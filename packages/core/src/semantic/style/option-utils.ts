@@ -2,7 +2,7 @@ import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionListAst } from "../../options/types.js";
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import { parseCoordinateLike, parseLength, parseQuantityExpression } from "../coords/parse-length.js";
-import type { ResolvedStyle } from "../types.js";
+import type { Point, ResolvedStyle } from "../types.js";
 import { DEFAULT_TEXT_FONT_SIZE, FONT_SIZE_COMMAND_FACTORS } from "./constants.js";
 
 export function parseStyleValueAsOptionList(valueRaw: string, absoluteFrom = 0): OptionListAst | null {
@@ -186,6 +186,51 @@ export function parseCmTransformValue(
     const resolved = resolveCoordinate(translationRaw);
     if (resolved) {
       return { a, b, c, d, e: resolved.x, f: resolved.y };
+    }
+  }
+
+  return null;
+}
+
+export function parseRotateAroundValue(
+  raw: string,
+  resolveCoordinate?: (raw: string) => Point | null
+): { angleDeg: number; pivot: Point } | null {
+  const normalized = normalizeOptionValue(raw);
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const parts = splitAllAtTopLevel(normalized, ":").map((part) => part.trim());
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const angleRaw = parts[0];
+  const coordinateRaw = parts.slice(1).join(":").trim();
+  if (angleRaw.length === 0 || coordinateRaw.length === 0) {
+    return null;
+  }
+
+  const parsedAngle = parseQuantityExpression(angleRaw);
+  if (!parsedAngle || parsedAngle.kind !== "scalar" || !Number.isFinite(parsedAngle.value)) {
+    return null;
+  }
+
+  const parsedCoordinate = parseCoordinateLike(coordinateRaw);
+  if (parsedCoordinate) {
+    const x = parseLength(parsedCoordinate.x, "cm");
+    const y = parseLength(parsedCoordinate.y, "cm");
+    if (x == null || y == null) {
+      return null;
+    }
+    return { angleDeg: parsedAngle.value, pivot: { x, y } };
+  }
+
+  if (resolveCoordinate) {
+    const resolved = resolveCoordinate(coordinateRaw);
+    if (resolved) {
+      return { angleDeg: parsedAngle.value, pivot: resolved };
     }
   }
 

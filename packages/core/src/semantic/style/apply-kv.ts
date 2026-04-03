@@ -17,7 +17,14 @@ import type { ApplyEntryFn, ApplyOutcome } from "./apply-types.js";
 import { DEFAULT_TEXT_FONT_SIZE, NON_STYLE_OPTION_KEYS, PT_PER_CM } from "./constants.js";
 import { clamp01, mixNormalizedColors, normalizeColor, normalizeShadingName, type ColorAliasResolver } from "./colors.js";
 import { parseDashPattern, parseDashValue } from "./dash.js";
-import { normalizeOptionValue, parseAxisVector, parseCmTransformValue, parseFontStyle, parseStyleValueAsOptionList } from "./option-utils.js";
+import {
+  normalizeOptionValue,
+  parseAxisVector,
+  parseCmTransformValue,
+  parseFontStyle,
+  parseRotateAroundValue,
+  parseStyleValueAsOptionList
+} from "./option-utils.js";
 import { parsePatternValue } from "./patterns.js";
 import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 function normalizeOptionColor(valueRaw: string, style: ResolvedStyle, resolveColorAlias?: ColorAliasResolver): string {
@@ -744,6 +751,18 @@ export function applyKvEntry(
       return { style, transform, diagnostics: [`invalid-rotate:${valueRaw}`] };
     }
     return { style, transform: multiplyMatrix(transform, rotationMatrix(degrees)), diagnostics: [] };
+  }
+  if (key === "rotate around" || key === "/tikz/rotate around") {
+    const parsed = parseRotateAroundValue(valueRaw, resolveCoordinate);
+    if (!parsed) {
+      return { style, transform, diagnostics: [`invalid-rotate-around:${valueRaw}`] };
+    }
+    const { angleDeg, pivot } = parsed;
+    const aroundMatrix = multiplyMatrix(
+      translationMatrix(pivot.x, pivot.y),
+      multiplyMatrix(rotationMatrix(angleDeg), translationMatrix(-pivot.x, -pivot.y))
+    );
+    return { style, transform: multiplyMatrix(transform, aroundMatrix), diagnostics: [] };
   }
   if (key === "cm" || key === "/tikz/cm") {
     const parsed = parseCmTransformValue(valueRaw, resolveCoordinate);

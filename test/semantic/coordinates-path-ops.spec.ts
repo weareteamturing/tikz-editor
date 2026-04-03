@@ -1110,6 +1110,79 @@ describe("semantic evaluator / coordinates and path ops", () => {
       }
     });
 
+    it("applies rotate around with a coordinate pivot", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[rotate around={90:(1,0)}] (1,0) -- (2,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:rotate around")).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code?.startsWith("invalid-rotate-around:"))).toBe(false);
+
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        const commands = path.commands.filter((command) => command.kind === "M" || command.kind === "L");
+        expect(commands).toHaveLength(2);
+        const [first, second] = commands;
+        if (first?.kind === "M" && second?.kind === "L") {
+          expect(first.to.x).toBeCloseTo(28.4528, 3);
+          expect(first.to.y).toBeCloseTo(0, 3);
+          expect(second.to.x).toBeCloseTo(28.4528, 3);
+          expect(second.to.y).toBeCloseTo(28.4528, 3);
+        }
+      }
+    });
+
+    it("composes rotate around in option order with cm", () => {
+      const source = String.raw`\begin{tikzpicture}[rotate around={90:(1,0)},cm={1,0,0,1,(1cm,0)}]
+    \draw (0,0) -- (2,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code?.startsWith("invalid-rotate-around:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code?.startsWith("invalid-cm:"))).toBe(false);
+
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        const commands = path.commands.filter((command) => command.kind === "M" || command.kind === "L");
+        expect(commands).toHaveLength(2);
+        const [first, second] = commands;
+        if (first?.kind === "M" && second?.kind === "L") {
+          expect(first.to.x).toBeCloseTo(28.4528, 3);
+          expect(first.to.y).toBeCloseTo(0, 3);
+          expect(second.to.x).toBeCloseTo(28.4528, 3);
+          expect(second.to.y).toBeCloseTo(56.9055, 3);
+        }
+      }
+    });
+
+    it("supports /tikz/rotate around with braced PGF syntax", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[/tikz/rotate around={40:(1,1)}] (0,0) -- (1,1) -- (1,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:/tikz/rotate around")).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code?.startsWith("invalid-rotate-around:"))).toBe(false);
+    });
+
+    it("reports invalid rotate around payloads as invalid-rotate-around diagnostics", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[rotate around={45}] (0,0) -- (1,0);
+    \draw[rotate around={foo:(1,0)}] (0,0) -- (1,0);
+    \draw[rotate around={45:not-a-coordinate}] (0,0) -- (1,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const invalidRotateAround = result.diagnostics.filter((diagnostic) =>
+        diagnostic.code?.startsWith("invalid-rotate-around:")
+      );
+      expect(invalidRotateAround.length).toBeGreaterThanOrEqual(3);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:rotate around")).toBe(false);
+    });
+
     it("applies cm shear matrices to path coordinates", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw[cm={1,1,0,1,(0,0)}] (0,0) -- (1,1) -- (1,0);
