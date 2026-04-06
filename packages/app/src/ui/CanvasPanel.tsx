@@ -496,6 +496,37 @@ function resolveTextSelectionRangeForClick(
   return { start, end };
 }
 
+function estimateTextOffsetFromClient(
+  target: EditableTextTarget,
+  clientX: number,
+  clientY: number,
+  interactionSvgElement: SVGSVGElement | null,
+  viewportRef: { current: HTMLDivElement | null },
+  svgResult: { viewBox: SvgViewBox } | null,
+  canvasTransform: CanvasTransform
+): number {
+  const contentBox = resolveRectHitRegionContentBox(target.region);
+  const svgPoint = clientToSvgPoint(clientX, clientY, interactionSvgElement) ?? (() => {
+    const viewportRect = viewportRef.current?.getBoundingClientRect();
+    const localViewportX = viewportRect ? clientX - viewportRect.left : clientX;
+    const localViewportY = viewportRect ? clientY - viewportRect.top : clientY;
+    return svgResult
+      ? viewportToSvgPoint(localViewportX, localViewportY, canvasTransform, svgResult.viewBox)
+      : { x: clientX, y: clientY };
+  })();
+  const localPoint = rotatePointAroundCenter(
+    svgPoint,
+    target.region.cx,
+    target.region.cy,
+    target.region.rotation
+  );
+  const xRatio =
+    contentBox.width <= 1e-6
+      ? 1
+      : clamp((localPoint.x - contentBox.x) / contentBox.width, 0, 1);
+  return clamp(Math.round(xRatio * target.text.length), 0, target.text.length);
+}
+
 function resolveFallbackTextLayoutKind(text: string, hasFixedWidth: boolean | undefined, isMatrixCell: boolean): NodeTextLayoutKind {
   if (isMatrixCell) {
     return "matrix-cell";
@@ -1833,25 +1864,15 @@ export function CanvasPanel({
       const outputJax = getActiveMathJaxOutputJax();
       const containerElement = resolveRenderedMathTextElement(target);
       if (!target.paragraphId || !outputJax || !containerElement) {
-        const contentBox = resolveRectHitRegionContentBox(target.region);
-        const svgPoint = clientToSvgPoint(clientX, clientY, interactionSvgRef.current) ?? (() => {
-          const viewportRect = viewportRef.current?.getBoundingClientRect();
-          const localViewportX = viewportRect ? clientX - viewportRect.left : clientX;
-          const localViewportY = viewportRect ? clientY - viewportRect.top : clientY;
-          return svgResult
-            ? viewportToSvgPoint(localViewportX, localViewportY, canvasTransform, svgResult.viewBox)
-            : { x: clientX, y: clientY };
-        })();
-        const localPoint = rotatePointAroundCenter(
-          svgPoint,
-          target.region.cx,
-          target.region.cy,
-          target.region.rotation
+        return estimateTextOffsetFromClient(
+          target,
+          clientX,
+          clientY,
+          interactionSvgRef.current,
+          viewportRef,
+          svgResult,
+          canvasTransform
         );
-        const xRatio = contentBox.width <= 1e-6
-          ? 1
-          : clamp((localPoint.x - contentBox.x) / contentBox.width, 0, 1);
-        return clamp(Math.round(xRatio * target.text.length), 0, target.text.length);
       }
       const result = await getKnuthPlassCaretFromPoint(outputJax, {
         paragraphId: target.paragraphId,
@@ -1911,20 +1932,46 @@ export function CanvasPanel({
       const requestId = textSelectionRequestIdRef.current;
       const existingHistoryMergeKey =
         textEditingSession?.sourceId === target.sourceId ? textEditingSession.historyMergeKey : undefined;
-      const clickCount = event.detail;
+      const clickCount = event.detail >= 2 ? event.detail : 1;
+      const provisionalOffset = estimateTextOffsetFromClient(
+        target,
+        event.clientX,
+        event.clientY,
+        interactionSvgRef.current,
+        viewportRef,
+        svgResult,
+        canvasTransform
+      );
+      const provisionalSelection = resolveTextSelectionRangeForClick(target.text, provisionalOffset, clickCount);
+      startTextEditingSession(target, provisionalSelection.start, provisionalSelection.end, existingHistoryMergeKey);
+      textSelectionDragRef.current = clickCount === 1
+        ? {
+            pointerId: event.pointerId,
+            sourceId: target.sourceId,
+            anchorOffset: provisionalOffset
+          }
+        : null;
       void resolveTextOffsetFromClient(target, event.clientX, event.clientY).then((offset) => {
         if (requestId !== textSelectionRequestIdRef.current || offset == null) {
           return;
         }
         const selection = resolveTextSelectionRangeForClick(target.text, offset, clickCount);
-        startTextEditingSession(target, selection.start, selection.end, existingHistoryMergeKey);
-        textSelectionDragRef.current = clickCount === 1
-          ? {
-              pointerId: event.pointerId,
-              sourceId: target.sourceId,
-              anchorOffset: offset
-            }
-          : null;
+        setTextEditingSession((current) =>
+          current && current.sourceId === target.sourceId
+            ? {
+                ...current,
+                selectionStart: selection.start,
+                selectionEnd: selection.end
+              }
+            : current
+        );
+        if (clickCount === 1 && textSelectionDragRef.current?.pointerId === event.pointerId) {
+          textSelectionDragRef.current = {
+            pointerId: event.pointerId,
+            sourceId: target.sourceId,
+            anchorOffset: offset
+          };
+        }
         try {
           event.currentTarget.setPointerCapture(event.pointerId);
         } catch {
@@ -1932,7 +1979,16 @@ export function CanvasPanel({
         }
       });
     },
-    [resolveTextOffsetFromClient, startTextEditingSession, textEditingSession]
+    [
+      canvasTransform,
+      interactionSvgRef,
+      resolveTextOffsetFromClient,
+      setTextEditingSession,
+      startTextEditingSession,
+      svgResult,
+      textEditingSession,
+      viewportRef
+    ]
   );
 
   const applyTextEditingUpdate = useCallback(

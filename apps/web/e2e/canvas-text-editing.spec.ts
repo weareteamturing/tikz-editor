@@ -370,3 +370,35 @@ test("clicking rendered wrapped text updates the textarea selection", async ({ p
   await page.mouse.click(box.x + box.width - 8, box.y + box.height / 2);
   await expect.poll(async () => await readTextareaSelection(page)).not.toEqual(initialSelection);
 });
+
+test("dragging across rendered MathJax node text creates a canvas selection in Chrome", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node at (0,0) {$x^2 + y^2 = z^2$};
+\end{tikzpicture}`);
+
+  const textRegion = page.locator("[data-hit-region-target-id='path:0'][data-hit-region-interaction-mode='text']").first();
+  await expect(textRegion).toBeVisible();
+  const box = await textRegion.boundingBox();
+  if (!box) {
+    throw new Error("Missing MathJax text hit-region bounds.");
+  }
+
+  const startX = box.x + 10;
+  const startY = box.y + box.height / 2;
+  const endX = box.x + box.width - 10;
+
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(endX, startY, { steps: 12 });
+  await page.mouse.up();
+
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeVisible();
+  await expect(textarea).toBeFocused();
+  await expect.poll(async () => {
+    const selection = await readTextareaSelection(page);
+    return selection.start != null && selection.end != null && selection.end > selection.start;
+  }).toBe(true);
+  await expect.poll(async () => page.getByTestId("canvas-text-selection-rect").count()).toBeGreaterThan(0);
+});
