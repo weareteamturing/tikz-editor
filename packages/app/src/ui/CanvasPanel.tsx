@@ -3,6 +3,7 @@ import {
   lazy,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -1036,6 +1037,21 @@ export function CanvasPanel({
   const textEngineRef = useRef<NodeTextEngine | null>(null);
   const svgLayerHostRef = useRef<HTMLDivElement | null>(null);
   const textEditTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const textEditPopupRef = useRef<HTMLDivElement | null>(null);
+  const [textEditPopupHeight, setTextEditPopupHeight] = useState<number | null>(null);
+  const supportsFieldSizing = typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("field-sizing", "content");
+  const textEditTextareaSizing = useMemo(() => {
+    if (!textEditingSession || supportsFieldSizing) {
+      return null;
+    }
+
+    const lines = textEditingSession.text.split(/\r?\n/);
+    const cols = Math.max(1, ...lines.map((line) => line.length));
+    return {
+      cols,
+      rows: Math.max(1, lines.length)
+    };
+  }, [supportsFieldSizing, textEditingSession]);
   const textSelectionDragRef = useRef<{ pointerId: number; sourceId: string; anchorOffset: number } | null>(null);
   const textSelectionRequestIdRef = useRef(0);
   const pendingTouchViewportRef = useRef<PendingTouchViewport | null>(null);
@@ -3039,8 +3055,8 @@ export function CanvasPanel({
       return null;
     }
     const minPadding = 12;
-    const popupGap = 20;
-    const approxHeight = 60;
+    const popupGap = 10;
+    const popupHeight = textEditPopupHeight ?? 0;
     const contentBox = resolveRectHitRegionContentBox(textEditingSession.region);
     const sourceBounds = sourceBoundsSvg.get(textEditingSession.sourceId);
     const anchorLeft = sourceBounds?.minX ?? contentBox.x;
@@ -3059,12 +3075,12 @@ export function CanvasPanel({
     const nodeWidthPx = rightEdge - leftEdge;
     const maxWidth = clamp(Math.round(nodeWidthPx + 80), 160, viewportSize.width - minPadding * 2);
     let top = bottomEdge + popupGap;
-    if (top + approxHeight > viewportSize.height - minPadding) {
-      top = topEdge - approxHeight - popupGap;
+    if (top + popupHeight > viewportSize.height - minPadding) {
+      top = topEdge - popupHeight - popupGap;
     }
     return {
       centerX: clamp(centerX, minPadding + maxWidth / 2, viewportSize.width - minPadding - maxWidth / 2),
-      top: clamp(top, minPadding, Math.max(minPadding, viewportSize.height - approxHeight - minPadding)),
+      top: clamp(top, minPadding, Math.max(minPadding, viewportSize.height - popupHeight - minPadding)),
       maxWidth
     };
   }, [
@@ -3074,9 +3090,25 @@ export function CanvasPanel({
     svgResult,
     sourceBoundsSvg,
     textEditingSession,
+    textEditPopupHeight,
     viewportSize.height,
     viewportSize.width
   ]);
+
+  useLayoutEffect(() => {
+    if (!textEditingSession || !textEditPopup) {
+      setTextEditPopupHeight(null);
+      return;
+    }
+
+    const popup = textEditPopupRef.current;
+    if (!popup) {
+      return;
+    }
+
+    const nextHeight = Math.ceil(popup.getBoundingClientRect().height);
+    setTextEditPopupHeight((currentHeight) => (currentHeight === nextHeight ? currentHeight : nextHeight));
+  }, [textEditingSession, textEditPopup]);
 
   const contextMenuDefinition = useMemo(
     () =>
@@ -3198,6 +3230,9 @@ export function CanvasPanel({
         onWarningBarKeyDown={onWarningBarKeyDown}
         textEditingSession={textEditingSession}
         textEditPopup={textEditPopup}
+        textEditPopupHeight={textEditPopupHeight}
+        textEditPopupRef={textEditPopupRef}
+        textEditTextareaSizing={textEditTextareaSizing}
         textEditTextareaRef={textEditTextareaRef}
         onTextEditPopupPointerDown={handleTextEditPopupPointerDown}
         onTextEditTextareaChange={handleTextEditTextareaChange}

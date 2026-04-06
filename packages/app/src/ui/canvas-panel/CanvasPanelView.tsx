@@ -115,6 +115,8 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     onWarningBarKeyDown,
     textEditingSession,
     textEditPopup,
+    textEditPopupHeight,
+    textEditTextareaSizing,
     textEditTextareaRef,
     onTextEditPopupPointerDown,
     onTextEditTextareaChange,
@@ -502,12 +504,14 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
 
           {textEditingSession && textEditPopup ? (
             <div
+              ref={props.textEditPopupRef}
               className={css.textEditPopup}
               style={{
                 left: textEditPopup.centerX,
                 top: textEditPopup.top,
                 maxWidth: textEditPopup.maxWidth,
-                transform: "translateX(-50%)"
+                transform: "translateX(-50%)",
+                visibility: textEditPopupHeight == null ? "hidden" : "visible"
               }}
               onPointerDown={onTextEditPopupPointerDown}
               data-testid="canvas-text-edit-popup"
@@ -516,7 +520,9 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                 ref={textEditTextareaRef}
                 className={css.textEditTextarea}
                 value={textEditingSession.text}
+                cols={textEditTextareaSizing?.cols}
                 spellCheck={false}
+                rows={textEditTextareaSizing?.rows}
                 onChange={onTextEditTextareaChange}
                 onSelect={onTextEditTextareaSelect}
                 onKeyDown={onTextEditTextareaKeyDown}
