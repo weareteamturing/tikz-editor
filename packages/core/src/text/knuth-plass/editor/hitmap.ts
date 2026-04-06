@@ -71,6 +71,12 @@ export interface CaretPointResult extends ResultBase {
   snappedToMathPrefix: boolean;
 }
 
+export interface LineRangeFromPointResult extends ResultBase {
+  lineIndex: number | null;
+  lineStartOffset: number | null;
+  lineEndOffset: number | null;
+}
+
 export interface SelectionRect {
   lineIndex: number;
   startOffset: number;
@@ -1651,6 +1657,80 @@ export async function getKnuthPlassSelectionRects(
     startOffset: rangeStart,
     endOffset: rangeEnd,
     rects,
+    error: null,
+  };
+}
+
+export async function getKnuthPlassLineRangeFromPoint(
+  outputJax: any,
+  params: CaretFromPointParams
+): Promise<LineRangeFromPointResult> {
+  const paragraphId = String(params?.paragraphId ?? '');
+  if (!paragraphId || typeof params?.sourceText !== 'string' || !params?.containerElement) {
+    return invalidParamsResult<LineRangeFromPointResult>(
+      paragraphId,
+      {
+        lineIndex: null,
+        lineStartOffset: null,
+        lineEndOffset: null,
+      },
+      'Expected paragraphId, sourceText, containerElement, clientX, and clientY.'
+    );
+  }
+
+  const { report } = findReportByParagraphId(outputJax, paragraphId);
+  if (!report) {
+    return errorResult<LineRangeFromPointResult>(
+      paragraphId,
+      {
+        lineIndex: null,
+        lineStartOffset: null,
+        lineEndOffset: null,
+      },
+      'paragraph-not-found',
+      `Paragraph '${paragraphId}' was not found in Knuth-Plass reports.`
+    );
+  }
+
+  let hitMap: ParagraphHitMap;
+  try {
+    hitMap = await getParagraphHitMap(outputJax, report, params.sourceText, params.containerElement);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to build paragraph caret map.';
+    return errorResult<LineRangeFromPointResult>(
+      paragraphId,
+      {
+        lineIndex: null,
+        lineStartOffset: null,
+        lineEndOffset: null,
+      },
+      mapBuildFailureCode(message),
+      message
+    );
+  }
+
+  if (!hitMap.lines.length) {
+    return errorResult<LineRangeFromPointResult>(
+      paragraphId,
+      {
+        lineIndex: null,
+        lineStartOffset: null,
+        lineEndOffset: null,
+      },
+      'alignment-error',
+      'Paragraph hitmap contains no line data.'
+    );
+  }
+
+  const line = inferLineByClientY(hitMap.lines, params.clientY);
+  const lineStartOffset = clamp(Math.floor(line.minOffset ?? 0), 0, params.sourceText.length);
+  const lineEndOffset = clamp(Math.floor(line.maxOffset ?? 0), 0, params.sourceText.length);
+  return {
+    ok: true,
+    paragraphId,
+    lineIndex: line.lineIndex,
+    lineStartOffset: Math.min(lineStartOffset, lineEndOffset),
+    lineEndOffset: Math.max(lineStartOffset, lineEndOffset),
     error: null,
   };
 }

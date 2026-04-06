@@ -4,10 +4,12 @@ import type { ParagraphAlignment } from './alignment.js';
 import {
   clearKnuthPlassCaretMappingCache,
   getKnuthPlassCaretFromPoint,
+  getKnuthPlassLineRangeFromPoint,
   getKnuthPlassPointFromOffset,
   getKnuthPlassSelectionRects,
   type CaretFromPointParams,
   type CaretHitResult,
+  type LineRangeFromPointResult,
   type CaretPointResult,
   type PointFromOffsetParams,
   type SelectionRectsParams,
@@ -95,6 +97,7 @@ export function getKnuthPlassReportsFromOutputJax(
 
 export {
   getKnuthPlassCaretFromPoint,
+  getKnuthPlassLineRangeFromPoint,
   getKnuthPlassPointFromOffset,
   getKnuthPlassSelectionRects,
   clearKnuthPlassCaretMappingCache,
@@ -102,6 +105,7 @@ export {
   type PointFromOffsetParams,
   type SelectionRectsParams,
   type CaretHitResult,
+  type LineRangeFromPointResult,
   type CaretPointResult,
   type SelectionRectsResult,
 };

@@ -27,6 +27,7 @@ import {
 import { createMathJaxNodeTextEngine, getActiveMathJaxOutputJax } from "tikz-editor/text/mathjax-engine";
 import {
   getKnuthPlassCaretFromPoint,
+  getKnuthPlassLineRangeFromPoint,
   getKnuthPlassPointFromOffset,
   getKnuthPlassSelectionRects
 } from "tikz-editor/text/knuth-plass";
@@ -448,20 +449,33 @@ type FigureViewportState = {
   fitToContentModeActive: boolean;
 };
 
+type TextSelectionDragMode = "char" | "word" | "line";
+
+type TextLineRange = {
+  start: number;
+  end: number;
+};
+
 function makeFigureViewportKey(documentId: string, figureId: string | null): string {
   return `${documentId}::${figureId ?? "__none__"}`;
 }
 
-function resolveTextSelectionRangeForClick(
+function resolveTextSelectionModeFromClickCount(clickCount: number): TextSelectionDragMode {
+  if (clickCount >= 3) {
+    return "line";
+  }
+  if (clickCount === 2) {
+    return "word";
+  }
+  return "char";
+}
+
+function resolveWordSelectionRange(
   text: string,
-  offset: number,
-  clickCount: number
+  offset: number
 ): { start: number; end: number } {
   const boundedOffset = clamp(offset, 0, text.length);
-  if (clickCount >= 3) {
-    return { start: 0, end: text.length };
-  }
-  if (clickCount < 2 || text.length === 0) {
+  if (text.length === 0) {
     return { start: boundedOffset, end: boundedOffset };
   }
 
@@ -495,6 +509,99 @@ function resolveTextSelectionRangeForClick(
     end += 1;
   }
   return { start, end };
+}
+
+function collectLogicalLineRanges(text: string): TextLineRange[] {
+  if (text.length === 0) {
+    return [{ start: 0, end: 0 }];
+  }
+  const ranges: TextLineRange[] = [];
+  let start = 0;
+  let cursor = 0;
+  while (cursor < text.length) {
+    if (text[cursor] === "\r") {
+      const next = text[cursor + 1] === "\n" ? cursor + 2 : cursor + 1;
+      ranges.push({ start, end: cursor });
+      start = next;
+      cursor = next;
+      continue;
+    }
+    if (text[cursor] === "\n") {
+      ranges.push({ start, end: cursor });
+      start = cursor + 1;
+      cursor += 1;
+      continue;
+    }
+    if (text[cursor] === "\\" && text[cursor + 1] === "\\") {
+      let next = cursor + 2;
+      if (text[next] === "*") {
+        next += 1;
+      }
+      while (next < text.length && /\s/.test(text[next] ?? "")) {
+        next += 1;
+      }
+      if (text[next] === "[") {
+        let bracketCursor = next + 1;
+        while (bracketCursor < text.length && text[bracketCursor] !== "]") {
+          bracketCursor += 1;
+        }
+        if (bracketCursor < text.length) {
+          next = bracketCursor + 1;
+        }
+      }
+      ranges.push({ start, end: cursor });
+      start = next;
+      cursor = next;
+      continue;
+    }
+    cursor += 1;
+  }
+  ranges.push({ start, end: text.length });
+  return ranges;
+}
+
+function resolveLogicalLineRangeForOffset(text: string, offset: number): TextLineRange {
+  const boundedOffset = clamp(offset, 0, text.length);
+  const ranges = collectLogicalLineRanges(text);
+  const pivot = text.length === 0 ? 0 : Math.min(Math.max(0, boundedOffset), text.length - 1);
+  for (const range of ranges) {
+    if (pivot >= range.start && pivot < range.end) {
+      return range;
+    }
+  }
+  return ranges[ranges.length - 1] ?? { start: 0, end: text.length };
+}
+
+function resolveTextSelectionRangeForMode(
+  text: string,
+  mode: TextSelectionDragMode,
+  offset: number,
+  lineRange: TextLineRange | null = null
+): TextLineRange {
+  const boundedOffset = clamp(offset, 0, text.length);
+  if (mode === "char") {
+    return { start: boundedOffset, end: boundedOffset };
+  }
+  if (mode === "word") {
+    return resolveWordSelectionRange(text, boundedOffset);
+  }
+  return lineRange ?? resolveLogicalLineRangeForOffset(text, boundedOffset);
+}
+
+function resolveTextSelectionRangeForDrag(
+  text: string,
+  mode: TextSelectionDragMode,
+  anchorOffset: number,
+  focusOffset: number,
+  anchorLineRange: TextLineRange | null = null,
+  focusLineRange: TextLineRange | null = null
+): TextLineRange {
+  const anchorRange = resolveTextSelectionRangeForMode(text, mode, anchorOffset, anchorLineRange);
+  const focusRange = resolveTextSelectionRangeForMode(text, mode, focusOffset, focusLineRange);
+  return {
+    start: Math.min(anchorRange.start, focusRange.start),
+    end: Math.max(anchorRange.end, focusRange.end)
+  };
 }
 
 function estimateTextOffsetFromClient(
@@ -1052,7 +1159,13 @@ export function CanvasPanel({
       rows: Math.max(1, lines.length)
     };
   }, [supportsFieldSizing, textEditingSession]);
-  const textSelectionDragRef = useRef<{ pointerId: number; sourceId: string; anchorOffset: number } | null>(null);
+  const textSelectionDragRef = useRef<{
+    pointerId: number;
+    sourceId: string;
+    anchorOffset: number;
+    mode: TextSelectionDragMode;
+    anchorLineRange: TextLineRange | null;
+  } | null>(null);
   const textSelectionRequestIdRef = useRef(0);
   const pendingTouchViewportRef = useRef<PendingTouchViewport | null>(null);
   const viewportStateByFigureKeyRef = useRef(new Map<string, FigureViewportState>());
@@ -1910,6 +2023,45 @@ export function CanvasPanel({
     ]
   );
 
+  const resolveTextLineRangeFromClient = useCallback(
+    async (target: EditableTextTarget, clientX: number, clientY: number): Promise<TextLineRange | null> => {
+      const outputJax = getActiveMathJaxOutputJax();
+      const containerElement = resolveRenderedMathTextElement(target);
+      if (target.paragraphId && outputJax && containerElement) {
+        const result = await getKnuthPlassLineRangeFromPoint(outputJax, {
+          paragraphId: target.paragraphId,
+          sourceText: target.renderSourceText,
+          containerElement,
+          clientX,
+          clientY
+        });
+        if (result.ok && result.lineStartOffset != null && result.lineEndOffset != null) {
+          return {
+            start: clamp(result.lineStartOffset, 0, target.text.length),
+            end: clamp(result.lineEndOffset, 0, target.text.length)
+          };
+        }
+      }
+      const fallbackOffset = estimateTextOffsetFromClient(
+        target,
+        clientX,
+        clientY,
+        interactionSvgRef.current,
+        viewportRef,
+        svgResult,
+        canvasTransform
+      );
+      return resolveLogicalLineRangeForOffset(target.text, fallbackOffset);
+    },
+    [
+      canvasTransform,
+      interactionSvgRef,
+      resolveRenderedMathTextElement,
+      svgResult,
+      viewportRef
+    ]
+  );
+
   const startTextEditingSession = useCallback(
     (
       target: EditableTextTarget,
@@ -1949,6 +2101,7 @@ export function CanvasPanel({
       const existingHistoryMergeKey =
         textEditingSession?.sourceId === target.sourceId ? textEditingSession.historyMergeKey : undefined;
       const clickCount = event.detail >= 2 ? event.detail : 1;
+      const mode = resolveTextSelectionModeFromClickCount(clickCount);
       const provisionalOffset = estimateTextOffsetFromClient(
         target,
         event.clientX,
@@ -1958,20 +2111,48 @@ export function CanvasPanel({
         svgResult,
         canvasTransform
       );
-      const provisionalSelection = resolveTextSelectionRangeForClick(target.text, provisionalOffset, clickCount);
-      startTextEditingSession(target, provisionalSelection.start, provisionalSelection.end, existingHistoryMergeKey);
-      textSelectionDragRef.current = clickCount === 1
-        ? {
-            pointerId: event.pointerId,
-            sourceId: target.sourceId,
-            anchorOffset: provisionalOffset
-          }
+      const provisionalLineRange = mode === "line"
+        ? resolveLogicalLineRangeForOffset(target.text, provisionalOffset)
         : null;
-      void resolveTextOffsetFromClient(target, event.clientX, event.clientY).then((offset) => {
-        if (requestId !== textSelectionRequestIdRef.current || offset == null) {
+      const provisionalSelection = resolveTextSelectionRangeForMode(
+        target.text,
+        mode,
+        provisionalOffset,
+        provisionalLineRange
+      );
+      startTextEditingSession(target, provisionalSelection.start, provisionalSelection.end, existingHistoryMergeKey);
+      textSelectionDragRef.current = {
+        pointerId: event.pointerId,
+        sourceId: target.sourceId,
+        anchorOffset: provisionalOffset,
+        mode,
+        anchorLineRange: provisionalLineRange
+      };
+      const offsetPromise = resolveTextOffsetFromClient(target, event.clientX, event.clientY);
+      const lineRangePromise = mode === "line"
+        ? resolveTextLineRangeFromClient(target, event.clientX, event.clientY)
+        : Promise.resolve<TextLineRange | null>(null);
+      void Promise.all([offsetPromise, lineRangePromise]).then(([offset, lineRange]) => {
+        if (requestId !== textSelectionRequestIdRef.current) {
           return;
         }
-        const selection = resolveTextSelectionRangeForClick(target.text, offset, clickCount);
+        const resolvedOffset = offset == null ? provisionalOffset : clamp(offset, 0, target.text.length);
+        const resolvedLineRange = mode === "line"
+          ? (
+              lineRange
+                ? {
+                    start: clamp(lineRange.start, 0, target.text.length),
+                    end: clamp(lineRange.end, 0, target.text.length)
+                  }
+                : provisionalLineRange
+            )
+          : null;
+        const selection = resolveTextSelectionRangeForMode(
+          target.text,
+          mode,
+          resolvedOffset,
+          resolvedLineRange
+        );
         setTextEditingSession((current) =>
           current && current.sourceId === target.sourceId
             ? {
@@ -1981,11 +2162,13 @@ export function CanvasPanel({
               }
             : current
         );
-        if (clickCount === 1 && textSelectionDragRef.current?.pointerId === event.pointerId) {
+        if (textSelectionDragRef.current?.pointerId === event.pointerId) {
           textSelectionDragRef.current = {
             pointerId: event.pointerId,
             sourceId: target.sourceId,
-            anchorOffset: offset
+            anchorOffset: resolvedOffset,
+            mode,
+            anchorLineRange: resolvedLineRange
           };
         }
         try {
@@ -1998,6 +2181,7 @@ export function CanvasPanel({
     [
       canvasTransform,
       interactionSvgRef,
+      resolveTextLineRangeFromClient,
       resolveTextOffsetFromClient,
       setTextEditingSession,
       startTextEditingSession,
@@ -2055,6 +2239,10 @@ export function CanvasPanel({
           }
         : current
     );
+  }, []);
+
+  const stopTextEditTextareaClipboardPropagation = useCallback((event: ReactClipboardEvent<HTMLTextAreaElement>) => {
+    event.stopPropagation();
   }, []);
 
   const handleTextEditTextareaKeyDown = useCallback((event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
@@ -2138,18 +2326,29 @@ export function CanvasPanel({
       }
       textSelectionRequestIdRef.current += 1;
       const requestId = textSelectionRequestIdRef.current;
-      void resolveTextOffsetFromClient(target, event.clientX, event.clientY).then((offset) => {
-        if (requestId !== textSelectionRequestIdRef.current || offset == null) {
+      const offsetPromise = resolveTextOffsetFromClient(target, event.clientX, event.clientY);
+      const lineRangePromise = drag.mode === "line"
+        ? resolveTextLineRangeFromClient(target, event.clientX, event.clientY)
+        : Promise.resolve<TextLineRange | null>(null);
+      void Promise.all([offsetPromise, lineRangePromise]).then(([offset, focusLineRange]) => {
+        if (requestId !== textSelectionRequestIdRef.current) {
           return;
         }
-        const normalizedStart = Math.min(drag.anchorOffset, offset);
-        const normalizedEnd = Math.max(drag.anchorOffset, offset);
+        const resolvedOffset = offset == null ? drag.anchorOffset : clamp(offset, 0, target.text.length);
+        const selection = resolveTextSelectionRangeForDrag(
+          target.text,
+          drag.mode,
+          drag.anchorOffset,
+          resolvedOffset,
+          drag.anchorLineRange,
+          focusLineRange
+        );
         setTextEditingSession((current) =>
           current && current.sourceId === target.sourceId
             ? {
                 ...current,
-                selectionStart: clamp(normalizedStart, 0, current.text.length),
-                selectionEnd: clamp(normalizedEnd, 0, current.text.length)
+                selectionStart: clamp(selection.start, 0, current.text.length),
+                selectionEnd: clamp(selection.end, 0, current.text.length)
               }
             : current
         );
@@ -2172,7 +2371,7 @@ export function CanvasPanel({
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
     };
-  }, [resolveEditableTextTargetById, resolveTextOffsetFromClient]);
+  }, [resolveEditableTextTargetById, resolveTextLineRangeFromClient, resolveTextOffsetFromClient]);
 
   useEffect(() => {
     if (!textEditingSession) {
@@ -3237,6 +3436,9 @@ export function CanvasPanel({
         onTextEditPopupPointerDown={handleTextEditPopupPointerDown}
         onTextEditTextareaChange={handleTextEditTextareaChange}
         onTextEditTextareaSelect={handleTextEditTextareaSelect}
+        onTextEditTextareaCopy={stopTextEditTextareaClipboardPropagation}
+        onTextEditTextareaCut={stopTextEditTextareaClipboardPropagation}
+        onTextEditTextareaPaste={stopTextEditTextareaClipboardPropagation}
         onTextEditTextareaKeyDown={handleTextEditTextareaKeyDown}
         selectionHint={pathSelectionHint}
         showDevPanel={showDevPanel}

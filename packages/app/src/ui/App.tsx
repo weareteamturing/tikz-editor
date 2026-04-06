@@ -122,6 +122,32 @@ function isCanvasViewportFocused(): boolean {
   );
 }
 
+function isEditableShortcutTarget(target: EventTarget | null): target is HTMLElement {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  return target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA";
+}
+
+function selectAllInEditableTarget(target: HTMLElement): boolean {
+  if (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) {
+    target.select();
+    return true;
+  }
+  if (target.isContentEditable) {
+    const selection = window.getSelection();
+    if (!selection) {
+      return false;
+    }
+    const range = document.createRange();
+    range.selectNodeContents(target);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return true;
+  }
+  return false;
+}
+
 type RepeatModalState = {
   documentId: string;
   source: string;
@@ -1086,19 +1112,24 @@ export function App() {
         return;
       }
 
-      const target = e.target as HTMLElement | null;
-      const inCodeMirror = isCodeMirrorEventTarget(target);
+      const target = e.target as EventTarget | null;
+      const activeElement = document.activeElement;
+      const inCodeMirror = isCodeMirrorEventTarget(target) || isCodeMirrorEventTarget(activeElement);
       if (inCodeMirror) return;
-      const canvasShortcutContext = isCanvasViewportFocused();
 
-      // Keep browser/field-native undo for editable fields outside CM.
-      if (
-        target?.isContentEditable ||
-        target?.tagName === "INPUT" ||
-        target?.tagName === "TEXTAREA"
-      ) {
+      // Keep browser/field-native behavior for editable fields outside CM.
+      const editableShortcutTarget = isEditableShortcutTarget(target)
+        ? target
+        : (isEditableShortcutTarget(activeElement) ? activeElement : null);
+      if (editableShortcutTarget) {
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && key === "a") {
+          if (selectAllInEditableTarget(editableShortcutTarget)) {
+            e.preventDefault();
+          }
+        }
         return;
       }
+      const canvasShortcutContext = isCanvasViewportFocused();
 
       if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && key === "escape" && toolMode !== "select") {
         dispatch({ type: "SET_TOOL_MODE", mode: "select" });

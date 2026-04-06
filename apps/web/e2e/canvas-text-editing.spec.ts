@@ -45,6 +45,91 @@ async function readTextareaSelectedText(page: Page): Promise<string> {
   });
 }
 
+async function dispatchTextRegionPointerDrag(
+  page: Page,
+  options: {
+    targetId: string;
+    clickCount: number;
+    startRatioX: number;
+    startRatioY: number;
+    endRatioX: number;
+    endRatioY: number;
+  }
+): Promise<void> {
+  await page.evaluate((raw) => {
+    const {
+      targetId,
+      clickCount,
+      startRatioX,
+      startRatioY,
+      endRatioX,
+      endRatioY
+    } = raw as {
+      targetId: string;
+      clickCount: number;
+      startRatioX: number;
+      startRatioY: number;
+      endRatioX: number;
+      endRatioY: number;
+    };
+    const region = document.querySelector(
+      `[data-hit-region-target-id="${targetId}"][data-hit-region-interaction-mode="text"]`
+    ) as SVGGraphicsElement | null;
+    if (!region) {
+      throw new Error(`Text hit region not found for ${targetId}.`);
+    }
+    const rect = region.getBoundingClientRect();
+    const startX = rect.left + rect.width * startRatioX;
+    const startY = rect.top + rect.height * startRatioY;
+    const endX = rect.left + rect.width * endRatioX;
+    const endY = rect.top + rect.height * endRatioY;
+    const pointerId = 77;
+
+    region.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        bubbles: true,
+        cancelable: true,
+        pointerId,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+        detail: clickCount,
+        clientX: startX,
+        clientY: startY
+      })
+    );
+
+    window.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        cancelable: true,
+        pointerId,
+        pointerType: "mouse",
+        isPrimary: true,
+        buttons: 1,
+        clientX: endX,
+        clientY: endY
+      })
+    );
+
+    window.dispatchEvent(
+      new PointerEvent("pointerup", {
+        bubbles: true,
+        cancelable: true,
+        pointerId,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons: 0,
+        detail: clickCount,
+        clientX: endX,
+        clientY: endY
+      })
+    );
+  }, options);
+}
+
 test("single-line node text enters canvas edit mode and closes when CodeMirror takes focus", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}
@@ -132,25 +217,53 @@ test("arrow keys and cmd/ctrl+a stay scoped to the popup textarea while editing"
   await expect.poll(async () => await readSelectedSourceIds(page)).toEqual(["path:0"]);
 });
 
+test("window-level cmd/ctrl+a still selects text in the focused popup textarea", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node at (0,0) {Hello World};
+\node at (2,0) {Other};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeFocused();
+  await setTextareaSelection(page, 3, 3);
+
+  const useMeta = process.platform === "darwin";
+  await page.evaluate((payload) => {
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "a",
+        code: "KeyA",
+        bubbles: true,
+        cancelable: true,
+        metaKey: payload.useMeta,
+        ctrlKey: !payload.useMeta
+      })
+    );
+  }, { useMeta });
+
+  await expect.poll(async () => await readTextareaSelection(page)).toEqual({
+    start: 0,
+    end: "Hello World".length
+  });
+  await expect.poll(async () => await readSelectedSourceIds(page)).toEqual(["path:0"]);
+});
+
 test("double click selects a single word in canvas edit mode", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}
 \node at (0,0) {Hello World Again};
 \end{tikzpicture}`);
 
-  const textRegion = page.locator("[data-hit-region-target-id='path:0'][data-hit-region-interaction-mode='text']").first();
-  await expect(textRegion).toBeVisible();
-  const box = await textRegion.boundingBox();
-  if (!box) {
-    throw new Error("Missing single-line text hit-region bounds.");
-  }
-
-  await textRegion.click({
+  await waitForHitRegions(page, 1);
+  await dispatchTextRegionPointerDrag(page, {
+    targetId: "path:0",
     clickCount: 2,
-    position: {
-      x: box.width * 0.5,
-      y: box.height / 2
-    }
+    startRatioX: 0.5,
+    startRatioY: 0.5,
+    endRatioX: 0.5,
+    endRatioY: 0.5
   });
   await expect(page.getByTestId("canvas-text-edit-textarea")).toBeVisible();
   await expect(page.getByTestId("canvas-text-edit-textarea")).toBeFocused();
@@ -401,4 +514,167 @@ test("dragging across rendered MathJax node text creates a canvas selection in C
     return selection.start != null && selection.end != null && selection.end > selection.start;
   }).toBe(true);
   await expect.poll(async () => page.getByTestId("canvas-text-selection-rect").count()).toBeGreaterThan(0);
+});
+
+test("cmd/ctrl+x stays scoped to the textarea while editing node text", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node at (0,0) {Hello World};
+\node at (2,0) {Other};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeFocused();
+  await setTextareaSelection(page, 0, 5);
+
+  await textarea.press(`${PRIMARY_MOD}+X`);
+
+  await expect(textarea).toHaveValue(" World");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{ World}");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{Other}");
+  await expect.poll(async () => await readSelectedSourceIds(page)).toEqual(["path:0"]);
+});
+
+test("synthetic cut/paste events on the textarea do not trigger canvas clipboard handlers", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node at (0,0) {Hello World};
+\node at (2,0) {Other};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeFocused();
+
+  const sourceBefore = await readStoreSource(page);
+  await textarea.evaluate((element) => {
+    const textareaElement = element as HTMLTextAreaElement;
+    textareaElement.focus();
+    textareaElement.setSelectionRange(0, 5);
+    const cutEvent = new ClipboardEvent("cut", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData: new DataTransfer()
+    });
+    textareaElement.dispatchEvent(cutEvent);
+
+    const payload = {
+      version: 1,
+      snippets: ["\\draw (0,0) -- (1,1);"],
+      plainText: "\\draw (0,0) -- (1,1);",
+      pasteBehavior: "offset",
+      pasteCount: 0
+    };
+    const transfer = new DataTransfer();
+    transfer.setData("web application/x-tikz-editor+json", JSON.stringify(payload));
+    transfer.setData("text/plain", payload.plainText);
+    const pasteEvent = new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData: transfer
+    });
+    textareaElement.dispatchEvent(pasteEvent);
+  });
+
+  await expect.poll(async () => await readStoreSource(page)).toBe(sourceBefore);
+  await expect.poll(async () => await readSelectedSourceIds(page)).toEqual(["path:0"]);
+});
+
+test("double-click drag selects whole words in canvas text edit mode", async ({ page }) => {
+  await gotoApp(page);
+  const text = "Alpha Beta Gamma Delta";
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node at (0,0) {Alpha Beta Gamma Delta};
+\end{tikzpicture}`);
+
+  await waitForHitRegions(page, 1);
+  await dispatchTextRegionPointerDrag(page, {
+    targetId: "path:0",
+    clickCount: 2,
+    startRatioX: 0.32,
+    startRatioY: 0.5,
+    endRatioX: 0.95,
+    endRatioY: 0.5
+  });
+
+  const selection = await readTextareaSelection(page);
+  if (selection.start == null || selection.end == null) {
+    throw new Error("Expected textarea selection range.");
+  }
+  expect(selection.end).toBeGreaterThan(selection.start);
+  expect(selection.start).toBeGreaterThan(0);
+  expect(selection.start <= 0 || text[selection.start - 1] === " ").toBe(true);
+  expect(selection.end >= text.length || text[selection.end] === " ").toBe(true);
+  const selectedText = await readTextareaSelectedText(page);
+  expect(selectedText.startsWith(" ")).toBe(false);
+  expect(selectedText.endsWith(" ")).toBe(false);
+});
+
+test("triple click selects one line in multiline canvas text", async ({ page }) => {
+  await gotoApp(page);
+  const text = String.raw`First\\Second\\Third`;
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[align=center] at (0,0) {First\\Second\\Third};
+\end{tikzpicture}`);
+
+  await waitForHitRegions(page, 1);
+  await dispatchTextRegionPointerDrag(page, {
+    targetId: "path:0",
+    clickCount: 3,
+    startRatioX: 0.5,
+    startRatioY: 0.15,
+    endRatioX: 0.5,
+    endRatioY: 0.15
+  });
+
+  const selection = await readTextareaSelection(page);
+  if (selection.start == null || selection.end == null) {
+    throw new Error("Expected textarea selection range.");
+  }
+  expect(selection.end).toBeGreaterThan(selection.start);
+  expect(selection.end - selection.start).toBeLessThan(text.length);
+  await expect(page.getByTestId("canvas-text-selection-caret")).toHaveCount(0);
+  await expect.poll(async () => page.getByTestId("canvas-text-selection-rect").count()).toBeGreaterThan(0);
+});
+
+test("triple-click drag extends selection by lines in multiline canvas text", async ({ page }) => {
+  await gotoApp(page);
+  const text = String.raw`First\\Second\\Third`;
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[align=center] at (0,0) {First\\Second\\Third};
+\end{tikzpicture}`);
+
+  await waitForHitRegions(page, 1);
+  await dispatchTextRegionPointerDrag(page, {
+    targetId: "path:0",
+    clickCount: 3,
+    startRatioX: 0.5,
+    startRatioY: 0.15,
+    endRatioX: 0.5,
+    endRatioY: 0.15
+  });
+  const singleLineSelection = await readTextareaSelection(page);
+  if (singleLineSelection.start == null || singleLineSelection.end == null) {
+    throw new Error("Expected initial textarea selection.");
+  }
+  const singleLineLength = singleLineSelection.end - singleLineSelection.start;
+
+  await dispatchTextRegionPointerDrag(page, {
+    targetId: "path:0",
+    clickCount: 3,
+    startRatioX: 0.5,
+    startRatioY: 0.15,
+    endRatioX: 0.5,
+    endRatioY: 0.85
+  });
+
+  const dragSelection = await readTextareaSelection(page);
+  if (dragSelection.start == null || dragSelection.end == null) {
+    throw new Error("Expected drag textarea selection.");
+  }
+  const dragLength = dragSelection.end - dragSelection.start;
+  expect(dragLength).toBeGreaterThan(singleLineLength);
+  expect(dragLength).toBeLessThanOrEqual(text.length);
+  await expect.poll(async () => page.getByTestId("canvas-text-selection-rect").count()).toBeGreaterThan(1);
 });

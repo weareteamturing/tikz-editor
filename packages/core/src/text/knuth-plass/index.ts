@@ -12,6 +12,7 @@ export {
   getKnuthPlassReportsFromOutputJax,
   setKnuthPlassOptionsOnOutputJax,
   getKnuthPlassCaretFromPoint,
+  getKnuthPlassLineRangeFromPoint,
   getKnuthPlassPointFromOffset,
   getKnuthPlassSelectionRects,
   clearKnuthPlassCaretMappingCache,
@@ -23,6 +24,7 @@ export {
   type PointFromOffsetParams,
   type SelectionRectsParams,
   type CaretHitResult,
+  type LineRangeFromPointResult,
   type CaretPointResult,
   type SelectionRectsResult,
 } from './install.js';

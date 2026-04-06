@@ -47,6 +47,26 @@ function decodeBase64Bytes(base64: string): Uint8Array {
   return bytes;
 }
 
+function isEditableElement(target: EventTarget | null): boolean {
+  if (typeof HTMLElement === "undefined") {
+    return false;
+  }
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  return target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA";
+}
+
+function isEditableClipboardTarget(target: EventTarget | null): boolean {
+  if (isEditableElement(target)) {
+    return true;
+  }
+  if (typeof document === "undefined") {
+    return false;
+  }
+  return isEditableElement(document.activeElement);
+}
+
 export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs) {
   const {
     contextMenuState,
@@ -282,6 +302,9 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
   const onViewportPaste = useCallback(
     (event: ReactClipboardEvent<HTMLDivElement>) => {
       if (event.defaultPrevented) {
+        return;
+      }
+      if (isEditableClipboardTarget(event.target)) {
         return;
       }
       const svgFile = findSvgFileInDataTransfer(event.clipboardData);
@@ -541,6 +564,9 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
       if (event.defaultPrevented) {
         return;
       }
+      if (isEditableClipboardTarget(event.target)) {
+        return;
+      }
       const supportsNativeClipboardBundle = typeof platform.clipboard?.writeBundle === "function";
       if (supportsNativeClipboardBundle) {
         event.preventDefault();
@@ -580,6 +606,9 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
   const onViewportCut = useCallback(
     (event: ReactClipboardEvent<HTMLDivElement>) => {
       if (event.defaultPrevented) {
+        return;
+      }
+      if (isEditableClipboardTarget(event.target)) {
         return;
       }
       const supportsNativeClipboardBundle = typeof platform.clipboard?.writeBundle === "function";
