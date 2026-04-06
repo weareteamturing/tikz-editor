@@ -4,6 +4,7 @@ import type { ResizeRole } from "tikz-editor/edit/actions";
 import type { SelectionGeometry, SnapContext, SnapLine } from "tikz-editor/edit/snapping";
 import type { EditHandle, NodeAnchorTarget, Point, SceneElement, SceneText } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/index";
+import type { NodeTextLayoutKind } from "tikz-editor/text/types";
 
 import type { CanvasTransform } from "../../store/types";
 import type { ToolCreateMode } from "../tool-config";
@@ -168,23 +169,7 @@ export type DragState =
       points: Point[];
       minSampleDistanceWorld: number;
     }
-  | {
-      kind: "text-select";
-      pointerId: number;
-      sourceId: string;
-      sourceSpan: Span;
-      textLength: number;
-      totalWidth: number;
-      fontSizePt: number;
-      rotation: number;
-      cx: number;
-      cy: number;
-      width: number;
-      height: number;
-      anchorIndex: number;
-      headIndex: number;
-      prefixTable: readonly number[] | null;
-    };
+  ;
 
 export type PendingAddedSelection = {
   beforeIds: Set<string>;
@@ -215,27 +200,35 @@ export type FreehandToolDraft = {
 
 export type TextSelectionOverlay = {
   sourceId: string;
-  textLength: number;
-  totalWidth: number;
-  fontSizePt: number;
-  startIndex: number;
-  endIndex: number;
-  rotation: number;
-  cx: number;
-  cy: number;
-  width: number;
-  height: number;
-  prefixTable: readonly number[] | null;
+  selectionStart: number;
+  selectionEnd: number;
+  caret:
+    | {
+        left: number;
+        top: number;
+        height: number;
+      }
+    | null;
+  rects: Array<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  }>;
 };
 
 export type TextEditingSession = {
   sourceId: string;
-  anchorIndex: number;
-  headIndex: number;
-  /** Absolute source offsets from the latest CodeMirror selection, used to
-   *  re-derive text-relative indices when the snapshot catches up after an edit. */
-  anchorOffset: number | null;
-  headOffset: number | null;
+  sceneTextId: string;
+  sourceSpan: Span;
+  text: string;
+  selectionStart: number;
+  selectionEnd: number;
+  historyMergeKey: string;
+  paragraphId: string | null;
+  renderSourceText: string;
+  layoutKind: NodeTextLayoutKind;
+  region: Extract<HitRegion, { shape: "rect" }>;
 };
 
 export type NodeAnchorOverlayState = {
@@ -245,15 +238,13 @@ export type NodeAnchorOverlayState = {
 
 export type EditableTextTarget = {
   sourceId: string;
+  sceneTextId: string;
   sourceSpan: Span;
   text: string;
+  renderSourceText: string;
+  paragraphId: string | null;
+  layoutKind: NodeTextLayoutKind;
   style: SceneText["style"];
-  totalWidth: number;
-  region: Extract<HitRegion, { shape: "rect" }>;
-};
-
-export type TextIndexMappingTarget = {
-  textLength: number;
   totalWidth: number;
   region: Extract<HitRegion, { shape: "rect" }>;
 };

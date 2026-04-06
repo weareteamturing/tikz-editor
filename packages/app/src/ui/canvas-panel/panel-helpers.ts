@@ -575,34 +575,6 @@ export function isMatrixNodeItem(item: NodeItem): boolean {
   return false;
 }
 
-export function resolveFallbackTextSourceSpanForSourceId(
-  targetId: string,
-  hitRegions: readonly HitRegion[],
-  sceneTextByRegionKey: ReadonlyMap<string, SceneText>
-): Span | null {
-  const candidates = hitRegions
-    .filter((region): region is Extract<HitRegion, { shape: "rect" }> => region.targetId === targetId && region.shape === "rect")
-    .map((region) => sceneTextByRegionKey.get(region.key))
-    .filter((sceneText): sceneText is SceneText => sceneText != null);
-
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  let bestSpan: Span | null = null;
-  for (const candidate of candidates) {
-    const span = candidate.matrixCell?.textSpan ?? candidate.textSourceSpan ?? candidate.sourceRef.sourceSpan;
-    if (span.to <= span.from) {
-      continue;
-    }
-    if (!bestSpan || span.from < bestSpan.from || (span.from === bestSpan.from && span.to > bestSpan.to)) {
-      bestSpan = span;
-    }
-  }
-
-  return bestSpan;
-}
-
 export function resolveEditableTextTargetForSelectionOffsets(
   targetId: string,
   anchorOffset: number,
@@ -974,43 +946,6 @@ export function ellipseAspectRatioForSource(
   return ellipse.ry / ellipse.rx;
 }
 
-export function findWordRangeAtIndex(text: string, index: number): { start: number; end: number } | null {
-  if (text.length === 0) {
-    return null;
-  }
-
-  let probe = clamp(Math.floor(index), 0, text.length);
-  if (probe === text.length) {
-    probe = text.length - 1;
-  }
-  if (probe < 0) {
-    return null;
-  }
-
-  if (!isWordChar(text.charAt(probe))) {
-    if (probe > 0 && isWordChar(text.charAt(probe - 1))) {
-      probe -= 1;
-    } else {
-      return null;
-    }
-  }
-
-  let start = probe;
-  let end = probe + 1;
-  while (start > 0 && isWordChar(text.charAt(start - 1))) {
-    start -= 1;
-  }
-  while (end < text.length && isWordChar(text.charAt(end))) {
-    end += 1;
-  }
-
-  return { start, end };
-}
-
-export function isWordChar(character: string): boolean {
-  return /^[A-Za-z0-9_]$/.test(character);
-}
-
 export function preferredNodeBoundsForSource(
   elements: SceneElement[],
   sourceId: string,
@@ -1241,7 +1176,7 @@ export function dragCursorForState(drag: DragState | null): string | null {
   ) {
     return "crosshair";
   }
-  return drag.kind === "text-select" ? "text" : null;
+  return null;
 }
 
 export function resizeCursorForRole(role: ResizeRole): string {

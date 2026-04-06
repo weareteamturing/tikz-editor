@@ -105,7 +105,7 @@ export function FigureNavigator() {
     documentKey: activeDocumentId,
     priorityFigureIds,
     maxToRender,
-    refreshDelayMs: 600
+    refreshDelayMs: 350
   });
 
   if (figures.length < 2) {

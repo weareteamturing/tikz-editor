@@ -1,6 +1,7 @@
 export type NodeTextFontStyle = "normal" | "italic";
 export type NodeTextFontWeight = "normal" | "bold";
 export type NodeTextFontFamily = "serif" | "sans" | "monospace";
+export type NodeTextParagraphAlignment = "ragged-right" | "ragged-left" | "center" | "justified";
 
 export type NodeTextValidationIssue = {
   code?: string;
@@ -11,6 +12,7 @@ export type NodeTextMeasureRequest = {
   text: string;
   mode?: "text" | "math";
   textWidthPt: number | null;
+  alignment?: NodeTextParagraphAlignment;
   fontStyle: NodeTextFontStyle;
   fontWeight: NodeTextFontWeight;
   fontFamily: NodeTextFontFamily;
@@ -23,6 +25,8 @@ export type NodeTextMetrics = {
   height: number;
   baselineY: number;
   midLineY: number;
+  paragraphId: string | null;
+  renderSourceText: string;
 };
 
 export type NodeTextRenderPayload = {
@@ -36,6 +40,8 @@ export type NodeTextRenderPayload = {
   body: string;
 };
 
+export type NodeTextLayoutKind = "single-line" | "wrapped" | "explicit-multiline" | "matrix-cell";
+
 export type NodeTextRenderInfo =
   | {
       mode: "plain";
@@ -43,6 +49,9 @@ export type NodeTextRenderInfo =
   | {
       mode: "mathjax";
       cacheKey: string;
+      paragraphId: string | null;
+      renderSourceText: string;
+      layoutKind: NodeTextLayoutKind;
     };
 
 export type NodeTextEngine = {

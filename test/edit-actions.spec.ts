@@ -2168,7 +2168,9 @@ describe("applyEditAction – resizeElement", () => {
         width: 40,
         height: 10,
         baselineY: -2,
-        midLineY: 0
+        midLineY: 0,
+        paragraphId: "fake-paragraph",
+        renderSourceText: "Long label text"
       }),
       renderFromCache: () => null
     };

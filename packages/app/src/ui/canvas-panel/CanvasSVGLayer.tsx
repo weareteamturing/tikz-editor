@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import { diffSvgModels, type SvgDiffHints, type SvgPatchOp, type SvgRenderModel } from "tikz-editor/svg/index";
 import { recordProfilingSvgPatchTiming } from "tikz-editor/profiling";
 
@@ -12,14 +12,15 @@ export function CanvasSVGLayer(params: {
   showTransparencyGrid: boolean;
   showDocumentBounds: boolean;
   onFallback: (reason: "replaceDefs" | "replaceAll" | "patch-failure") => void;
+  hostRef?: RefObject<HTMLDivElement | null>;
 }) {
-  const { model, diffHints, forceReplaceAll, showTransparencyGrid, showDocumentBounds, onFallback } = params;
-  const hostRef = useRef<HTMLDivElement | null>(null);
+  const { model, diffHints, forceReplaceAll, showTransparencyGrid, showDocumentBounds, onFallback, hostRef: externalHostRef } = params;
+  const internalHostRef = useRef<HTMLDivElement | null>(null);
   const patcherRef = useRef<SvgDomPatcher | null>(null);
   const previousModelRef = useRef<SvgRenderModel | null>(null);
 
   useEffect(() => {
-    const host = hostRef.current;
+    const host = internalHostRef.current;
     if (!host) {
       return;
     }
@@ -91,7 +92,12 @@ export function CanvasSVGLayer(params: {
       data-testid="canvas-svg-layer"
       data-show-transparency-grid={showTransparencyGrid ? "true" : "false"}
       data-show-document-bounds={showDocumentBounds ? "true" : "false"}
-      ref={hostRef}
+      ref={(node) => {
+        internalHostRef.current = node;
+        if (externalHostRef) {
+          externalHostRef.current = node;
+        }
+      }}
     />
   );
 }

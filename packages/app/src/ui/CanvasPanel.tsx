@@ -6,11 +6,13 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent as ReactChangeEvent,
   type ClipboardEvent as ReactClipboardEvent,
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
   type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent
+  type PointerEvent as ReactPointerEvent,
+  type SyntheticEvent as ReactSyntheticEvent
 } from "react";
 import type { AppMenuCommandId } from "../app-menu";
 import { buildCanvasContextMenuDefinition, type CanvasContextMenuTarget } from "../context-menu";
@@ -21,7 +23,12 @@ import {
   type EditAction,
   type ResizeRole
 } from "tikz-editor/edit/actions";
-import { createMathJaxNodeTextEngine } from "tikz-editor/text/mathjax-engine";
+import { createMathJaxNodeTextEngine, getActiveMathJaxOutputJax } from "tikz-editor/text/mathjax-engine";
+import {
+  getKnuthPlassCaretFromPoint,
+  getKnuthPlassPointFromOffset,
+  getKnuthPlassSelectionRects
+} from "tikz-editor/text/knuth-plass";
 import {
   buildSnapContext,
   collectSelectionGeometry,
@@ -29,19 +36,12 @@ import {
   snapToolPointer,
   type SnapLine
 } from "tikz-editor/edit/snapping";
-import type { NodeTextEngine } from "tikz-editor/text/types";
+import type { NodeTextEngine, NodeTextLayoutKind } from "tikz-editor/text/types";
 import type { Statement } from "tikz-editor/ast/types";
 import { PT_PER_CM } from "tikz-editor/edit/format";
 import { resolveEligibleExplicitPath } from "tikz-editor/edit/path-editing";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import {
-  finalizePrefixWidthTable,
-  findNearestPrefixIndexFromTable,
-  readPrefixUnitsFromTable,
-  seedPrefixWidthTable,
-  stabilizePrefixForMeasurement
-} from "tikz-editor/text/prefix-width";
-import type {
   EditHandle,
   NodeAnchorTarget,
   Point,
@@ -56,9 +56,6 @@ import { getSharedEditAnalysisView, getSharedEditAnalysisSession } from "../edit
 import { useEditorStore } from "../store/store";
 import type { CanvasDragKind, CanvasTransform } from "../store/types";
 import { getActiveEditorPlatform } from "../platform/current";
-import {
-  requestSourceSelection,
-} from "./source-sync";
 import { buildHitRegions, type HitRegion } from "./canvas-panel/hit-regions";
 import { computeDragCapability } from "./canvas-panel/drag-capability";
 import { deriveCurveControlLines } from "./canvas-panel/curve-controls";
@@ -72,23 +69,22 @@ import {
 } from "./canvas-panel/interaction-helpers";
 import { useCanvasDragController } from "./canvas-panel/useCanvasDragController";
 import type {
-  ApplyActionFeedback,
-  Bounds,
-  DragState,
-  DragTooltipState,
-  EditableTextTarget,
+    ApplyActionFeedback,
+    Bounds,
+    DragState,
+    DragTooltipState,
+    EditableTextTarget,
   FreehandToolDraft,
   NodeAnchorOverlayState,
   PendingTouchViewport,
   PendingAddedSelection,
   PendingBezier,
-  PathToolDraft,
-  SelectionBounds,
-  SnapDebugLogInput,
-  TextEditingSession,
-  TextIndexMappingTarget,
-  TextSelectionOverlay
-} from "./canvas-panel/types";
+    PathToolDraft,
+    SelectionBounds,
+    SnapDebugLogInput,
+    TextEditingSession,
+    TextSelectionOverlay
+  } from "./canvas-panel/types";
 import {
   buildValueSequence,
   buildTicks,
@@ -210,7 +206,6 @@ import {
   collectSourceBounds,
   dragCursorForState,
   ellipseAspectRatioForSource,
-  findWordRangeAtIndex,
   getHandleCursor,
   isPointInsideRect,
   isPointInsideRectHitRegionContentBox,
@@ -224,7 +219,6 @@ import {
   removeGuideValue,
   findPathStatementById,
   resolveRotateDegreesFromOptions,
-  resolveFallbackTextSourceSpanForSourceId,
   resolveGridResizeSnapForHandleDrag,
   resolveScenePathShapeHint,
   resizeCursorForRole,
@@ -424,8 +418,6 @@ const TOOL_PREVIEW_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
 const TOOL_PREVIEW_GRID_STEP_PT = PT_PER_CM;
 const TOOL_PREVIEW_GRID_MAX_LINES = 120;
 const LEFT_RULER_DRAG_SOURCE_WIDTH_PX = 12;
-const PREFIX_MEASURE_TEXT_MAX_LENGTH = 240;
-const PREFIX_MEASURE_CACHE_LIMIT = 64;
 const RESIZE_NOOP_REASON = "Resize would not change node constraints.";
 const CANVAS_DRAG_CURSOR_LOCK_CLASS = "is-dragging-canvas-cursor-lock";
 const IMPORTED_SVG_TARGET_RATIO = 0.3;
@@ -457,6 +449,64 @@ type FigureViewportState = {
 
 function makeFigureViewportKey(documentId: string, figureId: string | null): string {
   return `${documentId}::${figureId ?? "__none__"}`;
+}
+
+function resolveTextSelectionRangeForClick(
+  text: string,
+  offset: number,
+  clickCount: number
+): { start: number; end: number } {
+  const boundedOffset = clamp(offset, 0, text.length);
+  if (clickCount >= 3) {
+    return { start: 0, end: text.length };
+  }
+  if (clickCount < 2 || text.length === 0) {
+    return { start: boundedOffset, end: boundedOffset };
+  }
+
+  let pivot = boundedOffset;
+  if (pivot >= text.length) {
+    pivot = text.length - 1;
+  } else if (pivot > 0) {
+    const currentChar = text[pivot] ?? "";
+    const previousChar = text[pivot - 1] ?? "";
+    if (/\s/.test(currentChar) && !/\s/.test(previousChar)) {
+      pivot -= 1;
+    }
+  }
+
+  const pivotChar = text[pivot] ?? "";
+  const isWhitespaceRun = /\s/.test(pivotChar);
+  let start = pivot;
+  let end = pivot + 1;
+  while (start > 0) {
+    const previousChar = text[start - 1] ?? "";
+    if ((/\s/.test(previousChar)) !== isWhitespaceRun) {
+      break;
+    }
+    start -= 1;
+  }
+  while (end < text.length) {
+    const nextChar = text[end] ?? "";
+    if ((/\s/.test(nextChar)) !== isWhitespaceRun) {
+      break;
+    }
+    end += 1;
+  }
+  return { start, end };
+}
+
+function resolveFallbackTextLayoutKind(text: string, hasFixedWidth: boolean | undefined, isMatrixCell: boolean): NodeTextLayoutKind {
+  if (isMatrixCell) {
+    return "matrix-cell";
+  }
+  if (/\\\\(?:\[[^\]]*\])?/.test(text)) {
+    return "explicit-multiline";
+  }
+  if (hasFixedWidth) {
+    return "wrapped";
+  }
+  return "single-line";
 }
 
 function expandSvgViewBox(
@@ -665,6 +715,8 @@ export function CanvasPanel({
     clickedWorld: null
   });
   const pendingNativeContextMenuTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const textEditingSessionRef = useRef<TextEditingSession | null>(null);
+  textEditingSessionRef.current = textEditingSession;
 
   const contextMenuHandleIdOverride =
     pendingNativeContextMenuRequest?.clickedHandleId ?? contextMenuState?.handleIdOverride;
@@ -951,7 +1003,10 @@ export function CanvasPanel({
   const guideDragRef = useRef<GuideDragState | null>(null);
   const snapDebugDragRef = useRef<SnapDebugOverlayDragState | null>(null);
   const textEngineRef = useRef<NodeTextEngine | null>(null);
-  const prefixTableCacheRef = useRef(new Map<string, readonly number[]>());
+  const svgLayerHostRef = useRef<HTMLDivElement | null>(null);
+  const textEditTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const textSelectionDragRef = useRef<{ pointerId: number; sourceId: string; anchorOffset: number } | null>(null);
+  const textSelectionRequestIdRef = useRef(0);
   const pendingTouchViewportRef = useRef<PendingTouchViewport | null>(null);
   const viewportStateByFigureKeyRef = useRef(new Map<string, FigureViewportState>());
   const visitedFigureKeysRef = useRef(new Set<string>());
@@ -1095,13 +1150,11 @@ export function CanvasPanel({
       .then((engine) => {
         if (!cancelled) {
           textEngineRef.current = engine;
-          prefixTableCacheRef.current.clear();
         }
       })
       .catch(() => {
         if (!cancelled) {
           textEngineRef.current = null;
-          prefixTableCacheRef.current.clear();
         }
       });
     return () => {
@@ -1688,27 +1741,12 @@ export function CanvasPanel({
       if (!sceneText) {
         return null;
       }
-      if (sceneText.textRenderInfo?.mode !== "mathjax") {
-        return null;
-      }
-      if (sceneText.textHasFixedWidth) {
-        return null;
-      }
-      if (sceneText.text.includes("\n")) {
-        return null;
-      }
       const sourceSpan = sceneText.matrixCell?.textSpan ?? sceneText.textSourceSpan ?? sceneText.sourceRef.sourceSpan;
       if (sourceSpan.to <= sourceSpan.from) {
         return null;
       }
       const sourceSlice = source.slice(sourceSpan.from, sourceSpan.to);
-      if (!sceneText.matrixCell && sourceSlice !== sceneText.text) {
-        return null;
-      }
-      if (sceneText.matrixCell?.textMode === "text" && sourceSlice !== sceneText.text) {
-        return null;
-      }
-      if (sceneText.matrixCell?.textMode === "math" && sourceSlice.length === 0) {
+      if (sourceSlice.length === 0) {
         return null;
       }
       if (!(sceneText.textBlockWidth != null && sceneText.textBlockWidth > 0)) {
@@ -1716,8 +1754,21 @@ export function CanvasPanel({
       }
       return {
         sourceId: targetId,
+        sceneTextId: sceneText.id,
         sourceSpan,
-        text: sceneText.matrixCell ? sourceSlice : sceneText.text,
+        text: sourceSlice,
+        renderSourceText:
+          sceneText.textRenderInfo?.mode === "mathjax"
+            ? sceneText.textRenderInfo.renderSourceText
+            : sourceSlice,
+        paragraphId:
+          sceneText.textRenderInfo?.mode === "mathjax"
+            ? sceneText.textRenderInfo.paragraphId
+            : null,
+        layoutKind:
+          sceneText.textRenderInfo?.mode === "mathjax"
+            ? sceneText.textRenderInfo.layoutKind
+            : resolveFallbackTextLayoutKind(sourceSlice, sceneText.textHasFixedWidth, !!sceneText.matrixCell),
         style: sceneText.style,
         totalWidth: sceneText.textBlockWidth,
         region
@@ -1742,186 +1793,6 @@ export function CanvasPanel({
     return keys;
   }, [hitRegions, resolveEditableTextTarget, toolMode]);
 
-  const resolvePrefixTableForTarget = useCallback((target: EditableTextTarget): readonly number[] | null => {
-    if (target.text.length === 0 || target.totalWidth <= 0 || target.text.length > PREFIX_MEASURE_TEXT_MAX_LENGTH) {
-      return null;
-    }
-
-    const cacheKey = JSON.stringify({
-      text: target.text,
-      fontStyle: target.style.fontStyle,
-      fontWeight: target.style.fontWeight,
-      fontFamily: target.style.fontFamily,
-      fontSizePt: Number(target.style.fontSize.toFixed(4))
-    });
-    const cached = prefixTableCacheRef.current.get(cacheKey);
-    if (cached) {
-      prefixTableCacheRef.current.delete(cacheKey);
-      prefixTableCacheRef.current.set(cacheKey, cached);
-      return cached;
-    }
-
-    const textEngine = textEngineRef.current;
-    if (!textEngine) {
-      return null;
-    }
-
-    const table = seedPrefixWidthTable(target.text.length, target.totalWidth);
-    for (let index = 1; index < target.text.length; index += 1) {
-      const prefix = stabilizePrefixForMeasurement(target.text.slice(0, index));
-      const measured = textEngine.measure({
-        text: prefix,
-        textWidthPt: null,
-        fontStyle: target.style.fontStyle,
-        fontWeight: target.style.fontWeight,
-        fontFamily: target.style.fontFamily,
-        fontSizePt: target.style.fontSize
-      });
-      table[index] = measured?.width ?? Number.NaN;
-    }
-    const finalized = finalizePrefixWidthTable(table, target.totalWidth);
-    prefixTableCacheRef.current.set(cacheKey, finalized);
-    while (prefixTableCacheRef.current.size > PREFIX_MEASURE_CACHE_LIMIT) {
-      const oldestKey = prefixTableCacheRef.current.keys().next().value;
-      if (typeof oldestKey !== "string") {
-        break;
-      }
-      prefixTableCacheRef.current.delete(oldestKey);
-    }
-    return finalized;
-  }, []);
-
-  const textIndexFromClient = useCallback(
-    (
-      clientX: number,
-      clientY: number,
-      target: TextIndexMappingTarget,
-      prefixTable: readonly number[] | null
-    ): number | null => {
-      const svgPoint = clientToSvgPoint(clientX, clientY, interactionSvgRef.current);
-      if (!svgPoint) {
-        return null;
-      }
-
-      const unrotatedPoint = rotatePointAroundCenter(svgPoint, target.region.cx, target.region.cy, target.region.rotation);
-      const contentBox = resolveRectHitRegionContentBox(target.region);
-      const ratio = clamp((unrotatedPoint.x - contentBox.x) / Math.max(contentBox.width, 1e-6), 0, 1);
-      const units = ratio * target.totalWidth;
-      return clamp(
-        findNearestPrefixIndexFromTable(units, target.textLength, target.totalWidth, prefixTable),
-        0,
-        target.textLength
-      );
-    },
-    []
-  );
-
-  const applyCanvasTextSelection = useCallback(
-    (
-      target: EditableTextTarget,
-      anchorIndex: number,
-      headIndex: number
-    ) => {
-      const boundedAnchor = clamp(Math.floor(anchorIndex), 0, target.text.length);
-      const boundedHead = clamp(Math.floor(headIndex), 0, target.text.length);
-      const anchorOffset = target.sourceSpan.from + boundedAnchor;
-      const headOffset = target.sourceSpan.from + boundedHead;
-      requestSourceSelection({
-        from: Math.min(anchorOffset, headOffset),
-        to: Math.max(anchorOffset, headOffset),
-        anchor: anchorOffset,
-        head: headOffset,
-        sourceId: target.sourceId,
-        focus: true
-      });
-      setTextEditingSession({
-        sourceId: target.sourceId,
-        anchorIndex: boundedAnchor,
-        headIndex: boundedHead,
-        anchorOffset: anchorOffset,
-        headOffset: headOffset
-      });
-    },
-    []
-  );
-
-  const beginTextSelectionDrag = useCallback(
-    (
-      event: ReactPointerEvent<SVGElement>,
-      targetId: string,
-      region: HitRegion | undefined
-    ): boolean => {
-      if (event.shiftKey || event.ctrlKey || event.metaKey || event.button !== 0) {
-        return false;
-      }
-      if (!svgResult || snapshot.source !== source) {
-        return false;
-      }
-      const target = resolveEditableTextTarget(targetId, region);
-      if (!target) {
-        return false;
-      }
-      const svgPoint = clientToSvgPoint(event.clientX, event.clientY, interactionSvgRef.current);
-      if (!svgPoint || !isPointInsideRectHitRegionContentBox(svgPoint, target.region)) {
-        return false;
-      }
-      const prefixTable = resolvePrefixTableForTarget(target);
-      const clickIndex = textIndexFromClient(
-        event.clientX,
-        event.clientY,
-        {
-          textLength: target.text.length,
-          totalWidth: target.totalWidth,
-          region: target.region
-        },
-        prefixTable
-      );
-      if (clickIndex == null) {
-        return false;
-      }
-
-      dispatch({ type: "SELECT", id: targetId, additive: false });
-      applyCanvasTextSelection(target, clickIndex, clickIndex);
-      setDragState({
-        kind: "text-select",
-        pointerId: event.pointerId,
-        sourceId: target.sourceId,
-        sourceSpan: target.sourceSpan,
-        textLength: target.text.length,
-        totalWidth: target.totalWidth,
-        fontSizePt: target.style.fontSize,
-        rotation: target.region.rotation,
-        cx: target.region.cx,
-        cy: target.region.cy,
-        width: target.region.width,
-        height: target.region.height,
-        anchorIndex: clickIndex,
-        headIndex: clickIndex,
-        prefixTable
-      });
-      setSnapLines([]);
-      logSnapDebug({
-        phase: "drag-start-text-select",
-        snapshotMatchesSource: true,
-        dragKind: "text-select",
-        lines: []
-      });
-      return true;
-    },
-    [
-      applyCanvasTextSelection,
-      dispatch,
-      logSnapDebug,
-      resolveEditableTextTarget,
-      resolvePrefixTableForTarget,
-      setDragState,
-      snapshot.source,
-      source,
-      svgResult,
-      textIndexFromClient
-    ]
-  );
-
   const resolveEditableTextTargetById = useCallback(
     (targetId: string): EditableTextTarget | null => {
       for (const region of rectHitRegionsForTargetId(hitRegions, targetId)) {
@@ -1935,12 +1806,327 @@ export function CanvasPanel({
     [hitRegions, resolveEditableTextTarget]
   );
 
+  const resolveRenderedMathTextElement = useCallback((target: EditableTextTarget): SVGSVGElement | null => {
+    const host = svgLayerHostRef.current;
+    if (!host) {
+      return null;
+    }
+    const candidates = Array.from(host.querySelectorAll<SVGSVGElement>('svg[data-text-renderer="mathjax"]'));
+    for (const candidate of candidates) {
+      if (candidate.getAttribute("data-paragraph-id") === target.paragraphId) {
+        return candidate;
+      }
+    }
+    for (const candidate of candidates) {
+      if (
+        candidate.getAttribute("data-scene-text-id") === target.sceneTextId ||
+        candidate.getAttribute("data-source-id") === target.sourceId
+      ) {
+        return candidate;
+      }
+    }
+    return null;
+  }, []);
+
+  const resolveTextOffsetFromClient = useCallback(
+    async (target: EditableTextTarget, clientX: number, clientY: number): Promise<number | null> => {
+      const outputJax = getActiveMathJaxOutputJax();
+      const containerElement = resolveRenderedMathTextElement(target);
+      if (!target.paragraphId || !outputJax || !containerElement) {
+        const contentBox = resolveRectHitRegionContentBox(target.region);
+        const svgPoint = clientToSvgPoint(clientX, clientY, interactionSvgRef.current) ?? (() => {
+          const viewportRect = viewportRef.current?.getBoundingClientRect();
+          const localViewportX = viewportRect ? clientX - viewportRect.left : clientX;
+          const localViewportY = viewportRect ? clientY - viewportRect.top : clientY;
+          return svgResult
+            ? viewportToSvgPoint(localViewportX, localViewportY, canvasTransform, svgResult.viewBox)
+            : { x: clientX, y: clientY };
+        })();
+        const localPoint = rotatePointAroundCenter(
+          svgPoint,
+          target.region.cx,
+          target.region.cy,
+          target.region.rotation
+        );
+        const xRatio = contentBox.width <= 1e-6
+          ? 1
+          : clamp((localPoint.x - contentBox.x) / contentBox.width, 0, 1);
+        return clamp(Math.round(xRatio * target.text.length), 0, target.text.length);
+      }
+      const result = await getKnuthPlassCaretFromPoint(outputJax, {
+        paragraphId: target.paragraphId,
+        sourceText: target.renderSourceText,
+        containerElement,
+        clientX,
+        clientY
+      });
+      if (!result.ok || result.offset == null) {
+        return null;
+      }
+      return clamp(result.offset, 0, target.text.length);
+    },
+    [
+      canvasTransform,
+      resolveRenderedMathTextElement,
+      svgResult,
+      viewportRef
+    ]
+  );
+
+  const startTextEditingSession = useCallback(
+    (
+      target: EditableTextTarget,
+      selectionStart: number,
+      selectionEnd: number,
+      historyMergeKey?: string
+    ) => {
+      const boundedStart = clamp(Math.floor(selectionStart), 0, target.text.length);
+      const boundedEnd = clamp(Math.floor(selectionEnd), 0, target.text.length);
+      const normalizedStart = Math.min(boundedStart, boundedEnd);
+      const normalizedEnd = Math.max(boundedStart, boundedEnd);
+      setTextEditingSession({
+        sourceId: target.sourceId,
+        sceneTextId: target.sceneTextId,
+        sourceSpan: target.sourceSpan,
+        text: target.text,
+        selectionStart: normalizedStart,
+        selectionEnd: normalizedEnd,
+        historyMergeKey: historyMergeKey ?? makeMergeKey("canvas-text-edit", target.sourceId, Date.now()),
+        paragraphId: target.paragraphId,
+        renderSourceText: target.renderSourceText,
+        layoutKind: target.layoutKind,
+        region: target.region
+      });
+    },
+    []
+  );
+
+  const beginCanvasTextInteraction = useCallback(
+    (event: ReactPointerEvent<SVGElement>, target: EditableTextTarget) => {
+      if (event.shiftKey || event.ctrlKey || event.metaKey || event.button !== 0) {
+        return;
+      }
+      suppressNextBackgroundClickRef.current = true;
+      textSelectionRequestIdRef.current += 1;
+      const requestId = textSelectionRequestIdRef.current;
+      const existingHistoryMergeKey =
+        textEditingSession?.sourceId === target.sourceId ? textEditingSession.historyMergeKey : undefined;
+      const clickCount = event.detail;
+      void resolveTextOffsetFromClient(target, event.clientX, event.clientY).then((offset) => {
+        if (requestId !== textSelectionRequestIdRef.current || offset == null) {
+          return;
+        }
+        const selection = resolveTextSelectionRangeForClick(target.text, offset, clickCount);
+        startTextEditingSession(target, selection.start, selection.end, existingHistoryMergeKey);
+        textSelectionDragRef.current = clickCount === 1
+          ? {
+              pointerId: event.pointerId,
+              sourceId: target.sourceId,
+              anchorOffset: offset
+            }
+          : null;
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {
+          // Ignore pointer capture failures; the window listeners still complete the drag.
+        }
+      });
+    },
+    [resolveTextOffsetFromClient, startTextEditingSession, textEditingSession]
+  );
+
+  const applyTextEditingUpdate = useCallback(
+    (nextText: string, nextSelectionStart: number, nextSelectionEnd: number) => {
+      const current = textEditingSessionRef.current;
+      if (!current) {
+        return;
+      }
+      const boundedStart = clamp(Math.floor(nextSelectionStart), 0, nextText.length);
+      const boundedEnd = clamp(Math.floor(nextSelectionEnd), 0, nextText.length);
+      applyActionWithFeedback(
+        {
+          kind: "updateNodeText",
+          elementId: current.sourceId,
+          text: nextText
+        },
+        current.historyMergeKey
+      );
+      setTextEditingSession({
+        ...current,
+        text: nextText,
+        selectionStart: boundedStart,
+        selectionEnd: boundedEnd
+      });
+    },
+    [applyActionWithFeedback]
+  );
+
+  const handleTextEditTextareaChange = useCallback(
+    (event: ReactChangeEvent<HTMLTextAreaElement>) => {
+      applyTextEditingUpdate(
+        event.currentTarget.value,
+        event.currentTarget.selectionStart ?? 0,
+        event.currentTarget.selectionEnd ?? 0
+      );
+    },
+    [applyTextEditingUpdate]
+  );
+
+  const handleTextEditTextareaSelect = useCallback((event: ReactSyntheticEvent<HTMLTextAreaElement>) => {
+    const textarea = event.currentTarget;
+    setTextEditingSession((current) =>
+      current
+        ? {
+            ...current,
+            selectionStart: clamp(textarea.selectionStart ?? 0, 0, current.text.length),
+            selectionEnd: clamp(textarea.selectionEnd ?? 0, 0, current.text.length)
+          }
+        : current
+    );
+  }, []);
+
+  const handleTextEditTextareaKeyDown = useCallback((event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Escape") {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    textSelectionDragRef.current = null;
+    setTextEditingSession(null);
+  }, []);
+
+  const handleTextEditPopupPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+  }, []);
+
+  useEffect(() => {
+    const textarea = textEditTextareaRef.current;
+    if (!textEditingSession || !textarea) {
+      return;
+    }
+    if (document.activeElement !== textarea) {
+      textarea.focus({ preventScroll: true });
+    }
+    const start = clamp(textEditingSession.selectionStart, 0, textEditingSession.text.length);
+    const end = clamp(textEditingSession.selectionEnd, 0, textEditingSession.text.length);
+    if (textarea.selectionStart !== start || textarea.selectionEnd !== end) {
+      textarea.setSelectionRange(start, end);
+    }
+  }, [textEditingSession]);
+
+  useEffect(() => {
+    const textarea = textEditTextareaRef.current;
+    if (!textEditingSession || !textarea) {
+      return;
+    }
+    const syncSelectionFromTextarea = () => {
+      setTextEditingSession((current) => {
+        if (!current) {
+          return current;
+        }
+        const nextStart = clamp(textarea.selectionStart ?? 0, 0, current.text.length);
+        const nextEnd = clamp(textarea.selectionEnd ?? 0, 0, current.text.length);
+        if (current.selectionStart === nextStart && current.selectionEnd === nextEnd) {
+          return current;
+        }
+        return {
+          ...current,
+          selectionStart: nextStart,
+          selectionEnd: nextEnd
+        };
+      });
+    };
+    const handleDocumentSelectionChange = () => {
+      if (document.activeElement === textarea) {
+        syncSelectionFromTextarea();
+      }
+    };
+    textarea.addEventListener("select", syncSelectionFromTextarea);
+    textarea.addEventListener("keyup", syncSelectionFromTextarea);
+    textarea.addEventListener("mouseup", syncSelectionFromTextarea);
+    document.addEventListener("selectionchange", handleDocumentSelectionChange);
+    return () => {
+      textarea.removeEventListener("select", syncSelectionFromTextarea);
+      textarea.removeEventListener("keyup", syncSelectionFromTextarea);
+      textarea.removeEventListener("mouseup", syncSelectionFromTextarea);
+      document.removeEventListener("selectionchange", handleDocumentSelectionChange);
+    };
+  }, [textEditingSession]);
+
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      const drag = textSelectionDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) {
+        return;
+      }
+      const target = resolveEditableTextTargetById(drag.sourceId);
+      if (!target) {
+        textSelectionDragRef.current = null;
+        return;
+      }
+      textSelectionRequestIdRef.current += 1;
+      const requestId = textSelectionRequestIdRef.current;
+      void resolveTextOffsetFromClient(target, event.clientX, event.clientY).then((offset) => {
+        if (requestId !== textSelectionRequestIdRef.current || offset == null) {
+          return;
+        }
+        const normalizedStart = Math.min(drag.anchorOffset, offset);
+        const normalizedEnd = Math.max(drag.anchorOffset, offset);
+        setTextEditingSession((current) =>
+          current && current.sourceId === target.sourceId
+            ? {
+                ...current,
+                selectionStart: clamp(normalizedStart, 0, current.text.length),
+                selectionEnd: clamp(normalizedEnd, 0, current.text.length)
+              }
+            : current
+        );
+      });
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      const drag = textSelectionDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) {
+        return;
+      }
+      textSelectionDragRef.current = null;
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [resolveEditableTextTargetById, resolveTextOffsetFromClient]);
+
+  useEffect(() => {
+    if (!textEditingSession) {
+      return;
+    }
+    const handleGlobalPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (viewportRef.current?.contains(target)) {
+        return;
+      }
+      textSelectionDragRef.current = null;
+      setTextEditingSession(null);
+    };
+    window.addEventListener("pointerdown", handleGlobalPointerDown, true);
+    return () => window.removeEventListener("pointerdown", handleGlobalPointerDown, true);
+  }, [textEditingSession]);
+
   const { onElementPointerDown, onElementDoubleClick } = useCanvasElementInteractions({
     svgResult,
     toolMode,
     selectedElementIds,
     viewportRef,
-    beginTextSelectionDrag,
+    beginCanvasTextInteraction,
     setTextEditingSession,
     interactionSvgRef,
     dispatch,
@@ -1986,12 +2172,6 @@ export function CanvasPanel({
     viewportWorldBounds,
     setDragState,
     resolveEditableTextTarget,
-    resolvePrefixTableForTarget,
-    textIndexFromClient,
-    applyCanvasTextSelection,
-    hitRegions,
-    sceneTextByRegionKey,
-    findWordRangeAtIndex,
     densePathSourceIds,
     expandedDensePathSourceId,
     setExpandedDensePathSourceId,
@@ -2623,8 +2803,6 @@ export function CanvasPanel({
     if (dragRef.current?.kind === "marquee") {
       setDragState(null);
       setMarqueeDraft(null);
-    } else if (dragRef.current?.kind === "text-select") {
-      setDragState(null);
     }
   }, [setDragState, toolMode]);
 
@@ -2633,16 +2811,16 @@ export function CanvasPanel({
     textEditingSession,
     setTextEditingSession,
     selectedElementIds,
-    hitRegions,
-    resolveEditableTextTarget,
     resolveEditableTextTargetById,
-    resolvePrefixTableForTarget,
+    resolveRenderedMathTextElement,
+    viewportRef,
     setTextSelectionOverlay,
     pendingAdornmentTextEditTargetId,
     snapshot,
     source,
-    applyCanvasTextSelection,
-    setPendingAdornmentTextEditTargetId
+    startTextEditingSession,
+    setPendingAdornmentTextEditTargetId,
+    canvasTransform
   });
 
   useEffect(() => {
@@ -2754,11 +2932,9 @@ export function CanvasPanel({
     setNodeAnchorOverlay,
     setDragTooltip,
     setWarning,
-    setTextEditingSession,
     selectedAddShape,
     creationStrokeColor,
     creationFillColor,
-    textIndexFromClient,
     onSnapFeedback: performSnapHapticFeedback
   });
 
@@ -2802,42 +2978,49 @@ export function CanvasPanel({
   const guideHitStrokeWidth = 12 / Math.max(canvasTransform.scale, 1e-3);
   const snapStrokeWidth = 1 / Math.max(canvasTransform.scale, 1e-3);
   const snapCrossSize = 3 / Math.max(canvasTransform.scale, 1e-3);
-  const textSelectionVisual = useMemo(() => {
-    if (!textSelectionOverlay) {
+  const textEditPopup = useMemo(() => {
+    if (!textEditingSession || !svgResult) {
       return null;
     }
-    if (textSelectionOverlay.textLength < 0 || textSelectionOverlay.totalWidth <= 0 || textSelectionOverlay.width <= 0) {
-      return null;
+    const minPadding = 12;
+    const popupGap = 20;
+    const approxHeight = 60;
+    const contentBox = resolveRectHitRegionContentBox(textEditingSession.region);
+    const sourceBounds = sourceBoundsSvg.get(textEditingSession.sourceId);
+    const anchorLeft = sourceBounds?.minX ?? contentBox.x;
+    const anchorRight = sourceBounds?.maxX ?? (contentBox.x + contentBox.width);
+    const anchorTop = sourceBounds?.minY ?? contentBox.y;
+    const anchorBottom = sourceBounds?.maxY ?? (contentBox.y + contentBox.height);
+    const leftEdge =
+      canvasTransform.translateX + (anchorLeft - svgResult.viewBox.x) * canvasTransform.scale;
+    const rightEdge =
+      canvasTransform.translateX + (anchorRight - svgResult.viewBox.x) * canvasTransform.scale;
+    const topEdge =
+      canvasTransform.translateY + (anchorTop - svgResult.viewBox.y) * canvasTransform.scale;
+    const bottomEdge =
+      canvasTransform.translateY + (anchorBottom - svgResult.viewBox.y) * canvasTransform.scale;
+    const centerX = (leftEdge + rightEdge) / 2;
+    const nodeWidthPx = rightEdge - leftEdge;
+    const maxWidth = clamp(Math.round(nodeWidthPx + 80), 160, viewportSize.width - minPadding * 2);
+    let top = bottomEdge + popupGap;
+    if (top + approxHeight > viewportSize.height - minPadding) {
+      top = topEdge - approxHeight - popupGap;
     }
-    const unitsStart = readPrefixUnitsFromTable(
-      textSelectionOverlay.startIndex,
-      textSelectionOverlay.textLength,
-      textSelectionOverlay.totalWidth,
-      textSelectionOverlay.prefixTable
-    );
-    const unitsEnd = readPrefixUnitsFromTable(
-      textSelectionOverlay.endIndex,
-      textSelectionOverlay.textLength,
-      textSelectionOverlay.totalWidth,
-      textSelectionOverlay.prefixTable
-    );
-    const leftEdge = textSelectionOverlay.cx - textSelectionOverlay.width / 2;
-    const rightEdge = textSelectionOverlay.cx + textSelectionOverlay.width / 2;
-    const mappedStart = clamp(leftEdge + (unitsStart / textSelectionOverlay.totalWidth) * textSelectionOverlay.width, leftEdge, rightEdge);
-    const mappedEnd = clamp(leftEdge + (unitsEnd / textSelectionOverlay.totalWidth) * textSelectionOverlay.width, leftEdge, rightEdge);
     return {
-      collapsed: textSelectionOverlay.startIndex === textSelectionOverlay.endIndex,
-      caretAnimationKey: `${textSelectionOverlay.sourceId}:${textSelectionOverlay.startIndex}:${textSelectionOverlay.endIndex}`,
-      x1: mappedStart,
-      x2: mappedEnd,
-      yTop: textSelectionOverlay.cy - textSelectionOverlay.height / 2,
-      height: textSelectionOverlay.height,
-      caretStrokeWidth: caretStrokeWidthInSvg(textSelectionOverlay.fontSizePt),
-      rotation: textSelectionOverlay.rotation,
-      cx: textSelectionOverlay.cx,
-      cy: textSelectionOverlay.cy
+      centerX: clamp(centerX, minPadding + maxWidth / 2, viewportSize.width - minPadding - maxWidth / 2),
+      top: clamp(top, minPadding, Math.max(minPadding, viewportSize.height - approxHeight - minPadding)),
+      maxWidth
     };
-  }, [textSelectionOverlay]);
+  }, [
+    canvasTransform.scale,
+    canvasTransform.translateX,
+    canvasTransform.translateY,
+    svgResult,
+    sourceBoundsSvg,
+    textEditingSession,
+    viewportSize.height,
+    viewportSize.width
+  ]);
 
   const contextMenuDefinition = useMemo(
     () =>
@@ -2889,6 +3072,7 @@ export function CanvasPanel({
         assistantLockReason={assistantLockReason}
         snapshot={snapshot}
         svgModel={svgModel}
+        svgLayerHostRef={svgLayerHostRef}
         canvasTransform={canvasTransform}
         showTransparencyGrid={showTransparencyGrid}
         showDocumentBounds={showDocumentBounds}
@@ -2931,7 +3115,7 @@ export function CanvasPanel({
         adornmentHighlightBoxes={adornmentHighlightBoxes}
         selectedAdornmentConnectors={selectedAdornmentConnectors}
         selectionStrokeWidth={selectionStrokeWidth}
-        textSelectionVisual={textSelectionVisual}
+        textSelectionOverlay={textSelectionOverlay}
         selectionDragStrokeWidth={selectionDragStrokeWidth}
         matrixSelectionSourceIds={matrixSelectionSourceIds}
         curveControlLines={curveControlLines}
@@ -2956,6 +3140,13 @@ export function CanvasPanel({
         warning={warning}
         copyWarningToClipboard={copyWarningToClipboard}
         onWarningBarKeyDown={onWarningBarKeyDown}
+        textEditingSession={textEditingSession}
+        textEditPopup={textEditPopup}
+        textEditTextareaRef={textEditTextareaRef}
+        onTextEditPopupPointerDown={handleTextEditPopupPointerDown}
+        onTextEditTextareaChange={handleTextEditTextareaChange}
+        onTextEditTextareaSelect={handleTextEditTextareaSelect}
+        onTextEditTextareaKeyDown={handleTextEditTextareaKeyDown}
         selectionHint={pathSelectionHint}
         showDevPanel={showDevPanel}
         snapDebugRect={snapDebugRect}

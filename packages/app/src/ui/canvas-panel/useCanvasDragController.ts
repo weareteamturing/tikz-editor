@@ -51,11 +51,8 @@ import type {
   PendingAddedSelection,
   PendingBezier,
   SnapDebugLogInput,
-  TextEditingSession,
-  TextIndexMappingTarget,
   GridResizeSnapConfig
 } from "./types";
-import { requestSourceSelection } from "../source-sync";
 
 const ROTATE_SHIFT_SNAP_STEP_DEG = 15;
 const ROTATE_SOFT_SNAP_STEP_DEG = 90;
@@ -101,17 +98,10 @@ export function useCanvasDragController(params: {
   setNodeAnchorOverlay: (overlay: NodeAnchorOverlayState | null) => void;
   setDragTooltip: (tooltip: DragTooltipState | null) => void;
   setWarning: (warning: string | null) => void;
-  setTextEditingSession: (session: TextEditingSession | null) => void;
   selectedAddShape: string;
   creationStrokeColor: string;
   creationFillColor: string;
   onSnapFeedback?: () => void;
-  textIndexFromClient: (
-    clientX: number,
-    clientY: number,
-    target: TextIndexMappingTarget,
-    prefixTable: readonly number[] | null
-  ) => number | null;
 }) {
   const {
     applyActionWithFeedback,
@@ -149,12 +139,10 @@ export function useCanvasDragController(params: {
     setNodeAnchorOverlay,
     setDragTooltip,
     setWarning,
-    setTextEditingSession,
     selectedAddShape,
     creationStrokeColor,
     creationFillColor,
-    onSnapFeedback,
-    textIndexFromClient
+    onSnapFeedback
   } = params;
   const wasSnappedRef = useRef(false);
 
@@ -233,66 +221,6 @@ export function useCanvasDragController(params: {
           ...drag.startTransform,
           translateX: drag.startTransform.translateX + deltaX,
           translateY: drag.startTransform.translateY + deltaY
-        });
-        maybeTriggerSnapFeedback(false);
-        return;
-      }
-
-      if (drag.kind === "text-select") {
-        setNodeAnchorOverlay(null);
-        setDragTooltip(null);
-        if (snapshotSource !== source) {
-          return;
-        }
-        const nextIndex = textIndexFromClient(
-          event.clientX,
-          event.clientY,
-          {
-            textLength: drag.textLength,
-            totalWidth: drag.totalWidth,
-            region: {
-              shape: "rect",
-              key: "",
-              sourceId: drag.sourceId,
-              targetId: drag.sourceId,
-              x: drag.cx - drag.width / 2,
-              y: drag.cy - drag.height / 2,
-              width: drag.width,
-              height: drag.height,
-              cx: drag.cx,
-              cy: drag.cy,
-              rotation: drag.rotation
-            }
-          },
-          drag.prefixTable
-        );
-        if (nextIndex == null || nextIndex === drag.headIndex) {
-          return;
-        }
-        drag.headIndex = nextIndex;
-        const anchorOffset = drag.sourceSpan.from + drag.anchorIndex;
-        const headOffset = drag.sourceSpan.from + drag.headIndex;
-        requestSourceSelection({
-          from: Math.min(anchorOffset, headOffset),
-          to: Math.max(anchorOffset, headOffset),
-          anchor: anchorOffset,
-          head: headOffset,
-          sourceId: drag.sourceId,
-          focus: true
-        });
-        setTextEditingSession({
-          sourceId: drag.sourceId,
-          anchorIndex: drag.anchorIndex,
-          headIndex: drag.headIndex,
-          anchorOffset,
-          headOffset
-        });
-        setSnapLines([]);
-        logSnapDebug({
-          phase: "drag-text-select-move",
-          snapshotMatchesSource: true,
-          dragKind: "text-select",
-          lines: []
         });
         maybeTriggerSnapFeedback(false);
         return;
@@ -1045,14 +973,6 @@ export function useCanvasDragController(params: {
         return;
       }
 
-      if (drag.kind === "text-select") {
-        setNodeAnchorOverlay(null);
-        setSnapLines([]);
-        setDragTooltip(null);
-        setDragState(null);
-        return;
-      }
-
       if (
         drag.kind === "handle" &&
         shouldCommitHandleAnchorOnPointerUp({
@@ -1107,7 +1027,6 @@ export function useCanvasDragController(params: {
     setNodeAnchorOverlay,
     setDragState,
     setSnapLines,
-    setTextEditingSession,
     setBezierBendDraft,
     setPathSegmentDraft,
     commitPathToolSegment,
@@ -1126,8 +1045,7 @@ export function useCanvasDragController(params: {
     source,
     sourceBoundsSvgRef,
     svgResult,
-    svgResultRef,
-    textIndexFromClient
+    svgResultRef
   ]);
 }
 

@@ -556,7 +556,13 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         const x = position.x - textBlockWidth / 2;
         const y = position.y - textBlockHeight / 2;
         const renderedViewBox = `${fmt(rendered.viewBox.x)} ${fmt(rendered.viewBox.y)} ${fmt(rendered.viewBox.width)} ${fmt(rendered.viewBox.height)}`;
-        const renderedSvg = `<svg data-source-id="${escapeAttr(element.sourceRef.sourceId)}" data-text-renderer="mathjax" x="${fmt(x)}" y="${fmt(y)}" width="${fmt(textBlockWidth)}" height="${fmt(textBlockHeight)}" viewBox="${renderedViewBox}" color="${escapeAttr(textColor)}" opacity="${fmt(textOpacity)}" overflow="visible">${rendered.body}</svg>`;
+        const paragraphAttr =
+          element.textRenderInfo.paragraphId != null
+            ? ` data-paragraph-id="${escapeAttr(element.textRenderInfo.paragraphId)}"`
+            : "";
+        const layoutKindAttr = ` data-text-layout-kind="${escapeAttr(element.textRenderInfo.layoutKind)}"`;
+        const sceneTextIdAttr = ` data-scene-text-id="${escapeAttr(element.id)}"`;
+        const renderedSvg = `<svg data-source-id="${escapeAttr(element.sourceRef.sourceId)}" data-text-renderer="mathjax"${paragraphAttr}${layoutKindAttr}${sceneTextIdAttr} x="${fmt(x)}" y="${fmt(y)}" width="${fmt(textBlockWidth)}" height="${fmt(textBlockHeight)}" viewBox="${renderedViewBox}" color="${escapeAttr(textColor)}" opacity="${fmt(textOpacity)}" overflow="visible">${rendered.body}</svg>`;
         if (hasRotation || svgElementTransform) {
           const transforms: string[] = [];
           if (svgElementTransform) transforms.push(formatMatrix(svgElementTransform));

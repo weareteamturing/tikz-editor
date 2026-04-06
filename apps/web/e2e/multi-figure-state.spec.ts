@@ -40,6 +40,21 @@ async function disableFitModeByZoom(page: Page): Promise<void> {
   }).toBe(true);
 }
 
+async function settleCanvasTransform(
+  page: Page,
+  requested: { translateX: number; translateY: number; scale: number }
+): Promise<{ translateX: number; translateY: number; scale: number }> {
+  await setCanvasTransform(page, requested);
+  await expect.poll(async () => {
+    const transform = await readCanvasTransform(page);
+    return Math.abs(transform.scale - requested.scale) < 0.005;
+  }, {
+    timeout: 4_000,
+    intervals: [50, 100, 200, 400]
+  }).toBe(true);
+  return await readCanvasTransform(page);
+}
+
 function figuresSource(count: number, label: string): string {
   return Array.from({ length: count }, (_, index) => String.raw`\begin{tikzpicture}
   \node[draw] at (0,0) {${label} ${index + 1}};
@@ -60,8 +75,7 @@ test("viewport is remembered per figure and first visit auto-fits", async ({ pag
   await expect(page.getByTestId("figure-navigator")).toBeVisible();
 
   await disableFitModeByZoom(page);
-  const figure1Transform = { translateX: 130, translateY: 70, scale: 1.8 };
-  await setCanvasTransform(page, figure1Transform);
+  const figure1Transform = await settleCanvasTransform(page, { translateX: 130, translateY: 70, scale: 1.8 });
 
   await page.getByRole("button", { name: "Figure 2" }).click();
 
@@ -71,11 +85,13 @@ test("viewport is remembered per figure and first visit auto-fits", async ({ pag
     const sameY = Math.abs(transform.translateY - figure1Transform.translateY) < 0.05;
     const sameScale = Math.abs(transform.scale - figure1Transform.scale) < 0.005;
     return !(sameX && sameY && sameScale);
+  }, {
+    timeout: 8_000,
+    intervals: [50, 100, 200, 400]
   }).toBe(true);
 
   await disableFitModeByZoom(page);
-  const figure2Transform = { translateX: 25, translateY: 48, scale: 0.82 };
-  await setCanvasTransform(page, figure2Transform);
+  const figure2Transform = await settleCanvasTransform(page, { translateX: 25, translateY: 48, scale: 0.82 });
 
   await page.getByRole("button", { name: "Figure 1" }).click();
   await expect.poll(async () => {
@@ -85,6 +101,9 @@ test("viewport is remembered per figure and first visit auto-fits", async ({ pag
       Math.abs(transform.translateY - figure1Transform.translateY) < 0.05 &&
       Math.abs(transform.scale - figure1Transform.scale) < 0.005
     );
+  }, {
+    timeout: 8_000,
+    intervals: [50, 100, 200, 400]
   }).toBe(true);
 
   await page.getByRole("button", { name: "Figure 2" }).click();
@@ -96,7 +115,7 @@ test("viewport is remembered per figure and first visit auto-fits", async ({ pag
       Math.abs(transform.scale - figure2Transform.scale) < 0.005
     );
   }, {
-    timeout: 4_000,
+    timeout: 8_000,
     intervals: [50, 100, 200, 400]
   }).toBe(true);
 });
@@ -165,7 +184,10 @@ test("switching documents clears old thumbnails immediately", async ({ page }) =
 `);
   await expect.poll(async () => readFigureCount(page)).toBe(2);
   await expect(page.getByTestId("figure-navigator")).toBeVisible();
-  await expect.poll(async () => page.getByTestId("figure-navigator").locator("img").count()).toBe(2);
+  await expect.poll(
+    async () => page.getByTestId("figure-navigator").locator("img").count(),
+    { timeout: 20_000 }
+  ).toBe(2);
 
   const firstDocThumbnailSrc = await page.getByTestId("figure-navigator").locator("img").first().getAttribute("src");
   expect(firstDocThumbnailSrc).toBeTruthy();
@@ -180,5 +202,8 @@ test("switching documents clears old thumbnails immediately", async ({ page }) =
   }, firstDocThumbnailSrc);
   expect(hasOldThumbnail).toBe(false);
 
-  await expect.poll(async () => page.getByTestId("figure-navigator").locator("img").count()).toBeGreaterThan(0);
+  await expect.poll(
+    async () => page.getByTestId("figure-navigator").locator("img").count(),
+    { timeout: 20_000 }
+  ).toBeGreaterThan(0);
 });

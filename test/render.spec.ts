@@ -168,7 +168,9 @@ describe("render pipeline", () => {
           width: 10,
           height: 10,
           baselineY: 0,
-          midLineY: 0
+          midLineY: 0,
+          paragraphId: "ready-paragraph",
+          renderSourceText: String.raw`$\ell^2$`
         };
       },
       renderFromCache: (cacheKey) => cache.get(cacheKey) ?? null,
@@ -230,6 +232,59 @@ describe("render pipeline", () => {
     expect(wideText?.kind).toBe("Text");
     if (narrowText?.kind === "Text" && wideText?.kind === "Text") {
       expect((narrowText.textBlockHeight ?? 0)).toBeGreaterThan(wideText.textBlockHeight ?? 0);
+    }
+  });
+
+  it("keeps plain multi-word node text single-line without align or text width", async () => {
+    const singleWord = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {Hello};
+\end{tikzpicture}`);
+    const multiWord = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {Hello World};
+\end{tikzpicture}`);
+
+    const singleWordText = singleWord.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    const multiWordText = multiWord.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+
+    expect(singleWordText?.kind).toBe("Text");
+    expect(multiWordText?.kind).toBe("Text");
+    if (singleWordText?.kind === "Text" && multiWordText?.kind === "Text") {
+      const singleRenderInfo = singleWordText.textRenderInfo;
+      const multiRenderInfo = multiWordText.textRenderInfo;
+      expect(singleRenderInfo?.mode).toBe("mathjax");
+      expect(multiRenderInfo?.mode).toBe("mathjax");
+      if (singleRenderInfo?.mode === "mathjax" && multiRenderInfo?.mode === "mathjax") {
+        expect(singleRenderInfo.layoutKind).toBe("single-line");
+        expect(multiRenderInfo.layoutKind).toBe("single-line");
+      }
+      expect(multiWordText.textBlockHeight ?? 0).toBeLessThan((singleWordText.textBlockHeight ?? 0) * 1.5);
+    }
+  });
+
+  it("treats literal newlines inside node text as spaces rather than explicit multiline breaks", async () => {
+    const inlineSpaces = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {Hello World};
+\end{tikzpicture}`);
+    const literalNewline = await renderTikzToSvgAsync(`\\begin{tikzpicture}
+  \\node[draw] at (0,0) {Hello
+World};
+\\end{tikzpicture}`);
+
+    const inlineText = inlineSpaces.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    const newlineText = literalNewline.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+
+    expect(inlineText?.kind).toBe("Text");
+    expect(newlineText?.kind).toBe("Text");
+    if (inlineText?.kind === "Text" && newlineText?.kind === "Text") {
+      const inlineRenderInfo = inlineText.textRenderInfo;
+      const newlineRenderInfo = newlineText.textRenderInfo;
+      expect(inlineRenderInfo?.mode).toBe("mathjax");
+      expect(newlineRenderInfo?.mode).toBe("mathjax");
+      if (inlineRenderInfo?.mode === "mathjax" && newlineRenderInfo?.mode === "mathjax") {
+        expect(inlineRenderInfo.layoutKind).toBe("single-line");
+        expect(newlineRenderInfo.layoutKind).toBe("single-line");
+      }
+      expect(newlineText.textBlockHeight ?? 0).toBeLessThan((inlineText.textBlockHeight ?? 0) * 1.2);
     }
   });
 

@@ -83,6 +83,15 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
 
   const onViewportKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.isContentEditable ||
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+
       if (event.key === "Escape" && contextMenuState) {
         setContextMenuState(null);
         event.preventDefault();

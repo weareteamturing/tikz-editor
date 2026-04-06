@@ -10,7 +10,6 @@ import {
   isPointInsideRectHitRegionContentBox,
   preferredNodeBoundsForSource,
   rectHitRegionsForTargetId,
-  resolveFallbackTextSourceSpanForSourceId,
   resolveGridResizeSnapForHandleDrag,
   resolveRectHitRegionContentBox
 } from "../../packages/app/src/ui/canvas-panel/panel-helpers.js";
@@ -130,54 +129,6 @@ describe("rectHitRegionsForTargetId", () => {
     expect(textRegion.interactionMode).toBe("text");
     expect(haloRegion.width).toBeGreaterThan(textRegion.width);
     expect(haloRegion.height).toBeGreaterThan(textRegion.height);
-  });
-
-  it("prefers matrix-cell text spans for fallback source selection", () => {
-    const targetId = "node:0:0:matrix-cell:1:1";
-    const hitRegions: HitRegion[] = [
-      {
-        shape: "rect",
-        key: "hit:matrix-text",
-        sourceId: targetId,
-        targetId,
-        x: 0,
-        y: 0,
-        width: 10,
-        height: 4,
-        cx: 5,
-        cy: 2,
-        rotation: 0
-      }
-    ];
-    const sceneText: SceneText = {
-      kind: "Text",
-      id: "scene-text:matrix-cell",
-      runtimeId: "runtime:scene-text:matrix-cell",
-      sourceRef: {
-        sourceId: targetId,
-        sourceSpan: { from: 10, to: 40 },
-        sourceFingerprint: "test-fingerprint"
-      },
-      matrixCell: {
-        matrixSourceId: "path:0",
-        cellSourceId: targetId,
-        row: 1,
-        column: 1,
-        textMode: "text",
-        textSpan: { from: 22, to: 27 },
-        cellSpan: { from: 20, to: 30 }
-      },
-      style: {
-        fontSize: 10
-      } as SceneText["style"],
-      styleChain: [],
-      position: { x: 0, y: 0 },
-      text: "Alpha"
-    };
-    const sceneTextByRegionKey = new Map<string, SceneText>([["hit:matrix-text", sceneText]]);
-
-    const resolved = resolveFallbackTextSourceSpanForSourceId(targetId, hitRegions, sceneTextByRegionKey);
-    expect(resolved).toEqual({ from: 22, to: 27 });
   });
 
   it("adds a stroke hit region for selected scope bounds", () => {

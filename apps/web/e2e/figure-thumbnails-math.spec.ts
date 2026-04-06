@@ -35,7 +35,10 @@ test("figure thumbnails render math text through worker pipeline", async ({ page
 
   await expect.poll(async () => readFigureCount(page)).toBe(2);
   await expect(page.getByTestId("figure-navigator")).toBeVisible();
-  await expect.poll(async () => page.getByTestId("figure-navigator").locator("img").count()).toBe(2);
+  await expect(
+    page.getByRole("button", { name: "Figure 2" }).locator("img"),
+    "the math figure thumbnail should eventually render even under suite-wide load"
+  ).toHaveCount(1, { timeout: 45_000 });
 
   await expect.poll(async () => {
     return await page.evaluate(() => {

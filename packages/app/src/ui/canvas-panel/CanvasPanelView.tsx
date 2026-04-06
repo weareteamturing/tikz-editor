@@ -48,6 +48,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     assistantLockReason,
     snapshot,
     svgModel,
+    svgLayerHostRef,
     canvasTransform,
     showTransparencyGrid,
     showDocumentBounds,
@@ -90,7 +91,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     adornmentHighlightBoxes,
     selectedAdornmentConnectors,
     selectionStrokeWidth,
-    textSelectionVisual,
+    textSelectionOverlay,
     selectionDragStrokeWidth,
     matrixSelectionSourceIds,
     curveControlLines,
@@ -112,6 +113,13 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     warning,
     copyWarningToClipboard,
     onWarningBarKeyDown,
+    textEditingSession,
+    textEditPopup,
+    textEditTextareaRef,
+    onTextEditPopupPointerDown,
+    onTextEditTextareaChange,
+    onTextEditTextareaSelect,
+    onTextEditTextareaKeyDown,
     selectionHint,
     showDevPanel,
     snapDebugRect,
@@ -257,6 +265,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                 showTransparencyGrid={showTransparencyGrid}
                 showDocumentBounds={showDocumentBounds}
                 onFallback={onSvgPatchFallback}
+                hostRef={svgLayerHostRef}
               />
 
               {repeatPreviewModel ? (
@@ -420,7 +429,6 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                   adornmentHighlightBoxes={adornmentHighlightBoxes}
                   adornmentConnectors={selectedAdornmentConnectors}
                   selectionStrokeWidth={selectionStrokeWidth}
-                  textSelectionVisual={textSelectionVisual}
                 />
 
                 <SelectionDragLayer
@@ -461,6 +469,62 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
               </svg>
             </div>
           )}
+
+          {textSelectionOverlay ? (
+            <div className={css.textSelectionViewportOverlay} aria-hidden="true" data-testid="canvas-text-selection-overlay">
+              {textSelectionOverlay.rects.map((rect: any, index: number) => (
+                <div
+                  key={`${textSelectionOverlay.sourceId}:rect:${index}:${rect.left}:${rect.top}:${rect.width}:${rect.height}`}
+                  className={css.textSelectionViewportRect}
+                  data-testid="canvas-text-selection-rect"
+                  style={{
+                    left: rect.left,
+                    top: rect.top,
+                    width: rect.width,
+                    height: rect.height
+                  }}
+                />
+              ))}
+              {textSelectionOverlay.caret ? (
+                <div
+                  key={`${textSelectionOverlay.sourceId}:${textSelectionOverlay.selectionStart}:${textSelectionOverlay.selectionEnd}`}
+                  className={css.textSelectionViewportCaret}
+                  data-testid="canvas-text-selection-caret"
+                  style={{
+                    left: textSelectionOverlay.caret.left,
+                    top: textSelectionOverlay.caret.top,
+                    height: textSelectionOverlay.caret.height
+                  }}
+                />
+              ) : null}
+            </div>
+          ) : null}
+
+          {textEditingSession && textEditPopup ? (
+            <div
+              className={css.textEditPopup}
+              style={{
+                left: textEditPopup.centerX,
+                top: textEditPopup.top,
+                maxWidth: textEditPopup.maxWidth,
+                transform: "translateX(-50%)"
+              }}
+              onPointerDown={onTextEditPopupPointerDown}
+              data-testid="canvas-text-edit-popup"
+            >
+              <textarea
+                ref={textEditTextareaRef}
+                className={css.textEditTextarea}
+                value={textEditingSession.text}
+                spellCheck={false}
+                onChange={onTextEditTextareaChange}
+                onSelect={onTextEditTextareaSelect}
+                onKeyDown={onTextEditTextareaKeyDown}
+                data-testid="canvas-text-edit-textarea"
+                data-select="text"
+              />
+            </div>
+          ) : null}
 
           {magnifierVisible ? (
             <div

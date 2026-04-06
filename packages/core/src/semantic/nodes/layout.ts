@@ -1,5 +1,10 @@
 import type { PathOptionItem } from "../../ast/types.js";
-import type { NodeTextEngine, NodeTextRenderInfo } from "../../text/types.js";
+import type {
+  NodeTextEngine,
+  NodeTextLayoutKind,
+  NodeTextParagraphAlignment,
+  NodeTextRenderInfo
+} from "../../text/types.js";
 import { parseLength } from "../coords/parse-length.js";
 import type { ResolvedStyle } from "../types.js";
 import type { NodeLayout, NodeShape } from "./types.js";
@@ -101,11 +106,14 @@ export function resolveNodeLayout(
   let textNaturalHeight: number;
   let baseLineY = -fontSize * 0.28;
   let midLineY = -fontSize * 0.065;
+  const paragraphAlignment = resolveParagraphAlignment(textWidth, style.textAlign);
+  const layoutKind = resolveTextLayoutKind(text, textWidth);
 
   const measuredText = textEngine?.measure({
     text,
     mode: textMode,
     textWidthPt: textWidth,
+    alignment: paragraphAlignment,
     fontStyle: style.fontStyle,
     fontWeight: style.fontWeight,
     fontFamily: style.fontFamily,
@@ -121,7 +129,10 @@ export function resolveNodeLayout(
     midLineY = measuredText.midLineY;
     textRenderInfo = {
       mode: "mathjax",
-      cacheKey: measuredText.cacheKey
+      cacheKey: measuredText.cacheKey,
+      paragraphId: measuredText.paragraphId,
+      renderSourceText: measuredText.renderSourceText,
+      layoutKind
     };
   } else {
     const maxLineLength = textLines.reduce((max, line) => Math.max(max, line.length), 0);
@@ -159,6 +170,16 @@ export function resolveNodeLayout(
     baseLineY,
     midLineY
   };
+}
+
+function resolveTextLayoutKind(text: string, textWidth: number | null): NodeTextLayoutKind {
+  if (/\\\\(?:\[[^\]]*\])?/.test(text)) {
+    return "explicit-multiline";
+  }
+  if (textWidth != null) {
+    return "wrapped";
+  }
+  return "single-line";
 }
 
 export function adjustNodeLayoutForShape(layout: NodeLayout, shape: NodeShape): NodeLayout {
@@ -229,6 +250,26 @@ function computeNodeTextLines(text: string, textWidth: number | null, charWidth:
     wrapped.push(...wrapLine(line, maxChars));
   }
   return wrapped.length > 0 ? wrapped : [""];
+}
+
+function resolveParagraphAlignment(
+  textWidth: number | null,
+  textAlign: ResolvedStyle["textAlign"]
+): NodeTextParagraphAlignment | undefined {
+  if (textWidth == null || textWidth <= 0) {
+    return undefined;
+  }
+
+  if (textAlign === "right" || textAlign === "flush right") {
+    return "ragged-left";
+  }
+  if (textAlign === "justify") {
+    return "justified";
+  }
+  if (textAlign === "left" || textAlign === "flush left") {
+    return "ragged-right";
+  }
+  return "center";
 }
 
 function wrapLine(line: string, maxChars: number): string[] {

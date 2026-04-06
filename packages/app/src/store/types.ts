@@ -24,7 +24,7 @@ export type ToolMode =
   | "addCircle"
   | "addArrow"
   | "addBezier";
-export type CanvasDragKind = "element" | "resize" | "rotate" | "handle" | "pan" | "marquee" | "tool-create" | "text-select";
+export type CanvasDragKind = "element" | "resize" | "rotate" | "handle" | "pan" | "marquee" | "tool-create";
 export type CanvasAid = "grid" | "rulers" | "guides" | "transparencyGrid" | "documentBounds";
 export type SnapMode = "grid" | "guides" | "points" | "gaps";
 

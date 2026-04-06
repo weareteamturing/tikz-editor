@@ -4,8 +4,7 @@ import type { EditHandle, Point, SceneElement } from "tikz-editor/semantic/types
 import { resolveEligibleExplicitPath, type ExplicitPathAnalysis, type ExplicitPathSegment } from "tikz-editor/edit/path-editing";
 import { closestPointOnLine, closestPointOnCubic } from "tikz-editor/edit/curve-math";
 import { clientToWorldPoint } from "./geometry";
-import { makeMergeKey, resolveFallbackTextSourceSpanForSourceId, selectionAnchorRatioFromPoint } from "./panel-helpers";
-import { requestSourceSelection } from "../source-sync";
+import { makeMergeKey, selectionAnchorRatioFromPoint } from "./panel-helpers";
 import {
   isSourceWithinScope,
   type ScopeOverlayIndex,
@@ -24,7 +23,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     toolMode,
     selectedElementIds,
     viewportRef,
-    beginTextSelectionDrag,
+    beginCanvasTextInteraction,
     setTextEditingSession,
     interactionSvgRef,
     dispatch,
@@ -41,12 +40,6 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     viewportWorldBounds,
     setDragState,
     resolveEditableTextTarget,
-    resolvePrefixTableForTarget,
-    textIndexFromClient,
-    applyCanvasTextSelection,
-    hitRegions,
-    sceneTextByRegionKey,
-    findWordRangeAtIndex,
     densePathSourceIds,
     expandedDensePathSourceId,
     setExpandedDensePathSourceId,
@@ -306,7 +299,14 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         return;
       }
 
-      if (resolvedTargetId === targetId && beginTextSelectionDrag(event, targetId, region)) {
+      const textTarget = resolvedTargetId === targetId ? resolveEditableTextTarget(targetId, region) : null;
+      if (!additiveSelection && textTarget) {
+        dispatch({ type: "SELECT", id: targetId, additive: false });
+        dispatch({
+          type: "SET_FOCUSED_SCOPE",
+          scopeId: resolveFocusedScopeIdForSelection(targetId, scopeOverlay)
+        });
+        beginCanvasTextInteraction(event, textTarget);
         return;
       }
 
@@ -383,7 +383,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       startElementDrag(event.pointerId, world, draggedIds, { adornmentDragFromText });
     },
     [
-      beginTextSelectionDrag,
+      beginCanvasTextInteraction,
       dispatch,
       draggableSourceIds,
       focusedScopeId,
@@ -443,38 +443,15 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     (event: ReactMouseEvent<SVGElement>, targetId: string, region?: any) => {
       if (toolMode !== "select") return;
 
-      const target = resolveEditableTextTarget(targetId, region);
       const sourceId = typeof region?.sourceId === "string" ? region.sourceId : targetId;
+      const textTarget = resolveEditableTextTarget(targetId, region);
 
       event.preventDefault();
       event.stopPropagation();
-      viewportRef.current?.focus({ preventScroll: true });
-
-      if (target) {
-        const prefixTable = resolvePrefixTableForTarget(target);
-        const clickIndex = textIndexFromClient(
-          event.clientX,
-          event.clientY,
-          {
-            textLength: target.text.length,
-            totalWidth: target.totalWidth,
-            region: target.region
-          },
-          prefixTable
-        );
-        if (clickIndex != null) {
-          const wordRange = findWordRangeAtIndex(target.text, clickIndex);
-          const startIndex = wordRange?.start ?? clickIndex;
-          const endIndex = wordRange?.end ?? clickIndex;
-          dispatch({ type: "SELECT", id: targetId, additive: false });
-          dispatch({
-            type: "SET_FOCUSED_SCOPE",
-            scopeId: resolveFocusedScopeIdForSelection(targetId, scopeOverlay)
-          });
-          applyCanvasTextSelection(target, startIndex, endIndex);
-          return;
-        }
+      if (textTarget) {
+        return;
       }
+      viewportRef.current?.focus({ preventScroll: true });
 
       if (densePathSourceIds.has(sourceId)) {
         if (expandedDensePathSourceId === sourceId) {
@@ -499,45 +476,18 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       if (tryInsertPathPoint(event, sourceId)) {
         return;
       }
-
-      const fallbackSpan = resolveFallbackTextSourceSpanForSourceId(targetId, hitRegions, sceneTextByRegionKey);
-      if (!fallbackSpan) {
-        return;
-      }
-
-      dispatch({ type: "SELECT", id: targetId, additive: false });
-      dispatch({
-        type: "SET_FOCUSED_SCOPE",
-        scopeId: resolveFocusedScopeIdForSelection(targetId, scopeOverlay)
-      });
-      requestSourceSelection({
-        from: fallbackSpan.from,
-        to: fallbackSpan.to,
-        anchor: fallbackSpan.from,
-        head: fallbackSpan.to,
-        sourceId: targetId,
-        focus: true
-      });
-      setTextEditingSession(null);
     },
     [
-      applyCanvasTextSelection,
       dispatch,
       densePathSourceIds,
-      findWordRangeAtIndex,
-      hitRegions,
-      resolveEditableTextTarget,
-      resolvePrefixTableForTarget,
-      sceneTextByRegionKey,
       scopeOverlay,
       setExpandedDensePathSourceId,
       setTextEditingSession,
-      textIndexFromClient,
       toolMode,
       viewportRef,
       // eslint-disable-next-line react-hooks/exhaustive-deps
       source, snapshot, svgResult, interactionSvgRef, canvasTransform, applyActionWithFeedback, activeFigureId,
-      expandedDensePathSourceId
+      expandedDensePathSourceId, resolveEditableTextTarget
     ]
   );
 

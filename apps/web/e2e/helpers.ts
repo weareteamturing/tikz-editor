@@ -335,6 +335,55 @@ export async function clickHitRegionByTargetId(
   }
 }
 
+export async function clickTextHitRegionByTargetId(
+  page: Page,
+  targetId: string,
+  options: { button?: "left" | "right"; shift?: boolean } = {}
+): Promise<void> {
+  await waitForHitRegions(page, 1);
+  const region = page.locator(
+    `[data-hit-region-target-id='${targetId}'][data-hit-region-interaction-mode='text']`
+  ).first();
+  await expect(region).toBeVisible();
+  const box = await region.boundingBox();
+  if (!box) {
+    throw new Error(`Missing text hit-region bounds for ${targetId}.`);
+  }
+  if (options.shift) {
+    await page.keyboard.down("Shift");
+  }
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, {
+    button: options.button ?? "left"
+  });
+  if (options.shift) {
+    await page.keyboard.up("Shift");
+  }
+}
+
+export async function dragHitRegionByTargetIdAndMode(
+  page: Page,
+  targetId: string,
+  interactionMode: "move" | "text",
+  dx: number,
+  dy: number
+): Promise<void> {
+  await waitForHitRegions(page, 1);
+  const region = page.locator(
+    `[data-hit-region-target-id='${targetId}'][data-hit-region-interaction-mode='${interactionMode}']`
+  ).first();
+  await expect(region).toBeVisible();
+  const box = await region.boundingBox();
+  if (!box) {
+    throw new Error(`Missing ${interactionMode} hit-region bounds for ${targetId}.`);
+  }
+  const startX = box.x + box.width / 2;
+  const startY = box.y + box.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + dx, startY + dy, { steps: 8 });
+  await page.mouse.up();
+}
+
 export async function dragHitRegionByTargetId(
   page: Page,
   targetId: string,

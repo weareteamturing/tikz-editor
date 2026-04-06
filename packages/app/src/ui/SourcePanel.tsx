@@ -68,10 +68,7 @@ import { useProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
 import { ColorPicker } from "./ColorPicker";
 import {
-  notifySourceSelectionChanged,
-  SOURCE_FORMAT_REQUEST_EVENT,
-  SOURCE_SELECTION_REQUEST_EVENT,
-  type SourceSelectionRequestDetail
+  SOURCE_FORMAT_REQUEST_EVENT
 } from "./source-sync";
 import css from "./SourcePanel.module.css";
 import { formatTikzSource } from "tikz-editor/edit/source-format";
@@ -654,15 +651,6 @@ export function SourcePanel() {
         },
         dispatch
       );
-
-      const selection = update.state.selection.main;
-      notifySourceSelectionChanged({
-        from: selection.from,
-        to: selection.to,
-        anchor: selection.anchor,
-        head: selection.head,
-        sourceId: findSelectionSourceId(selection.anchor, selection.head, update.state.doc.length, spanIndexRef.current)
-      });
     });
 
     const sourceHoverBridge = EditorView.domEventHandlers({
@@ -1028,41 +1016,6 @@ export function SourcePanel() {
       }
     };
   }, [snapshot]);
-
-  // ── Handle source selection/focus requests (canvas double-click) ───────────
-  useEffect(() => {
-    const handleRequest = (rawEvent: Event) => {
-      const event = rawEvent as CustomEvent<SourceSelectionRequestDetail>;
-      const detail = event.detail;
-      const view = viewRef.current;
-      if (!view || !detail) return;
-
-      const sourceId = detail.sourceId?.trim();
-      if (sourceId && shouldSuppressStoreSelectionSync(sourceId, selectedElementIdsRef.current)) {
-        suppressStoreSelectionSyncRef.current = true;
-      }
-
-      const normalized = normalizeSelectionAnchorHead(
-        detail.anchor ?? detail.from,
-        detail.head ?? detail.to,
-        view.state.doc.length
-      );
-      const autoRevealSelection = shouldAutoRevealSourceSelection();
-      ignoreNextSelectionSyncRef.current = true;
-      dispatchSelectionWithStableHorizontalScroll(view, {
-        selection: { anchor: normalized.anchor, head: normalized.head },
-        annotations: [Transaction.addToHistory.of(false)],
-        scrollIntoView: autoRevealSelection
-      });
-
-      if (detail.focus && autoRevealSelection) {
-        view.focus();
-      }
-    };
-
-    window.addEventListener(SOURCE_SELECTION_REQUEST_EVENT, handleRequest as EventListener);
-    return () => window.removeEventListener(SOURCE_SELECTION_REQUEST_EVENT, handleRequest as EventListener);
-  }, []);
 
   useEffect(() => {
     const handleFormatRequest = (_rawEvent: Event): void => {

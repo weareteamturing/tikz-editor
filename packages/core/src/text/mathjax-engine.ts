@@ -1,8 +1,15 @@
 import { DEFAULT_TEXT_FONT_SIZE } from "../semantic/style/resolve.js";
+import {
+  KnuthPlassVisitor,
+  getKnuthPlassReportsFromOutputJax,
+  installKnuthPlassVisitor,
+  setKnuthPlassOptionsOnOutputJax
+} from "./knuth-plass/index.js";
 import type {
   NodeTextEngine,
   NodeTextMeasureRequest,
   NodeTextMetrics,
+  NodeTextParagraphAlignment,
   NodeTextRenderPayload,
   NodeTextValidationIssue
 } from "./types.js";
@@ -16,8 +23,11 @@ type MathJaxAdaptor = {
 type MathJaxRuntime = {
   tex2svg(tex: string, options: { display: boolean }): unknown;
   tex2svgPromise?: (tex: string, options: { display: boolean }) => Promise<unknown>;
+  outputJax?: unknown;
   startup?: {
     adaptor?: MathJaxAdaptor;
+    output?: unknown;
+    document?: { outputJax?: unknown } | null;
     promise?: Promise<unknown>;
   };
 };
@@ -32,6 +42,8 @@ type CachedRenderEntry = {
   baseHeightPt: number;
   baseLineYPt: number;
   midLineYPt: number;
+  paragraphId: string | null;
+  renderSourceText: string;
 };
 
 type TextFontOptions = {
@@ -59,6 +71,7 @@ export type MathJaxFont =
   | "mathjax-tex";
 
 const DEFAULT_FONT: MathJaxFont = "mathjax-newcm";
+const SINGLE_LINE_RENDER_WIDTH_FUDGE_PT = 0.5;
 
 const MIDLINE_FROM_BASELINE_RATIO = 0.215;
 const BROWSER_STARTUP_COMPONENT_URL = "https://cdn.jsdelivr.net/npm/mathjax@4/startup.js";
@@ -149,6 +162,16 @@ export async function createMathJaxNodeTextEngine(options?: { font?: MathJaxFont
   }
 }
 
+export function getActiveMathJaxOutputJax(): unknown | null {
+  const browserRuntime = (globalThis as { MathJax?: MathJaxRuntime }).MathJax;
+  return (
+    browserRuntime?.outputJax ??
+    browserRuntime?.startup?.output ??
+    browserRuntime?.startup?.document?.outputJax ??
+    null
+  );
+}
+
 async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
   const runtime = hasBrowserDomGlobals()
     ? await initializeBrowserRuntime(font)
@@ -173,13 +196,19 @@ async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
         fontWeight: "normal",
         fontFamily: "serif"
       });
-      const tex = buildWrappedTeX(prepared.text, null, prepared.font, "text");
-      const defaultMeasureKey = measurementKey("text", prepared.text, null, prepared.font);
+      const defaultMeasureKey = measurementKey("text", prepared.text, null, prepared.font, null);
 
       try {
-        const node = runtime.tex2svg(tex, { display: false });
         if (!cache.has(defaultMeasureKey)) {
-          const entry = buildCacheEntry(defaultMeasureKey, node, runtime.startup?.adaptor ?? null);
+          const entry = buildMeasuredCacheEntry({
+            runtime,
+            cacheKey: defaultMeasureKey,
+            sourceText: prepared.text,
+            textWidthPt: null,
+            font: prepared.font,
+            mode: "text",
+            alignment: null
+          });
           if (entry) {
             cache.set(defaultMeasureKey, entry);
           }
@@ -188,7 +217,14 @@ async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
         return null;
       } catch (error) {
         if (isMathJaxAsyncRetryError(error)) {
-          queueAsyncCachePopulate(runtime, cache, pendingAsyncRenders, finalizedPendingCacheKeys, defaultMeasureKey, tex);
+          queueAsyncCachePopulate(runtime, cache, pendingAsyncRenders, finalizedPendingCacheKeys, {
+            cacheKey: defaultMeasureKey,
+            sourceText: prepared.text,
+            textWidthPt: null,
+            font: prepared.font,
+            mode: "text",
+            alignment: null
+          });
           validationCache.set(text, null);
           return null;
         }
@@ -209,14 +245,21 @@ async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
         fontWeight: request.fontWeight,
         fontFamily: request.fontFamily
       });
-      const cacheKey = measurementKey(mode, prepared.text, normalizedWidth, prepared.font);
+      const alignment = resolveParagraphAlignment(request.textWidthPt, request.alignment);
+      const cacheKey = measurementKey(mode, prepared.text, normalizedWidth, prepared.font, alignment);
 
       let entry: CachedRenderEntry | null = cache.get(cacheKey) ?? null;
       if (!entry) {
-        const tex = buildWrappedTeX(prepared.text, normalizedWidth, prepared.font, mode);
         try {
-          const node = runtime.tex2svg(tex, { display: false });
-          entry = buildCacheEntry(cacheKey, node, runtime.startup?.adaptor ?? null);
+          entry = buildMeasuredCacheEntry({
+            runtime,
+            cacheKey,
+            sourceText: prepared.text,
+            textWidthPt: normalizedWidth,
+            font: prepared.font,
+            mode,
+            alignment
+          });
           if (!entry) {
             return null;
           }
@@ -224,7 +267,14 @@ async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
           validationCache.set(request.text, null);
         } catch (error) {
           if (isMathJaxAsyncRetryError(error)) {
-            queueAsyncCachePopulate(runtime, cache, pendingAsyncRenders, finalizedPendingCacheKeys, cacheKey, tex);
+            queueAsyncCachePopulate(runtime, cache, pendingAsyncRenders, finalizedPendingCacheKeys, {
+              cacheKey,
+              sourceText: prepared.text,
+              textWidthPt: normalizedWidth,
+              font: prepared.font,
+              mode,
+              alignment
+            });
             validationCache.set(request.text, null);
           }
           return null;
@@ -236,7 +286,9 @@ async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
         width: entry.baseWidthPt * scale,
         height: entry.baseHeightPt * scale,
         baselineY: entry.baseLineYPt * scale,
-        midLineY: entry.midLineYPt * scale
+        midLineY: entry.midLineYPt * scale,
+        paragraphId: entry.paragraphId,
+        renderSourceText: entry.renderSourceText
       };
     },
     renderFromCache(cacheKey: string): NodeTextRenderPayload | null {
@@ -338,7 +390,8 @@ async function initializeWorkerRuntimeOnce(): Promise<MathJaxRuntime> {
   const svg = new SVG({
     fontCache: "none",
     linebreaks: {
-      inline: false
+      inline: false,
+      LinebreakVisitor: KnuthPlassVisitor
     }
   });
   const document = mathjax.document("", {
@@ -355,7 +408,9 @@ async function initializeWorkerRuntimeOnce(): Promise<MathJaxRuntime> {
   const runtime: MathJaxRuntime = {
     tex2svg,
     tex2svgPromise: async (input, options) => tex2svg(input, options),
+    outputJax: svg,
     startup: {
+      output: svg,
       adaptor: {
         firstChild(node: unknown): unknown {
           return adaptor.firstChild(node as never);
@@ -426,7 +481,7 @@ function hasWorkerRuntimeGlobals(): boolean {
 }
 
 function createMathJaxConfig(): Record<string, unknown> {
-  return {
+  const config = {
     loader: {
       load: ["input/tex", "output/svg", "[tex]/color", "[tex]/html"]
     },
@@ -452,6 +507,8 @@ function createMathJaxConfig(): Record<string, unknown> {
       typeset: false
     }
   };
+  installKnuthPlassVisitor(config, ["svg"]);
+  return config;
 }
 
 async function readBrowserRuntime(timeoutMs: number): Promise<MathJaxRuntime | null> {
@@ -487,6 +544,7 @@ async function coerceBrowserRuntime(candidate: unknown): Promise<MathJaxRuntime 
     tex2svg: candidate.tex2svg as MathJaxRuntime["tex2svg"],
     tex2svgPromise:
       typeof candidate.tex2svgPromise === "function" ? (candidate.tex2svgPromise as MathJaxRuntime["tex2svgPromise"]) : undefined,
+    outputJax: startup?.output ?? startup?.document?.outputJax,
     startup: startup ?? undefined
   };
 }
@@ -507,7 +565,7 @@ function configureBrowserMathJaxGlobal(font: MathJaxFont): void {
   const enabledPackages = uniqueStrings([...toStringArray(existingTexPackages["[+]"]), "color", "html"]);
   const disabledPackages = uniqueStrings([...toStringArray(existingTexPackages["[-]"]), "noundefined"]);
 
-  globals.MathJax = {
+  const config = {
     ...existing,
     output: {
       ...existingOutput,
@@ -545,6 +603,8 @@ function configureBrowserMathJaxGlobal(font: MathJaxFont): void {
       typeset: false
     }
   };
+  installKnuthPlassVisitor(config, ["svg"]);
+  globals.MathJax = config;
 }
 
 function resetBrowserMathJax(): void {
@@ -739,6 +799,8 @@ function summarizeKeys(value: Record<string, unknown>): string {
 function startupFromRecord(value: Record<string, unknown>): MathJaxRuntime["startup"] {
   return {
     adaptor: isMathJaxAdaptor(value.adaptor) ? value.adaptor : undefined,
+    document: isRecord(value.document) ? (value.document as { outputJax?: unknown }) : null,
+    output: isRecord(value.output) ? value.output : undefined,
     promise: isPromiseLike(value.promise) ? (value.promise as Promise<unknown>) : undefined
   };
 }
@@ -779,23 +841,34 @@ function queueAsyncCachePopulate(
   cache: Map<string, CachedRenderEntry>,
   pendingAsyncRenders: Set<Promise<void>>,
   finalizedPendingCacheKeys: Set<string>,
-  cacheKey: string,
-  tex: string
+  params: {
+    cacheKey: string;
+    sourceText: string;
+    textWidthPt: number | null;
+    font: TextFontOptions;
+    mode: "text" | "math";
+    alignment: NodeTextParagraphAlignment | null;
+  }
 ): void {
   if (typeof runtime.tex2svgPromise !== "function") {
     return;
   }
 
-  const task = runtime
-    .tex2svgPromise(tex, { display: false })
+  const task = renderMeasuredNodeWithPromise(runtime, params)
     .then((node) => {
-      if (cache.has(cacheKey)) {
+      if (cache.has(params.cacheKey)) {
         return;
       }
-      const entry = buildCacheEntry(cacheKey, node, runtime.startup?.adaptor ?? null);
+      const entry = buildCacheEntryWithMetadata(
+        params.cacheKey,
+        node,
+        runtime.startup?.adaptor ?? null,
+        params.sourceText,
+        resolveLatestParagraphId(runtime)
+      );
       if (entry) {
-        cache.set(cacheKey, entry);
-        finalizedPendingCacheKeys.add(cacheKey);
+        cache.set(params.cacheKey, entry);
+        finalizedPendingCacheKeys.add(params.cacheKey);
       }
     })
     .catch(() => {
@@ -808,6 +881,16 @@ function queueAsyncCachePopulate(
 }
 
 function buildCacheEntry(cacheKey: string, containerNode: unknown, adaptor: MathJaxAdaptor | null): CachedRenderEntry | null {
+  return buildCacheEntryWithMetadata(cacheKey, containerNode, adaptor, "", null);
+}
+
+function buildCacheEntryWithMetadata(
+  cacheKey: string,
+  containerNode: unknown,
+  adaptor: MathJaxAdaptor | null,
+  renderSourceText: string,
+  paragraphId: string | null
+): CachedRenderEntry | null {
   const extracted = extractSvgPayload(containerNode, adaptor);
   if (!extracted) {
     return null;
@@ -819,6 +902,7 @@ function buildCacheEntry(cacheKey: string, containerNode: unknown, adaptor: Math
   }
 
   const body = extracted.body;
+  const resolvedParagraphId = paragraphId ?? extractParagraphIdFromSvgBody(body);
   const baseWidthPt = (viewBox.width / 1000) * DEFAULT_TEXT_FONT_SIZE;
   const baseHeightPt = (viewBox.height / 1000) * DEFAULT_TEXT_FONT_SIZE;
   const ascentUnits = Math.max(0, -viewBox.y);
@@ -835,8 +919,137 @@ function buildCacheEntry(cacheKey: string, containerNode: unknown, adaptor: Math
     baseWidthPt,
     baseHeightPt,
     baseLineYPt,
-    midLineYPt
+    midLineYPt,
+    paragraphId: resolvedParagraphId,
+    renderSourceText
   };
+}
+
+function buildMeasuredCacheEntry(params: {
+  runtime: MathJaxRuntime;
+  cacheKey: string;
+  sourceText: string;
+  textWidthPt: number | null;
+  font: TextFontOptions;
+  mode: "text" | "math";
+  alignment: NodeTextParagraphAlignment | null;
+}): CachedRenderEntry | null {
+  const { runtime, cacheKey, sourceText, textWidthPt, font, mode, alignment } = params;
+  const adaptor = runtime.startup?.adaptor ?? null;
+  const explicitMultiline = hasExplicitMultilineBreaks(sourceText);
+  const measuredWidth =
+    textWidthPt ??
+    (explicitMultiline
+      ? measureExplicitMultilineNaturalWidth(runtime, sourceText, font, mode)
+      : measureNaturalWidth(runtime, sourceText, font, mode));
+  if (!(Number.isFinite(measuredWidth) && measuredWidth > 0)) {
+    return null;
+  }
+  const renderWidth =
+    textWidthPt == null && !explicitMultiline
+      ? measuredWidth + SINGLE_LINE_RENDER_WIDTH_FUDGE_PT
+      : measuredWidth;
+  const tex = buildWrappedTeX(sourceText, renderWidth, font, mode);
+  applyKnuthPlassRuntimeOptions(runtime, alignment);
+  const node = runtime.tex2svg(tex, { display: false });
+  return buildCacheEntryWithMetadata(cacheKey, node, adaptor, sourceText, resolveLatestParagraphId(runtime));
+}
+
+function measureNaturalWidth(
+  runtime: MathJaxRuntime,
+  sourceText: string,
+  font: TextFontOptions,
+  mode: "text" | "math"
+): number {
+  const adaptor = runtime.startup?.adaptor ?? null;
+  const naturalTex = buildWrappedTeX(sourceText, null, font, mode);
+  const node = runtime.tex2svg(naturalTex, { display: false });
+  const entry = buildCacheEntryWithMetadata("__measure__", node, adaptor, sourceText, null);
+  return entry?.baseWidthPt ?? Number.NaN;
+}
+
+function measureExplicitMultilineNaturalWidth(
+  runtime: MathJaxRuntime,
+  sourceText: string,
+  font: TextFontOptions,
+  mode: "text" | "math"
+): number {
+  const lines = splitExplicitMultilineSource(sourceText);
+  if (lines.length === 0) {
+    return Number.NaN;
+  }
+
+  let maxWidth = 0;
+  for (const line of lines) {
+    if (line.length === 0) {
+      continue;
+    }
+    const width = measureNaturalWidth(runtime, line, font, mode);
+    if (Number.isFinite(width)) {
+      maxWidth = Math.max(maxWidth, width);
+    }
+  }
+
+  return maxWidth > 0 ? maxWidth : measureNaturalWidth(runtime, sourceText.replace(/\\\\(?:\[[^\]]*\])?/g, ""), font, mode);
+}
+
+function renderMeasuredNodeWithPromise(
+  runtime: MathJaxRuntime,
+  params: {
+    sourceText: string;
+    textWidthPt: number | null;
+    font: TextFontOptions;
+    mode: "text" | "math";
+    alignment: NodeTextParagraphAlignment | null;
+  }
+): Promise<unknown> {
+  if (typeof runtime.tex2svgPromise !== "function") {
+    return Promise.reject(new Error("MathJax promise renderer is unavailable."));
+  }
+
+  const runMeasuredRender = (resolvedWidthPt: number): Promise<unknown> => {
+    const tex = buildWrappedTeX(params.sourceText, resolvedWidthPt, params.font, params.mode);
+    applyKnuthPlassRuntimeOptions(runtime, params.alignment);
+    return runtime.tex2svgPromise!(tex, { display: false });
+  };
+
+  if (params.textWidthPt != null) {
+    return runMeasuredRender(params.textWidthPt);
+  }
+
+  if (hasExplicitMultilineBreaks(params.sourceText)) {
+    const explicitWidth = measureExplicitMultilineNaturalWidth(runtime, params.sourceText, params.font, params.mode);
+    if (!(Number.isFinite(explicitWidth) && explicitWidth > 0)) {
+      return Promise.reject(new Error("Unable to determine explicit multiline MathJax width."));
+    }
+    return runMeasuredRender(explicitWidth);
+  }
+
+  const naturalWidth = measureNaturalWidth(runtime, params.sourceText, params.font, params.mode);
+  if (!(Number.isFinite(naturalWidth) && naturalWidth > 0)) {
+    return Promise.reject(new Error("Unable to determine single-line MathJax width."));
+  }
+  return runMeasuredRender(naturalWidth + SINGLE_LINE_RENDER_WIDTH_FUDGE_PT);
+}
+
+function resolveLatestParagraphId(runtime: MathJaxRuntime): string | null {
+  const outputJax = runtime.outputJax ?? runtime.startup?.output ?? runtime.startup?.document?.outputJax;
+  const reports = getKnuthPlassReportsFromOutputJax(outputJax);
+  const latest = reports.length > 0 ? reports[reports.length - 1] : null;
+  return latest?.paragraphId ?? null;
+}
+
+function extractParagraphIdFromSvgBody(body: string): string | null {
+  const match = body.match(/data-paragraph-id="([^"]+)"/);
+  return match?.[1] ?? null;
+}
+
+function hasExplicitMultilineBreaks(text: string): boolean {
+  return /\\\\(?:\[[^\]]*\])?/.test(text);
+}
+
+function splitExplicitMultilineSource(text: string): string[] {
+  return text.split(/\\\\(?:\[[^\]]*\])?/);
 }
 
 function extractSvgPayload(
@@ -928,16 +1141,46 @@ function measurementKey(
   mode: "text" | "math",
   text: string,
   textWidthPt: number | null,
-  font: TextFontOptions
+  font: TextFontOptions,
+  alignment: NodeTextParagraphAlignment | null
 ): string {
   return JSON.stringify({
     mode,
     text,
     textWidthPt: textWidthPt == null ? null : formatPt(textWidthPt),
+    alignment,
     fontStyle: font.fontStyle,
     fontWeight: font.fontWeight,
     fontFamily: font.fontFamily
   });
+}
+
+function resolveParagraphAlignment(
+  textWidthPt: number | null,
+  alignment: NodeTextParagraphAlignment | undefined
+): NodeTextParagraphAlignment | null {
+  if (textWidthPt == null) {
+    return null;
+  }
+  return alignment ?? "center";
+}
+
+function applyKnuthPlassRuntimeOptions(
+  runtime: MathJaxRuntime,
+  alignment: NodeTextParagraphAlignment | null
+): void {
+  if (!alignment) {
+    return;
+  }
+
+  const outputJax = runtime.outputJax ?? runtime.startup?.output ?? runtime.startup?.document?.outputJax;
+  if (outputJax && typeof outputJax === "object") {
+    setKnuthPlassOptionsOnOutputJax(outputJax, { alignment });
+    return;
+  }
+
+  // Best-effort fallback for runtimes that do not expose the active output jax.
+  KnuthPlassVisitor.configure({ alignment });
 }
 
 function buildWrappedTeX(
@@ -983,6 +1226,7 @@ function normalizeMathJaxTextInput(
       return "";
     });
   }
+  resolvedText = resolvedText.replace(/\r\n?/g, "\n").replace(/\n/g, " ");
 
   return {
     text: resolvedText,

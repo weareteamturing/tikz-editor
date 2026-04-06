@@ -633,6 +633,7 @@ export function HitRegionLayer({
               onPointerEnter={onEnter}
               onPointerLeave={onLeave}
               data-hit-region-target-id={region.targetId}
+              data-hit-region-key={region.key}
             />
           );
         }
@@ -656,6 +657,7 @@ export function HitRegionLayer({
               onPointerEnter={onEnter}
               onPointerLeave={onLeave}
               data-hit-region-target-id={region.targetId}
+              data-hit-region-key={region.key}
             />
           );
         }
@@ -685,6 +687,7 @@ export function HitRegionLayer({
               onPointerEnter={onEnter}
               onPointerLeave={onLeave}
               data-hit-region-target-id={region.targetId}
+              data-hit-region-key={region.key}
             />
           );
         }
@@ -713,6 +716,8 @@ export function HitRegionLayer({
             onPointerEnter={onEnter}
             onPointerLeave={onLeave}
             data-hit-region-target-id={region.targetId}
+            data-hit-region-key={region.key}
+            data-hit-region-interaction-mode={region.interactionMode}
             data-hit-region-matrix-edge-kind={region.matrixEdgeSelection?.kind}
             data-hit-region-matrix-source-id={region.matrixEdgeSelection?.matrixSourceId}
           />
@@ -735,8 +740,7 @@ export function SelectionOverlay({
   selectionBoxes,
   adornmentHighlightBoxes,
   adornmentConnectors,
-  selectionStrokeWidth,
-  textSelectionVisual
+  selectionStrokeWidth
 }: {
   marqueeBounds: { minX: number; minY: number; maxX: number; maxY: number } | null;
   selectionBoxes: ReadonlyArray<SelectionBoxDisplay>;
@@ -750,20 +754,6 @@ export function SelectionOverlay({
     y2: number;
   }>;
   selectionStrokeWidth: number;
-  textSelectionVisual:
-    | {
-        collapsed: boolean;
-        caretAnimationKey: string;
-        x1: number;
-        x2: number;
-        yTop: number;
-        height: number;
-        caretStrokeWidth: number;
-        rotation: number;
-        cx: number;
-        cy: number;
-      }
-    | null;
 }) {
   return (
     <>
@@ -833,37 +823,6 @@ export function SelectionOverlay({
           />
         )}
       </g>
-
-      {textSelectionVisual && (
-        <g
-          className={css.textSelectionOverlay}
-          transform={
-            Math.abs(textSelectionVisual.rotation) > 1e-6
-              ? `rotate(${fmt(-textSelectionVisual.rotation)} ${fmt(textSelectionVisual.cx)} ${fmt(textSelectionVisual.cy)})`
-              : undefined
-          }
-        >
-          {textSelectionVisual.collapsed ? (
-            <line
-              key={textSelectionVisual.caretAnimationKey}
-              className={css.textCaret}
-              x1={textSelectionVisual.x1}
-              y1={textSelectionVisual.yTop}
-              x2={textSelectionVisual.x1}
-              y2={textSelectionVisual.yTop + textSelectionVisual.height}
-              strokeWidth={textSelectionVisual.caretStrokeWidth}
-            />
-          ) : (
-            <rect
-              className={css.textSelectionRect}
-              x={Math.min(textSelectionVisual.x1, textSelectionVisual.x2)}
-              y={textSelectionVisual.yTop}
-              width={Math.max(1e-3, Math.abs(textSelectionVisual.x2 - textSelectionVisual.x1))}
-              height={textSelectionVisual.height}
-            />
-          )}
-        </g>
-      )}
     </>
   );
 }
