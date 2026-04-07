@@ -256,6 +256,11 @@
   outline-offset: -1px;
 }
 
+.nodeTextAlignButton {
+  width: 24px;
+  height: 22px;
+}
+
 .nodeFontSizeRow {
   min-width: 0;
   flex: 1;

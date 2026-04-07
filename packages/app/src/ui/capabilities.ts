@@ -115,8 +115,15 @@ const INSPECTOR_CHECKS: Record<InspectorProperty["kind"], readonly CapabilityChe
   length: [
     { feature: "options_structured", layers: ["edit"], label: "length option editing" }
   ],
+  optionalLength: [
+    { feature: "options_structured", layers: ["edit"], label: "length option editing" }
+  ],
   color: [
     { feature: "options_structured", layers: ["edit"], label: "style option editing" }
+  ],
+  nodeTextAlign: [
+    { feature: "options_structured", layers: ["edit"], label: "text alignment option editing" },
+    { feature: "svg_text", layers: ["semantic", "svg"], label: "text rendering" }
   ],
   nodeShape: [
     { feature: "options_structured", layers: ["edit"], label: "node shape option editing" }

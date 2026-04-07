@@ -378,6 +378,8 @@ export type ShadowSetPropertyMutation = {
   clearKeys: string[];
 };
 
+export type NodeTextAlignInspectorValue = "unset" | "left" | "center" | "right" | "justify";
+
 export type SetPropertyWriteTarget = {
   mode: "setProperty";
   elementId: string;
@@ -446,6 +448,18 @@ export type InspectorProperty =
       write: SetPropertyWriteTarget;
       note?: string;
       minimumDimensionsContext?: NodeMinimumDimensionsMutationContext;
+      readOnlyReason?: string;
+    }
+  | {
+      kind: "optionalLength";
+      id: string;
+      label: string;
+      value: number | null;
+      step: number;
+      unit: "pt";
+      clearKeys?: string[];
+      write: SetPropertyWriteTarget;
+      note?: string;
       readOnlyReason?: string;
     }
   | {
@@ -530,6 +544,15 @@ export type InspectorProperty =
       options: FillPatternPresetOption[];
       write: SetPropertyWriteTarget;
       note?: string;
+    }
+  | {
+      kind: "nodeTextAlign";
+      id: string;
+      label: string;
+      value: NodeTextAlignInspectorValue;
+      write: SetPropertyWriteTarget;
+      clearKeys?: string[];
+      readOnlyReason?: string;
     }
   | {
       kind: "nodeShape";
@@ -2567,6 +2590,28 @@ export function getInspectorDescriptor(
           write: makeSetPropertyWriteTarget(inlineTarget, "minimum height")
         },
         {
+          kind: "nodeTextAlign",
+          id: "node-text-align",
+          label: "Text align",
+          value: nodeInspectorState.textAlign,
+          clearKeys: ["align"],
+          write: makeSetPropertyWriteTarget(inlineTarget, "align")
+        },
+        ...(nodeInspectorState.showTextWidth
+          ? [
+              {
+                kind: "optionalLength" as const,
+                id: "node-text-width",
+                label: "Text width",
+                value: nodeInspectorState.textWidth,
+                step: 0.1,
+                unit: "pt" as const,
+                clearKeys: ["text width"],
+                write: makeSetPropertyWriteTarget(inlineTarget, "text width")
+              }
+            ]
+          : []),
+        {
           kind: "nodeFont",
           id: "node-font",
           label: "Font",
@@ -3354,6 +3399,8 @@ function inspectorPropertyCandidateKeys(property: InspectorProperty): string[] {
       return [...NODE_SHAPE_KNOWN_KEYS];
     case "nodeFont":
       return uniqueStrings([property.context.key, ...property.context.clearKeys]);
+    case "nodeTextAlign":
+      return uniqueStrings([property.write.key, ...(property.clearKeys ?? [])]);
     case "arrowTip":
       return uniqueStrings([...ARROW_DEFAULT_CLEAR_KEYS, ...property.write.arrowContext.clearKeys]);
     case "shadowPreset":
@@ -3366,6 +3413,7 @@ function inspectorPropertyCandidateKeys(property: InspectorProperty): string[] {
       return uniqueStrings([write.key, ...("clearKeys" in property && property.clearKeys ? property.clearKeys : [])]);
     }
     case "length":
+    case "optionalLength":
     case "boolean":
       return uniqueStrings([property.write.key, ...("clearKeys" in property && property.clearKeys ? property.clearKeys : [])]);
     case "text":
@@ -4583,6 +4631,9 @@ function resolveNodeInspectorState(
   shapeAdaptiveControls: ShapeAdaptiveControl[];
   innerSep: number;
   innerSepNote?: string;
+  textAlign: NodeTextAlignInspectorValue;
+  showTextWidth: boolean;
+  textWidth: number | null;
   minimumWidth: number;
   minimumWidthNote?: string;
   minimumHeight: number;
@@ -4607,6 +4658,9 @@ function resolveNodeInspectorState(
     shapeAdaptiveControls: ShapeAdaptiveControl[];
     innerSep: number;
     innerSepNote?: string;
+    textAlign: NodeTextAlignInspectorValue;
+    showTextWidth: boolean;
+    textWidth: number | null;
     minimumWidth: number;
     minimumWidthNote?: string;
     minimumHeight: number;
@@ -4624,6 +4678,9 @@ function resolveNodeInspectorState(
     shape: fallbackShape,
     shapeAdaptiveControls: [],
     innerSep: NODE_INNER_SEP_DEFAULT,
+    textAlign: "unset",
+    showTextWidth: false,
+    textWidth: null,
     minimumWidth: NODE_MINIMUM_DIMENSION_DEFAULT,
     minimumHeight: NODE_MINIMUM_DIMENSION_DEFAULT,
     font: {
@@ -4656,6 +4713,9 @@ function resolveNodeInspectorState(
   let minimumWidth = NODE_MINIMUM_DIMENSION_DEFAULT;
   let minimumHeight = NODE_MINIMUM_DIMENSION_DEFAULT;
   let minimumSize: number | null = null;
+  let textAlign: NodeTextAlignInspectorValue = "unset";
+  let sawAlignOption = false;
+  let textWidth: number | null = null;
   let selectedFontKey: "font" | "node font" | null = null;
   let selectedFontRaw: string | null = null;
 
@@ -4709,6 +4769,21 @@ function resolveNodeInspectorState(
       }
       continue;
     }
+    if (key === "text width") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        textWidth = Math.max(0, parsed);
+      }
+      continue;
+    }
+    if (key === "align") {
+      const parsed = parseNodeTextAlignInspectorValue(entry.valueRaw);
+      if (parsed != null) {
+        textAlign = parsed;
+      }
+      sawAlignOption = true;
+      continue;
+    }
     if (key === "minimum height") {
       const parsed = parseLength(entry.valueRaw, "pt");
       if (parsed != null) {
@@ -4749,6 +4824,9 @@ function resolveNodeInspectorState(
   }
   state.minimumWidth = Math.max(minimumWidth, minimumSize ?? minimumWidth);
   state.minimumHeight = Math.max(minimumHeight, minimumSize ?? minimumHeight);
+  state.textAlign = textAlign;
+  state.textWidth = textWidth;
+  state.showTextWidth = textWidth != null || sawAlignOption;
   if (minimumSize != null) {
     state.minimumWidthNote = NODE_MINIMUM_DIMENSION_CONFLICT_NOTE;
     state.minimumHeightNote = NODE_MINIMUM_DIMENSION_CONFLICT_NOTE;
@@ -4813,6 +4891,26 @@ type InlineWriteTarget = {
 
 function normalizeShapeRawValue(raw: string): string {
   return stripEnclosingBraces(raw).trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function parseNodeTextAlignInspectorValue(raw: string): NodeTextAlignInspectorValue | null {
+  const normalized = stripEnclosingBraces(raw).trim().toLowerCase().replace(/\s+/g, " ");
+  if (normalized === "left" || normalized === "flush left") {
+    return "left";
+  }
+  if (normalized === "center" || normalized === "flush center") {
+    return "center";
+  }
+  if (normalized === "right" || normalized === "flush right") {
+    return "right";
+  }
+  if (normalized === "justify") {
+    return "justify";
+  }
+  if (normalized === "none") {
+    return "unset";
+  }
+  return null;
 }
 
 function nodeFontSizePresetFromFontSize(fontSize: number): NodeFontSizePresetId {

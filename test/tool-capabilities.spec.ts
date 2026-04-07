@@ -100,6 +100,39 @@ describe("inspector property capability status", () => {
     };
     expect(getInspectorPropertyCapabilityStatus(lengthProperty).status).toBe("partial");
 
+    const optionalLengthProperty: InspectorProperty = {
+      kind: "optionalLength",
+      id: "node-text-width",
+      label: "Text width",
+      value: null,
+      step: 0.1,
+      unit: "pt",
+      write: {
+        mode: "setProperty",
+        elementId: "node-item:0",
+        level: "command",
+        key: "text width",
+        writable: true
+      }
+    };
+    expect(getInspectorPropertyCapabilityStatus(optionalLengthProperty).status).toBe("partial");
+
+    const nodeTextAlignProperty: InspectorProperty = {
+      kind: "nodeTextAlign",
+      id: "node-text-align",
+      label: "Text align",
+      value: "center",
+      clearKeys: ["align"],
+      write: {
+        mode: "setProperty",
+        elementId: "node-item:0",
+        level: "command",
+        key: "align",
+        writable: true
+      }
+    };
+    expect(getInspectorPropertyCapabilityStatus(nodeTextAlignProperty).status).toBe("partial");
+
     const nodeShapeProperty: InspectorProperty = {
       kind: "nodeShape",
       id: "node-shape",

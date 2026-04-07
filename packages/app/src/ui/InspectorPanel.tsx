@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type JSX, type PointerEvent as ReactPointerEvent } from "react";
 import {
+  RiAlignCenter,
+  RiAlignJustify,
+  RiAlignLeft,
+  RiAlignRight,
   RiBold,
   RiFontMono,
   RiFontSansSerif,
@@ -43,6 +47,7 @@ import {
   type LineJoinPresetId,
   type NodeFontFamilyId,
   type NodeFontMutationContext,
+  type NodeTextAlignInspectorValue,
   type NodeFontSizePresetId,
   type NodeMinimumDimensionKey,
   type NodeShapePresetId,
@@ -212,6 +217,7 @@ export function InspectorPanel() {
   const [manualLineWidthCustomKeys, setManualLineWidthCustomKeys] = useState<Set<string>>(
     () => new Set()
   );
+  const [optionalLengthDrafts, setOptionalLengthDrafts] = useState<Record<string, string>>({});
   const [strokeMoreOptionsOpen, setStrokeMoreOptionsOpen] = useState(false);
   const [fillMoreOptionsOpen, setFillMoreOptionsOpen] = useState(false);
   const [fillAdvancedOptionsOpen, setFillAdvancedOptionsOpen] = useState(false);
@@ -266,6 +272,7 @@ export function InspectorPanel() {
   useEffect(() => {
     setStrokeMoreOptionsOpen(false);
     setFillAdvancedOptionsOpen(false);
+    setOptionalLengthDrafts({});
   }, [selectedIds]);
 
   function handleNumberChange(
@@ -661,6 +668,82 @@ export function InspectorPanel() {
     });
   }
 
+  function singleOptionalLengthDraftKey(
+    property: Extract<InspectorProperty, { kind: "optionalLength" }>
+  ): string {
+    return `single:${property.id}:${property.write.elementId}`;
+  }
+
+  function multiOptionalLengthDraftKey(
+    property: Extract<MultiInspectorProperty, { kind: "optionalLength" }>
+  ): string {
+    const elementIds = property.writes
+      .map((write) => write.elementId)
+      .filter((id) => id.length > 0)
+      .sort();
+    return `multi:${property.id}:${elementIds.join("|")}`;
+  }
+
+  function setOptionalLengthDraft(key: string, value: string): void {
+    setOptionalLengthDrafts((current) => {
+      if (current[key] === value) {
+        return current;
+      }
+      return { ...current, [key]: value };
+    });
+  }
+
+  function clearOptionalLengthDraft(key: string): void {
+    setOptionalLengthDrafts((current) => {
+      if (!(key in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function commitSingleOptionalLengthDraft(
+    property: Extract<InspectorProperty, { kind: "optionalLength" }>,
+    draftRaw: string
+  ): void {
+    const trimmed = draftRaw.trim();
+    if (trimmed.length === 0) {
+      applySetProperty(property.write, "", {
+        clearKeys: property.clearKeys
+      });
+      return;
+    }
+    const next = Number(trimmed);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    applySetProperty(property.write, `${formatNumber(next)}pt`, {
+      clearKeys: property.clearKeys
+    });
+  }
+
+  function commitMultiOptionalLengthDraft(
+    property: Extract<MultiInspectorProperty, { kind: "optionalLength" }>,
+    draftRaw: string
+  ): void {
+    const trimmed = draftRaw.trim();
+    if (trimmed.length === 0) {
+      applySetPropertyMany(property.writes, "", {
+        clearKeys: property.clearKeys
+      });
+      return;
+    }
+    const next = Number(trimmed);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    applySetPropertyMany(property.writes, `${formatNumber(next)}pt`, {
+      clearKeys: property.clearKeys
+    });
+  }
+
   function renderScrubbableNumberLabel(
     label: string,
     binding: NumberLabelScrubBinding
@@ -848,6 +931,185 @@ export function InspectorPanel() {
         </div>
         {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
         {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+      </div>
+    );
+  }
+
+  function renderSingleOptionalLengthField(
+    property: Extract<InspectorProperty, { kind: "optionalLength" }>,
+    compact = false,
+    provenance: InspectorPropertyProvenance | null = null
+  ): JSX.Element {
+    const capability = getInspectorPropertyCapabilityStatus(property);
+    const capabilityReadOnlyReason =
+      capability.status === "unsupported" ? capability.reason : null;
+    const readOnlyReason = property.readOnlyReason ?? property.write.reason ?? capabilityReadOnlyReason;
+    const writable = property.write.writable && capability.status !== "unsupported";
+    const draftKey = singleOptionalLengthDraftKey(property);
+    const draftValue = optionalLengthDrafts[draftKey];
+    const inputValue = draftValue ?? (property.value == null ? "" : formatNumber(property.value));
+    const input = (
+      <input
+        className={withValueProvenanceClass(css.numberInput, provenance)}
+        type="number"
+        step={property.step}
+        value={inputValue}
+        placeholder="Unset"
+        disabled={!writable}
+        onChange={(event) => {
+          const raw = event.currentTarget.value;
+          setOptionalLengthDraft(draftKey, raw);
+          const trimmed = raw.trim();
+          if (trimmed.length === 0) {
+            applySetProperty(property.write, "", {
+              clearKeys: property.clearKeys
+            });
+            return;
+          }
+          const next = Number(trimmed);
+          if (!Number.isFinite(next)) {
+            return;
+          }
+          applySetProperty(property.write, `${formatNumber(next)}pt`, {
+            clearKeys: property.clearKeys
+          });
+        }}
+        onBlur={(event) => {
+          commitSingleOptionalLengthDraft(property, event.currentTarget.value);
+          clearOptionalLengthDraft(draftKey);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commitSingleOptionalLengthDraft(property, event.currentTarget.value);
+            clearOptionalLengthDraft(draftKey);
+            event.currentTarget.blur();
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            clearOptionalLengthDraft(draftKey);
+            event.currentTarget.blur();
+          }
+        }}
+      />
+    );
+    return (
+      <div className={compact ? css.compactNumberField : undefined}>
+        <div className={css.propertyLabel}>{property.label}</div>
+        <div className={css.controlRow}>
+          {maybeWrapWithProvenanceTooltip(provenance, input, true)}
+          <span className={css.unitLabel}>{property.unit}</span>
+        </div>
+        {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
+        {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+      </div>
+    );
+  }
+
+  function renderMultiOptionalLengthField(
+    property: Extract<MultiInspectorProperty, { kind: "optionalLength" }>,
+    compact = false,
+    provenance: InspectorPropertyProvenance | null = null
+  ): JSX.Element {
+    const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+    const draftKey = multiOptionalLengthDraftKey(property);
+    const draftValue = optionalLengthDrafts[draftKey];
+    const inputValue = draftValue ?? (property.mixed || property.value == null ? "" : formatNumber(property.value));
+    const input = (
+      <input
+        className={withValueProvenanceClass(css.numberInput, provenance)}
+        type="number"
+        step={property.step}
+        value={inputValue}
+        placeholder={property.mixed ? "Mixed" : "Unset"}
+        disabled={!writable}
+        onChange={(event) => {
+          const raw = event.currentTarget.value;
+          setOptionalLengthDraft(draftKey, raw);
+          const trimmed = raw.trim();
+          if (trimmed.length === 0) {
+            applySetPropertyMany(property.writes, "", {
+              clearKeys: property.clearKeys
+            });
+            return;
+          }
+          const next = Number(trimmed);
+          if (!Number.isFinite(next)) {
+            return;
+          }
+          applySetPropertyMany(property.writes, `${formatNumber(next)}pt`, {
+            clearKeys: property.clearKeys
+          });
+        }}
+        onBlur={(event) => {
+          commitMultiOptionalLengthDraft(property, event.currentTarget.value);
+          clearOptionalLengthDraft(draftKey);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commitMultiOptionalLengthDraft(property, event.currentTarget.value);
+            clearOptionalLengthDraft(draftKey);
+            event.currentTarget.blur();
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            clearOptionalLengthDraft(draftKey);
+            event.currentTarget.blur();
+          }
+        }}
+      />
+    );
+    return (
+      <div className={compact ? css.compactNumberField : undefined}>
+        <div className={css.propertyLabel}>{property.label}</div>
+        <div className={css.controlRow}>
+          {maybeWrapWithProvenanceTooltip(provenance, input, true)}
+          <span className={css.unitLabel}>{property.unit}</span>
+        </div>
+        {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
+        {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+      </div>
+    );
+  }
+
+  function renderNodeTextAlignToolbar(
+    property: {
+      value: NodeTextAlignInspectorValue;
+      mixed: boolean;
+    },
+    writable: boolean,
+    onValueChange: (value: NodeTextAlignInspectorValue) => void
+  ): JSX.Element {
+    const buttons: Array<{
+      value: Exclude<NodeTextAlignInspectorValue, "unset">;
+      label: string;
+      icon: JSX.Element;
+    }> = [
+      { value: "left", label: "Align left", icon: <RiAlignLeft size={13} /> },
+      { value: "center", label: "Align center", icon: <RiAlignCenter size={13} /> },
+      { value: "right", label: "Align right", icon: <RiAlignRight size={13} /> },
+      { value: "justify", label: "Justify", icon: <RiAlignJustify size={13} /> }
+    ];
+
+    return (
+      <div className={css.controlRow}>
+        <div className={css.nodeFontButtonGroup} role="group" aria-label="Text alignment">
+          {buttons.map((button) => {
+            const active = !property.mixed && property.value === button.value;
+            return (
+              <button
+                key={button.value}
+                type="button"
+                className={`${nodeFontButtonClass(active, property.mixed)} ${css.nodeTextAlignButton}`}
+                disabled={!writable}
+                aria-label={button.label}
+                aria-pressed={active}
+                onClick={() => onValueChange(active ? "unset" : button.value)}
+              >
+                {button.icon}
+              </button>
+            );
+          })}
+        </div>
       </div>
     );
   }
@@ -1043,7 +1305,10 @@ export function InspectorPanel() {
     withValueProvenanceClass,
     renderSingleTextField,
     renderSingleNumberField,
+    renderSingleOptionalLengthField,
     renderMultiNumberField,
+    renderMultiOptionalLengthField,
+    renderNodeTextAlignToolbar,
     renderScrubbableNumberLabel,
     applySingleLengthValue,
     applyMultiLengthValue,

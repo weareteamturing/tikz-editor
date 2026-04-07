@@ -17,6 +17,7 @@ import {
   type LineJoinPresetId,
   type NodeFontFamilyId,
   type NodeFontMutationContext,
+  type NodeTextAlignInspectorValue,
   type NodeMinimumDimensionsMutationContext,
   type NodeFontSizePresetId,
   type NodeShapePresetId,
@@ -62,6 +63,20 @@ export type MultiInspectorLengthProperty = {
   writes: SetPropertyWriteTarget[];
   note?: string;
   minimumDimensionsContexts?: NodeMinimumDimensionsMutationContext[];
+  readOnlyReason?: string;
+};
+
+export type MultiInspectorOptionalLengthProperty = {
+  kind: "optionalLength";
+  id: string;
+  label: string;
+  value: number | null;
+  mixed: boolean;
+  step: number;
+  unit: "pt";
+  clearKeys?: string[];
+  writes: SetPropertyWriteTarget[];
+  note?: string;
   readOnlyReason?: string;
 };
 
@@ -248,6 +263,17 @@ export type MultiInspectorNodeShapeProperty = {
   readOnlyReason?: string;
 };
 
+export type MultiInspectorNodeTextAlignProperty = {
+  kind: "nodeTextAlign";
+  id: string;
+  label: string;
+  value: NodeTextAlignInspectorValue;
+  mixed: boolean;
+  writes: SetPropertyWriteTarget[];
+  clearKeys?: string[];
+  readOnlyReason?: string;
+};
+
 export type MultiInspectorNodeFontProperty = {
   kind: "nodeFont";
   id: string;
@@ -307,7 +333,9 @@ export type MultiInspectorProperty =
   | MultiInspectorBooleanProperty
   | MultiInspectorNumberProperty
   | MultiInspectorLengthProperty
+  | MultiInspectorOptionalLengthProperty
   | MultiInspectorColorProperty
+  | MultiInspectorNodeTextAlignProperty
   | MultiInspectorNodeShapeProperty
   | MultiInspectorNodeFontProperty
   | MultiInspectorLineWidthProperty
@@ -428,6 +456,7 @@ export const COMPACT_PAIR_IDS = new Set([
   "xscale:yscale",
   "grid-xstep:grid-ystep",
   "node-minimum-width:node-minimum-height",
+  "node-text-align:node-text-width",
   "shadow-xshift:shadow-yshift"
 ]);
 export type LineWidthDropdownValue = string;
@@ -517,7 +546,8 @@ export function shouldRenderCompactPair(
   }
   const isNumberPair = left.kind === "number" && right.kind === "number";
   const isLengthPair = left.kind === "length" && right.kind === "length";
-  if (!isNumberPair && !isLengthPair) {
+  const isNodeTextLayoutPair = left.kind === "nodeTextAlign" && right.kind === "optionalLength";
+  if (!isNumberPair && !isLengthPair && !isNodeTextLayoutPair) {
     return false;
   }
   return COMPACT_PAIR_IDS.has(`${left.id}:${right.id}`);
@@ -800,6 +830,32 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
     };
   }
 
+  if (base.kind === "optionalLength") {
+    const sameKind = properties.every((property) => property.kind === "optionalLength");
+    if (!sameKind) return null;
+    const optionalLengthProperties = properties as Array<Extract<InspectorProperty, { kind: "optionalLength" }>>;
+    const values = optionalLengthProperties.map((property) => property.value);
+    const writes = optionalLengthProperties.map((property) => property.write);
+    const notes = optionalLengthProperties.map((property) => property.note ?? null);
+    const clearKeys = allValuesEqual(optionalLengthProperties.map((property) => (property.clearKeys ?? []).join("\n")))
+      ? optionalLengthProperties[0]?.clearKeys
+      : undefined;
+
+    return {
+      kind: "optionalLength",
+      id: base.id,
+      label: base.label,
+      value: values[0] ?? null,
+      mixed: !allValuesEqual(values),
+      step: base.step,
+      unit: base.unit,
+      clearKeys,
+      writes,
+      note: allValuesEqual(notes) ? (notes[0] ?? undefined) : undefined,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
   if (base.kind === "nodeShape") {
     const sameKind = properties.every((property) => property.kind === "nodeShape");
     if (!sameKind) return null;
@@ -817,6 +873,28 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
       options: base.options,
       writes,
       note: allValuesEqual(notes) ? (notes[0] ?? undefined) : undefined,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
+  if (base.kind === "nodeTextAlign") {
+    const sameKind = properties.every((property) => property.kind === "nodeTextAlign");
+    if (!sameKind) return null;
+    const alignProperties = properties as Array<Extract<InspectorProperty, { kind: "nodeTextAlign" }>>;
+    const values = alignProperties.map((property) => property.value);
+    const writes = alignProperties.map((property) => property.write);
+    const clearKeys = allValuesEqual(alignProperties.map((property) => (property.clearKeys ?? []).join("\n")))
+      ? alignProperties[0]?.clearKeys
+      : undefined;
+
+    return {
+      kind: "nodeTextAlign",
+      id: base.id,
+      label: base.label,
+      value: values[0] ?? "unset",
+      mixed: !allValuesEqual(values),
+      writes,
+      clearKeys,
       readOnlyReason: deriveReadOnlyReason(writes)
     };
   }

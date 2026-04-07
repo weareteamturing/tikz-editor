@@ -130,6 +130,14 @@ export function InspectorSingleSection(props: {
                 renderedSinglePropertyProvenance[right.id] ?? null
               );
             }
+            if (property.kind === "nodeTextAlign" && next?.kind === "optionalLength") {
+              return (
+                <div key={`${property.id}:${next.id}`} className={css.compactNumberPair}>
+                  {renderProperty(property)}
+                  {renderProperty(next)}
+                </div>
+              );
+            }
           }
           return renderProperty(property);
         })}
@@ -308,6 +316,14 @@ export function InspectorMultiSection(props: {
                 right,
                 renderedMultiPropertyProvenance[left.id] ?? null,
                 renderedMultiPropertyProvenance[right.id] ?? null
+              );
+            }
+            if (property.kind === "nodeTextAlign" && next?.kind === "optionalLength") {
+              return (
+                <div key={`${property.id}:${next.id}`} className={css.compactNumberPair}>
+                  {renderMultiProperty(property)}
+                  {renderMultiProperty(next)}
+                </div>
               );
             }
           }

@@ -63,6 +63,8 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
     withValueProvenanceClass,
     renderSingleTextField,
     renderSingleNumberField,
+    renderSingleOptionalLengthField,
+    renderNodeTextAlignToolbar,
     renderScrubbableNumberLabel,
     applySingleLengthValue,
     maybeWrapWithProvenanceTooltip,
@@ -108,6 +110,9 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
         return property.readOnlyReason ?? property.write?.reason ?? capabilityReadOnlyReason;
       }
       if (property.kind === "length") {
+        return property.readOnlyReason ?? property.write.reason ?? capabilityReadOnlyReason;
+      }
+      if (property.kind === "optionalLength") {
         return property.readOnlyReason ?? property.write.reason ?? capabilityReadOnlyReason;
       }
       if (property.kind === "nodeFont") {
@@ -213,6 +218,37 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             <span className={css.unitLabel}>{property.unit}</span>
           </div>
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "optionalLength") {
+      return (
+        <div key={property.id} className={propertyClassName}>
+          {renderSingleOptionalLengthField(property, true, provenance)}
+        </div>
+      );
+    }
+
+    if (property.kind === "nodeTextAlign") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      return (
+        <div key={property.id} className={propertyClassName}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderNodeTextAlignToolbar(
+              {
+                value: property.value,
+                mixed: false
+              },
+              writable,
+              (nextValue: "unset" | "left" | "center" | "right" | "justify") =>
+                applySetProperty(property.write, nextValue === "unset" ? "" : nextValue, { clearKeys: property.clearKeys })
+            ),
+            true
+          )}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
       );
@@ -852,6 +888,8 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
     implicitDefaultProvenance,
     withValueProvenanceClass,
     renderMultiNumberField,
+    renderMultiOptionalLengthField,
+    renderNodeTextAlignToolbar,
     renderScrubbableNumberLabel,
     applyMultiLengthValue,
     maybeWrapWithProvenanceTooltip,
@@ -992,6 +1030,39 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
             <span className={css.unitLabel}>{property.unit}</span>
           </div>
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "optionalLength") {
+      return (
+        <div key={property.id} className={propertyClassName}>
+          {renderMultiOptionalLengthField(property, true, provenance)}
+        </div>
+      );
+    }
+
+    if (property.kind === "nodeTextAlign") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      return (
+        <div key={property.id} className={propertyClassName}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderNodeTextAlignToolbar(
+              {
+                value: property.value,
+                mixed: property.mixed
+              },
+              writable,
+              (nextValue: "unset" | "left" | "center" | "right" | "justify") =>
+                applySetPropertyMany(property.writes, nextValue === "unset" ? "" : nextValue, {
+                  clearKeys: property.clearKeys
+                })
+            ),
+            true
+          )}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
       );

@@ -2250,6 +2250,7 @@ describe("getInspectorDescriptor", () => {
       "length",
       "length",
       "length",
+      "nodeTextAlign",
       "nodeFont",
       "color"
     ]);
@@ -2258,6 +2259,7 @@ describe("getInspectorDescriptor", () => {
       "node-inner-sep",
       "node-minimum-width",
       "node-minimum-height",
+      "node-text-align",
       "node-font",
       "node-text-color"
     ]);
@@ -2290,6 +2292,142 @@ describe("getInspectorDescriptor", () => {
 
     expect(textColor.syntaxValue).toBe("red");
     expect(textColor.write.key).toBe("text");
+  });
+
+  it("normalizes node align aliases and treats align=none as unset", () => {
+    const rightSource = String.raw`\begin{tikzpicture}
+  \node[align=flush right] at (0,0) {A};
+\end{tikzpicture}`;
+    const noneSource = String.raw`\begin{tikzpicture}
+  \node[align=none] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const rightElement = renderTikzToSvg(rightSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    const noneElement = renderTikzToSvg(noneSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(rightElement).toBeDefined();
+    expect(noneElement).toBeDefined();
+    if (!rightElement || !noneElement) {
+      throw new Error("Expected text elements");
+    }
+
+    const rightDescriptor = getInspectorDescriptor(rightElement, { source: rightSource });
+    const noneDescriptor = getInspectorDescriptor(noneElement, { source: noneSource });
+    const rightAlign = getNodePropertyById(rightDescriptor, "node-text-align");
+    const noneAlign = getNodePropertyById(noneDescriptor, "node-text-align");
+    expect(rightAlign?.kind).toBe("nodeTextAlign");
+    expect(noneAlign?.kind).toBe("nodeTextAlign");
+    if (!rightAlign || rightAlign.kind !== "nodeTextAlign" || !noneAlign || noneAlign.kind !== "nodeTextAlign") {
+      throw new Error("Expected node text align property");
+    }
+
+    expect(rightAlign.value).toBe("right");
+    expect(noneAlign.value).toBe("unset");
+  });
+
+  it("shows node text width when text width or align is set and keeps it nullable", () => {
+    const hiddenSource = String.raw`\begin{tikzpicture}
+  \node at (0,0) {A};
+\end{tikzpicture}`;
+    const alignSource = String.raw`\begin{tikzpicture}
+  \node[align=center] at (0,0) {A};
+\end{tikzpicture}`;
+    const widthSource = String.raw`\begin{tikzpicture}
+  \node[text width=2cm] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const hiddenElement = renderTikzToSvg(hiddenSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    const alignElement = renderTikzToSvg(alignSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    const widthElement = renderTikzToSvg(widthSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(hiddenElement).toBeDefined();
+    expect(alignElement).toBeDefined();
+    expect(widthElement).toBeDefined();
+    if (!hiddenElement || !alignElement || !widthElement) {
+      throw new Error("Expected text elements");
+    }
+
+    const hiddenDescriptor = getInspectorDescriptor(hiddenElement, { source: hiddenSource });
+    const alignDescriptor = getInspectorDescriptor(alignElement, { source: alignSource });
+    const widthDescriptor = getInspectorDescriptor(widthElement, { source: widthSource });
+
+    const hiddenWidth = getNodePropertyById(hiddenDescriptor, "node-text-width");
+    const alignWidth = getNodePropertyById(alignDescriptor, "node-text-width");
+    const widthWidth = getNodePropertyById(widthDescriptor, "node-text-width");
+
+    expect(hiddenWidth).toBeUndefined();
+    expect(alignWidth?.kind).toBe("optionalLength");
+    expect(widthWidth?.kind).toBe("optionalLength");
+    if (!alignWidth || alignWidth.kind !== "optionalLength" || !widthWidth || widthWidth.kind !== "optionalLength") {
+      throw new Error("Expected optional node text width properties");
+    }
+
+    expect(alignWidth.value).toBeNull();
+    expect(widthWidth.value).not.toBeNull();
+  });
+
+  it("round-trips node text align and text width through inspector write targets", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[align=center,text width=2cm] at (0,0) {A};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected text element");
+    }
+
+    const descriptor = getInspectorDescriptor(text, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const align = getNodePropertyById(descriptor, "node-text-align");
+    const textWidth = getNodePropertyById(descriptor, "node-text-width");
+    expect(align?.kind).toBe("nodeTextAlign");
+    expect(textWidth?.kind).toBe("optionalLength");
+    if (!align || align.kind !== "nodeTextAlign" || !textWidth || textWidth.kind !== "optionalLength") {
+      throw new Error("Expected node text layout properties");
+    }
+
+    const removedAlign = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: align.write.elementId,
+      level: align.write.level,
+      key: align.write.key,
+      value: "",
+      clearKeys: align.clearKeys
+    });
+    expect(removedAlign.kind).toBe("success");
+    if (removedAlign.kind !== "success") {
+      throw new Error("Expected successful align clear mutation");
+    }
+    expect(removedAlign.newSource).not.toContain("align=");
+
+    const removedWidth = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: textWidth.write.elementId,
+      level: textWidth.write.level,
+      key: textWidth.write.key,
+      value: "",
+      clearKeys: textWidth.clearKeys
+    });
+    expect(removedWidth.kind).toBe("success");
+    if (removedWidth.kind !== "success") {
+      throw new Error("Expected successful text width clear mutation");
+    }
+    expect(removedWidth.newSource).not.toContain("text width=");
+
+    const updatedWidth = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: textWidth.write.elementId,
+      level: textWidth.write.level,
+      key: textWidth.write.key,
+      value: "12pt",
+      clearKeys: textWidth.clearKeys
+    });
+    expect(updatedWidth.kind).toBe("success");
+    if (updatedWidth.kind !== "success") {
+      throw new Error("Expected successful text width mutation");
+    }
+    expect(updatedWidth.newSource).toContain("text width=12pt");
   });
 
   it("removes node text color when setProperty receives an empty text value", () => {
@@ -2625,6 +2763,37 @@ describe("getInspectorDescriptor", () => {
         || property.id.startsWith("node-shape-trapezium-")
     );
     expect(mixedAdaptive).toHaveLength(0);
+  });
+
+  it("merges node text align and optional text width for multi-selection", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[align=left,text width=2cm] at (0,0) {A};
+  \node[align=right] at (2,0) {B};
+\end{tikzpicture}`;
+    const texts = renderTikzToSvg(source).semantic.scene.elements.filter((entry) => entry.kind === "Text");
+    expect(texts).toHaveLength(2);
+    if (texts.length !== 2) {
+      throw new Error("Expected two text elements");
+    }
+
+    const descriptors = texts.map((entry) => getInspectorDescriptor(entry, { source }));
+    const multi = buildMultiInspectorModel(descriptors, descriptors.length);
+    const nodeSection = multi.sections.find((section) => section.id === "node");
+    expect(nodeSection).toBeDefined();
+    if (!nodeSection) {
+      throw new Error("Expected node section");
+    }
+
+    const align = nodeSection.properties.find((property) => property.id === "node-text-align");
+    const textWidth = nodeSection.properties.find((property) => property.id === "node-text-width");
+    expect(align?.kind).toBe("nodeTextAlign");
+    expect(textWidth?.kind).toBe("optionalLength");
+    if (!align || align.kind !== "nodeTextAlign" || !textWidth || textWidth.kind !== "optionalLength") {
+      throw new Error("Expected node text layout properties in multi model");
+    }
+
+    expect(align.mixed).toBe(true);
+    expect(textWidth.mixed).toBe(true);
   });
 
   it("builds node shape mutations that normalize existing shape flags", () => {
