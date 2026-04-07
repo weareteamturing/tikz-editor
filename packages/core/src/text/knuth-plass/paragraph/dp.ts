@@ -531,6 +531,13 @@ function scoreCandidate(
   }
 
   if (options.allowInfeasible) {
+    // In infeasible fallback mode we still want TeX-like behavior for ragged
+    // paragraph profiles: overflowing a line should be a last resort.
+    if (delta < 0 && options.preventOverflow) {
+      const overflow = -delta;
+      badness += 20_000 + Math.floor((overflow / Math.max(width, 1)) * 10_000);
+    }
+
     if (!Number.isFinite(ratio)) {
       badness = Math.max(badness, 20_000);
     } else {

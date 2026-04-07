@@ -26,6 +26,7 @@ export interface ApplyBreaksResult {
 interface WrapperMutationPlan {
   childWordSplits: Map<number, Map<number, SplitMutation[]>>;
   spacePrefixes: Map<number, Map<number, string>>;
+  wordPrefixTrim: Map<number, Map<number, number>>;
 }
 
 interface SplitMutation {
@@ -134,6 +135,7 @@ function ensureWrapperPlan(
     plan = {
       childWordSplits: new Map<number, Map<number, SplitMutation[]>>(),
       spacePrefixes: new Map<number, Map<number, string>>(),
+      wordPrefixTrim: new Map<number, Map<number, number>>(),
     };
     plans.set(wrapper, plan);
   }
@@ -177,6 +179,28 @@ function pushSpacePrefix(
     plan.spacePrefixes.set(childIndex, childMap);
   }
   childMap.set(wordIndex, (childMap.get(wordIndex) ?? '') + prefix);
+}
+
+function pushWordPrefixTrim(
+  plans: Map<any, WrapperMutationPlan>,
+  wrapper: any,
+  childIndex: number,
+  wordIndex: number,
+  consumed: number
+): void {
+  if (!Number.isFinite(consumed) || consumed <= 0) {
+    return;
+  }
+
+  const plan = ensureWrapperPlan(plans, wrapper);
+  let childMap = plan.wordPrefixTrim.get(childIndex);
+  if (!childMap) {
+    childMap = new Map<number, number>();
+    plan.wordPrefixTrim.set(childIndex, childMap);
+  }
+
+  const prior = childMap.get(wordIndex) ?? 0;
+  childMap.set(wordIndex, Math.max(prior, Math.floor(consumed)));
 }
 
 function normalizePlans(plans: Map<any, WrapperMutationPlan>): void {
@@ -293,11 +317,13 @@ function mutateWrapperText(
   const allChildIndices = new Set<number>([
     ...plan.childWordSplits.keys(),
     ...plan.spacePrefixes.keys(),
+    ...plan.wordPrefixTrim.keys(),
   ]);
 
   for (const childIndex of allChildIndices) {
     const wordSplits = plan.childWordSplits.get(childIndex) ?? new Map();
     const spacePrefixes = plan.spacePrefixes.get(childIndex) ?? new Map();
+    const wordPrefixTrim = plan.wordPrefixTrim.get(childIndex) ?? new Map();
     const child = children[childIndex];
     if (!child || !isTextChild(child)) {
       errors.push(
@@ -319,6 +345,25 @@ function mutateWrapperText(
     const originalText = String(child.node.getText() ?? '');
     const tokens = tokenizeForMutation(originalText);
     const wordIndices = wordTokenIndices(tokens);
+
+    for (const [wordIndex, consumed] of wordPrefixTrim.entries()) {
+      if (wordIndex < 0 || wordIndex >= wordIndices.length) {
+        errors.push(
+          `Mutation failed: line-leading trim wordIndex ${wordIndex} out of range for child ${childIndex}.`
+        );
+        return false;
+      }
+
+      const tokenIndex = wordIndices[wordIndex];
+      const word = tokens[tokenIndex].text;
+      if (consumed > word.length) {
+        errors.push(
+          `Mutation failed: line-leading trim length ${consumed} exceeds word '${word}'.`
+        );
+        return false;
+      }
+      tokens[tokenIndex].text = word.slice(consumed);
+    }
 
     for (const [wordIndex, splitsAscending] of wordSplits.entries()) {
       if (wordIndex < 0 || wordIndex >= wordIndices.length) {
@@ -585,10 +630,20 @@ export function applyBreaks(
       if (run.breakRef.lineLeading) {
         if (typeof run.breakRef.wrapper?.node?.attributes?.set === 'function') {
           run.breakRef.wrapper.node.attributes.set(
-            'lineleading',
+            'data-lineleading',
             run.breakRef.lineLeading
           );
         }
+      }
+
+      if (run.breakRef.lineLeadingTrim) {
+        pushWordPrefixTrim(
+          plans,
+          run.breakRef.lineLeadingTrim.wrapper,
+          run.breakRef.lineLeadingTrim.childIndex,
+          run.breakRef.lineLeadingTrim.wordIndex,
+          run.breakRef.lineLeadingTrim.consumed
+        );
       }
 
       if (typeof run.breakRef.wrapper?.setBreakStyle === 'function') {

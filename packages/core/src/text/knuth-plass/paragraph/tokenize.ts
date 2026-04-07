@@ -51,6 +51,23 @@ function getMspaceLinebreak(wrapper: AnyWrapper): string {
   return typeof raw === 'string' ? raw : '';
 }
 
+function getMspaceLineLeading(wrapper: AnyWrapper): string | undefined {
+  const raw = wrapper?.node?.attributes?.get?.('data-lineleading');
+  if (typeof raw !== 'string') {
+    return undefined;
+  }
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function isForcedMspaceBreak(wrapper: AnyWrapper, linebreak: string): boolean {
+  if (isForcedMspaceLinebreak(linebreak)) {
+    return true;
+  }
+  const rawLatex = wrapper?.node?.attributes?.get?.('data-latex');
+  return rawLatex === '\\\\';
+}
+
 function isForcedMspaceLinebreak(linebreak: string): boolean {
   return linebreak === 'newline' || linebreak === 'indentingnewline';
 }
@@ -74,20 +91,35 @@ function extractForcedLineLeadingPrefix(
 }
 
 function normalizeForcedLineLeadingRuns(runs: ParagraphRun[]): ParagraphRun[] {
-  const lineLeadingByForcedRun = new Map<number, { lineLeading: string; consumed: number }>();
+  const lineLeadingByForcedRun = new Map<
+    number,
+    {
+      lineLeading: string;
+      consumed: number;
+      targetWrapper: AnyWrapper;
+      targetChildIndex: number;
+      targetWordIndex: number;
+    }
+  >();
 
   for (let i = 0; i < runs.length - 1; i++) {
     const run = runs[i];
     if (run.kind !== 'space') continue;
     if (run.breakRef.kind !== 'mspace') continue;
-    if (!run.breakRef.isForcedLineBreak) continue;
+    if (!run.breakRef.isForcedLineBreak && !run.breakRef.lineLeading) continue;
 
     const next = runs[i + 1];
     if (!next || next.kind !== 'text') continue;
 
     const parsed = extractForcedLineLeadingPrefix(next.text);
     if (!parsed) continue;
-    lineLeadingByForcedRun.set(i, parsed);
+    lineLeadingByForcedRun.set(i, {
+      lineLeading: parsed.lineLeading,
+      consumed: parsed.consumed,
+      targetWrapper: next.wrapper,
+      targetChildIndex: next.childIndex,
+      targetWordIndex: next.wordIndex,
+    });
   }
 
   if (!lineLeadingByForcedRun.size) {
@@ -138,6 +170,12 @@ function normalizeForcedLineLeadingRuns(runs: ParagraphRun[]): ParagraphRun[] {
           ? {
               ...run.breakRef,
               lineLeading: parsed.lineLeading,
+              lineLeadingTrim: {
+                wrapper: parsed.targetWrapper,
+                childIndex: parsed.targetChildIndex,
+                wordIndex: parsed.targetWordIndex,
+                consumed: parsed.consumed,
+              },
             }
           : run.breakRef,
       });
@@ -297,6 +335,7 @@ function flattenWrapper(wrapper: AnyWrapper, context: FlattenContext) {
 
   if (isKind(wrapper, 'mspace') && wrapper.canBreak) {
     const linebreak = getMspaceLinebreak(wrapper);
+    const lineLeading = getMspaceLineLeading(wrapper);
     const sourceStart = context.cursor.value;
     const sourceEnd = sourceStart + 1;
     emitRun<SpaceRun>(context.runs, {
@@ -307,7 +346,8 @@ function flattenWrapper(wrapper: AnyWrapper, context: FlattenContext) {
         kind: 'mspace',
         wrapper,
         linebreak,
-        isForcedLineBreak: isForcedMspaceLinebreak(linebreak),
+        isForcedLineBreak: isForcedMspaceBreak(wrapper, linebreak),
+        lineLeading,
       },
       sourceStart,
       sourceEnd,

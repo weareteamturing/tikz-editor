@@ -133,6 +133,11 @@ let activeBrowserFont: MathJaxFont = DEFAULT_FONT;
 
 type WorkerFontLoader = (name: string) => Promise<unknown>;
 let workerFontLoader: WorkerFontLoader | null = null;
+const EXPLICIT_LINE_BREAK_TOKEN_PATTERN = /\\\\(?:\[[^\]]*\])?/;
+const EXPLICIT_LINE_BREAK_BOUNDARY_PATTERN = /[ \t\r\n]*\\\\(?:\[[^\]]*\])?[ \t\r\n]*/g;
+const EXPLICIT_LINE_BREAK_CANONICAL_PATTERN = /[ \t\r\n]*(\\\\(?:\[[^\]]*\])?)[ \t\r\n]*/g;
+const EXPLICIT_LINE_BREAK_WITH_LEADING_PATTERN = /[ \t\r\n]*\\\\(?:\[([^\]]*)\])?[ \t\r\n]*/g;
+const MATHJAX_ARRAY_VERTICAL_PADDING_UNITS = 175;
 
 /**
  * Register a font loader for the worker runtime. Must be called before the first
@@ -854,17 +859,31 @@ function queueAsyncCachePopulate(
     return;
   }
 
-  const task = renderMeasuredNodeWithPromise(runtime, params)
+  let renderTask: Promise<unknown>;
+  try {
+    renderTask = renderMeasuredNodeWithPromise(runtime, params);
+  } catch {
+    return;
+  }
+
+  const task = renderTask
     .then((node) => {
       if (cache.has(params.cacheKey)) {
         return;
       }
+      const trimArrayVerticalPadding = shouldUseExplicitMultilineArrayRendering(
+        params.mode,
+        params.textWidthPt,
+        hasExplicitMultilineBreaks(params.sourceText),
+        params.alignment
+      );
       const entry = buildCacheEntryWithMetadata(
         params.cacheKey,
         node,
         runtime.startup?.adaptor ?? null,
         params.sourceText,
-        resolveLatestParagraphId(runtime)
+        resolveLatestParagraphId(runtime),
+        { trimArrayVerticalPadding }
       );
       if (entry) {
         cache.set(params.cacheKey, entry);
@@ -889,7 +908,10 @@ function buildCacheEntryWithMetadata(
   containerNode: unknown,
   adaptor: MathJaxAdaptor | null,
   renderSourceText: string,
-  paragraphId: string | null
+  paragraphId: string | null,
+  options?: {
+    trimArrayVerticalPadding?: boolean;
+  }
 ): CachedRenderEntry | null {
   const extracted = extractSvgPayload(containerNode, adaptor);
   if (!extracted) {
@@ -902,18 +924,19 @@ function buildCacheEntryWithMetadata(
   }
 
   const body = extracted.body;
+  const effectiveViewBox = options?.trimArrayVerticalPadding ? trimArrayVerticalPaddingFromViewBox(viewBox) : viewBox;
   const resolvedParagraphId = paragraphId ?? extractParagraphIdFromSvgBody(body);
-  const baseWidthPt = (viewBox.width / 1000) * DEFAULT_TEXT_FONT_SIZE;
-  const baseHeightPt = (viewBox.height / 1000) * DEFAULT_TEXT_FONT_SIZE;
-  const ascentUnits = Math.max(0, -viewBox.y);
-  const descentUnits = Math.max(0, viewBox.height - ascentUnits);
+  const baseWidthPt = (effectiveViewBox.width / 1000) * DEFAULT_TEXT_FONT_SIZE;
+  const baseHeightPt = (effectiveViewBox.height / 1000) * DEFAULT_TEXT_FONT_SIZE;
+  const ascentUnits = Math.max(0, -effectiveViewBox.y);
+  const descentUnits = Math.max(0, effectiveViewBox.height - ascentUnits);
   const baseLineYPt = -(((ascentUnits - descentUnits) / 2) / 1000) * DEFAULT_TEXT_FONT_SIZE;
   const midLineYPt = baseLineYPt + DEFAULT_TEXT_FONT_SIZE * MIDLINE_FROM_BASELINE_RATIO;
 
   return {
     payload: {
       cacheKey,
-      viewBox,
+      viewBox: effectiveViewBox,
       body
     },
     baseWidthPt,
@@ -922,6 +945,18 @@ function buildCacheEntryWithMetadata(
     midLineYPt,
     paragraphId: resolvedParagraphId,
     renderSourceText
+  };
+}
+
+function trimArrayVerticalPaddingFromViewBox(viewBox: NodeTextRenderPayload["viewBox"]): NodeTextRenderPayload["viewBox"] {
+  const trim = MATHJAX_ARRAY_VERTICAL_PADDING_UNITS;
+  if (viewBox.height <= trim * 2 + 1) {
+    return viewBox;
+  }
+  return {
+    ...viewBox,
+    y: viewBox.y + trim,
+    height: viewBox.height - trim * 2
   };
 }
 
@@ -937,6 +972,14 @@ function buildMeasuredCacheEntry(params: {
   const { runtime, cacheKey, sourceText, textWidthPt, font, mode, alignment } = params;
   const adaptor = runtime.startup?.adaptor ?? null;
   const explicitMultiline = hasExplicitMultilineBreaks(sourceText);
+  if (shouldUseExplicitMultilineArrayRendering(mode, textWidthPt, explicitMultiline, alignment)) {
+    const tex = buildExplicitMultilineTeX(sourceText, font, alignment);
+    const node = runtime.tex2svg(tex, { display: false });
+    return buildCacheEntryWithMetadata(cacheKey, node, adaptor, sourceText, resolveLatestParagraphId(runtime), {
+      trimArrayVerticalPadding: true
+    });
+  }
+
   const measuredWidth =
     textWidthPt ??
     (explicitMultiline
@@ -990,7 +1033,7 @@ function measureExplicitMultilineNaturalWidth(
     }
   }
 
-  return maxWidth > 0 ? maxWidth : measureNaturalWidth(runtime, sourceText.replace(/\\\\(?:\[[^\]]*\])?/g, ""), font, mode);
+  return maxWidth > 0 ? maxWidth : measureNaturalWidth(runtime, sourceText.replace(EXPLICIT_LINE_BREAK_BOUNDARY_PATTERN, ""), font, mode);
 }
 
 function renderMeasuredNodeWithPromise(
@@ -1013,23 +1056,24 @@ function renderMeasuredNodeWithPromise(
     return runtime.tex2svgPromise!(tex, { display: false });
   };
 
+  if (
+    shouldUseExplicitMultilineArrayRendering(
+      params.mode,
+      params.textWidthPt,
+      hasExplicitMultilineBreaks(params.sourceText),
+      params.alignment
+    )
+  ) {
+    const tex = buildExplicitMultilineTeX(params.sourceText, params.font, params.alignment);
+    return runtime.tex2svgPromise!(tex, { display: false });
+  }
+
   if (params.textWidthPt != null) {
     return runMeasuredRender(params.textWidthPt);
   }
 
-  if (hasExplicitMultilineBreaks(params.sourceText)) {
-    const explicitWidth = measureExplicitMultilineNaturalWidth(runtime, params.sourceText, params.font, params.mode);
-    if (!(Number.isFinite(explicitWidth) && explicitWidth > 0)) {
-      return Promise.reject(new Error("Unable to determine explicit multiline MathJax width."));
-    }
-    return runMeasuredRender(explicitWidth);
-  }
-
-  const naturalWidth = measureNaturalWidth(runtime, params.sourceText, params.font, params.mode);
-  if (!(Number.isFinite(naturalWidth) && naturalWidth > 0)) {
-    return Promise.reject(new Error("Unable to determine single-line MathJax width."));
-  }
-  return runMeasuredRender(naturalWidth + SINGLE_LINE_RENDER_WIDTH_FUDGE_PT);
+  const tex = buildWrappedTeX(params.sourceText, null, params.font, params.mode);
+  return runtime.tex2svgPromise!(tex, { display: false });
 }
 
 function resolveLatestParagraphId(runtime: MathJaxRuntime): string | null {
@@ -1045,11 +1089,46 @@ function extractParagraphIdFromSvgBody(body: string): string | null {
 }
 
 function hasExplicitMultilineBreaks(text: string): boolean {
-  return /\\\\(?:\[[^\]]*\])?/.test(text);
+  return EXPLICIT_LINE_BREAK_TOKEN_PATTERN.test(text);
 }
 
 function splitExplicitMultilineSource(text: string): string[] {
-  return text.split(/\\\\(?:\[[^\]]*\])?/);
+  return splitExplicitMultilineSegments(text).lines;
+}
+
+function splitExplicitMultilineSegments(
+  text: string
+): { lines: string[]; breakLeadings: Array<string | null> } {
+  const lines: string[] = [];
+  const breakLeadings: Array<string | null> = [];
+  let cursor = 0;
+
+  EXPLICIT_LINE_BREAK_WITH_LEADING_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = EXPLICIT_LINE_BREAK_WITH_LEADING_PATTERN.exec(text)) !== null) {
+    lines.push(text.slice(cursor, match.index));
+    const rawLeading = typeof match[1] === "string" ? match[1].trim() : "";
+    breakLeadings.push(rawLeading.length > 0 ? rawLeading : null);
+    cursor = match.index + match[0].length;
+  }
+
+  lines.push(text.slice(cursor));
+  return { lines, breakLeadings };
+}
+
+function shouldUseExplicitMultilineArrayRendering(
+  mode: "text" | "math",
+  textWidthPt: number | null,
+  explicitMultiline: boolean,
+  alignment: NodeTextParagraphAlignment | null
+): boolean {
+  if (mode !== "text" || !explicitMultiline) {
+    return false;
+  }
+  if (textWidthPt == null) {
+    return true;
+  }
+  return alignment === "center" || alignment === "ragged-left";
 }
 
 function extractSvgPayload(
@@ -1160,9 +1239,9 @@ function resolveParagraphAlignment(
   alignment: NodeTextParagraphAlignment | undefined
 ): NodeTextParagraphAlignment | null {
   if (textWidthPt == null) {
-    return null;
+    return alignment ?? null;
   }
-  return alignment ?? "center";
+  return alignment ?? "ragged-right";
 }
 
 function applyKnuthPlassRuntimeOptions(
@@ -1210,7 +1289,50 @@ function buildWrappedTeX(
   if (textWidthPt == null) {
     return `\\mbox{${styledText}}`;
   }
-  return `\\parbox{${formatPt(textWidthPt)}pt}{${styledText}}`;
+  return `\\parbox[t]{${formatPt(textWidthPt)}pt}{${styledText}}`;
+}
+
+function buildExplicitMultilineTeX(
+  text: string,
+  font: TextFontOptions,
+  alignment: NodeTextParagraphAlignment | null
+): string {
+  const { lines, breakLeadings } = splitExplicitMultilineSegments(text);
+  const aligned = explicitMultilineStackAlignment(alignment);
+  const columnSpec = `@{}${aligned}@{}`;
+  const rowBlocks = lines.map((line) => `\\mbox{${applyTextFontSwitches(line, font)}}`);
+  let rows = rowBlocks[0] ?? "";
+  for (let i = 1; i < rowBlocks.length; i++) {
+    const breakLeading = breakLeadings[i - 1];
+    rows += `\\\\${breakLeading ? `[${breakLeading}]` : ""}${rowBlocks[i]}`;
+  }
+  return `{\\def\\arraystretch{0.8}\\begin{array}{${columnSpec}}${rows}\\end{array}}`;
+}
+
+function explicitMultilineStackAlignment(alignment: NodeTextParagraphAlignment | null): "l" | "c" | "r" {
+  if (alignment === "center") {
+    return "c";
+  }
+  if (alignment === "ragged-left") {
+    return "r";
+  }
+  return "l";
+}
+
+function applyTextFontSwitches(text: string, font: TextFontOptions): string {
+  let styledText = text;
+  if (font.fontFamily === "sans") {
+    styledText = `\\textsf{${styledText}}`;
+  } else if (font.fontFamily === "monospace") {
+    styledText = `\\texttt{${styledText}}`;
+  }
+  if (font.fontWeight === "bold") {
+    styledText = `\\textbf{${styledText}}`;
+  }
+  if (font.fontStyle === "italic") {
+    styledText = `\\textit{${styledText}}`;
+  }
+  return styledText;
 }
 
 function normalizeMathJaxTextInput(
@@ -1226,6 +1348,7 @@ function normalizeMathJaxTextInput(
       return "";
     });
   }
+  resolvedText = resolvedText.replace(EXPLICIT_LINE_BREAK_CANONICAL_PATTERN, "$1");
   resolvedText = resolvedText.replace(/\r\n?/g, "\n").replace(/\n/g, " ");
 
   return {

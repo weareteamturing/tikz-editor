@@ -10,6 +10,10 @@ import type { ResolvedStyle } from "../types.js";
 import type { NodeLayout, NodeShape } from "./types.js";
 import { normalizeOptionValue } from "./utils.js";
 
+const EXPLICIT_LINE_BREAK_PATTERN = /[ \t\r\n]*\\\\(?:\[[^\]]*\])?[ \t\r\n]*/g;
+const EXPLICIT_LINE_BREAK_CANONICAL_PATTERN = /[ \t\r\n]*(\\\\(?:\[[^\]]*\])?)[ \t\r\n]*/g;
+const EXPLICIT_LINE_BREAK_TOKEN_PATTERN = /\\\\(?:\[[^\]]*\])?/;
+
 export function resolveNodeLayout(
   text: string,
   options: PathOptionItem["options"] | undefined,
@@ -33,6 +37,8 @@ export function resolveNodeLayout(
   let outerSep = style.lineWidth / 2;
   let outerXSep: number | null = null;
   let outerYSep: number | null = null;
+  let explicitAlign: ResolvedStyle["textAlign"] | null = null;
+  let hasNoWidthHalignHeader = false;
 
   if (options) {
     for (const entry of options.entries) {
@@ -61,6 +67,13 @@ export function resolveNodeLayout(
         if (parsed != null) {
           textWidth = Math.max(0, parsed);
         }
+      } else if (entry.key === "align") {
+        const parsed = parseAlignOption(entry.valueRaw);
+        if (parsed != null) {
+          explicitAlign = parsed;
+        }
+      } else if (entry.key === "node halign header") {
+        hasNoWidthHalignHeader = normalizeOptionValue(entry.valueRaw).trim().length > 0;
       } else if (entry.key === "minimum width") {
         const parsed = parseLength(entry.valueRaw, "pt");
         if (parsed != null) {
@@ -100,17 +113,21 @@ export function resolveNodeLayout(
     }
   }
 
+  const noWidthHalignEnabled = (explicitAlign != null && explicitAlign !== "none") || hasNoWidthHalignHeader;
+  const explicitLineBreaksActive = textWidth != null || noWidthHalignEnabled;
+  const normalizedText = normalizeTextForLineBreakPolicy(text, explicitLineBreaksActive);
+
   let textRenderInfo: NodeTextRenderInfo = { mode: "plain" };
-  let textLines = computeNodeTextLines(text, textWidth, charWidth);
+  let textLines = computeNodeTextLines(normalizedText, textWidth, charWidth);
   let textNaturalWidth: number;
   let textNaturalHeight: number;
   let baseLineY = -fontSize * 0.28;
   let midLineY = -fontSize * 0.065;
-  const paragraphAlignment = resolveParagraphAlignment(textWidth, style.textAlign);
-  const layoutKind = resolveTextLayoutKind(text, textWidth);
+  const paragraphAlignment = resolveParagraphAlignment(textWidth, explicitAlign);
+  const layoutKind = resolveTextLayoutKind(text, textWidth, explicitLineBreaksActive);
 
   const measuredText = textEngine?.measure({
-    text,
+    text: normalizedText,
     mode: textMode,
     textWidthPt: textWidth,
     alignment: paragraphAlignment,
@@ -122,7 +139,7 @@ export function resolveNodeLayout(
 
   if (measuredText) {
     // We trust MathJax for block metrics/wrapping; line-level alignment inside the block is best-effort for now.
-    textLines = splitNodeLines(text);
+    textLines = splitNodeLines(normalizedText);
     textNaturalWidth = measuredText.width;
     textNaturalHeight = measuredText.height;
     baseLineY = measuredText.baselineY;
@@ -132,7 +149,8 @@ export function resolveNodeLayout(
       cacheKey: measuredText.cacheKey,
       paragraphId: measuredText.paragraphId,
       renderSourceText: measuredText.renderSourceText,
-      layoutKind
+      layoutKind,
+      paragraphAlignment
     };
   } else {
     const maxLineLength = textLines.reduce((max, line) => Math.max(max, line.length), 0);
@@ -142,7 +160,7 @@ export function resolveNodeLayout(
 
   const resolvedMinWidth = Math.max(minWidth, minSize ?? minWidth);
   const resolvedMinHeight = Math.max(minHeight, minSize ?? minHeight);
-  const measuredTextWidth = measuredText ? textNaturalWidth : textWidth != null ? Math.max(textNaturalWidth, textWidth) : textNaturalWidth;
+  const measuredTextWidth = textWidth != null ? Math.max(textNaturalWidth, textWidth) : textNaturalWidth;
   const naturalWidth = measuredTextWidth + innerXSep * 2;
   const naturalHeight = textNaturalHeight + innerYSep * 2;
   const visualWidth = Math.max(naturalWidth, resolvedMinWidth);
@@ -172,8 +190,8 @@ export function resolveNodeLayout(
   };
 }
 
-function resolveTextLayoutKind(text: string, textWidth: number | null): NodeTextLayoutKind {
-  if (/\\\\(?:\[[^\]]*\])?/.test(text)) {
+function resolveTextLayoutKind(text: string, textWidth: number | null, explicitLineBreaksActive: boolean): NodeTextLayoutKind {
+  if (explicitLineBreaksActive && hasExplicitLineBreakTokens(text)) {
     return "explicit-multiline";
   }
   if (textWidth != null) {
@@ -230,8 +248,7 @@ export function adjustNodeLayoutForShape(layout: NodeLayout, shape: NodeShape): 
 }
 
 function splitNodeLines(text: string): string[] {
-  const normalized = text.replace(/\\\\(?:\[[^\]]*\])?/g, "\n");
-  const parts = normalized.split("\n");
+  const parts = text.replace(EXPLICIT_LINE_BREAK_PATTERN, "\n").split("\n");
   if (parts.length === 0) {
     return [""];
   }
@@ -254,22 +271,66 @@ function computeNodeTextLines(text: string, textWidth: number | null, charWidth:
 
 function resolveParagraphAlignment(
   textWidth: number | null,
-  textAlign: ResolvedStyle["textAlign"]
+  explicitAlign: ResolvedStyle["textAlign"] | null
 ): NodeTextParagraphAlignment | undefined {
   if (textWidth == null || textWidth <= 0) {
-    return undefined;
-  }
-
-  if (textAlign === "right" || textAlign === "flush right") {
-    return "ragged-left";
-  }
-  if (textAlign === "justify") {
-    return "justified";
-  }
-  if (textAlign === "left" || textAlign === "flush left") {
+    if (explicitAlign == null || explicitAlign === "none") {
+      return undefined;
+    }
+    if (explicitAlign === "right" || explicitAlign === "flush right") {
+      return "ragged-left";
+    }
+    if (explicitAlign === "center" || explicitAlign === "flush center") {
+      return "center";
+    }
     return "ragged-right";
   }
-  return "center";
+
+  if (explicitAlign == null) {
+    return "ragged-right";
+  }
+
+  if (explicitAlign === "right" || explicitAlign === "flush right") {
+    return "ragged-left";
+  }
+  if (explicitAlign === "justify" || explicitAlign === "none") {
+    return "justified";
+  }
+  if (explicitAlign === "left" || explicitAlign === "flush left") {
+    return "ragged-right";
+  }
+  if (explicitAlign === "center" || explicitAlign === "flush center") {
+    return "center";
+  }
+  return "ragged-right";
+}
+
+function parseAlignOption(valueRaw: string): ResolvedStyle["textAlign"] | null {
+  const normalized = normalizeOptionValue(valueRaw).toLowerCase();
+  if (
+    normalized === "left" ||
+    normalized === "flush left" ||
+    normalized === "right" ||
+    normalized === "flush right" ||
+    normalized === "center" ||
+    normalized === "flush center" ||
+    normalized === "justify" ||
+    normalized === "none"
+  ) {
+    return normalized;
+  }
+  return null;
+}
+
+function hasExplicitLineBreakTokens(text: string): boolean {
+  return EXPLICIT_LINE_BREAK_TOKEN_PATTERN.test(text);
+}
+
+function normalizeTextForLineBreakPolicy(text: string, explicitLineBreaksActive: boolean): string {
+  if (explicitLineBreaksActive) {
+    return text.replace(EXPLICIT_LINE_BREAK_CANONICAL_PATTERN, "$1");
+  }
+  return text.replace(EXPLICIT_LINE_BREAK_PATTERN, "");
 }
 
 function wrapLine(line: string, maxChars: number): string[] {

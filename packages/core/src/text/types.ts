@@ -52,6 +52,7 @@ export type NodeTextRenderInfo =
       paragraphId: string | null;
       renderSourceText: string;
       layoutKind: NodeTextLayoutKind;
+      paragraphAlignment?: NodeTextParagraphAlignment;
     };
 
 export type NodeTextEngine = {

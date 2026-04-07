@@ -288,6 +288,250 @@ World};
     }
   });
 
+  it("treats \\\\ as inert when neither align nor text width is set", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {First\\Second};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.text).toBe("FirstSecond");
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.layoutKind).toBe("single-line");
+        expect(renderInfo.renderSourceText).toBe("FirstSecond");
+      }
+    }
+  });
+
+  it("uses explicit multiline layout for \\\\ when align is set without text width", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,align=center] at (0,0) {First\\Second};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.text).toBe("First\nSecond");
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.layoutKind).toBe("explicit-multiline");
+      }
+    }
+    expect(result.svg.svg).toContain(String.raw`\begin{array}`);
+  });
+
+  it("treats \\\\ followed by spaces as explicit multiline when align is set", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,align=center] (A) at (-1, -1) {Abcd \\ defgh};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.text).toBe("Abcd\ndefgh");
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.layoutKind).toBe("explicit-multiline");
+      }
+    }
+    expect(result.svg.svg).toContain(String.raw`\begin{array}`);
+  });
+
+  it("does not preserve a leading space after \\\\ for wrapped text width nodes", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=5cm] (A) at (-1, -1) {This is the first line \\ and this is the second};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      const lines = text.text.split("\n");
+      expect(lines.length).toBeGreaterThan(1);
+      const secondLine = lines[1] ?? "";
+      expect(secondLine.startsWith(" ")).toBe(false);
+      expect(secondLine.startsWith("and")).toBe(true);
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.renderSourceText).toContain(String.raw`\\and this is the second`);
+        expect(renderInfo.renderSourceText).not.toContain(String.raw`\\ and this is the second`);
+      }
+    }
+  });
+
+  it("does not preserve a leading space after \\\\ for align=left explicit multiline nodes", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,align=left] (A) at (-1, -1) {This is the first line \\ and this is the second};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      const lines = text.text.split("\n");
+      expect(lines.length).toBeGreaterThan(1);
+      const secondLine = lines[1] ?? "";
+      expect(secondLine.startsWith(" ")).toBe(false);
+      expect(secondLine.startsWith("and")).toBe(true);
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.layoutKind).toBe("explicit-multiline");
+      }
+    }
+    expect(result.svg.svg).toContain(String.raw`\begin{array}`);
+  });
+
+  it("applies \\\\[<len>] line leading under text width without rendering bracket text", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=6.1cm,align=left] (A) at (0,0) {This is the first line \\[10pt]and this is the second line};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.text).toBe("This is the first line\nand this is the second line");
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.layoutKind).toBe("explicit-multiline");
+      }
+    }
+
+    expect(result.svg.svg).toContain('data-lineleading="10pt"');
+    expect(result.svg.svg).not.toContain('data-c="5B"');
+    expect(result.svg.svg).not.toContain('data-c="5D"');
+  });
+
+  it("preserves \\\\[<len>] line leading in align=left explicit multiline array rendering", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,align=left] (A) at (0,0) {This is the first line \\[10pt]and this is the second line};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.text).toBe("This is the first line\nand this is the second line");
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.layoutKind).toBe("explicit-multiline");
+      }
+    }
+
+    expect(result.svg.svg).toContain(String.raw`\begin{array}`);
+    expect(result.svg.svg).toContain(String.raw`\\[10pt]`);
+    expect(result.svg.svg).not.toContain('data-c="5B"');
+    expect(result.svg.svg).not.toContain('data-c="5D"');
+  });
+
+  it("keeps \\\\ multiline behavior under text width even with align=none", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=3cm,align=none] at (0,0) {First\\Second};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.text).toContain("\n");
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.layoutKind).toBe("explicit-multiline");
+      }
+    }
+  });
+
+  it("defaults wrapped nodes to ragged-right alignment unless align is explicitly set", async () => {
+    const defaultAlign = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=3cm] at (0,0) {alpha beta gamma delta epsilon};
+\end{tikzpicture}`);
+    const centered = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=3cm,align=center] at (0,0) {alpha beta gamma delta epsilon};
+\end{tikzpicture}`);
+
+    expect(defaultAlign.svg.svg).toContain('data-align="left"');
+    expect(centered.svg.svg).toContain('data-align="center"');
+  });
+
+  it("wraps long align=left paragraphs under text width without explicit breaks", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=8.1cm,align=left] (A) at (0,0) {This is the first line and this is the second line which is much longer};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.layoutKind).toBe("wrapped");
+      }
+    }
+    const lineboxCount = (result.svg.svg.match(/data-mjx-linebox=/g) ?? []).length;
+    expect(lineboxCount).toBeGreaterThan(1);
+    expect(result.svg.svg).toContain('data-align="left"');
+  });
+
+  it("allows automatic hyphenation in wrapped align=left paragraphs when needed", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=6.1cm,align=left] (A) at (0,0) {This is the first line and this is the second line which is much longer};
+\end{tikzpicture}`);
+
+    const lineboxCount = (result.svg.svg.match(/data-mjx-linebox=/g) ?? []).length;
+    expect(lineboxCount).toBeGreaterThan(1);
+    expect(result.svg.svg).toContain('data-align="left"');
+    // The source contains no hyphen, so a rendered hyphen glyph indicates
+    // discretionary hyphenation was applied by the line breaker.
+    expect(result.svg.svg).toContain('data-c="2D"');
+  });
+
+  it("centers explicit line breaks inside text width when align=center", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=10cm,align=center] (A) at (-1, -1) {This is the first line \\ and this is the second line which is much longer};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.text).toBe("This is the first line\nand this is the second line which is much longer");
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.layoutKind).toBe("explicit-multiline");
+      }
+    }
+    expect(result.svg.svg).toContain(
+      String.raw`\begin{array}{@{}c@{}}\mbox{This is the first line}\\\mbox{and this is the second line which is much longer}\end{array}`
+    );
+    expect(result.svg.svg).toContain('preserveAspectRatio="xMidYMid meet"');
+  });
+
+  it("right-aligns explicit line breaks inside text width when align=right", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=10cm,align=right] (A) at (-1, -1) {This is the first line \\ and this is the second line which is much longer};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.text).toBe("This is the first line\nand this is the second line which is much longer");
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.layoutKind).toBe("explicit-multiline");
+      }
+    }
+    expect(result.svg.svg).toContain(
+      String.raw`\begin{array}{@{}r@{}}\mbox{This is the first line}\\\mbox{and this is the second line which is much longer}\end{array}`
+    );
+    expect(result.svg.svg).toContain('preserveAspectRatio="xMaxYMid meet"');
+  });
+
   it("preserves node font italic styling through MathJax wrappers in async mode", async () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[node font=\itshape] (0,0) -- +(1,0) node[above] {italic};

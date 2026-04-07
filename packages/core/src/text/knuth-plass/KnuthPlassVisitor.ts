@@ -100,6 +100,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
   any
 > {
   private static readonly patchedWrapperPrototypes = new WeakSet<object>();
+  private static readonly patchedMrowPlaceLinePrototypes = new WeakSet<object>();
   private static configuredOptions: KnuthPlassLinebreakOptions = {};
 
   public static configure(options: KnuthPlassLinebreakOptions): void {
@@ -126,6 +127,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
   public constructor(factory: any) {
     super(factory);
     this.patchMpaddedWrapperComputeBBox(factory);
+    this.patchMrowWrapperPlaceLines(factory);
   }
 
   public getReports(): ParagraphLayoutReport[] {
@@ -189,6 +191,53 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     };
 
     KnuthPlassVisitor.patchedWrapperPrototypes.add(proto);
+  }
+
+  private patchMrowWrapperPlaceLines(factory: any): void {
+    const nodeMap = factory?.nodeMap;
+    const MrowWrapperCtor = nodeMap?.get?.('mrow');
+    if (typeof MrowWrapperCtor !== 'function') {
+      return;
+    }
+
+    const proto = MrowWrapperCtor.prototype as any;
+    if (!proto || KnuthPlassVisitor.patchedMrowPlaceLinePrototypes.has(proto)) {
+      return;
+    }
+
+    const originalPlaceLines = proto.placeLines;
+    if (typeof originalPlaceLines !== 'function') {
+      return;
+    }
+
+    proto.placeLines = function patchedPlaceLines(this: any, parents: any[]): void {
+      const paragraphId = this?.parent?.node?.attributes?.get?.('data-paragraph-id');
+      if (!paragraphId) {
+        originalPlaceLines.call(this, parents);
+        return;
+      }
+
+      const lines = this?.lineBBox;
+      if (!Array.isArray(lines) || !Array.isArray(parents)) {
+        originalPlaceLines.call(this, parents);
+        return;
+      }
+
+      let y = this.dh;
+      for (const k of parents.keys()) {
+        const lbox = lines[k];
+        if (!lbox) {
+          continue;
+        }
+        this.place(lbox.L || 0, y, parents[k]);
+        y -=
+          Math.max(0.25, lbox.d) +
+          (Number.isFinite(lbox.lineLeading) ? lbox.lineLeading : 0) +
+          Math.max(0.75, lines[k + 1]?.h || 0);
+      }
+    };
+
+    KnuthPlassVisitor.patchedMrowPlaceLinePrototypes.add(proto);
   }
 
   public getLatestReport(): ParagraphLayoutReport | null {

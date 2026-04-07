@@ -562,7 +562,12 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
             : "";
         const layoutKindAttr = ` data-text-layout-kind="${escapeAttr(element.textRenderInfo.layoutKind)}"`;
         const sceneTextIdAttr = ` data-scene-text-id="${escapeAttr(element.id)}"`;
-        const renderedSvg = `<svg data-source-id="${escapeAttr(element.sourceRef.sourceId)}" data-text-renderer="mathjax"${paragraphAttr}${layoutKindAttr}${sceneTextIdAttr} x="${fmt(x)}" y="${fmt(y)}" width="${fmt(textBlockWidth)}" height="${fmt(textBlockHeight)}" viewBox="${renderedViewBox}" color="${escapeAttr(textColor)}" opacity="${fmt(textOpacity)}" overflow="visible">${rendered.body}</svg>`;
+        const preserveAspectRatio = resolveMathJaxPreserveAspectRatio(element.textRenderInfo.paragraphAlignment);
+        const preserveAspectRatioAttr =
+          preserveAspectRatio != null
+            ? ` preserveAspectRatio="${escapeAttr(preserveAspectRatio)}"`
+            : "";
+        const renderedSvg = `<svg data-source-id="${escapeAttr(element.sourceRef.sourceId)}" data-text-renderer="mathjax"${paragraphAttr}${layoutKindAttr}${sceneTextIdAttr} x="${fmt(x)}" y="${fmt(y)}" width="${fmt(textBlockWidth)}" height="${fmt(textBlockHeight)}" viewBox="${renderedViewBox}"${preserveAspectRatioAttr} color="${escapeAttr(textColor)}" opacity="${fmt(textOpacity)}" overflow="visible">${rendered.body}</svg>`;
         if (hasRotation || svgElementTransform) {
           const transforms: string[] = [];
           if (svgElementTransform) transforms.push(formatMatrix(svgElementTransform));
@@ -602,6 +607,28 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     defs: defsParts,
     diagnostics
   });
+}
+
+function resolveMathJaxPreserveAspectRatio(
+  alignment: ResolvedStyle["textAlign"] | "justified" | "ragged-right" | "ragged-left" | undefined
+): "xMinYMid meet" | "xMidYMid meet" | "xMaxYMid meet" | undefined {
+  if (alignment === "center" || alignment === "flush center") {
+    return "xMidYMid meet";
+  }
+  if (alignment === "right" || alignment === "flush right" || alignment === "ragged-left") {
+    return "xMaxYMid meet";
+  }
+  if (
+    alignment === "left" ||
+    alignment === "flush left" ||
+    alignment === "justify" ||
+    alignment === "none" ||
+    alignment === "ragged-right" ||
+    alignment === "justified"
+  ) {
+    return "xMinYMid meet";
+  }
+  return undefined;
 }
 
 function encodePathData(commands: ScenePathCommand[], viewBox: { y: number; height: number }): string {

@@ -13,6 +13,12 @@ export type BreakRef =
       linebreak?: string;
       isForcedLineBreak?: boolean;
       lineLeading?: string;
+      lineLeadingTrim?: {
+        wrapper: AnyWrapper;
+        childIndex: number;
+        wordIndex: number;
+        consumed: number;
+      };
     };
 
 interface BaseRun {

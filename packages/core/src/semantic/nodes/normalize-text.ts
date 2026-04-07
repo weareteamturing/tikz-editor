@@ -6,7 +6,9 @@ export function normalizeEscapedTextSpaces(text: string): string {
     return text;
   }
 
-  return text.replaceAll("\\space", " ").replaceAll("\\ ", " ");
+  // Preserve `\\ ` (line break command followed by whitespace) while still
+  // normalizing the `\ ` escaped-space command.
+  return text.replaceAll("\\space", " ").replace(/(^|[^\\])\\ /g, "$1 ");
 }
 
 const FONT_SIZE_COMMAND_PATTERN = new RegExp(
