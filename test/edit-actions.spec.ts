@@ -2043,7 +2043,7 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).toContain("minimum height=");
   });
 
-  it("clamps minimum width/height to the intrinsic floor when shrinking below it", () => {
+  it("drops non-binding minimum height when shrinking below intrinsic floor", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[draw,minimum width=100pt,minimum height=80pt] at (0,0) {A};
 \end{tikzpicture}`;
@@ -2057,9 +2057,8 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("minimum width=");
-    expect(result.newSource).toContain("minimum height=");
+    expect(result.newSource).not.toContain("minimum height=");
     expect(result.newSource).not.toContain("minimum width=100pt");
-    expect(result.newSource).not.toContain("minimum height=80pt");
   });
 
   it("updates only the axis targeted by the resize role", () => {
@@ -2137,7 +2136,7 @@ describe("applyEditAction – resizeElement", () => {
     expect(width).toBeGreaterThan(200);
   });
 
-  it("keeps minimum constraints at intrinsic floor for unstyled nodes", () => {
+  it("drops non-binding minimum height for unstyled nodes when shrinking", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[minimum width=100pt,minimum height=80pt] at (0,0) {A};
 \end{tikzpicture}`;
@@ -2152,9 +2151,8 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("minimum width=");
-    expect(result.newSource).toContain("minimum height=");
+    expect(result.newSource).not.toContain("minimum height=");
     expect(result.newSource).not.toContain("minimum width=100pt");
-    expect(result.newSource).not.toContain("minimum height=80pt");
   });
 
   it("uses the provided text engine when computing intrinsic resize floors", () => {
@@ -2190,6 +2188,131 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("minimum width=90pt");
+  });
+
+  it("rewrites text width instead of minimum width for horizontal resize when text width is set", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,text width=2cm] at (0,0) {This is wrapped text};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: { x: 120, y: 0 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    const textWidthMatch = /text width=([0-9.]+)pt/.exec(result.newSource);
+    expect(textWidthMatch).not.toBeNull();
+    expect(result.newSource).not.toContain("minimum width=");
+  });
+
+  it("keeps existing minimum width unchanged when horizontal resize targets text width", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,text width=2cm,minimum width=100pt] at (0,0) {This is wrapped text};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: { x: 120, y: 0 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("minimum width=100pt");
+    const textWidthMatch = /text width=([0-9.]+)pt/.exec(result.newSource);
+    expect(textWidthMatch).not.toBeNull();
+  });
+
+  it("updates text width horizontally and minimum height vertically for corner resize", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,text width=2cm] at (0,0) {This is wrapped text};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: 120, y: 120 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("text width=");
+    expect(result.newSource).toContain("minimum height=");
+    expect(result.newSource).not.toContain("minimum width=");
+  });
+
+  it("does not change text width for vertical-only resize", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,text width=2cm] at (0,0) {This is wrapped text};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "top",
+      newWorld: { x: 0, y: 120 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("text width=2cm");
+  });
+
+  it("removes minimum height when vertical resize makes it non-binding", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,minimum height=50pt] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const parsed = parseTikz(source, { recover: true });
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const bounds = collectSourceWorldBounds(semantic.scene.elements).get("path:0");
+    expect(bounds).toBeDefined();
+    if (!bounds) {
+      return;
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom",
+      newWorld: { x: (bounds.minX + bounds.maxX) / 2, y: bounds.maxY - 20 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).not.toContain("minimum height=");
+  });
+
+  it("removes non-binding minimum height for multiline text-width corner resize", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw, text width=105.09pt, align=left, minimum height=50pt] at (0,0) {This is the first line which can read quite internationally and this is the second line which is more pedestrian};
+\end{tikzpicture}`;
+
+    const parsed = parseTikz(source, { recover: true });
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const bounds = collectSourceWorldBounds(semantic.scene.elements).get("path:0");
+    expect(bounds).toBeDefined();
+    if (!bounds) {
+      return;
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: bounds.maxX - 20, y: bounds.maxY }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("text width=");
+    expect(result.newSource).not.toContain("minimum height=");
   });
 
   it("resizes circle statements that use coordinate radius payloads", () => {

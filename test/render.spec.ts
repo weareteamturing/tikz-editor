@@ -4,6 +4,17 @@ import { renderTikzToSvg, renderTikzToSvgAsync } from "../packages/core/src/rend
 import type { ScenePath, SceneText } from "../packages/core/src/semantic/types.js";
 import type { NodeTextEngine, NodeTextMeasureRequest, NodeTextMetrics } from "../packages/core/src/text/types.js";
 
+function readLineboxTranslateXs(svg: string): number[] {
+  const xs: number[] = [];
+  const lineboxPattern = /<g\b[^>]*data-mjx-linebox="true"[^>]*>/g;
+  for (const match of svg.matchAll(lineboxPattern)) {
+    const tag = match[0];
+    const transformMatch = tag.match(/transform="translate\(([-+0-9.]+)(?:\s*,\s*|\s+)([-+0-9.]+)\)"/);
+    xs.push(transformMatch ? Number(transformMatch[1]) : 0);
+  }
+  return xs;
+}
+
 describe("render pipeline", () => {
   it("renders basic source end-to-end", () => {
     const source = String.raw`\begin{tikzpicture}
@@ -453,9 +464,23 @@ World};
     const centered = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
   \node[draw,text width=3cm,align=center] at (0,0) {alpha beta gamma delta epsilon};
 \end{tikzpicture}`);
+    const rightAligned = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=3cm,align=right] at (0,0) {alpha beta gamma delta epsilon};
+\end{tikzpicture}`);
 
     expect(defaultAlign.svg.svg).toContain('data-align="left"');
     expect(centered.svg.svg).toContain('data-align="center"');
+    expect(rightAligned.svg.svg).toContain('data-align="right"');
+
+    const defaultXs = readLineboxTranslateXs(defaultAlign.svg.svg);
+    const centeredXs = readLineboxTranslateXs(centered.svg.svg);
+    const rightXs = readLineboxTranslateXs(rightAligned.svg.svg);
+
+    expect(defaultXs.length).toBeGreaterThan(1);
+    expect(centeredXs.length).toBeGreaterThan(1);
+    expect(rightXs.length).toBeGreaterThan(1);
+    expect(centeredXs.some((x) => x > 0.5)).toBe(true);
+    expect(rightXs.some((x) => x > 0.5)).toBe(true);
   });
 
   it("wraps long align=left paragraphs under text width without explicit breaks", async () => {

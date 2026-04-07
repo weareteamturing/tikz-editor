@@ -46,6 +46,8 @@ type ResizeRole =
   | "left"
   | "right";
 
+type NodeWidthResizeStrategy = "minimum-width" | "text-width";
+
 export type ResizeElementAction = {
   elementId: string;
   role: ResizeRole;
@@ -140,6 +142,12 @@ export function applyResizeElementAction(
     y: (currentBounds.minY + currentBounds.maxY) / 2
   };
   const nodeLinearTransform = resolveNodeResizeLinearTransform(semantic.scene.elements, elementId);
+  const affectsWidth = action.role.includes("left") || action.role.includes("right");
+  const affectsHeight = action.role.includes("top") || action.role.includes("bottom");
+  if (!affectsWidth && !affectsHeight) {
+    return { kind: "unsupported", reason: `Unsupported resize role: ${action.role}` };
+  }
+  const widthResizeStrategy = resolveNodeWidthResizeStrategy(resizeTarget, affectsWidth);
 
   const floorMutations = new Map<string, OptionMutation>([
     ["minimum width", { kind: "remove" }],
@@ -154,12 +162,6 @@ export function applyResizeElementAction(
   const floorBounds = resolveNodeResizeBounds(floorSemantic.scene.elements, elementId);
   if (!floorBounds) {
     return { kind: "unsupported", reason: "Could not resolve intrinsic node bounds for resize." };
-  }
-
-  const affectsWidth = action.role.includes("left") || action.role.includes("right");
-  const affectsHeight = action.role.includes("top") || action.role.includes("bottom");
-  if (!affectsWidth && !affectsHeight) {
-    return { kind: "unsupported", reason: `Unsupported resize role: ${action.role}` };
   }
 
   const pointerDelta = {
@@ -178,6 +180,19 @@ export function applyResizeElementAction(
     : { width: intrinsicWorldWidth, height: intrinsicWorldHeight };
   const intrinsicWidth = intrinsicLocal.width;
   const intrinsicHeight = intrinsicLocal.height;
+  const inferredTextWidthInset = resolveNodeTextWidthInsetLocal({
+    elements: floorSemantic.scene.elements,
+    sourceId: elementId,
+    nodeLinearTransform,
+    intrinsicLocalWidth: intrinsicWidth,
+    intrinsicWorldWidth
+  });
+  const fallbackTextWidthInset = resolveNodeHorizontalInsetFallback(resizeTarget);
+  const effectiveTextWidthInset = inferredTextWidthInset ?? fallbackTextWidthInset;
+  const requestedTextWidth =
+    widthResizeStrategy === "text-width"
+      ? Math.max(RESIZE_EPSILON, requestedWidth - effectiveTextWidthInset)
+      : null;
   const liveBounds = resolveNodeResizeBounds(semantic.scene.elements, elementId) ?? currentBounds;
   const liveWorldWidth = liveBounds.maxX - liveBounds.minX;
   const liveWorldHeight = liveBounds.maxY - liveBounds.minY;
@@ -208,9 +223,11 @@ export function applyResizeElementAction(
   const preserveExplicitHeightFloor = targetHasOptionKey(resizeTarget, "minimum height");
 
   const resizeCandidates = buildNodeResizeMutationCandidates({
+    widthResizeStrategy,
     affectsWidth,
     affectsHeight,
     requestedWidth,
+    requestedTextWidth,
     requestedHeight,
     intrinsicWidth,
     intrinsicHeight,
@@ -242,9 +259,11 @@ export function applyResizeElementAction(
 }
 
 function buildNodeResizeMutationCandidates(args: {
+  widthResizeStrategy: NodeWidthResizeStrategy;
   affectsWidth: boolean;
   affectsHeight: boolean;
   requestedWidth: number;
+  requestedTextWidth: number | null;
   requestedHeight: number;
   intrinsicWidth: number;
   intrinsicHeight: number;
@@ -252,15 +271,48 @@ function buildNodeResizeMutationCandidates(args: {
   preserveExplicitHeightFloor: boolean;
 }): Array<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }> {
   const {
+    widthResizeStrategy,
     affectsWidth,
     affectsHeight,
     requestedWidth,
+    requestedTextWidth,
     requestedHeight,
     intrinsicWidth,
     intrinsicHeight,
     preserveExplicitWidthFloor,
     preserveExplicitHeightFloor
   } = args;
+  if (widthResizeStrategy === "text-width" && affectsWidth) {
+    const textWidthMutation: OptionMutation = {
+      kind: "set",
+      value: `${formatNumber(Math.max(RESIZE_EPSILON, requestedTextWidth ?? RESIZE_EPSILON))}pt`
+    };
+    const heightMutation: OptionMutation =
+      requestedHeight > intrinsicHeight + RESIZE_EPSILON
+        ? { kind: "set", value: `${formatNumber(requestedHeight)}pt` }
+        : { kind: "remove" };
+    const candidates: Array<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }> = [];
+    if (!affectsHeight) {
+      candidates.push(buildResizeCandidate(new Map([["text width", textWidthMutation]]), false));
+      return dedupeResizeCandidates(candidates);
+    }
+    if (affectsWidth && affectsHeight) {
+      candidates.push(buildResizeCandidate(new Map([
+        ["text width", textWidthMutation],
+        ["minimum height", heightMutation]
+      ]), false));
+      if (heightMutation.kind === "set") {
+        candidates.push(buildResizeCandidate(new Map<string, OptionMutation>([
+          ["text width", textWidthMutation],
+          ["minimum height", { kind: "remove" }]
+        ]), true));
+      }
+      return dedupeResizeCandidates(candidates);
+    }
+    candidates.push(buildResizeCandidate(new Map([["text width", textWidthMutation]]), false));
+    return dedupeResizeCandidates(candidates);
+  }
+
   const widthMutation: OptionMutation =
     requestedWidth > intrinsicWidth + RESIZE_EPSILON
       ? { kind: "set", value: `${formatNumber(requestedWidth)}pt` }
@@ -270,9 +322,7 @@ function buildNodeResizeMutationCandidates(args: {
   const heightMutation: OptionMutation =
     requestedHeight > intrinsicHeight + RESIZE_EPSILON
       ? { kind: "set", value: `${formatNumber(requestedHeight)}pt` }
-      : preserveExplicitHeightFloor
-        ? { kind: "set", value: `${formatNumber(intrinsicHeight)}pt` }
-        : { kind: "remove" };
+      : { kind: "remove" };
 
   const candidates: Array<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }> = [];
 
@@ -281,7 +331,7 @@ function buildNodeResizeMutationCandidates(args: {
       ["minimum width", widthMutation],
       ["minimum height", heightMutation]
     ]), false));
-    if (!preserveExplicitHeightFloor) {
+    if (heightMutation.kind === "set") {
       candidates.push(buildResizeCandidate(new Map([
         ["minimum width", widthMutation],
         ["minimum height", { kind: "remove" }]
@@ -1485,6 +1535,78 @@ function targetHasOptionKey(target: PropertyTarget, key: string): boolean {
     }
   }
   return false;
+}
+
+function resolveNodeWidthResizeStrategy(target: PropertyTarget, affectsWidth: boolean): NodeWidthResizeStrategy {
+  if (affectsWidth && targetHasOptionKey(target, "text width")) {
+    return "text-width";
+  }
+  return "minimum-width";
+}
+
+function resolveNodeHorizontalInsetFallback(target: PropertyTarget): number {
+  const defaultInnerXSep = parseLength(".3333em", "pt") ?? 3.333;
+  let innerXSep = defaultInnerXSep;
+  for (const entry of target.options?.entries ?? []) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    const key = normalizeOptionKey(entry.key);
+    if (key === "inner sep") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        innerXSep = parsed;
+      }
+      continue;
+    }
+    if (key === "inner xsep") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        innerXSep = parsed;
+      }
+    }
+  }
+  return Math.max(0, innerXSep * 2);
+}
+
+function resolveNodeTextWidthInsetLocal(args: {
+  elements: readonly SceneElement[];
+  sourceId: string;
+  nodeLinearTransform: { a: number; b: number; c: number; d: number } | null;
+  intrinsicLocalWidth: number;
+  intrinsicWorldWidth: number;
+}): number | null {
+  const textElement = args.elements.find(
+    (element): element is Extract<SceneElement, { kind: "Text" }> =>
+      element.kind === "Text" &&
+      element.sourceRef.sourceId === args.sourceId &&
+      !element.adornment &&
+      Number.isFinite(element.nodeVisualWidth) &&
+      Number.isFinite(element.textBlockWidth)
+  );
+  if (!textElement || textElement.nodeVisualWidth == null || textElement.textBlockWidth == null) {
+    return null;
+  }
+
+  const rawInset = Math.max(0, textElement.nodeVisualWidth - textElement.textBlockWidth);
+  if (!Number.isFinite(rawInset)) {
+    return null;
+  }
+  if (!args.nodeLinearTransform) {
+    return rawInset;
+  }
+
+  const visualWidth = textElement.nodeVisualWidth;
+  const diffToLocal = Math.abs(visualWidth - args.intrinsicLocalWidth);
+  const diffToWorld = Math.abs(visualWidth - args.intrinsicWorldWidth);
+  if (diffToWorld + RESIZE_EPSILON < diffToLocal) {
+    const converted = worldSizeToLocalSize(
+      { width: rawInset, height: 0 },
+      args.nodeLinearTransform
+    ).width;
+    return Number.isFinite(converted) ? Math.max(0, converted) : rawInset;
+  }
+  return rawInset;
 }
 
 function isSideResizeRole(role: ResizeRole): role is Extract<ResizeRole, "left" | "right" | "top" | "bottom"> {

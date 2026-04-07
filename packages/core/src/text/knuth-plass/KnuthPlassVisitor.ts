@@ -209,6 +209,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     if (typeof originalPlaceLines !== 'function') {
       return;
     }
+    const visitorClass = KnuthPlassVisitor;
 
     proto.placeLines = function patchedPlaceLines(this: any, parents: any[]): void {
       const paragraphId = this?.parent?.node?.attributes?.get?.('data-paragraph-id');
@@ -222,6 +223,13 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
         originalPlaceLines.call(this, parents);
         return;
       }
+      const linebreaks = this?.jax?.linebreaks;
+      const report =
+        linebreaks instanceof visitorClass &&
+        typeof linebreaks.getReportFor === 'function'
+          ? linebreaks.getReportFor(this)
+          : null;
+      const reportLines = Array.isArray(report?.lines) ? report.lines : null;
 
       let y = this.dh;
       for (const k of parents.keys()) {
@@ -229,7 +237,12 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
         if (!lbox) {
           continue;
         }
-        this.place(lbox.L || 0, y, parents[k]);
+        const reportLine = reportLines?.[k];
+        const lineX =
+          reportLine && Number.isFinite(reportLine.xStart)
+            ? reportLine.xStart
+            : lbox.L || 0;
+        this.place(lineX, y, parents[k]);
         y -=
           Math.max(0.25, lbox.d) +
           (Number.isFinite(lbox.lineLeading) ? lbox.lineLeading : 0) +

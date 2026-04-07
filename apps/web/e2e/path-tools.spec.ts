@@ -564,6 +564,43 @@ test("circle shapes can be resized with handles", async ({ page }) => {
   expect(after).not.toBe(before);
 });
 
+test("horizontal resize on text-width nodes updates text width, not minimum width", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[draw,text width=2cm] at (0,0) {This is wrapped text};
+\end{tikzpicture}`);
+  await page.getByRole("button", { name: "Select" }).click();
+
+  await waitForHitRegions(page, 1);
+  await clickHitRegion(page, 0);
+  const handles = page.locator('[data-handle-kind="resize-element"]');
+  await expect.poll(async () => handles.count()).toBeGreaterThanOrEqual(4);
+  const eastIndex = await handles.evaluateAll((elements) => {
+    let bestIndex = 0;
+    let bestX = Number.NEGATIVE_INFINITY;
+    for (let index = 0; index < elements.length; index += 1) {
+      const rect = elements[index]!.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      if (centerX > bestX) {
+        bestX = centerX;
+        bestIndex = index;
+      }
+    }
+    return bestIndex;
+  });
+  const eastHandle = handles.nth(eastIndex);
+  await expect(eastHandle).toBeVisible();
+
+  const before = await readSource(page);
+  await dragLocatorBy(page, eastHandle, 60, 0);
+  await page.mouse.up();
+  await expect.poll(async () => readSource(page)).not.toBe(before);
+
+  const after = await readSource(page);
+  expect(after).toContain("text width=");
+  expect(after).not.toContain("minimum width=");
+});
+
 test("bucket popup chooses color, previews on hover, and stays active across fills", async ({ page }) => {
   await gotoApp(page);
   const source = String.raw`\begin{tikzpicture}
