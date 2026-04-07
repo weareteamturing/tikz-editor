@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import type { ResizeRole } from "tikz-editor/edit/actions";
 import { resolvePropertyTargetFromParseResult } from "tikz-editor/edit/property-target";
 import { resolveTransformInspectorMutationContextFromOptionEntries } from "tikz-editor/edit/inspector";
 import { collectSourceWorldBounds } from "tikz-editor/edit/snapping";
@@ -36,6 +37,8 @@ import {
 export type UseCanvasSelectionDerivedStateArgs = {
   [key: string]: any;
 };
+
+const SIDE_RESIZE_HANDLE_MIN_DIMENSION_PX = 96;
 
 export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedStateArgs) {
   const {
@@ -668,33 +671,16 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     for (const sourceId of resizeHandleSourceIds) {
       const resizeFrame = resizeFramesBySource.get(sourceId) ?? null;
       if (resizeFrame) {
-        for (const role of RESIZE_FRAME_CORNER_ROLES) {
-          const corner = resizeFrame.cornersByRole[role];
-          const resizeVector = {
-            x: corner.world.x - resizeFrame.centerWorld.x,
-            y: corner.world.y - resizeFrame.centerWorld.y
-          };
-          const topLeft = resizeFrame.cornersByRole["top-left"].svg;
-          const topRight = resizeFrame.cornersByRole["top-right"].svg;
-          const frameRotationDeg = (Math.atan2(topRight.y - topLeft.y, topRight.x - topLeft.x) * 180) / Math.PI;
-          displays.push({
-            key: `node-handle:${sourceId}:${role}`,
-            x: corner.svg.x,
-            y: corner.svg.y,
-            cursor:
-              treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId)
-                ? "not-allowed"
-                : (
-                    vectorLengthSquared(resizeVector) > 1e-12
-                      ? resizeCursorForVector(resizeVector)
-                      : resizeCursorForRole(role)
-                  ),
-            kind: "resize-element",
-            elementId: sourceId,
-            role,
-            rotationDeg: frameRotationDeg
-          });
-        }
+        const resizeDisabled =
+          treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId);
+        displays.push(
+          ...buildResizeHandleDisplaysForFrame({
+            sourceId,
+            resizeFrame,
+            canvasScale: canvasTransform.scale,
+            resizeDisabled
+          })
+        );
         continue;
       }
 
@@ -723,47 +709,15 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
         continue;
       }
 
+      const resizeDisabled =
+        treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId);
       displays.push(
-        {
-          key: `node-handle:${sourceId}:top-left`,
-          x: bounds.minX,
-          y: bounds.minY,
-          cursor: treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId) ? "not-allowed" : "nwse-resize",
-          kind: "resize-element",
-          elementId: sourceId,
-          role: "top-left",
-          rotationDeg: 0
-        },
-        {
-          key: `node-handle:${sourceId}:top-right`,
-          x: bounds.maxX,
-          y: bounds.minY,
-          cursor: treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId) ? "not-allowed" : "nesw-resize",
-          kind: "resize-element",
-          elementId: sourceId,
-          role: "top-right",
-          rotationDeg: 0
-        },
-        {
-          key: `node-handle:${sourceId}:bottom-left`,
-          x: bounds.minX,
-          y: bounds.maxY,
-          cursor: treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId) ? "not-allowed" : "nesw-resize",
-          kind: "resize-element",
-          elementId: sourceId,
-          role: "bottom-left",
-          rotationDeg: 0
-        },
-        {
-          key: `node-handle:${sourceId}:bottom-right`,
-          x: bounds.maxX,
-          y: bounds.maxY,
-          cursor: treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId) ? "not-allowed" : "nwse-resize",
-          kind: "resize-element",
-          elementId: sourceId,
-          role: "bottom-right",
-          rotationDeg: 0
-        }
+        ...buildResizeHandleDisplaysForBounds({
+          sourceId,
+          bounds,
+          canvasScale: canvasTransform.scale,
+          resizeDisabled
+        })
       );
     }
 
@@ -854,6 +808,191 @@ function distanceSquared(a: { x: number; y: number }, b: { x: number; y: number 
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return dx * dx + dy * dy;
+}
+
+function shouldShowSideResizeHandles(
+  boundsSvg: { minX: number; minY: number; maxX: number; maxY: number },
+  canvasScale: number
+): boolean {
+  const widthPx = Math.max(0, boundsSvg.maxX - boundsSvg.minX) * Math.max(canvasScale, 1e-6);
+  const heightPx = Math.max(0, boundsSvg.maxY - boundsSvg.minY) * Math.max(canvasScale, 1e-6);
+  return Math.min(widthPx, heightPx) >= SIDE_RESIZE_HANDLE_MIN_DIMENSION_PX;
+}
+
+function midpoint(a: { x: number; y: number }, b: { x: number; y: number }): { x: number; y: number } {
+  return {
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2
+  };
+}
+
+function buildResizeHandleDisplaysForFrame({
+  sourceId,
+  resizeFrame,
+  canvasScale,
+  resizeDisabled
+}: {
+  sourceId: string;
+  resizeFrame: {
+    centerWorld: { x: number; y: number };
+    boundsSvg: { minX: number; minY: number; maxX: number; maxY: number };
+    cornersByRole: Record<"top-left" | "top-right" | "bottom-right" | "bottom-left", { world: { x: number; y: number }; svg: { x: number; y: number } }>;
+  };
+  canvasScale: number;
+  resizeDisabled: boolean;
+}): any[] {
+  const displays: any[] = [];
+  const topLeft = resizeFrame.cornersByRole["top-left"].svg;
+  const topRight = resizeFrame.cornersByRole["top-right"].svg;
+  const frameRotationDeg = (Math.atan2(topRight.y - topLeft.y, topRight.x - topLeft.x) * 180) / Math.PI;
+  for (const role of RESIZE_FRAME_CORNER_ROLES) {
+    const corner = resizeFrame.cornersByRole[role];
+    const resizeVector = {
+      x: corner.world.x - resizeFrame.centerWorld.x,
+      y: corner.world.y - resizeFrame.centerWorld.y
+    };
+    displays.push({
+      key: `node-handle:${sourceId}:${role}`,
+      x: corner.svg.x,
+      y: corner.svg.y,
+      cursor:
+        resizeDisabled
+          ? "not-allowed"
+          : (
+              vectorLengthSquared(resizeVector) > 1e-12
+                ? resizeCursorForVector(resizeVector)
+                : resizeCursorForRole(role)
+            ),
+      kind: "resize-element",
+      elementId: sourceId,
+      role,
+      rotationDeg: frameRotationDeg
+    });
+  }
+
+  if (!shouldShowSideResizeHandles(resizeFrame.boundsSvg, canvasScale)) {
+    return displays;
+  }
+
+  const edgeHandles: Array<{
+    role: Extract<ResizeRole, "top" | "right" | "bottom" | "left">;
+    svg: { x: number; y: number };
+    world: { x: number; y: number };
+  }> = [
+    {
+      role: "top",
+      svg: midpoint(resizeFrame.cornersByRole["top-left"].svg, resizeFrame.cornersByRole["top-right"].svg),
+      world: midpoint(resizeFrame.cornersByRole["top-left"].world, resizeFrame.cornersByRole["top-right"].world)
+    },
+    {
+      role: "right",
+      svg: midpoint(resizeFrame.cornersByRole["top-right"].svg, resizeFrame.cornersByRole["bottom-right"].svg),
+      world: midpoint(resizeFrame.cornersByRole["top-right"].world, resizeFrame.cornersByRole["bottom-right"].world)
+    },
+    {
+      role: "bottom",
+      svg: midpoint(resizeFrame.cornersByRole["bottom-left"].svg, resizeFrame.cornersByRole["bottom-right"].svg),
+      world: midpoint(resizeFrame.cornersByRole["bottom-left"].world, resizeFrame.cornersByRole["bottom-right"].world)
+    },
+    {
+      role: "left",
+      svg: midpoint(resizeFrame.cornersByRole["top-left"].svg, resizeFrame.cornersByRole["bottom-left"].svg),
+      world: midpoint(resizeFrame.cornersByRole["top-left"].world, resizeFrame.cornersByRole["bottom-left"].world)
+    }
+  ];
+  for (const edgeHandle of edgeHandles) {
+    const resizeVector = {
+      x: edgeHandle.world.x - resizeFrame.centerWorld.x,
+      y: edgeHandle.world.y - resizeFrame.centerWorld.y
+    };
+    displays.push({
+      key: `node-handle:${sourceId}:${edgeHandle.role}`,
+      x: edgeHandle.svg.x,
+      y: edgeHandle.svg.y,
+      cursor:
+        resizeDisabled
+          ? "not-allowed"
+          : (
+              vectorLengthSquared(resizeVector) > 1e-12
+                ? resizeCursorForVector(resizeVector)
+                : resizeCursorForRole(edgeHandle.role)
+            ),
+      kind: "resize-element",
+      elementId: sourceId,
+      role: edgeHandle.role,
+      rotationDeg: frameRotationDeg
+    });
+  }
+
+  return displays;
+}
+
+function buildResizeHandleDisplaysForBounds({
+  sourceId,
+  bounds,
+  canvasScale,
+  resizeDisabled
+}: {
+  sourceId: string;
+  bounds: { minX: number; minY: number; maxX: number; maxY: number };
+  canvasScale: number;
+  resizeDisabled: boolean;
+}): any[] {
+  const displays: any[] = [];
+  const cornerRoles: Array<{
+    role: Extract<ResizeRole, "top-left" | "top-right" | "bottom-left" | "bottom-right">;
+    x: number;
+    y: number;
+  }> = [
+    { role: "top-left", x: bounds.minX, y: bounds.minY },
+    { role: "top-right", x: bounds.maxX, y: bounds.minY },
+    { role: "bottom-left", x: bounds.minX, y: bounds.maxY },
+    { role: "bottom-right", x: bounds.maxX, y: bounds.maxY }
+  ];
+  for (const corner of cornerRoles) {
+    displays.push({
+      key: `node-handle:${sourceId}:${corner.role}`,
+      x: corner.x,
+      y: corner.y,
+      cursor: resizeDisabled ? "not-allowed" : resizeCursorForRole(corner.role),
+      kind: "resize-element",
+      elementId: sourceId,
+      role: corner.role,
+      rotationDeg: 0
+    });
+  }
+
+  if (!shouldShowSideResizeHandles(bounds, canvasScale)) {
+    return displays;
+  }
+
+  const midX = (bounds.minX + bounds.maxX) / 2;
+  const midY = (bounds.minY + bounds.maxY) / 2;
+  const edgeRoles: Array<{
+    role: Extract<ResizeRole, "top" | "right" | "bottom" | "left">;
+    x: number;
+    y: number;
+    cursor: "ns-resize" | "ew-resize";
+  }> = [
+    { role: "top", x: midX, y: bounds.minY, cursor: "ns-resize" },
+    { role: "right", x: bounds.maxX, y: midY, cursor: "ew-resize" },
+    { role: "bottom", x: midX, y: bounds.maxY, cursor: "ns-resize" },
+    { role: "left", x: bounds.minX, y: midY, cursor: "ew-resize" }
+  ];
+  for (const edge of edgeRoles) {
+    displays.push({
+      key: `node-handle:${sourceId}:${edge.role}`,
+      x: edge.x,
+      y: edge.y,
+      cursor: resizeDisabled ? "not-allowed" : edge.cursor,
+      kind: "resize-element",
+      elementId: sourceId,
+      role: edge.role,
+      rotationDeg: 0
+    });
+  }
+
+  return displays;
 }
 
 function buildMatrixEdgeHitRegions(

@@ -1180,6 +1180,12 @@ export function dragCursorForState(drag: DragState | null): string | null {
 }
 
 export function resizeCursorForRole(role: ResizeRole): string {
+  if (role === "left" || role === "right") {
+    return "ew-resize";
+  }
+  if (role === "top" || role === "bottom") {
+    return "ns-resize";
+  }
   return role === "top-left" || role === "bottom-right" ? "nwse-resize" : "nesw-resize";
 }
 

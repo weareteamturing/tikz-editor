@@ -72,6 +72,52 @@ async function readCursorDistanceToRightmostResizeHandle(
   }, cursor);
 }
 
+async function readResizeHandleSpanPt(page: import("@playwright/test").Page): Promise<{ widthPt: number; heightPt: number } | null> {
+  return await page.evaluate(() => {
+    const resizeHandles = Array.from(document.querySelectorAll('[data-handle-kind="resize-element"]')) as HTMLElement[];
+    if (resizeHandles.length === 0) {
+      return null;
+    }
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    for (const handle of resizeHandles) {
+      const rect = handle.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      minX = Math.min(minX, centerX);
+      maxX = Math.max(maxX, centerX);
+      minY = Math.min(minY, centerY);
+      maxY = Math.max(maxY, centerY);
+    }
+    const svgs = Array.from(document.querySelectorAll("[data-canvas-viewport='true'] svg")) as SVGSVGElement[];
+    const svg = svgs[svgs.length - 1];
+    if (!svg) {
+      return null;
+    }
+    const rect = svg.getBoundingClientRect();
+    const viewBox = svg.viewBox.baseVal;
+    if (rect.width <= 0 || rect.height <= 0 || viewBox.width <= 0 || viewBox.height <= 0) {
+      return null;
+    }
+    const ptPerPxX = viewBox.width / rect.width;
+    const ptPerPxY = viewBox.height / rect.height;
+    return {
+      widthPt: (maxX - minX) * ptPerPxX,
+      heightPt: (maxY - minY) * ptPerPxY
+    };
+  });
+}
+
+async function readResizeRoles(page: import("@playwright/test").Page): Promise<string[]> {
+  return await page.evaluate(() =>
+    Array.from(document.querySelectorAll('[data-handle-kind="resize-element"][data-resize-role]'))
+      .map((element) => element.getAttribute("data-resize-role") ?? "")
+      .filter((value) => value.length > 0)
+  );
+}
+
 async function doubleClickHitRegion(
   page: import("@playwright/test").Page,
   index: number
@@ -165,6 +211,65 @@ test("resize drag shows and hides metric tooltip", async ({ page }) => {
 
   await page.mouse.up();
   await expect(tooltip).toHaveCount(0);
+});
+
+test("large selections expose side resize handles while small selections keep corners only", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\filldraw[fill=blue!20] (0,0) rectangle (12,8);
+\filldraw[fill=green!20] (14,0) rectangle (15,0.7);
+\end{tikzpicture}`);
+  await page.getByRole("button", { name: "Select" }).click();
+
+  await waitForHitRegions(page, 2);
+  await clickHitRegion(page, 0);
+  const largeHandles = page.locator('[data-handle-kind="resize-element"]');
+  await expect.poll(async () => largeHandles.count()).toBeGreaterThanOrEqual(8);
+  const largeRoles = await readResizeRoles(page);
+  expect(largeRoles).toContain("top");
+  expect(largeRoles).toContain("right");
+  expect(largeRoles).toContain("bottom");
+  expect(largeRoles).toContain("left");
+
+  await clickHitRegion(page, 1);
+  const smallHandles = page.locator('[data-handle-kind="resize-element"]');
+  await expect.poll(async () => smallHandles.count()).toBe(4);
+  const smallRoles = await readResizeRoles(page);
+  expect(smallRoles).not.toContain("top");
+  expect(smallRoles).not.toContain("right");
+  expect(smallRoles).not.toContain("bottom");
+  expect(smallRoles).not.toContain("left");
+});
+
+test("dragging a side resize handle updates one axis", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\filldraw[fill=blue!20] (0,0) rectangle (12,8);
+\end{tikzpicture}`);
+  await page.getByRole("button", { name: "Select" }).click();
+
+  await waitForHitRegions(page, 1);
+  await clickHitRegion(page, 0);
+  const rightHandle = page.locator('[data-handle-kind="resize-element"][data-resize-role="right"]').first();
+  await expect(rightHandle).toBeVisible();
+  const before = await readResizeHandleSpanPt(page);
+  if (!before) {
+    throw new Error("Could not resolve baseline handle span before side resize.");
+  }
+
+  await dragLocatorBy(page, rightHandle, 50, 0);
+  const tooltip = page.getByTestId("canvas-drag-tooltip");
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toContainText("Width:");
+  await expect(tooltip).toContainText("Height:");
+  await page.mouse.up();
+  const after = await readResizeHandleSpanPt(page);
+  if (!after) {
+    throw new Error("Could not resolve handle span after side resize.");
+  }
+
+  expect(after.widthPt).toBeGreaterThan(before.widthPt + 5);
+  expect(Math.abs(after.heightPt - before.heightPt)).toBeLessThan(1.25);
 });
 
 test("rotate drag shows degree tooltip", async ({ page }) => {
