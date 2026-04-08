@@ -80,9 +80,12 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "block2",
  "clipboard-rs 0.3.3",
  "fix-path-env",
  "log",
+ "objc2",
+ "objc2-foundation",
  "rfd",
  "serde",
  "serde_json",

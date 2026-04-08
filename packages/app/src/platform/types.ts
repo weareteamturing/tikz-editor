@@ -93,6 +93,13 @@ export type PlatformHaptics = {
   performSnapFeedback?: () => Promise<void>;
 };
 
+export type PlatformAccessibility = {
+  prefersNonBlinkingTextInsertionIndicator?: () => Promise<boolean>;
+  bindPrefersNonBlinkingTextInsertionIndicatorChange?: (
+    handler: (prefersNonBlinkingTextInsertionIndicator: boolean) => void
+  ) => Promise<(() => void) | void> | (() => void) | void;
+};
+
 export type AssistantChatContent =
   | { type: "text"; text: string }
   | { type: "image"; url: string }
@@ -259,6 +266,7 @@ export type EditorPlatform = {
   menu?: PlatformMenu;
   window?: PlatformWindowApi;
   haptics?: PlatformHaptics;
+  accessibility?: PlatformAccessibility;
   assistant?: AssistantApi;
   latex?: PlatformLatex;
 };

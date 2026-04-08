@@ -868,6 +868,7 @@ export function CanvasPanel({
   repeatPreviewModel?: SvgRenderModel | null;
 }) {
   const platform = getActiveEditorPlatform();
+  const [prefersNonBlinkingTextInsertionIndicator, setPrefersNonBlinkingTextInsertionIndicator] = useState(false);
   const assistantLockReason = useEditorStore((s) => s.documents[s.activeDocumentId]?.assistantLockReason ?? null);
   const source = useEditorStore((s) => s.source);
   const activeFigureId = useEditorStore((s) => s.activeFigureId);
@@ -978,6 +979,50 @@ export function CanvasPanel({
     clickedTargetId: null,
     clickedWorld: null
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+
+    const accessibility = platform.accessibility;
+    if (!accessibility) {
+      setPrefersNonBlinkingTextInsertionIndicator(false);
+      return () => undefined;
+    }
+
+    const prefersPromise = accessibility.prefersNonBlinkingTextInsertionIndicator?.();
+    if (prefersPromise) {
+      void prefersPromise
+        .then((value) => {
+          if (!cancelled && typeof value === "boolean") {
+            setPrefersNonBlinkingTextInsertionIndicator(value);
+          }
+        })
+        .catch(() => undefined);
+    }
+
+    const bindResult = accessibility.bindPrefersNonBlinkingTextInsertionIndicatorChange?.((value) => {
+      if (!cancelled) {
+        setPrefersNonBlinkingTextInsertionIndicator(value);
+      }
+    });
+    if (bindResult) {
+      void Promise.resolve(bindResult)
+        .then((nextUnlisten) => {
+          if (!cancelled) {
+            unlisten = nextUnlisten ?? null;
+          } else {
+            nextUnlisten?.();
+          }
+        })
+        .catch(() => undefined);
+    }
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [platform.accessibility]);
   const pendingNativeContextMenuTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textEditingSessionRef = useRef<TextEditingSession | null>(null);
   textEditingSessionRef.current = textEditingSession;
@@ -3545,6 +3590,7 @@ export function CanvasPanel({
   return (
     <>
       <CanvasPanelView
+        prefersNonBlinkingTextInsertionIndicator={prefersNonBlinkingTextInsertionIndicator}
         showRulers={showRulers}
         viewportSize={viewportSize}
         topRulerRef={topRulerRef}

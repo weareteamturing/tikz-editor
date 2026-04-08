@@ -22,6 +22,9 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.10.3", features = ["macos-private-api"] }
+objc2 = "0.6.4"
+block2 = "0.6.2"
+objc2-foundation = { version = "0.3.2", features = ["NSObject", "NSNotification", "NSOperation", "NSString"] }
 tauri-plugin-log = "2"
 tauri-plugin-clipboard-x = "2.0.1"
 tauri-plugin-shell = "2"

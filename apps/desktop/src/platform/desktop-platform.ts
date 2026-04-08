@@ -76,6 +76,10 @@ type DesktopBridge = {
   confirmUnsavedChanges: (message: string) => Promise<"save" | "discard" | "cancel">;
   openExternalUrl: (url: string) => Promise<boolean>;
   performSnapHaptic?: () => Promise<void>;
+  prefersNonBlinkingTextInsertionIndicator?: () => Promise<boolean>;
+  bindPrefersNonBlinkingTextInsertionIndicatorChange?: (
+    handler: (prefersNonBlinkingTextInsertionIndicator: boolean) => void
+  ) => Promise<() => void>;
   listRecentFiles: () => Promise<string[]>;
   clearRecentFiles: () => Promise<void>;
   takePendingOpenRequests: () => Promise<DesktopOpenTextResult[]>;
@@ -634,6 +638,19 @@ function createDefaultBridge(): DesktopBridge {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("desktop_perform_snap_haptic");
     },
+    prefersNonBlinkingTextInsertionIndicator: async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<boolean>("desktop_prefers_non_blinking_text_insertion_indicator");
+    },
+    bindPrefersNonBlinkingTextInsertionIndicatorChange: async (handler) => {
+      const { listen } = await import("@tauri-apps/api/event");
+      return await listen<boolean>(
+        "desktop-prefers-non-blinking-text-insertion-indicator-changed",
+        (event) => {
+          handler(event.payload);
+        }
+      );
+    },
     listRecentFiles: async () => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<string[]>("desktop_list_recent_files");
@@ -989,6 +1006,18 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
     haptics: {
       performSnapFeedback: async () => {
         await getBridge().performSnapHaptic?.();
+      }
+    },
+    accessibility: {
+      prefersNonBlinkingTextInsertionIndicator: async () => {
+        return await getBridge().prefersNonBlinkingTextInsertionIndicator?.() ?? false;
+      },
+      bindPrefersNonBlinkingTextInsertionIndicatorChange: async (handler) => {
+        const bridge = getBridge();
+        if (!bridge.bindPrefersNonBlinkingTextInsertionIndicatorChange) {
+          return () => undefined;
+        }
+        return await bridge.bindPrefersNonBlinkingTextInsertionIndicatorChange(handler);
       }
     },
     files: {

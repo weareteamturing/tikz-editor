@@ -495,7 +495,12 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
               {textSelectionOverlay.caret ? (
                 <div
                   key={`${textSelectionOverlay.sourceId}:${textSelectionOverlay.selectionStart}:${textSelectionOverlay.selectionEnd}`}
-                  className={css.textSelectionViewportCaret}
+                  className={[
+                    css.textSelectionViewportCaret,
+                    props.prefersNonBlinkingTextInsertionIndicator ? css.textCaretNoBlink : ""
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                   data-testid="canvas-text-selection-caret"
                   style={{
                     left: textSelectionOverlay.caret.left,
@@ -541,7 +546,12 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                 {textEditCaretOverlay ? (
                   <div
                     key={`${Math.round(textEditCaretOverlay.left * 4)}:${Math.round(textEditCaretOverlay.top * 4)}:${Math.round(textEditCaretOverlay.height * 4)}`}
-                    className={css.textEditViewportCaret}
+                    className={[
+                      css.textEditViewportCaret,
+                      props.prefersNonBlinkingTextInsertionIndicator ? css.textCaretNoBlink : ""
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
                     aria-hidden="true"
                     style={{
                       left: textEditCaretOverlay.left,

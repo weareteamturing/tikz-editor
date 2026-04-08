@@ -32,6 +32,53 @@ use tauri_plugin_shell::{
 };
 use url::Url;
 
+#[cfg(target_os = "macos")]
+mod macos_accessibility {
+    use super::*;
+    use block2::RcBlock;
+    use core::ptr::NonNull;
+    use objc2::rc::Retained;
+    use objc2::runtime::{Bool as ObjcBool, ProtocolObject};
+    use objc2_foundation::{
+        NSNotification, NSNotificationCenter, NSNotificationName, NSObjectProtocol,
+        NSOperationQueue,
+    };
+
+    pub const PREFERS_NON_BLINKING_TEXT_INSERTION_INDICATOR_CHANGED_EVENT: &str =
+        "desktop-prefers-non-blinking-text-insertion-indicator-changed";
+
+    #[link(name = "Accessibility", kind = "framework")]
+    extern "C" {
+        pub static AXPrefersNonBlinkingTextInsertionIndicatorDidChangeNotification:
+            &'static NSNotificationName;
+        fn AXPrefersNonBlinkingTextInsertionIndicator() -> ObjcBool;
+    }
+
+    pub fn prefers_non_blinking_text_insertion_indicator() -> bool {
+        unsafe { AXPrefersNonBlinkingTextInsertionIndicator().as_bool() }
+    }
+
+    pub fn install_observer(app: AppHandle) -> Retained<ProtocolObject<dyn NSObjectProtocol>> {
+        let center = NSNotificationCenter::defaultCenter();
+        let queue = NSOperationQueue::mainQueue();
+        let block = RcBlock::new(move |_notification: NonNull<NSNotification>| {
+            let value = prefers_non_blinking_text_insertion_indicator();
+            let _ = app.emit(
+                PREFERS_NON_BLINKING_TEXT_INSERTION_INDICATOR_CHANGED_EVENT,
+                value,
+            );
+        });
+        unsafe {
+            center.addObserverForName_object_queue_usingBlock(
+                Some(AXPrefersNonBlinkingTextInsertionIndicatorDidChangeNotification),
+                None,
+                Some(&queue),
+                &block,
+            )
+        }
+    }
+}
+
 const MAX_RECENT_FILES: usize = 10;
 const LATEX_COMMAND_TIMEOUT_SECS: u64 = 20;
 const RECENTS_FILENAME: &str = "recent-files.json";
@@ -1259,6 +1306,18 @@ fn desktop_perform_snap_haptic() -> Result<(), String> {
 }
 
 #[tauri::command]
+fn desktop_prefers_non_blinking_text_insertion_indicator() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        return macos_accessibility::prefers_non_blinking_text_insertion_indicator();
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        false
+    }
+}
+
+#[tauri::command]
 fn desktop_read_custom_clipboard_text(
     formats: Vec<String>,
 ) -> Result<Option<DesktopCustomClipboardTextPayload>, String> {
@@ -1563,10 +1622,12 @@ pub fn run() {
         builder = builder.plugin(tauri_macos_haptics::init());
     }
 
-    builder
+    let builder = builder
         .manage(RecentFilesState::default())
         .manage(WindowCloseState::default())
-        .manage(PendingOpenRequestsState::default())
+        .manage(PendingOpenRequestsState::default());
+
+    builder
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let allow_close = {
@@ -1609,6 +1670,7 @@ pub fn run() {
             desktop_take_pending_open_failures,
             desktop_open_external,
             desktop_perform_snap_haptic,
+            desktop_prefers_non_blinking_text_insertion_indicator,
             desktop_read_custom_clipboard_text,
             desktop_read_custom_clipboard_bytes,
             desktop_write_clipboard_bundle,
@@ -1669,6 +1731,12 @@ pub fn run() {
             process_associated_open_requests(&app.handle(), &startup_args, startup_cwd.as_deref());
 
             app.manage(AssistantState::new(app.handle().clone()));
+
+            #[cfg(target_os = "macos")]
+            {
+                let observer = macos_accessibility::install_observer(app.handle().clone());
+                std::mem::forget(observer);
+            }
 
             #[cfg(target_os = "macos")]
             if let Some(window) = app.get_webview_window("main") {
