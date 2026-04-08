@@ -66,7 +66,7 @@ import { applyMatrix, identityMatrix } from "../transform.js";
 import { createEditHandle } from "../edit-handles.js";
 import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resolve.js";
 import { expandOptionListMacros } from "../style/macro-options.js";
-import { cloneStyleChain, type StyleTraceLayerInput } from "../style-chain.js";
+import { cloneStyleChain, type StyleChainEntry, type StyleTraceLayerInput } from "../style-chain.js";
 import { cloneCustomStyleRegistry } from "../style/custom-styles.js";
 import { resolveFrameMeta } from "../evaluate.js";
 import {
@@ -221,7 +221,11 @@ export function evaluatePathStatement(
     }
     const fallbackRadius = pendingCircleRadius ?? (style.radius != null ? { value: style.radius, applyFrameTransform: true } : null);
     if (fallbackRadius != null) {
-      const circleTransform = fallbackRadius.applyFrameTransform ? frameTransform : identityMatrix();
+      const circleTransform = resolveLengthTransform(
+        fallbackRadius.applyFrameTransform,
+        frameTransform,
+        statementStyleChain
+      );
       activePath = emitCircleOrEllipse({
         geometry: transformCircleGeometry(fallbackRadius.value, circleTransform),
         center: pendingCircleCenter,
@@ -240,8 +244,11 @@ export function evaluatePathStatement(
         rx: { value: style.xRadius ?? DEFAULT_GRID_STEP, applyFrameTransform: true },
         ry: { value: style.yRadius ?? DEFAULT_GRID_STEP, applyFrameTransform: true }
       };
-      const ellipseTransform =
-        fallbackRadii.rx.applyFrameTransform || fallbackRadii.ry.applyFrameTransform ? frameTransform : identityMatrix();
+      const ellipseTransform = resolveLengthTransform(
+        fallbackRadii.rx.applyFrameTransform || fallbackRadii.ry.applyFrameTransform,
+        frameTransform,
+        statementStyleChain
+      );
       activePath = emitCircleOrEllipse({
         geometry: {
           kind: "ellipse",
@@ -1518,7 +1525,7 @@ export function evaluatePathStatement(
         if (pendingCircleCenter) {
           const radius = parseCircleRadiusFromCoordinateRaw(expandPathItemRaw(item.raw, context));
           if (radius != null) {
-            const circleTransform = radius.applyFrameTransform ? frameTransform : identityMatrix();
+            const circleTransform = resolveLengthTransform(radius.applyFrameTransform, frameTransform, statementStyleChain);
             activePath = emitCircleOrEllipse({
               geometry: transformCircleGeometry(radius.value, circleTransform),
               center: pendingCircleCenter,
@@ -1544,8 +1551,11 @@ export function evaluatePathStatement(
       if (pendingEllipseCenter) {
         const parsedRadii = parseEllipseRadiiFromCoordinateRaw(expandPathItemRaw(item.raw, context));
       if (parsedRadii) {
-          const ellipseTransform =
-            parsedRadii.rx.applyFrameTransform || parsedRadii.ry.applyFrameTransform ? frameTransform : identityMatrix();
+          const ellipseTransform = resolveLengthTransform(
+            parsedRadii.rx.applyFrameTransform || parsedRadii.ry.applyFrameTransform,
+            frameTransform,
+            statementStyleChain
+          );
           const geometry = transformEllipseGeometry(parsedRadii.rx.value, parsedRadii.ry.value, 0, ellipseTransform);
           markFeature("keyword_ellipse", "supported");
           activePath = emitCircleOrEllipse({
@@ -2327,8 +2337,11 @@ export function evaluatePathStatement(
       rx: { value: DEFAULT_GRID_STEP, applyFrameTransform: true },
       ry: { value: DEFAULT_GRID_STEP, applyFrameTransform: true }
     };
-    const ellipseTransform =
-      radii.rx.applyFrameTransform || radii.ry.applyFrameTransform ? frameTransform : identityMatrix();
+    const ellipseTransform = resolveLengthTransform(
+      radii.rx.applyFrameTransform || radii.ry.applyFrameTransform,
+      frameTransform,
+      statementStyleChain
+    );
     const geometry = transformEllipseGeometry(radii.rx.value, radii.ry.value, 0, ellipseTransform);
     activePath = emitCircleOrEllipse({
       geometry: { kind: "ellipse", ...geometry },
@@ -2384,6 +2397,42 @@ export function evaluatePathStatement(
   }
 
   return [...preActionElements, ...behindNodeElements, ...mainGeometry, ...frontNodeElements, ...postActionElements];
+}
+
+function resolveLengthTransform(
+  applyFrameTransform: boolean,
+  frameTransform: { a: number; b: number; c: number; d: number },
+  styleChain: StyleChainEntry[]
+): { a: number; b: number; c: number; d: number } {
+  if (applyFrameTransform) {
+    return frameTransform;
+  }
+  return explicitLengthNeedsFrameTransform(styleChain) ? frameTransform : identityMatrix();
+}
+
+function explicitLengthNeedsFrameTransform(styleChain: StyleChainEntry[]): boolean {
+  for (const layer of styleChain) {
+    for (const optionList of layer.rawOptions) {
+      for (const entry of optionList.entries) {
+        if (entry.kind !== "kv") {
+          continue;
+        }
+        if (
+          entry.key === "scale" ||
+          entry.key === "xscale" ||
+          entry.key === "yscale" ||
+          entry.key === "rotate" ||
+          entry.key === "rotate around" ||
+          entry.key === "/tikz/rotate around" ||
+          entry.key === "cm" ||
+          entry.key === "/tikz/cm"
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 function resolveNamedCoordinateRewriteHandleId(rawName: string, context: SemanticContext): string | undefined {

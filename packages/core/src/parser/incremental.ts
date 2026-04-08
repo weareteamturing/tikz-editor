@@ -2,7 +2,7 @@ import type { Tree } from "@lezer/common";
 
 import { FeatureFlags } from "../ast/features.js";
 import type { Diagnostic } from "../diagnostics/types.js";
-import type { TikzFigure, TikzFigureInventoryItem, Span, Statement } from "../ast/types.js";
+import type { NodeItem, PathItem, TikzFigure, TikzFigureInventoryItem, Span, Statement } from "../ast/types.js";
 import type { ParseTikzOptions, ParseTikzResult } from "./index.js";
 import type { SourcePatch } from "../edit/types.js";
 import {
@@ -229,12 +229,17 @@ export function createIncrementalParseSession(): IncrementalParseSession {
         }
 
         const replacement = parsedSnippet.parse.figure.body[0];
-        if (!replacement || replacement.kind !== getStatementAtPath(nextFigure, previousRef.parentPath, previousRef.index)?.kind) {
+        const previousStatement = getStatementAtPath(nextFigure, previousRef.parentPath, previousRef.index);
+        if (!replacement || replacement.kind !== previousStatement?.kind) {
           return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "statement-structure-changed");
         }
 
         const rebasedStatement = shiftSpansDeep(structuredClone(replacement), nextSpan.from - SNIPPET_PREFIX.length);
-        rebasedStatement.id = sourceId;
+        if (previousStatement) {
+          alignStatementIds(previousStatement, rebasedStatement);
+        } else {
+          rebasedStatement.id = sourceId;
+        }
         setStatementAtPath(nextFigure, previousRef.parentPath, previousRef.index, rebasedStatement);
 
         const partition = partitionDiagnostics(parsedSnippet.parse.diagnostics, parsedSnippet.parse.figure.body);
@@ -320,6 +325,98 @@ export function createIncrementalParseSession(): IncrementalParseSession {
       cached = null;
     }
   };
+}
+
+function alignStatementIds(previous: Statement, next: Statement): void {
+  next.id = previous.id;
+
+  if (previous.kind === "Path" && next.kind === "Path") {
+    alignPathItems(previous.items, next.items);
+    return;
+  }
+  if (previous.kind === "Scope" && next.kind === "Scope") {
+    alignStatements(previous.body, next.body);
+    return;
+  }
+}
+
+function alignStatements(previous: readonly Statement[], next: Statement[]): void {
+  const limit = Math.min(previous.length, next.length);
+  for (let index = 0; index < limit; index += 1) {
+    const previousStatement = previous[index];
+    const nextStatement = next[index];
+    if (!previousStatement || !nextStatement || previousStatement.kind !== nextStatement.kind) {
+      continue;
+    }
+    alignStatementIds(previousStatement, nextStatement);
+  }
+}
+
+function alignPathItems(previous: readonly PathItem[], next: PathItem[]): void {
+  const limit = Math.min(previous.length, next.length);
+  for (let index = 0; index < limit; index += 1) {
+    const previousItem = previous[index];
+    const nextItem = next[index];
+    if (!previousItem || !nextItem || previousItem.kind !== nextItem.kind) {
+      continue;
+    }
+
+    nextItem.id = previousItem.id;
+    if (nextItem.kind === "Node") {
+      alignNodeItem(previousItem, nextItem);
+      continue;
+    }
+    if (nextItem.kind === "ChildOperation") {
+      alignClauseIds(previousItem.foreachClauses, nextItem.foreachClauses);
+      alignPathItems(previousItem.body, nextItem.body);
+      continue;
+    }
+    if (nextItem.kind === "ToOperation" || nextItem.kind === "EdgeOperation" || nextItem.kind === "EdgeFromParentOperation") {
+      alignNodeItems(previousItem.nodes, nextItem.nodes);
+    }
+  }
+}
+
+function alignNodeItems(previous: readonly NodeItem[] | undefined, next: NodeItem[] | undefined): void {
+  if (!previous || !next) {
+    return;
+  }
+  const limit = Math.min(previous.length, next.length);
+  for (let index = 0; index < limit; index += 1) {
+    const previousNode = previous[index];
+    const nextNode = next[index];
+    if (!previousNode || !nextNode || previousNode.kind !== "Node" || nextNode.kind !== "Node") {
+      continue;
+    }
+    nextNode.id = previousNode.id;
+    alignNodeItem(previousNode, nextNode);
+  }
+}
+
+function alignNodeItem(previous: NodeItem, next: NodeItem): void {
+  alignClauseIds(previous.foreachClauses, next.foreachClauses);
+  if (previous.adornment && next.adornment) {
+    next.adornment.ownerNodeId = previous.adornment.ownerNodeId;
+    next.adornment.ownerSourceId = previous.adornment.ownerSourceId;
+  }
+}
+
+function alignClauseIds(
+  previous: readonly { id: string; kind: string }[] | undefined,
+  next: Array<{ id: string; kind: string }> | undefined
+): void {
+  if (!previous || !next) {
+    return;
+  }
+  const limit = Math.min(previous.length, next.length);
+  for (let index = 0; index < limit; index += 1) {
+    const previousClause = previous[index];
+    const nextClause = next[index];
+    if (!previousClause || !nextClause || previousClause.kind !== nextClause.kind) {
+      continue;
+    }
+    nextClause.id = previousClause.id;
+  }
 }
 
 function decideFallbackReason(input: {

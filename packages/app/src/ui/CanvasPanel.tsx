@@ -172,6 +172,7 @@ import { useCanvasElementInteractions } from "./canvas-panel/useCanvasElementInt
 import { useCanvasGuideEffects } from "./canvas-panel/useCanvasGuideEffects";
 import { useCanvasViewportEffects } from "./canvas-panel/useCanvasViewportEffects";
 import { useCanvasTextEditingEffects } from "./canvas-panel/useCanvasTextEditingEffects";
+import { createSourceRenderOffsetMap } from "./canvas-panel/text-offset-map";
 import { useCanvasSelectionDerivedState } from "./canvas-panel/useCanvasSelectionDerivedState";
 import {
   isWorldPointWithinScopeBounds,
@@ -758,6 +759,46 @@ function estimateTextOffsetFromClient(
       ? 1
       : clamp((localPoint.x - contentBox.x) / contentBox.width, 0, 1);
   return clamp(Math.round(xRatio * target.text.length), 0, target.text.length);
+}
+
+function estimateTextLineRangeFromClient(
+  target: EditableTextTarget,
+  clientX: number,
+  clientY: number,
+  interactionSvgElement: SVGSVGElement | null,
+  viewportRef: { current: HTMLDivElement | null },
+  svgResult: { viewBox: SvgViewBox } | null,
+  canvasTransform: CanvasTransform
+): TextLineRange {
+  const ranges = collectLogicalLineRanges(target.text);
+  if (ranges.length === 0) {
+    return { start: 0, end: 0 };
+  }
+  if (ranges.length === 1) {
+    return ranges[0]!;
+  }
+
+  const contentBox = resolveRectHitRegionContentBox(target.region);
+  const svgPoint = clientToSvgPoint(clientX, clientY, interactionSvgElement) ?? (() => {
+    const viewportRect = viewportRef.current?.getBoundingClientRect();
+    const localViewportX = viewportRect ? clientX - viewportRect.left : clientX;
+    const localViewportY = viewportRect ? clientY - viewportRect.top : clientY;
+    return svgResult
+      ? viewportToSvgPoint(localViewportX, localViewportY, canvasTransform, svgResult.viewBox)
+      : { x: clientX, y: clientY };
+  })();
+  const localPoint = rotatePointAroundCenter(
+    svgPoint,
+    target.region.cx,
+    target.region.cy,
+    target.region.rotation
+  );
+  const yRatio =
+    contentBox.height <= 1e-6
+      ? 0
+      : clamp((localPoint.y - contentBox.y) / contentBox.height, 0, 0.999999);
+  const index = Math.min(ranges.length - 1, Math.max(0, Math.floor(yRatio * ranges.length)));
+  return ranges[index] ?? ranges[ranges.length - 1]!;
 }
 
 function resolveFallbackTextLayoutKind(text: string, hasFixedWidth: boolean | undefined, isMatrixCell: boolean): NodeTextLayoutKind {
@@ -2185,7 +2226,8 @@ export function CanvasPanel({
       if (!result.ok || result.offset == null) {
         return null;
       }
-      return clamp(result.offset, 0, target.text.length);
+      const offsetMap = createSourceRenderOffsetMap(target.text, target.renderSourceText);
+      return clamp(offsetMap.renderToSource(result.offset), 0, target.text.length);
     },
     [
       canvasTransform,
@@ -2208,13 +2250,16 @@ export function CanvasPanel({
           clientY
         });
         if (result.ok && result.lineStartOffset != null && result.lineEndOffset != null) {
+          const offsetMap = createSourceRenderOffsetMap(target.text, target.renderSourceText);
+          const start = clamp(offsetMap.renderToSource(result.lineStartOffset), 0, target.text.length);
+          const end = clamp(offsetMap.renderToSource(result.lineEndOffset), 0, target.text.length);
           return {
-            start: clamp(result.lineStartOffset, 0, target.text.length),
-            end: clamp(result.lineEndOffset, 0, target.text.length)
+            start: Math.min(start, end),
+            end: Math.max(start, end)
           };
         }
       }
-      const fallbackOffset = estimateTextOffsetFromClient(
+      return estimateTextLineRangeFromClient(
         target,
         clientX,
         clientY,
@@ -2223,7 +2268,6 @@ export function CanvasPanel({
         svgResult,
         canvasTransform
       );
-      return resolveLogicalLineRangeForOffset(target.text, fallbackOffset);
     },
     [
       canvasTransform,
@@ -2327,11 +2371,14 @@ export function CanvasPanel({
         );
         setTextEditingSession((current) =>
           current && current.sourceId === target.sourceId
-            ? {
-                ...current,
-                selectionStart: selection.start,
-                selectionEnd: selection.end
-              }
+            ? current.selectionStart === provisionalSelection.start &&
+              current.selectionEnd === provisionalSelection.end
+              ? {
+                  ...current,
+                  selectionStart: selection.start,
+                  selectionEnd: selection.end
+                }
+              : current
             : current
         );
         if (textSelectionDragRef.current?.pointerId === event.pointerId) {
@@ -2418,14 +2465,49 @@ export function CanvasPanel({
   }, []);
 
   const handleTextEditTextareaKeyDown = useCallback((event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Escape") {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      textSelectionDragRef.current = null;
+      setTextEditingSession(null);
       return;
     }
+
+    if (event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+
+    if (event.key !== "Backspace" && event.key !== "Delete") {
+      return;
+    }
+
+    const textarea = event.currentTarget;
+    const value = textarea.value;
+    const rawStart = textarea.selectionStart ?? 0;
+    const rawEnd = textarea.selectionEnd ?? rawStart;
+    const start = clamp(Math.min(rawStart, rawEnd), 0, value.length);
+    const end = clamp(Math.max(rawStart, rawEnd), 0, value.length);
+
+    let nextText = value;
+    let nextCaret = start;
+
+    if (start !== end) {
+      nextText = `${value.slice(0, start)}${value.slice(end)}`;
+      nextCaret = start;
+    } else if (event.key === "Backspace" && start > 0) {
+      nextText = `${value.slice(0, start - 1)}${value.slice(start)}`;
+      nextCaret = start - 1;
+    } else if (event.key === "Delete" && start < value.length) {
+      nextText = `${value.slice(0, start)}${value.slice(start + 1)}`;
+      nextCaret = start;
+    } else {
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
-    textSelectionDragRef.current = null;
-    setTextEditingSession(null);
-  }, []);
+    applyTextEditingUpdate(nextText, nextCaret, nextCaret);
+  }, [applyTextEditingUpdate]);
 
   const handleTextEditPopupPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     event.stopPropagation();

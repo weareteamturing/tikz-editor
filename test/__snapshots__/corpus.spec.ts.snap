@@ -22,18 +22,18 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     "elementTotals": {
       "circles": 427,
       "ellipses": 38,
-      "paths": 7524,
-      "texts": 4266,
-      "total": 12255,
+      "paths": 7470,
+      "texts": 4254,
+      "total": 12189,
     },
-    "semanticEmptySceneRate": 0.3306,
-    "semanticEmptySceneSnippets": 723,
+    "semanticEmptySceneRate": 0.331,
+    "semanticEmptySceneSnippets": 724,
     "semanticErrorRate": 0.0508,
     "semanticErrorSnippets": 111,
-    "semanticUnsupportedRate": 0.4915,
-    "semanticUnsupportedSnippets": 1075,
-    "semanticWarningRate": 0.5016,
-    "semanticWarningSnippets": 1097,
+    "semanticUnsupportedRate": 0.487,
+    "semanticUnsupportedSnippets": 1065,
+    "semanticWarningRate": 0.497,
+    "semanticWarningSnippets": 1087,
   },
   "semanticCoverage": {
     "allUnknownSnippetRate": 0.2108,
@@ -165,6 +165,10 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "count": 86,
     },
     {
+      "code": "relative-coordinate-without-current-point",
+      "count": 79,
+    },
+    {
       "code": "unsupported-option-flag:baseline",
       "count": 70,
     },
@@ -177,20 +181,16 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "count": 65,
     },
     {
-      "code": "unsupported-option-key:label",
-      "count": 49,
+      "code": "unsupported-path-operator",
+      "count": 59,
     },
     {
-      "code": "unsupported-coordinate-z-component",
-      "count": 48,
-    },
-    {
-      "code": "unsupported-option-key:concept color",
-      "count": 47,
+      "code": "unsupported-path-keyword",
+      "count": 54,
     },
     {
       "code": "invalid-coordinate-operation",
-      "count": 46,
+      "count": 51,
     },
   ],
   "topSemanticUnsupportedCodes": [
@@ -219,6 +219,14 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "count": 65,
     },
     {
+      "code": "unsupported-path-operator",
+      "count": 59,
+    },
+    {
+      "code": "unsupported-path-keyword",
+      "count": 54,
+    },
+    {
       "code": "unsupported-option-key:label",
       "count": 49,
     },
@@ -233,15 +241,6 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     {
       "code": "unsupported-coordinate-form:unknown",
       "count": 32,
-    },
-    {
-      "code": "unsupported-option-key:shadow
-                    yshift",
-      "count": 32,
-    },
-    {
-      "code": "unsupported-option-key:butterfly",
-      "count": 24,
     },
   ],
   "topSemanticUnsupportedFiles": [
@@ -270,10 +269,6 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "filePath": "pgfmanual-en-base-transformations.tex",
     },
     {
-      "count": 30,
-      "filePath": "pgfmanual-en-tikz-transparency.tex",
-    },
-    {
       "count": 24,
       "filePath": "pgfmanual-en-tikz-arrows.tex",
     },
@@ -284,6 +279,10 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     {
       "count": 23,
       "filePath": "pgfmanual-en-tikz-graphs.tex",
+    },
+    {
+      "count": 22,
+      "filePath": "pgfmanual-en-dv-visualizers.tex",
     },
   ],
   "topSvgDiagnosticCodes": [

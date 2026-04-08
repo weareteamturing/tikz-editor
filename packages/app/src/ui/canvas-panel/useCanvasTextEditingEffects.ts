@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { getActiveMathJaxOutputJax } from "tikz-editor/text/mathjax-engine";
 import { getKnuthPlassPointFromOffset, getKnuthPlassSelectionRects } from "tikz-editor/text/knuth-plass";
 import { clamp } from "./geometry";
+import { createSourceRenderOffsetMap } from "./text-offset-map";
 
 export type UseCanvasTextEditingEffectsArgs = {
   [key: string]: any;
@@ -28,6 +29,115 @@ function sameRectRegion(left: any, right: any): boolean {
     Math.abs(Number(left.contentWidth ?? left.width) - Number(right.contentWidth ?? right.width)) <= REGION_EPSILON &&
     Math.abs(Number(left.contentHeight ?? left.height) - Number(right.contentHeight ?? right.height)) <= REGION_EPSILON
   );
+}
+
+type LogicalLineRange = {
+  start: number;
+  end: number;
+};
+
+function collectLogicalLineRanges(text: string): LogicalLineRange[] {
+  if (text.length === 0) {
+    return [{ start: 0, end: 0 }];
+  }
+  const ranges: LogicalLineRange[] = [];
+  let start = 0;
+  let cursor = 0;
+  while (cursor < text.length) {
+    if (text[cursor] === "\r") {
+      const next = text[cursor + 1] === "\n" ? cursor + 2 : cursor + 1;
+      ranges.push({ start, end: cursor });
+      start = next;
+      cursor = next;
+      continue;
+    }
+    if (text[cursor] === "\n") {
+      ranges.push({ start, end: cursor });
+      start = cursor + 1;
+      cursor += 1;
+      continue;
+    }
+    if (text[cursor] === "\\" && text[cursor + 1] === "\\") {
+      let next = cursor + 2;
+      if (text[next] === "*") {
+        next += 1;
+      }
+      while (next < text.length && /\s/.test(text[next] ?? "")) {
+        next += 1;
+      }
+      if (text[next] === "[") {
+        let bracketCursor = next + 1;
+        while (bracketCursor < text.length && text[bracketCursor] !== "]") {
+          bracketCursor += 1;
+        }
+        if (bracketCursor < text.length) {
+          next = bracketCursor + 1;
+        }
+      }
+      ranges.push({ start, end: cursor });
+      start = next;
+      cursor = next;
+      continue;
+    }
+    cursor += 1;
+  }
+  ranges.push({ start, end: text.length });
+  return ranges;
+}
+
+function resolveRegionSelectionOverlay(
+  target: any,
+  selectionStart: number,
+  selectionEnd: number
+): { caret: { left: number; top: number; height: number } | null; rects: Array<{ left: number; top: number; width: number; height: number }> } {
+  const ranges = collectLogicalLineRanges(target.text);
+  const lineHeight = target.region.height / Math.max(1, ranges.length);
+  if (selectionStart === selectionEnd) {
+    const pivot = target.text.length === 0 ? 0 : Math.min(Math.max(0, selectionStart), target.text.length - 1);
+    let lineIndex = ranges.length - 1;
+    for (let index = 0; index < ranges.length; index += 1) {
+      const range = ranges[index]!;
+      if (pivot >= range.start && pivot < range.end) {
+        lineIndex = index;
+        break;
+      }
+    }
+    const range = ranges[lineIndex] ?? { start: 0, end: target.text.length };
+    const denominator = Math.max(1, range.end - range.start);
+    const ratio = (selectionStart - range.start) / denominator;
+    return {
+      caret: {
+        left: target.region.x + clamp(ratio, 0, 1) * target.region.width,
+        top: target.region.y + lineIndex * lineHeight,
+        height: Math.max(1, lineHeight)
+      },
+      rects: []
+    };
+  }
+
+  const rects: Array<{ left: number; top: number; width: number; height: number }> = [];
+  const start = Math.min(selectionStart, selectionEnd);
+  const end = Math.max(selectionStart, selectionEnd);
+  for (let index = 0; index < ranges.length; index += 1) {
+    const range = ranges[index]!;
+    const localStart = Math.max(start, range.start);
+    const localEnd = Math.min(end, range.end);
+    if (localEnd <= localStart) {
+      continue;
+    }
+    const denominator = Math.max(1, range.end - range.start);
+    const leftRatio = (localStart - range.start) / denominator;
+    const rightRatio = (localEnd - range.start) / denominator;
+    const left = target.region.x + clamp(leftRatio, 0, 1) * target.region.width;
+    const right = target.region.x + clamp(rightRatio, 0, 1) * target.region.width;
+    rects.push({
+      left,
+      top: target.region.y + index * lineHeight,
+      width: Math.max(1, right - left),
+      height: Math.max(1, lineHeight)
+    });
+  }
+  return { caret: null, rects };
 }
 
 async function estimateCaretHeight(
@@ -120,7 +230,6 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
       textEditingSession.layoutKind !== target.layoutKind ||
       textEditingSession.sceneTextId !== target.sceneTextId ||
       !sameRectRegion(textEditingSession.region, target.region) ||
-      textEditingSession.text !== target.text ||
       textEditingSession.selectionStart !== boundedStart ||
       textEditingSession.selectionEnd !== boundedEnd
     ) {
@@ -130,7 +239,6 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
               ...current,
               sceneTextId: target.sceneTextId,
               sourceSpan: target.sourceSpan,
-              text: target.text,
               selectionStart: boundedStart,
               selectionEnd: boundedEnd,
               paragraphId: target.paragraphId,
@@ -145,19 +253,43 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
     const outputJax = getActiveMathJaxOutputJax();
     const containerElement = resolveRenderedMathTextElement(target);
     const viewport = viewportRef.current;
-    if (!outputJax || !containerElement || !viewport) {
+    if (!viewport) {
       setTextSelectionOverlay(null);
       return;
     }
 
     const requestRef = { cancelled: false };
     const viewportRect = viewport.getBoundingClientRect();
-    const renderAnchor = clamp(boundedStart, 0, target.renderSourceText.length);
-    const renderFocus = clamp(boundedEnd, 0, target.renderSourceText.length);
+    const offsetMap = createSourceRenderOffsetMap(target.text, target.renderSourceText);
+    const renderAnchor = clamp(offsetMap.sourceToRender(boundedStart), 0, target.renderSourceText.length);
+    const renderFocus = clamp(offsetMap.sourceToRender(boundedEnd), 0, target.renderSourceText.length);
     const renderStart = Math.min(renderAnchor, renderFocus);
     const renderEnd = Math.max(renderAnchor, renderFocus);
 
     void (async () => {
+      if (!target.paragraphId || !outputJax || !containerElement) {
+        const overlay = resolveRegionSelectionOverlay(target, boundedStart, boundedEnd);
+        setTextSelectionOverlay({
+          sourceId: target.sourceId,
+          selectionStart: boundedStart,
+          selectionEnd: boundedEnd,
+          caret: overlay.caret
+            ? {
+                left: overlay.caret.left - viewportRect.left,
+                top: overlay.caret.top - viewportRect.top,
+                height: overlay.caret.height
+              }
+            : null,
+          rects: overlay.rects.map((rect) => ({
+            left: rect.left - viewportRect.left,
+            top: rect.top - viewportRect.top,
+            width: rect.width,
+            height: rect.height
+          }))
+        });
+        return;
+      }
+
       if (renderStart === renderEnd) {
         const point = await getKnuthPlassPointFromOffset(outputJax, {
           paragraphId: target.paragraphId,
@@ -200,7 +332,11 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
         startOffset: renderStart,
         endOffset: renderEnd
       });
-      if (requestRef.cancelled || !rects.ok) {
+      if (requestRef.cancelled) {
+        return;
+      }
+      if (!rects.ok || rects.rects.length === 0) {
+        setTextSelectionOverlay(null);
         return;
       }
       setTextSelectionOverlay({
