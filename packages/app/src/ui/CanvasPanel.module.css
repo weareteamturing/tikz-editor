@@ -381,7 +381,7 @@
 
 .textCaret {
   stroke: var(--accent-dark);
-  animation: textCaretBlink 1.08s steps(1, end) infinite;
+  animation: textCaretBlink 1s steps(1, end) infinite;
 }
 
 .textSelectionViewportOverlay {
@@ -400,7 +400,7 @@
   position: absolute;
   width: 1.5px;
   background: var(--accent-dark);
-  animation: textCaretBlink 1.08s steps(1, end) infinite;
+  animation: textCaretBlink 1s steps(1, end) infinite;
 }
 
 .textEditPopup {
@@ -438,13 +438,30 @@
   field-sizing: content;
 }
 
+.textEditTextareaLayer {
+  position: relative;
+  display: inline-block;
+}
+
+.textEditTextareaHideNativeCaret {
+  caret-color: transparent;
+}
+
 .textEditTextarea:focus {
   outline: none;
 }
 
+.textEditViewportCaret {
+  position: absolute;
+  width: 1.5px;
+  background: var(--accent-dark);
+  pointer-events: none;
+  animation: textCaretBlink 1s steps(1, end) infinite;
+}
+
 @keyframes textCaretBlink {
   0%,
-  45% {
+  49.999% {
     opacity: 1;
   }
   50%,
@@ -455,6 +472,12 @@
 
 @media (prefers-reduced-motion: reduce) {
   .textCaret {
+    animation: none;
+  }
+  .textSelectionViewportCaret {
+    animation: none;
+  }
+  .textEditViewportCaret {
     animation: none;
   }
 }

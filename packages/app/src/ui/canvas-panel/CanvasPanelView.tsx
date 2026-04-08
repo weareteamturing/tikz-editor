@@ -118,6 +118,8 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     textEditPopupHeight,
     textEditTextareaSizing,
     textEditTextareaRef,
+    textEditCaretOverlay,
+    hideNativeTextEditCaret,
     onTextEditPopupPointerDown,
     onTextEditTextareaChange,
     onTextEditTextareaSelect,
@@ -519,22 +521,36 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
               onPointerDown={onTextEditPopupPointerDown}
               data-testid="canvas-text-edit-popup"
             >
-              <textarea
-                ref={textEditTextareaRef}
-                className={css.textEditTextarea}
-                value={textEditingSession.text}
-                cols={textEditTextareaSizing?.cols}
-                spellCheck={false}
-                rows={textEditTextareaSizing?.rows}
-                onChange={onTextEditTextareaChange}
-                onSelect={onTextEditTextareaSelect}
-                onCopy={onTextEditTextareaCopy}
-                onCut={onTextEditTextareaCut}
-                onPaste={onTextEditTextareaPaste}
-                onKeyDown={onTextEditTextareaKeyDown}
-                data-testid="canvas-text-edit-textarea"
-                data-select="text"
-              />
+              <div className={css.textEditTextareaLayer}>
+                <textarea
+                  ref={textEditTextareaRef}
+                  className={[css.textEditTextarea, hideNativeTextEditCaret ? css.textEditTextareaHideNativeCaret : ""].filter(Boolean).join(" ")}
+                  value={textEditingSession.text}
+                  cols={textEditTextareaSizing?.cols}
+                  spellCheck={false}
+                  rows={textEditTextareaSizing?.rows}
+                  onChange={onTextEditTextareaChange}
+                  onSelect={onTextEditTextareaSelect}
+                  onCopy={onTextEditTextareaCopy}
+                  onCut={onTextEditTextareaCut}
+                  onPaste={onTextEditTextareaPaste}
+                  onKeyDown={onTextEditTextareaKeyDown}
+                  data-testid="canvas-text-edit-textarea"
+                  data-select="text"
+                />
+                {textEditCaretOverlay ? (
+                  <div
+                    key={`${Math.round(textEditCaretOverlay.left * 4)}:${Math.round(textEditCaretOverlay.top * 4)}:${Math.round(textEditCaretOverlay.height * 4)}`}
+                    className={css.textEditViewportCaret}
+                    aria-hidden="true"
+                    style={{
+                      left: textEditCaretOverlay.left,
+                      top: textEditCaretOverlay.top,
+                      height: textEditCaretOverlay.height
+                    }}
+                  />
+                ) : null}
+              </div>
             </div>
           ) : null}
 
