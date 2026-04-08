@@ -160,6 +160,23 @@ test("single-line node text enters canvas edit mode and closes when CodeMirror t
   await expect(page.getByTestId("canvas-text-selection-overlay")).toHaveCount(0);
 });
 
+test("rotated single-line node text enters canvas edit mode", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[draw, rotate=34] (C) at (0,0) {Here is an example text};
+\end{tikzpicture}`);
+
+  const textRegion = page.locator("[data-hit-region-target-id='path:0'][data-hit-region-interaction-mode='text']").first();
+  await expect(textRegion).toBeVisible();
+  await clickTextHitRegionByTargetId(page, "path:0");
+
+  const popup = page.getByTestId("canvas-text-edit-popup");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(popup).toBeVisible();
+  await expect(textarea).toBeFocused();
+  await expect(textarea).toHaveValue("Here is an example text");
+});
+
 test("single-line nodes without text width support spaces, backspace, and textarea-driven selection sync", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}
@@ -400,6 +417,85 @@ test("wrapped text selection sync produces multiple canvas highlight rects", asy
   await setTextareaSelection(page, 0, "Hello wrapped world with more text".length);
   await expect(page.getByTestId("canvas-text-selection-caret")).toHaveCount(0);
   await expect.poll(async () => page.getByTestId("canvas-text-selection-rect").count()).toBeGreaterThan(1);
+});
+
+test("rotated wrapped text selection overlays follow text rotation", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[draw, align=left, text width=90pt, rotate=34] (C) at (0,0) {Let me think of something long to write to see the multi-line functionalities of this app};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  const fullText = "Let me think of something long to write to see the multi-line functionalities of this app";
+  await expect(textarea).toHaveValue(fullText);
+  await setTextareaSelection(page, 0, fullText.length);
+
+  const rects = page.getByTestId("canvas-text-selection-rect");
+  await expect.poll(async () => rects.count()).toBeGreaterThan(1);
+  const firstTransform = await rects.first().evaluate((node) => getComputedStyle(node).transform);
+  expect(firstTransform).not.toBe("none");
+
+});
+
+test("rotated wrapped text supports partial selection overlay screenshot", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[draw, align=left, text width=90pt, rotate=34] (C) at (0,0) {Let me think of something long to write to see the multi-line functionalities of this app};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  const fullText = "Let me think of something long to write to see the multi-line functionalities of this app";
+  const selectedText = "long to write";
+  const start = fullText.indexOf(selectedText);
+  if (start < 0) {
+    throw new Error("Failed to locate partial selection text.");
+  }
+  await expect(textarea).toHaveValue(fullText);
+  await setTextareaSelection(page, start, start + selectedText.length);
+
+  await expect.poll(async () => page.getByTestId("canvas-text-selection-rect").count()).toBeGreaterThan(0);
+});
+
+test("rotated wrapped text click maps consistently to caret offsets", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[draw, align=left, text width=90pt, rotate=34] (C) at (0,0) {Let me think of something long to write to see the multi-line functionalities of this app};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  const fullText = "Let me think of something long to write to see the multi-line functionalities of this app";
+  await expect(textarea).toHaveValue(fullText);
+  await setTextareaSelection(page, 0, 0);
+
+  const textRegion = page.locator("[data-hit-region-target-id='path:0'][data-hit-region-interaction-mode='text']").first();
+  const box = await textRegion.boundingBox();
+  if (!box) {
+    throw new Error("Missing rotated text hit-region bounds.");
+  }
+  await page.mouse.click(box.x + box.width * 0.24, box.y + box.height * 0.30);
+
+  await expect(page.getByTestId("canvas-text-selection-caret")).toHaveCount(1);
+  const firstCaretTransform = await page
+    .getByTestId("canvas-text-selection-caret")
+    .first()
+    .evaluate((node) => getComputedStyle(node).transform);
+  expect(firstCaretTransform).not.toBe("none");
+  const firstSelection = await readTextareaSelection(page);
+  expect(firstSelection.start).not.toBeNull();
+  expect(firstSelection.end).toBe(firstSelection.start);
+
+  await page.mouse.click(box.x + box.width * 0.58, box.y + box.height * 0.66);
+  await expect(page.getByTestId("canvas-text-selection-caret")).toHaveCount(1);
+  const secondSelection = await readTextareaSelection(page);
+  expect(secondSelection.start).not.toBeNull();
+  expect(secondSelection.end).toBe(secondSelection.start);
+  const firstOffset = firstSelection.start ?? 0;
+  const secondOffset = secondSelection.start ?? 0;
+  expect(secondOffset).toBeGreaterThan(firstOffset + 8);
+
 });
 
 test("explicit multiline node text with align and \\\\ edits from the canvas popup", async ({ page }) => {

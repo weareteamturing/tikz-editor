@@ -67,7 +67,7 @@ import { applyCustomStyleDefinition, cloneCustomStyleRegistry } from "./style/cu
 import { expandOptionListMacros } from "./style/macro-options.js";
 import { FONT_SIZE_COMMAND_FACTORS } from "./style/constants.js";
 import { resolveDefineColorModel } from "./style/colors.js";
-import { identityMatrix } from "./transform.js";
+import { applyMatrix, identityMatrix } from "./transform.js";
 import { cloneResolvedStyle, cloneStyleChain, diffResolvedStyle, type StyleSourceRef, type StyleTraceLayerInput } from "./style-chain.js";
 import { inferRequiredTikzLibraries } from "./required-tikz-libraries.js";
 import { parseBooleanishNormalized } from "../utils/booleanish.js";
@@ -1823,13 +1823,14 @@ export function computeBounds(elements: SceneElement[]): Bounds | undefined {
 
   for (const element of elements) {
     if (element.kind === "Path") {
-      points.push(...pathBoundsPoints(element.commands));
+      points.push(...pathBoundsPoints(element.commands).map((point) => applyOptionalTransform(point, element.transform)));
       continue;
     }
 
     if (element.kind === "Circle") {
-      points.push({ x: element.center.x - element.radius, y: element.center.y - element.radius });
-      points.push({ x: element.center.x + element.radius, y: element.center.y + element.radius });
+      const min = { x: element.center.x - element.radius, y: element.center.y - element.radius };
+      const max = { x: element.center.x + element.radius, y: element.center.y + element.radius };
+      pushRectCorners(points, min, max, element.transform);
       continue;
     }
 
@@ -1839,8 +1840,9 @@ export function computeBounds(elements: SceneElement[]): Bounds | undefined {
       const sin = Math.sin(rotation);
       const extentX = Math.sqrt(element.rx * element.rx * cos * cos + element.ry * element.ry * sin * sin);
       const extentY = Math.sqrt(element.rx * element.rx * sin * sin + element.ry * element.ry * cos * cos);
-      points.push({ x: element.center.x - extentX, y: element.center.y - extentY });
-      points.push({ x: element.center.x + extentX, y: element.center.y + extentY });
+      const min = { x: element.center.x - extentX, y: element.center.y - extentY };
+      const max = { x: element.center.x + extentX, y: element.center.y + extentY };
+      pushRectCorners(points, min, max, element.transform);
       continue;
     }
 
@@ -1850,10 +1852,21 @@ export function computeBounds(elements: SceneElement[]): Bounds | undefined {
     const halfWidth = textWidth / 2;
     const halfHeight = textHeight / 2;
     const rotation = (element.rotation ?? 0) * (Math.PI / 180);
-    const extentX = Math.abs(Math.cos(rotation)) * halfWidth + Math.abs(Math.sin(rotation)) * halfHeight;
-    const extentY = Math.abs(Math.sin(rotation)) * halfWidth + Math.abs(Math.cos(rotation)) * halfHeight;
-    points.push({ x: element.position.x - extentX, y: element.position.y - extentY });
-    points.push({ x: element.position.x + extentX, y: element.position.y + extentY });
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    const corners = [
+      { x: -halfWidth, y: -halfHeight },
+      { x: halfWidth, y: -halfHeight },
+      { x: halfWidth, y: halfHeight },
+      { x: -halfWidth, y: halfHeight }
+    ];
+    for (const corner of corners) {
+      const rotatedCorner = {
+        x: element.position.x + corner.x * cos - corner.y * sin,
+        y: element.position.y + corner.x * sin + corner.y * cos
+      };
+      points.push(applyOptionalTransform(rotatedCorner, element.transform));
+    }
   }
 
   if (points.length === 0) {
@@ -1866,6 +1879,33 @@ export function computeBounds(elements: SceneElement[]): Bounds | undefined {
   const maxY = Math.max(...points.map((point) => point.y));
 
   return { minX, minY, maxX, maxY };
+}
+
+function applyOptionalTransform(
+  point: { x: number; y: number },
+  transform: { a: number; b: number; c: number; d: number; e: number; f: number } | undefined
+): { x: number; y: number } {
+  if (!transform) {
+    return point;
+  }
+  return applyMatrix(transform, point);
+}
+
+function pushRectCorners(
+  points: Array<{ x: number; y: number }>,
+  min: { x: number; y: number },
+  max: { x: number; y: number },
+  transform: { a: number; b: number; c: number; d: number; e: number; f: number } | undefined
+): void {
+  const corners = [
+    { x: min.x, y: min.y },
+    { x: max.x, y: min.y },
+    { x: max.x, y: max.y },
+    { x: min.x, y: max.y }
+  ];
+  for (const corner of corners) {
+    points.push(applyOptionalTransform(corner, transform));
+  }
 }
 
 function estimateTextWidth(text: string, fontSize: number): number {

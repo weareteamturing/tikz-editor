@@ -89,7 +89,10 @@ function resolveRegionSelectionOverlay(
   target: any,
   selectionStart: number,
   selectionEnd: number
-): { caret: { left: number; top: number; height: number } | null; rects: Array<{ left: number; top: number; width: number; height: number }> } {
+): {
+  caret: { left: number; top: number; height: number } | null;
+  rects: Array<{ left: number; top: number; width: number; height: number; centerX?: number; centerY?: number; rotationDeg?: number }>;
+} {
   const ranges = collectLogicalLineRanges(target.text);
   const lineHeight = target.region.height / Math.max(1, ranges.length);
   if (selectionStart === selectionEnd) {
@@ -115,7 +118,7 @@ function resolveRegionSelectionOverlay(
     };
   }
 
-  const rects: Array<{ left: number; top: number; width: number; height: number }> = [];
+  const rects: Array<{ left: number; top: number; width: number; height: number; centerX?: number; centerY?: number; rotationDeg?: number }> = [];
   const start = Math.min(selectionStart, selectionEnd);
   const end = Math.max(selectionStart, selectionEnd);
   for (let index = 0; index < ranges.length; index += 1) {
@@ -134,7 +137,10 @@ function resolveRegionSelectionOverlay(
       left,
       top: target.region.y + index * lineHeight,
       width: Math.max(1, right - left),
-      height: Math.max(1, lineHeight)
+      height: Math.max(1, lineHeight),
+      centerX: left + Math.max(1, right - left) / 2,
+      centerY: target.region.y + index * lineHeight + Math.max(1, lineHeight) / 2,
+      rotationDeg: Number.isFinite(target.region.rotation) ? Number(target.region.rotation) : undefined
     });
   }
   return { caret: null, rects };
@@ -284,7 +290,10 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
             left: rect.left - viewportRect.left,
             top: rect.top - viewportRect.top,
             width: rect.width,
-            height: rect.height
+            height: rect.height,
+            centerX: rect.centerX != null ? rect.centerX - viewportRect.left : undefined,
+            centerY: rect.centerY != null ? rect.centerY - viewportRect.top : undefined,
+            rotationDeg: rect.rotationDeg
           }))
         });
         return;
@@ -318,7 +327,10 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
           caret: {
             left: point.clientX - viewportRect.left,
             top: point.clientY - viewportRect.top - height / 2,
-            height
+            height,
+            centerX: point.clientX - viewportRect.left,
+            centerY: point.clientY - viewportRect.top,
+            rotationDeg: Number.isFinite(point.rotationDeg) ? point.rotationDeg : undefined
           },
           rects: []
         });
@@ -348,7 +360,10 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
           left: rect.left - viewportRect.left,
           top: rect.top - viewportRect.top,
           width: rect.width,
-          height: rect.height
+          height: rect.height,
+          centerX: rect.centerX - viewportRect.left,
+          centerY: rect.centerY - viewportRect.top,
+          rotationDeg: rect.rotationDeg
         }))
       });
     })();

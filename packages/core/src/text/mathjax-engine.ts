@@ -71,8 +71,7 @@ export type MathJaxFont =
   | "mathjax-tex";
 
 const DEFAULT_FONT: MathJaxFont = "mathjax-newcm";
-const SINGLE_LINE_RENDER_WIDTH_FUDGE_PT = 0.5;
-
+const SINGLE_LINE_RENDER_WIDTH_FUDGE_PT = 2;
 const MIDLINE_FROM_BASELINE_RATIO = 0.215;
 const BROWSER_STARTUP_COMPONENT_URL = "https://cdn.jsdelivr.net/npm/mathjax@4/startup.js";
 const BROWSER_STARTUP_COMPONENT_ID = "tikz-editor-mathjax-startup";

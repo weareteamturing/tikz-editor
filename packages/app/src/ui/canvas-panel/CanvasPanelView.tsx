@@ -479,35 +479,52 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
 
           {textSelectionOverlay ? (
             <div className={css.textSelectionViewportOverlay} aria-hidden="true" data-testid="canvas-text-selection-overlay">
-              {textSelectionOverlay.rects.map((rect: any, index: number) => (
-                <div
-                  key={`${textSelectionOverlay.sourceId}:rect:${index}:${rect.left}:${rect.top}:${rect.width}:${rect.height}`}
-                  className={css.textSelectionViewportRect}
-                  data-testid="canvas-text-selection-rect"
-                  style={{
-                    left: rect.left,
-                    top: rect.top,
-                    width: rect.width,
-                    height: rect.height
-                  }}
-                />
-              ))}
+              {textSelectionOverlay.rects.map((rect: any, index: number) => {
+                const hasRotatedPlacement =
+                  Number.isFinite(rect.rotationDeg) && rect.centerX != null && rect.centerY != null;
+                return (
+                  <div
+                    key={`${textSelectionOverlay.sourceId}:rect:${index}:${rect.left}:${rect.top}:${rect.width}:${rect.height}:${rect.centerX ?? ""}:${rect.centerY ?? ""}:${rect.rotationDeg ?? ""}`}
+                    className={css.textSelectionViewportRect}
+                    data-testid="canvas-text-selection-rect"
+                    style={{
+                      left: hasRotatedPlacement ? rect.centerX : rect.left,
+                      top: hasRotatedPlacement ? rect.centerY : rect.top,
+                      width: rect.width,
+                      height: rect.height,
+                      transform: hasRotatedPlacement ? `translate(-50%, -50%) rotate(${rect.rotationDeg}deg)` : undefined,
+                      transformOrigin: "center"
+                    }}
+                  />
+                );
+              })}
               {textSelectionOverlay.caret ? (
-                <div
-                  key={`${textSelectionOverlay.sourceId}:${textSelectionOverlay.selectionStart}:${textSelectionOverlay.selectionEnd}`}
-                  className={[
-                    css.textSelectionViewportCaret,
-                    props.prefersNonBlinkingTextInsertionIndicator ? css.textCaretNoBlink : ""
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  data-testid="canvas-text-selection-caret"
-                  style={{
-                    left: textSelectionOverlay.caret.left,
-                    top: textSelectionOverlay.caret.top,
-                    height: textSelectionOverlay.caret.height
-                  }}
-                />
+                (() => {
+                  const caret = textSelectionOverlay.caret;
+                  const hasRotatedPlacement =
+                    Number.isFinite(caret.rotationDeg) && caret.centerX != null && caret.centerY != null;
+                  return (
+                    <div
+                      key={`${textSelectionOverlay.sourceId}:${textSelectionOverlay.selectionStart}:${textSelectionOverlay.selectionEnd}:${caret.rotationDeg ?? ""}`}
+                      className={[
+                        css.textSelectionViewportCaret,
+                        props.prefersNonBlinkingTextInsertionIndicator ? css.textCaretNoBlink : ""
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      data-testid="canvas-text-selection-caret"
+                      style={{
+                        left: hasRotatedPlacement ? caret.centerX : caret.left,
+                        top: hasRotatedPlacement ? caret.centerY : caret.top,
+                        height: caret.height,
+                        transform: hasRotatedPlacement
+                          ? `translate(-50%, -50%) rotate(${caret.rotationDeg}deg)`
+                          : undefined,
+                        transformOrigin: "center"
+                      }}
+                    />
+                  );
+                })()
               ) : null}
             </div>
           ) : null}

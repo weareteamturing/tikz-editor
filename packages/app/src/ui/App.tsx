@@ -897,6 +897,14 @@ export function App() {
         getActiveCanvasDragKind: () => string | null;
         getCanvasTransform: () => { translateX: number; translateY: number; scale: number };
         setCanvasTransform: (transform: { translateX: number; translateY: number; scale: number }) => void;
+        getSceneTextDebug: () => Array<{
+          sourceId: string;
+          sceneTextId: string;
+          text: string;
+          renderSourceText: string | null;
+          paragraphId: string | null;
+          layoutKind: string | null;
+        }>;
         resetProfilingSession: (label?: string | null) => void;
         getProfilingSnapshot: () => ReturnType<typeof readAppProfilingSnapshot>;
       };
@@ -957,6 +965,19 @@ export function App() {
       },
       setCanvasTransform: (transform) => {
         dispatch({ type: "SET_CANVAS_TRANSFORM", transform });
+      },
+      getSceneTextDebug: () => {
+        const elements = snapshotRef.current.scene?.elements ?? [];
+        return elements
+          .filter((element): element is Extract<(typeof elements)[number], { kind: "Text" }> => element.kind === "Text")
+          .map((element) => ({
+            sourceId: element.sourceRef.sourceId,
+            sceneTextId: element.id,
+            text: element.text,
+            renderSourceText: element.textRenderInfo?.mode === "mathjax" ? element.textRenderInfo.renderSourceText : null,
+            paragraphId: element.textRenderInfo?.mode === "mathjax" ? element.textRenderInfo.paragraphId : null,
+            layoutKind: element.textRenderInfo?.mode === "mathjax" ? element.textRenderInfo.layoutKind : null
+          }));
       },
       resetProfilingSession: (label) => {
         resetAppProfilingSession(label ?? null);

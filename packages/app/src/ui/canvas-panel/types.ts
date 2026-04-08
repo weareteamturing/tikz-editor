@@ -207,6 +207,9 @@ export type TextSelectionOverlay = {
         left: number;
         top: number;
         height: number;
+        centerX?: number;
+        centerY?: number;
+        rotationDeg?: number;
       }
     | null;
   rects: Array<{
@@ -214,6 +217,9 @@ export type TextSelectionOverlay = {
     top: number;
     width: number;
     height: number;
+    centerX?: number;
+    centerY?: number;
+    rotationDeg?: number;
   }>;
 };
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { renderTikzToSvg, renderTikzToSvgAsync } from "../packages/core/src/render/index.js";
 import type { ScenePath, SceneText } from "../packages/core/src/semantic/types.js";
+import { applyMatrix } from "../packages/core/src/semantic/transform.js";
 import type { NodeTextEngine, NodeTextMeasureRequest, NodeTextMetrics } from "../packages/core/src/text/types.js";
 
 function readLineboxTranslateXs(svg: string): number[] {
@@ -269,6 +270,54 @@ describe("render pipeline", () => {
         expect(multiRenderInfo.layoutKind).toBe("single-line");
       }
       expect(multiWordText.textBlockHeight ?? 0).toBeLessThan((singleWordText.textBlockHeight ?? 0) * 1.5);
+    }
+  });
+
+  it("keeps long plain node text single-line without align or text width", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {Let me think of something long and fun to write};
+\end{tikzpicture}`;
+
+    const result = await renderTikzToSvgAsync(source);
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.text).toBe("Let me think of something long and fun to write");
+      expect(text.text).not.toContain("\n");
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.layoutKind).toBe("single-line");
+        expect(renderInfo.paragraphId).toBeTruthy();
+      }
+    }
+  });
+
+  it("includes transformed node-box geometry in scene bounds for rotated wrapped nodes", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,align=left,text width=90pt,rotate=34] at (0,0) {Let me think of something long to write to see the multi-line functionalities of this app};
+\end{tikzpicture}`;
+    const result = await renderTikzToSvgAsync(source);
+    const bounds = result.semantic.scene.bounds;
+    expect(bounds).toBeDefined();
+
+    const transformedPathPoints = result.semantic.scene.elements
+      .filter((element): element is ScenePath => element.kind === "Path")
+      .flatMap((path) =>
+        path.commands
+          .filter((command): command is Extract<ScenePath["commands"][number], { to: { x: number; y: number } }> => "to" in command)
+          .map((command) => (path.transform ? applyMatrix(path.transform, command.to) : command.to))
+      );
+
+    expect(transformedPathPoints.length).toBeGreaterThan(0);
+    if (bounds && transformedPathPoints.length > 0) {
+      for (const point of transformedPathPoints) {
+        expect(point.x).toBeGreaterThanOrEqual(bounds.minX - 1e-6);
+        expect(point.x).toBeLessThanOrEqual(bounds.maxX + 1e-6);
+        expect(point.y).toBeGreaterThanOrEqual(bounds.minY - 1e-6);
+        expect(point.y).toBeLessThanOrEqual(bounds.maxY + 1e-6);
+      }
     }
   });
 
