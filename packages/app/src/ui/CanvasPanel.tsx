@@ -3415,7 +3415,8 @@ export function CanvasPanel({
     source,
     startTextEditingSession,
     setPendingAdornmentTextEditTargetId,
-    canvasTransform
+    canvasTransform,
+    svgResult
   });
 
   useEffect(() => {

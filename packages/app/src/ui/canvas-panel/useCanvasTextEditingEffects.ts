@@ -47,6 +47,8 @@ type LogicalLineRange = {
   end: number;
 };
 
+type RegionSelectionOverlay = ReturnType<typeof resolveRegionSelectionOverlay>;
+
 function collectLogicalLineRanges(text: string): LogicalLineRange[] {
   if (text.length === 0) {
     return [{ start: 0, end: 0 }];
@@ -157,6 +159,41 @@ function resolveRegionSelectionOverlay(
   return { caret: null, rects };
 }
 
+function projectRegionSelectionOverlayToViewport(
+  overlay: RegionSelectionOverlay,
+  canvasTransform: { translateX: number; translateY: number; scale: number },
+  viewBox: { x: number; y: number }
+): {
+  caret: {
+    left: number;
+    top: number;
+    height: number;
+  } | null;
+  rects: Array<{ left: number; top: number; width: number; height: number; centerX?: number; centerY?: number; rotationDeg?: number }>;
+} {
+  const scale = Math.max(canvasTransform.scale, 1e-6);
+  const projectX = (svgX: number) => canvasTransform.translateX + (svgX - viewBox.x) * scale;
+  const projectY = (svgY: number) => canvasTransform.translateY + (svgY - viewBox.y) * scale;
+  return {
+    caret: overlay.caret
+      ? {
+          left: projectX(overlay.caret.left),
+          top: projectY(overlay.caret.top),
+          height: overlay.caret.height * scale
+        }
+      : null,
+    rects: overlay.rects.map((rect) => ({
+      left: projectX(rect.left),
+      top: projectY(rect.top),
+      width: rect.width * scale,
+      height: rect.height * scale,
+      centerX: rect.centerX != null ? projectX(rect.centerX) : undefined,
+      centerY: rect.centerY != null ? projectY(rect.centerY) : undefined,
+      rotationDeg: rect.rotationDeg
+    }))
+  };
+}
+
 async function estimateCaretHeight(
   outputJax: unknown,
   paragraphId: string,
@@ -203,7 +240,8 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
     source,
     startTextEditingSession,
     setPendingAdornmentTextEditTargetId,
-    canvasTransform
+    canvasTransform,
+    svgResult
   } = args;
 
   useEffect(() => {
@@ -284,29 +322,27 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
     const renderEnd = Math.max(renderAnchor, renderFocus);
 
     void (async () => {
-      if (!target.paragraphId || !outputJax || !containerElement) {
-        const overlay = resolveRegionSelectionOverlay(target, boundedStart, boundedEnd);
+      const setRegionFallbackOverlay = () => {
+        if (!svgResult) {
+          setTextSelectionOverlay(null);
+          return;
+        }
+        const overlay = projectRegionSelectionOverlayToViewport(
+          resolveRegionSelectionOverlay(target, boundedStart, boundedEnd),
+          canvasTransform,
+          svgResult.viewBox
+        );
         setTextSelectionOverlay({
           sourceId: target.sourceId,
           selectionStart: boundedStart,
           selectionEnd: boundedEnd,
-          caret: overlay.caret
-            ? {
-                left: overlay.caret.left - viewportRect.left,
-                top: overlay.caret.top - viewportRect.top,
-                height: overlay.caret.height
-              }
-            : null,
-          rects: overlay.rects.map((rect) => ({
-            left: rect.left - viewportRect.left,
-            top: rect.top - viewportRect.top,
-            width: rect.width,
-            height: rect.height,
-            centerX: rect.centerX != null ? rect.centerX - viewportRect.left : undefined,
-            centerY: rect.centerY != null ? rect.centerY - viewportRect.top : undefined,
-            rotationDeg: rect.rotationDeg
-          }))
+          caret: overlay.caret,
+          rects: overlay.rects
         });
+      };
+
+      if (!target.paragraphId || !outputJax || !containerElement) {
+        setRegionFallbackOverlay();
         return;
       }
 
@@ -317,7 +353,11 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
           containerElement,
           offset: renderStart
         });
-        if (requestRef.cancelled || !point.ok || point.clientX == null || point.clientY == null) {
+        if (requestRef.cancelled) {
+          return;
+        }
+        if (!point.ok || point.clientX == null || point.clientY == null) {
+          setRegionFallbackOverlay();
           return;
         }
         const height =
@@ -359,7 +399,7 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
         return;
       }
       if (!rects.ok || rects.rects.length === 0) {
-        setTextSelectionOverlay(null);
+        setRegionFallbackOverlay();
         return;
       }
       setTextSelectionOverlay({
@@ -393,7 +433,8 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
     viewportRef,
     canvasTransform.scale,
     canvasTransform.translateX,
-    canvasTransform.translateY
+    canvasTransform.translateY,
+    svgResult
   ]);
 
   useEffect(() => {

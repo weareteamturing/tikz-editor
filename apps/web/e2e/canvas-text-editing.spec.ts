@@ -594,6 +594,53 @@ test("explicit multiline textarea selection stays synced to a multi-line canvas 
   await expect.poll(async () => page.getByTestId("canvas-text-selection-rect").count()).toBeGreaterThan(1);
 });
 
+test("explicit multiline aligned text keeps authored line breaks and canvas selection overlays after paragraph renders", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[text width=2.4cm,align=center] at (0,0) {Wrapped paragraph warmup text};
+\end{tikzpicture}`);
+  await clickTextHitRegionByTargetId(page, "path:0");
+  await expect(page.getByTestId("canvas-text-selection-caret")).toHaveCount(1);
+
+  const selectionText = String.raw`Let me think of something\\ long and fun to write`;
+  for (const align of ["left", "center", "right"] as const) {
+    await setSource(page, String.raw`\begin{tikzpicture}
+  \node[draw, align=${align}] (C) at (0,0) {Let me think of something\\ long and fun to write};
+\end{tikzpicture}`);
+
+    await waitForHitRegions(page, 1);
+    await clickTextHitRegionByTargetId(page, "path:0");
+
+    const textarea = page.getByTestId("canvas-text-edit-textarea");
+    await expect(textarea).toHaveValue(selectionText);
+    await expect(page.locator("svg[data-text-renderer='mathjax'][data-source-id='path:0']")).toHaveAttribute(
+      "data-paragraph-id",
+      /.+/
+    );
+    await expect(page.getByTestId("canvas-text-selection-caret")).toHaveCount(1);
+
+    await setTextareaSelection(page, 7, 37);
+    await expect(page.getByTestId("canvas-text-selection-caret")).toHaveCount(0);
+    await expect(page.getByTestId("canvas-text-selection-rect")).toHaveCount(2);
+
+    const textRegion = page.locator("[data-hit-region-target-id='path:0'][data-hit-region-interaction-mode='text']").first();
+    const textBox = await textRegion.boundingBox();
+    const firstRectBox = await page.getByTestId("canvas-text-selection-rect").first().boundingBox();
+    const secondRectBox = await page.getByTestId("canvas-text-selection-rect").nth(1).boundingBox();
+    if (!textBox || !firstRectBox || !secondRectBox) {
+      throw new Error(`Expected visible text-region and selection overlay bounds for align=${align}.`);
+    }
+    expect(firstRectBox.x).toBeGreaterThanOrEqual(textBox.x - 1);
+    expect(firstRectBox.y).toBeGreaterThanOrEqual(textBox.y - 1);
+    expect(firstRectBox.x + firstRectBox.width).toBeLessThanOrEqual(textBox.x + textBox.width + 1);
+    expect(firstRectBox.y + firstRectBox.height).toBeLessThanOrEqual(textBox.y + textBox.height + 1);
+    expect(secondRectBox.x).toBeGreaterThanOrEqual(textBox.x - 1);
+    expect(secondRectBox.y).toBeGreaterThanOrEqual(textBox.y - 1);
+    expect(secondRectBox.x + secondRectBox.width).toBeLessThanOrEqual(textBox.x + textBox.width + 1);
+    expect(secondRectBox.y + secondRectBox.height).toBeLessThanOrEqual(textBox.y + textBox.height + 1);
+  }
+});
+
 test("filled nodes still enter text edit mode from the text region and remain draggable from the move region", async ({ page }) => {
   await gotoApp(page);
   const initialSource = String.raw`\begin{tikzpicture}

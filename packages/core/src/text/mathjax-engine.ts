@@ -974,7 +974,9 @@ function buildMeasuredCacheEntry(params: {
   if (shouldUseExplicitMultilineArrayRendering(mode, textWidthPt, explicitMultiline, alignment)) {
     const tex = buildExplicitMultilineTeX(sourceText, font, alignment);
     const node = runtime.tex2svg(tex, { display: false });
-    return buildCacheEntryWithMetadata(cacheKey, node, adaptor, sourceText, resolveLatestParagraphId(runtime), {
+    // Array-rendered explicit multiline text does not produce Knuth-Plass paragraph
+    // geometry, so it must use the region-based caret/selection fallback path.
+    return buildCacheEntryWithMetadata(cacheKey, node, adaptor, sourceText, null, {
       trimArrayVerticalPadding: true
     });
   }
@@ -988,7 +990,7 @@ function buildMeasuredCacheEntry(params: {
     return null;
   }
   const renderWidth =
-    textWidthPt == null && !explicitMultiline
+    textWidthPt == null
       ? measuredWidth + SINGLE_LINE_RENDER_WIDTH_FUDGE_PT
       : measuredWidth;
   const tex = buildWrappedTeX(sourceText, renderWidth, font, mode);
@@ -1124,10 +1126,7 @@ function shouldUseExplicitMultilineArrayRendering(
   if (mode !== "text" || !explicitMultiline) {
     return false;
   }
-  if (textWidthPt == null) {
-    return true;
-  }
-  return alignment === "center" || alignment === "ragged-left";
+  return textWidthPt != null && (alignment === "center" || alignment === "ragged-left");
 }
 
 function extractSvgPayload(
