@@ -1294,17 +1294,21 @@ function buildExactSingleLineCacheEntry(params: {
     const node = renderWithWidth(currentWidthPt);
     currentEntry = buildCacheEntryWithMetadata(cacheKey, node, adaptor, sourceText, null);
     const report = resolveParagraphReportById(runtime, currentEntry?.paragraphId ?? null);
-    const exactWidthPt = measureParagraphRunWidth(report);
+    const measuredExactWidthPt = measureParagraphRunWidth(report);
     if (
       currentEntry?.paragraphId != null &&
-      exactWidthPt == null &&
+      measuredExactWidthPt == null &&
       typeof runtime.tex2svgPromise === "function"
     ) {
       throw new Error("MathJax Retry: exact paragraph width requires promise-based rendering.");
     }
+    const exactWidthPt =
+      Number.isFinite(measuredExactWidthPt) && measuredExactWidthPt != null && measuredExactWidthPt > 0
+        ? measuredExactWidthPt
+        : null;
     if (
       !currentEntry ||
-        !(Number.isFinite(exactWidthPt) && exactWidthPt > 0) ||
+      exactWidthPt == null ||
       (report?.lines.length ?? 0) <= 1 && exactWidthPt <= currentWidthPt + SINGLE_LINE_WIDTH_EPSILON_PT
     ) {
       return currentEntry;
@@ -1335,9 +1339,10 @@ async function renderExactSingleLineNodeWithPromise(
     const entry = buildCacheEntryWithMetadata("__measure__", currentNode, adaptor, sourceText, null);
     const reportWidthPt = await waitForParagraphRunWidth(runtime, entry?.paragraphId ?? null);
     const report = resolveParagraphReportById(runtime, entry?.paragraphId ?? null);
-    const exactWidthPt = reportWidthPt;
+    const exactWidthPt =
+      Number.isFinite(reportWidthPt) && reportWidthPt != null && reportWidthPt > 0 ? reportWidthPt : null;
     if (
-      !(Number.isFinite(exactWidthPt) && exactWidthPt > 0) ||
+      exactWidthPt == null ||
       ((report?.lines.length ?? 0) <= 1 && exactWidthPt <= currentWidthPt + SINGLE_LINE_WIDTH_EPSILON_PT)
     ) {
       return currentNode;

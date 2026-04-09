@@ -362,16 +362,20 @@ function alignPathItems(previous: readonly PathItem[], next: PathItem[]): void {
     }
 
     nextItem.id = previousItem.id;
-    if (nextItem.kind === "Node") {
+    if (previousItem.kind === "Node" && nextItem.kind === "Node") {
       alignNodeItem(previousItem, nextItem);
       continue;
     }
-    if (nextItem.kind === "ChildOperation") {
+    if (previousItem.kind === "ChildOperation" && nextItem.kind === "ChildOperation") {
       alignClauseIds(previousItem.foreachClauses, nextItem.foreachClauses);
       alignPathItems(previousItem.body, nextItem.body);
       continue;
     }
-    if (nextItem.kind === "ToOperation" || nextItem.kind === "EdgeOperation" || nextItem.kind === "EdgeFromParentOperation") {
+    if (
+      (previousItem.kind === "ToOperation" && nextItem.kind === "ToOperation") ||
+      (previousItem.kind === "EdgeOperation" && nextItem.kind === "EdgeOperation") ||
+      (previousItem.kind === "EdgeFromParentOperation" && nextItem.kind === "EdgeFromParentOperation")
+    ) {
       alignNodeItems(previousItem.nodes, nextItem.nodes);
     }
   }
