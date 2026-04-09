@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderTikzToSvg, renderTikzToSvgAsync } from "../packages/core/src/render/index.js";
+import { parseLength } from "../packages/core/src/semantic/coords/parse-length.js";
 import type { ScenePath, SceneText } from "../packages/core/src/semantic/types.js";
 import { applyMatrix } from "../packages/core/src/semantic/transform.js";
 import type { NodeTextEngine, NodeTextMeasureRequest, NodeTextMetrics } from "../packages/core/src/text/types.js";
@@ -14,6 +15,10 @@ function readLineboxTranslateXs(svg: string): number[] {
     xs.push(transformMatch ? Number(transformMatch[1]) : 0);
   }
   return xs;
+}
+
+function countLineboxes(svg: string): number {
+  return (svg.match(/data-mjx-linebox=/g) ?? []).length;
 }
 
 describe("render pipeline", () => {
@@ -294,6 +299,34 @@ describe("render pipeline", () => {
     }
   });
 
+  it("uses exact single-line text width without adding extra node slack", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] (C) at (0, 1.5) {C};
+\end{tikzpicture}`;
+
+    const result = await renderTikzToSvgAsync(source);
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      const renderInfo = text.textRenderInfo;
+      expect(text.text).toBe("C");
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.layoutKind).toBe("single-line");
+        expect(renderInfo.paragraphId).toBeTruthy();
+        expect(renderInfo.renderSourceText).toBe("C");
+      }
+      const defaultInset = (parseLength(".3333em", "pt") ?? 3.333) * 2;
+      expect((text.nodeVisualWidth ?? 0) - (text.textBlockWidth ?? 0)).toBeCloseTo(defaultInset, 3);
+    }
+
+    expect(result.svg.svg).toContain('data-text-layout-kind="single-line"');
+    expect(result.svg.svg).toContain(String.raw`\parbox[t]{`);
+    expect(result.svg.svg).not.toContain(String.raw`\mbox{C}`);
+    expect(countLineboxes(result.svg.svg)).toBeLessThanOrEqual(1);
+  });
+
   it("includes transformed node-box geometry in scene bounds for rotated wrapped nodes", async () => {
     const source = String.raw`\begin{tikzpicture}
   \node[draw,align=left,text width=90pt,rotate=34] at (0,0) {Let me think of something long to write to see the multi-line functionalities of this app};
@@ -381,7 +414,9 @@ World};
         expect(renderInfo.layoutKind).toBe("explicit-multiline");
       }
     }
-    expect(result.svg.svg).toContain(String.raw`\begin{array}`);
+    expect(result.svg.svg).toContain(String.raw`\parbox[t]{`);
+    expect(result.svg.svg).toContain('data-paragraph-id=');
+    expect(countLineboxes(result.svg.svg)).toBeGreaterThan(1);
   });
 
   it("treats \\\\ followed by spaces as explicit multiline when align is set", async () => {
@@ -399,7 +434,9 @@ World};
         expect(renderInfo.layoutKind).toBe("explicit-multiline");
       }
     }
-    expect(result.svg.svg).toContain(String.raw`\begin{array}`);
+    expect(result.svg.svg).toContain(String.raw`\parbox[t]{`);
+    expect(result.svg.svg).toContain('data-paragraph-id=');
+    expect(countLineboxes(result.svg.svg)).toBeGreaterThan(1);
   });
 
   it("does not preserve a leading space after \\\\ for wrapped text width nodes", async () => {
@@ -443,7 +480,9 @@ World};
         expect(renderInfo.layoutKind).toBe("explicit-multiline");
       }
     }
-    expect(result.svg.svg).toContain(String.raw`\begin{array}`);
+    expect(result.svg.svg).toContain(String.raw`\parbox[t]{`);
+    expect(result.svg.svg).toContain('data-paragraph-id=');
+    expect(countLineboxes(result.svg.svg)).toBeGreaterThan(1);
   });
 
   it("applies \\\\[<len>] line leading under text width without rendering bracket text", async () => {
@@ -467,7 +506,7 @@ World};
     expect(result.svg.svg).not.toContain('data-c="5D"');
   });
 
-  it("preserves \\\\[<len>] line leading in align=left explicit multiline array rendering", async () => {
+  it("preserves \\\\[<len>] line leading in align=left explicit multiline paragraph rendering", async () => {
     const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
   \node[draw,align=left] (A) at (0,0) {This is the first line \\[10pt]and this is the second line};
 \end{tikzpicture}`);
@@ -483,7 +522,9 @@ World};
       }
     }
 
-    expect(result.svg.svg).toContain(String.raw`\begin{array}`);
+    expect(result.svg.svg).toContain(String.raw`\parbox[t]{`);
+    expect(result.svg.svg).toContain('data-paragraph-id=');
+    expect(countLineboxes(result.svg.svg)).toBeGreaterThan(1);
     expect(result.svg.svg).toContain(String.raw`\\[10pt]`);
     expect(result.svg.svg).not.toContain('data-c="5B"');
     expect(result.svg.svg).not.toContain('data-c="5D"');

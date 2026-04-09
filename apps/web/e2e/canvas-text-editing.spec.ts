@@ -236,6 +236,23 @@ test("rotated single-line node does not enter edit mode at the untransformed tex
   await expect(popup).toBeVisible();
 });
 
+test("rotated single-line text selection overlays follow text rotation", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[draw, rotate=-42] (B) at (1.5, -0.5) {Test string};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toHaveValue("Test string");
+  await setTextareaSelection(page, 0, "Test string".length);
+
+  const rects = page.getByTestId("canvas-text-selection-rect");
+  await expect(rects).toHaveCount(1);
+  const transform = await rects.first().evaluate((node) => getComputedStyle(node).transform);
+  expect(transform).not.toBe("none");
+});
+
 test("single-line nodes without text width support spaces, backspace, and textarea-driven selection sync", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}
