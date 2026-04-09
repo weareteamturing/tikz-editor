@@ -481,6 +481,46 @@ test("wrapped text-width nodes enter canvas edit mode and update source through 
     .toContain("{Hello wrapped world with more text}");
 });
 
+test("wrapped text-width nodes stay wrapped in the popup when field-sizing is unavailable", async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalSupports = CSS.supports.bind(CSS);
+    CSS.supports = ((...args: Parameters<typeof CSS.supports>) => {
+      if (args[0] === "field-sizing" && args[1] === "content") {
+        return false;
+      }
+      return originalSupports(...args);
+    }) as typeof CSS.supports;
+  });
+
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[draw, align=left, text width=80pt] (C) at (0,0) {Let me think of something long and fun to write with much text and a lot of interesting information for readers of this text};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeVisible();
+  const metrics = await textarea.evaluate((element) => {
+    const textareaElement = element as HTMLTextAreaElement;
+    const popup = textareaElement.closest('[data-testid="canvas-text-edit-popup"]') as HTMLElement | null;
+    const computed = getComputedStyle(textareaElement);
+    return {
+      clientWidth: textareaElement.clientWidth,
+      scrollWidth: textareaElement.scrollWidth,
+      clientHeight: textareaElement.clientHeight,
+      scrollHeight: textareaElement.scrollHeight,
+      lineHeight: Number.parseFloat(computed.lineHeight),
+      popupClientWidth: popup?.clientWidth ?? 0
+    };
+  });
+
+  expect(metrics.popupClientWidth).toBeGreaterThan(metrics.clientWidth);
+  expect(metrics.scrollWidth - metrics.clientWidth).toBeLessThanOrEqual(1);
+  expect(metrics.scrollHeight - metrics.clientHeight).toBeLessThanOrEqual(1);
+  expect(metrics.clientHeight).toBeGreaterThan(metrics.lineHeight * 2);
+});
+
 test("wrapped text selection sync produces multiple canvas highlight rects", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}

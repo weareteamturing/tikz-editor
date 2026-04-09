@@ -1357,9 +1357,7 @@ export function CanvasPanel({
     }
 
     const lines = textEditingSession.text.split(/\r?\n/);
-    const cols = Math.max(1, ...lines.map((line) => line.length));
     return {
-      cols,
       rows: Math.max(1, lines.length)
     };
   }, [supportsFieldSizing, textEditingSession]);
@@ -3580,6 +3578,7 @@ export function CanvasPanel({
     }
     const minPadding = 12;
     const popupGap = 10;
+    const popupChromeWidth = 14;
     const popupHeight = textEditPopupHeight ?? 0;
     const contentBox = resolveRectHitRegionContentBox(textEditingSession.region);
     const sourceBounds = sourceBoundsSvg.get(textEditingSession.sourceId);
@@ -3597,7 +3596,13 @@ export function CanvasPanel({
       canvasTransform.translateY + (anchorBottom - svgResult.viewBox.y) * canvasTransform.scale;
     const centerX = (leftEdge + rightEdge) / 2;
     const nodeWidthPx = rightEdge - leftEdge;
+    const contentWidthPx = Math.max(contentBox.width * canvasTransform.scale, 1);
     const maxWidth = clamp(Math.round(nodeWidthPx + 80), 160, viewportSize.width - minPadding * 2);
+    const textareaWidth = clamp(
+      Math.round(contentWidthPx),
+      48,
+      Math.max(48, maxWidth - popupChromeWidth)
+    );
     let top = bottomEdge + popupGap;
     if (top + popupHeight > viewportSize.height - minPadding) {
       top = topEdge - popupHeight - popupGap;
@@ -3605,7 +3610,8 @@ export function CanvasPanel({
     return {
       centerX: clamp(centerX, minPadding + maxWidth / 2, viewportSize.width - minPadding - maxWidth / 2),
       top: clamp(top, minPadding, Math.max(minPadding, viewportSize.height - popupHeight - minPadding)),
-      maxWidth
+      maxWidth,
+      textareaWidth
     };
   }, [
     canvasTransform.scale,
@@ -3618,6 +3624,20 @@ export function CanvasPanel({
     viewportSize.height,
     viewportSize.width
   ]);
+
+  useLayoutEffect(() => {
+    const textarea = textEditTextareaRef.current;
+    if (!textarea) {
+      return;
+    }
+    if (!textEditingSession || supportsFieldSizing) {
+      textarea.style.height = "";
+      return;
+    }
+
+    textarea.style.height = "0px";
+    textarea.style.height = `${Math.ceil(textarea.scrollHeight)}px`;
+  }, [supportsFieldSizing, textEditingSession, textEditPopup?.textareaWidth]);
 
   useLayoutEffect(() => {
     if (!textEditingSession || !textEditPopup) {

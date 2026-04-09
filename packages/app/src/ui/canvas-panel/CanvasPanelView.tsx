@@ -548,9 +548,9 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                   ref={textEditTextareaRef}
                   className={[css.textEditTextarea, hideNativeTextEditCaret ? css.textEditTextareaHideNativeCaret : ""].filter(Boolean).join(" ")}
                   value={textEditingSession.text}
-                  cols={textEditTextareaSizing?.cols}
                   spellCheck={false}
                   rows={textEditTextareaSizing?.rows}
+                  style={textEditTextareaSizing != null ? { width: textEditPopup.textareaWidth } : undefined}
                   onChange={onTextEditTextareaChange}
                   onSelect={onTextEditTextareaSelect}
                   onCopy={onTextEditTextareaCopy}
