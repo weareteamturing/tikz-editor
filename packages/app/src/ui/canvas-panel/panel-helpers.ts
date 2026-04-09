@@ -13,7 +13,7 @@ import type {
 } from "tikz-editor/semantic/types";
 import { intersectRayWithPolygon } from "tikz-editor/semantic/nodes/shape-geometry";
 import type { SvgViewBox } from "tikz-editor/svg/index";
-import { applyMatrixToVector, inverseMatrix } from "tikz-editor/semantic/transform";
+import { applyMatrix, applyMatrixToVector, inverseMatrix } from "tikz-editor/semantic/transform";
 import type { CanvasDragKind } from "../../store/types";
 import type { HitRegion } from "./hit-regions";
 import type {
@@ -88,7 +88,7 @@ export function isPointInsideRectHitRegionContentBox(
   point: Point,
   region: Extract<HitRegion, { shape: "rect" }>
 ): boolean {
-  const unrotatedPoint = rotatePointAroundCenter(point, region.cx, region.cy, region.rotation);
+  const unrotatedPoint = mapPointToRectRegionLocal(point, region);
   const contentBox = resolveRectHitRegionContentBox(region);
   return (
     unrotatedPoint.x >= contentBox.x &&
@@ -96,6 +96,19 @@ export function isPointInsideRectHitRegionContentBox(
     unrotatedPoint.y >= contentBox.y &&
     unrotatedPoint.y <= contentBox.y + contentBox.height
   );
+}
+
+export function mapPointToRectRegionLocal(
+  point: Point,
+  region: Extract<HitRegion, { shape: "rect" }>
+): Point {
+  if (region.transform) {
+    const inverse = inverseMatrix(region.transform);
+    if (inverse) {
+      return applyMatrix(inverse, point);
+    }
+  }
+  return rotatePointAroundCenter(point, region.cx, region.cy, region.rotation);
 }
 
 export function collectSourceBounds(elements: SceneElement[], viewBox: SvgViewBox): Map<string, Bounds> {

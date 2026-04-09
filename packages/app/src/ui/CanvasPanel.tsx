@@ -212,6 +212,7 @@ import {
   getHandleCursor,
   isPointInsideRect,
   isPointInsideRectHitRegionContentBox,
+  mapPointToRectRegionLocal,
   makeMergeKey,
   preferredNodeBoundsForSource,
   previewArrowPoints,
@@ -748,12 +749,7 @@ function estimateTextOffsetFromClient(
       ? viewportToSvgPoint(localViewportX, localViewportY, canvasTransform, svgResult.viewBox)
       : { x: clientX, y: clientY };
   })();
-  const localPoint = rotatePointAroundCenter(
-    svgPoint,
-    target.region.cx,
-    target.region.cy,
-    target.region.rotation
-  );
+  const localPoint = mapPointToRectRegionLocal(svgPoint, target.region);
   const xRatio =
     contentBox.width <= 1e-6
       ? 1
@@ -787,12 +783,7 @@ function estimateTextLineRangeFromClient(
       ? viewportToSvgPoint(localViewportX, localViewportY, canvasTransform, svgResult.viewBox)
       : { x: clientX, y: clientY };
   })();
-  const localPoint = rotatePointAroundCenter(
-    svgPoint,
-    target.region.cx,
-    target.region.cy,
-    target.region.rotation
-  );
+  const localPoint = mapPointToRectRegionLocal(svgPoint, target.region);
   const yRatio =
     contentBox.height <= 1e-6
       ? 0

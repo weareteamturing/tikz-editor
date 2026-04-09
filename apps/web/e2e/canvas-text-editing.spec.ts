@@ -130,6 +130,42 @@ async function dispatchTextRegionPointerDrag(
   }, options);
 }
 
+async function readMathJaxLocalClientPoint(
+  page: Page,
+  options: { sourceId: string; localRatioX: number; localRatioY: number }
+): Promise<{ x: number; y: number }> {
+  return await page.evaluate((raw) => {
+    const { sourceId, localRatioX, localRatioY } = raw as {
+      sourceId: string;
+      localRatioX: number;
+      localRatioY: number;
+    };
+    const rendered = document.querySelector(
+      `svg[data-text-renderer="mathjax"][data-source-id="${sourceId}"]`
+    ) as SVGSVGElement | null;
+    if (!rendered) {
+      throw new Error(`Rendered MathJax SVG not found for ${sourceId}.`);
+    }
+    const owner = rendered.ownerSVGElement;
+    const ctm = owner?.getScreenCTM?.();
+    if (!owner || !ctm) {
+      throw new Error(`Owner SVG or screen CTM missing for ${sourceId}.`);
+    }
+    const x = Number(rendered.getAttribute("x"));
+    const y = Number(rendered.getAttribute("y"));
+    const width = Number(rendered.getAttribute("width"));
+    const height = Number(rendered.getAttribute("height"));
+    if (![x, y, width, height].every(Number.isFinite)) {
+      throw new Error(`Rendered MathJax SVG geometry is invalid for ${sourceId}.`);
+    }
+    const point = owner.createSVGPoint();
+    point.x = x + width * localRatioX;
+    point.y = y + height * localRatioY;
+    const clientPoint = point.matrixTransform(ctm);
+    return { x: clientPoint.x, y: clientPoint.y };
+  }, options);
+}
+
 test("single-line node text enters canvas edit mode and closes when CodeMirror takes focus", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}
@@ -175,6 +211,29 @@ test("rotated single-line node text enters canvas edit mode", async ({ page }) =
   await expect(popup).toBeVisible();
   await expect(textarea).toBeFocused();
   await expect(textarea).toHaveValue("Here is an example text");
+});
+
+test("rotated single-line node does not enter edit mode at the untransformed text box position", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[draw, rotate=30] (C) at (0,0) {Let me think of something long and fun to write};
+\end{tikzpicture}`);
+
+  await waitForHitRegions(page);
+  const popup = page.getByTestId("canvas-text-edit-popup");
+  await expect(popup).toBeHidden();
+
+  const point = await readMathJaxLocalClientPoint(page, {
+    sourceId: "path:0",
+    localRatioX: 0.08,
+    localRatioY: 0.5
+  });
+  await page.mouse.click(point.x, point.y);
+
+  await expect(popup).toBeHidden();
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  await expect(popup).toBeVisible();
 });
 
 test("single-line nodes without text width support spaces, backspace, and textarea-driven selection sync", async ({ page }) => {
@@ -335,7 +394,7 @@ test("deleting all node text keeps the popup open so new text can be entered", a
   await expect(textarea).toHaveValue("");
   await expect.poll(async () => await readStoreSource(page)).toContain("{}");
 
-  await page.keyboard.type("New");
+  await textarea.fill("New");
   await expect(textarea).toHaveValue("New");
   await expect.poll(async () => await readStoreSource(page)).toContain("{New}");
 });
@@ -470,12 +529,12 @@ test("rotated wrapped text click maps consistently to caret offsets", async ({ p
   await expect(textarea).toHaveValue(fullText);
   await setTextareaSelection(page, 0, 0);
 
-  const textRegion = page.locator("[data-hit-region-target-id='path:0'][data-hit-region-interaction-mode='text']").first();
-  const box = await textRegion.boundingBox();
-  if (!box) {
-    throw new Error("Missing rotated text hit-region bounds.");
-  }
-  await page.mouse.click(box.x + box.width * 0.24, box.y + box.height * 0.30);
+  const firstPoint = await readMathJaxLocalClientPoint(page, {
+    sourceId: "path:0",
+    localRatioX: 0.24,
+    localRatioY: 0.30
+  });
+  await page.mouse.click(firstPoint.x, firstPoint.y);
 
   await expect(page.getByTestId("canvas-text-selection-caret")).toHaveCount(1);
   const firstCaretTransform = await page
@@ -487,7 +546,12 @@ test("rotated wrapped text click maps consistently to caret offsets", async ({ p
   expect(firstSelection.start).not.toBeNull();
   expect(firstSelection.end).toBe(firstSelection.start);
 
-  await page.mouse.click(box.x + box.width * 0.58, box.y + box.height * 0.66);
+  const secondPoint = await readMathJaxLocalClientPoint(page, {
+    sourceId: "path:0",
+    localRatioX: 0.58,
+    localRatioY: 0.66
+  });
+  await page.mouse.click(secondPoint.x, secondPoint.y);
   await expect(page.getByTestId("canvas-text-selection-caret")).toHaveCount(1);
   const secondSelection = await readTextareaSelection(page);
   expect(secondSelection.start).not.toBeNull();

@@ -1,4 +1,5 @@
-import type { Bounds, Matrix2D, SceneElement, ScenePathCommand, SceneText } from "tikz-editor/semantic/types";
+import { applyMatrix } from "tikz-editor/semantic/transform";
+import type { Bounds, Matrix2D, Point, SceneElement, ScenePathCommand, SceneText } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 
 const HIT_STROKE_PX = 18;
@@ -51,6 +52,7 @@ export type HitRegion =
       cx: number;
       cy: number;
       rotation: number;
+      transform?: Matrix2D;
       interactionMode?: "move" | "text";
       pointerMode?: "stroke" | "fill";
       strokeWidth?: number;
@@ -157,6 +159,7 @@ export function buildHitRegions(
         cx: textGeometry.cx,
         cy: textGeometry.cy,
         rotation: textGeometry.rotation,
+        transform: textGeometry.transform,
         interactionMode: "move",
         sceneTextKey,
         contentWidth: textGeometry.width,
@@ -191,6 +194,7 @@ export function buildHitRegions(
           cx: textGeometry.cx,
           cy: textGeometry.cy,
           rotation: textGeometry.rotation,
+          transform: textGeometry.transform,
           interactionMode: "move",
           sceneTextKey,
           contentWidth: textGeometry.width,
@@ -210,6 +214,7 @@ export function buildHitRegions(
       cx: textGeometry.cx,
       cy: textGeometry.cy,
       rotation: textGeometry.rotation,
+      transform: textGeometry.transform,
       interactionMode: "text",
       pointerMode: "fill",
       sceneTextKey,
@@ -252,18 +257,98 @@ function hasVisibleFill(fill: string | null): boolean {
 function textGeometryInSvg(
   element: SceneText,
   viewBox: Pick<SvgViewBox, "y" | "height">
-): { cx: number; cy: number; width: number; height: number; rotation: number } {
+): { cx: number; cy: number; width: number; height: number; rotation: number; transform?: Matrix2D } {
   const center = worldToSvgPoint(element.position, viewBox);
   const width = element.textBlockWidth ?? estimateTextBlockWidth(element.text, element.style.fontSize);
   const height = element.textBlockHeight ?? Math.max(1, element.text.split("\n").length) * element.style.fontSize * 1.15;
+  const x = center.x - width / 2;
+  const y = center.y - height / 2;
+  const transform = resolveTextRectTransformInSvg(element, { x, y, width, height }, viewBox);
 
   return {
     cx: center.x,
     cy: center.y,
     width,
     height,
-    rotation: element.rotation ?? 0
+    rotation: 0,
+    transform
   };
+}
+
+function resolveTextRectTransformInSvg(
+  element: SceneText,
+  localRect: { x: number; y: number; width: number; height: number },
+  viewBox: Pick<SvgViewBox, "y" | "height">
+): Matrix2D | undefined {
+  const center = element.position;
+  const halfWidth = localRect.width / 2;
+  const halfHeight = localRect.height / 2;
+  const rotation = element.rotation ?? 0;
+  const localCornersWorld = {
+    topLeft: rotateWorldPointAroundCenter({ x: center.x - halfWidth, y: center.y + halfHeight }, center, rotation),
+    topRight: rotateWorldPointAroundCenter({ x: center.x + halfWidth, y: center.y + halfHeight }, center, rotation),
+    bottomLeft: rotateWorldPointAroundCenter({ x: center.x - halfWidth, y: center.y - halfHeight }, center, rotation)
+  };
+  const actualCornersWorld = element.transform
+    ? {
+        topLeft: applyMatrix(element.transform, localCornersWorld.topLeft),
+        topRight: applyMatrix(element.transform, localCornersWorld.topRight),
+        bottomLeft: applyMatrix(element.transform, localCornersWorld.bottomLeft)
+      }
+    : localCornersWorld;
+  const actualCornersSvg = {
+    topLeft: worldToSvgPoint(actualCornersWorld.topLeft, viewBox),
+    topRight: worldToSvgPoint(actualCornersWorld.topRight, viewBox),
+    bottomLeft: worldToSvgPoint(actualCornersWorld.bottomLeft, viewBox)
+  };
+
+  const transform = rectTransformFromCorners(localRect, actualCornersSvg);
+  return isIdentityAffine(transform) ? undefined : transform;
+}
+
+function rotateWorldPointAroundCenter(point: Point, center: Point, degrees: number): Point {
+  if (Math.abs(degrees) <= 1e-6) {
+    return point;
+  }
+  const theta = (degrees * Math.PI) / 180;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  return {
+    x: center.x + dx * cos - dy * sin,
+    y: center.y + dx * sin + dy * cos
+  };
+}
+
+function rectTransformFromCorners(
+  localRect: { x: number; y: number; width: number; height: number },
+  corners: {
+    topLeft: { x: number; y: number };
+    topRight: { x: number; y: number };
+    bottomLeft: { x: number; y: number };
+  }
+): Matrix2D {
+  const safeWidth = Math.max(localRect.width, 1e-9);
+  const safeHeight = Math.max(localRect.height, 1e-9);
+  const a = (corners.topRight.x - corners.topLeft.x) / safeWidth;
+  const b = (corners.topRight.y - corners.topLeft.y) / safeWidth;
+  const c = (corners.bottomLeft.x - corners.topLeft.x) / safeHeight;
+  const d = (corners.bottomLeft.y - corners.topLeft.y) / safeHeight;
+  const e = corners.topLeft.x - a * localRect.x - c * localRect.y;
+  const f = corners.topLeft.y - b * localRect.x - d * localRect.y;
+  return { a, b, c, d, e, f };
+}
+
+function isIdentityAffine(matrix: Matrix2D): boolean {
+  return (
+    Math.abs(matrix.a - 1) <= 1e-6 &&
+    Math.abs(matrix.b) <= 1e-6 &&
+    Math.abs(matrix.c) <= 1e-6 &&
+    Math.abs(matrix.d - 1) <= 1e-6 &&
+    Math.abs(matrix.e) <= 1e-6 &&
+    Math.abs(matrix.f) <= 1e-6
+  );
 }
 
 function estimateTextBlockWidth(text: string, fontSize: number): number {

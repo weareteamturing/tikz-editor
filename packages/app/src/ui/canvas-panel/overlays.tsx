@@ -692,6 +692,11 @@ export function HitRegionLayer({
           );
         }
 
+        const rectTransform = region.transform
+          ? `matrix(${fmt(region.transform.a)} ${fmt(region.transform.b)} ${fmt(region.transform.c)} ${fmt(region.transform.d)} ${fmt(region.transform.e)} ${fmt(region.transform.f)})`
+          : Math.abs(region.rotation) > 1e-6
+            ? `rotate(${fmt(-region.rotation)} ${fmt(region.cx)} ${fmt(region.cy)})`
+            : undefined;
         return (
           <rect
             key={region.key}
@@ -700,11 +705,7 @@ export function HitRegionLayer({
             y={region.y}
             width={region.width}
             height={region.height}
-            transform={
-              Math.abs(region.rotation) > 1e-6
-                ? `rotate(${fmt(-region.rotation)} ${fmt(region.cx)} ${fmt(region.cy)})`
-                : undefined
-            }
+            transform={rectTransform}
             fill={region.pointerMode === "stroke" ? "none" : "transparent"}
             stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
             strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}

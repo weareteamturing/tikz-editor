@@ -14,6 +14,8 @@ function sameRectRegion(left: any, right: any): boolean {
   if (!left || !right) {
     return left === right;
   }
+  const leftTransform = left.transform ?? null;
+  const rightTransform = right.transform ?? null;
   return (
     left.key === right.key &&
     left.sourceId === right.sourceId &&
@@ -26,6 +28,15 @@ function sameRectRegion(left: any, right: any): boolean {
     Math.abs(Number(left.cx) - Number(right.cx)) <= REGION_EPSILON &&
     Math.abs(Number(left.cy) - Number(right.cy)) <= REGION_EPSILON &&
     Math.abs(Number(left.rotation) - Number(right.rotation)) <= REGION_EPSILON &&
+    ((leftTransform == null && rightTransform == null) ||
+      (leftTransform != null &&
+        rightTransform != null &&
+        Math.abs(Number(leftTransform.a) - Number(rightTransform.a)) <= REGION_EPSILON &&
+        Math.abs(Number(leftTransform.b) - Number(rightTransform.b)) <= REGION_EPSILON &&
+        Math.abs(Number(leftTransform.c) - Number(rightTransform.c)) <= REGION_EPSILON &&
+        Math.abs(Number(leftTransform.d) - Number(rightTransform.d)) <= REGION_EPSILON &&
+        Math.abs(Number(leftTransform.e) - Number(rightTransform.e)) <= REGION_EPSILON &&
+        Math.abs(Number(leftTransform.f) - Number(rightTransform.f)) <= REGION_EPSILON)) &&
     Math.abs(Number(left.contentWidth ?? left.width) - Number(right.contentWidth ?? right.width)) <= REGION_EPSILON &&
     Math.abs(Number(left.contentHeight ?? left.height) - Number(right.contentHeight ?? right.height)) <= REGION_EPSILON
   );
