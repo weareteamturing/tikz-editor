@@ -32,7 +32,7 @@ import {
 import { pointAtPlacementSegment, resolveNodePositionFraction } from "../nodes/placement.js";
 import { evaluateCoordinate, evaluateRawCoordinate } from "../coords/evaluate.js";
 import type { EvaluatedCoordinate } from "../coords/evaluate.js";
-import type { Point, ResolvedStyle, SceneElement, ScenePath } from "../types.js";
+import type { Bounds, Point, ResolvedStyle, SceneClipPath, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
 import { appendArcCommand, extractArcParameters, parseArcShorthand } from "./arc.js";
 import { DEFAULT_GRID_STEP } from "./constants.js";
 import { appendSinCosSegment, parseBezierFromItems } from "./curves.js";
@@ -68,7 +68,7 @@ import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resol
 import { expandOptionListMacros } from "../style/macro-options.js";
 import { cloneStyleChain, type StyleChainEntry, type StyleTraceLayerInput } from "../style-chain.js";
 import { cloneCustomStyleRegistry } from "../style/custom-styles.js";
-import { resolveFrameMeta } from "../evaluate.js";
+import { computeBounds, resolveFrameMeta } from "../evaluate.js";
 import {
   applyPlotOptionLists,
   applyPlotSettingsFromStyleChain,
@@ -2395,8 +2395,137 @@ export function evaluatePathStatement(
       pushDiagnostic
     );
   }
+  const currentPathBounds = computeBounds(geometryElements);
+  const inheritedClipChain = frame.clipChain;
+  let outputClipChain = inheritedClipChain;
 
-  return [...preActionElements, ...behindNodeElements, ...mainGeometry, ...frontNodeElements, ...postActionElements];
+  if (style.clip) {
+    markFeature("path_clipping", "supported");
+    const clipPath = buildClipPath(statement, geometryElements, style.fillRule);
+    if (clipPath) {
+      outputClipChain = [...inheritedClipChain, clipPath];
+      frame.clipChain = outputClipChain;
+    }
+    if (currentPathBounds) {
+      extendPictureBounds(context, currentPathBounds);
+    }
+    frame.pictureSizeRelevant = false;
+  }
+
+  if (style.useAsBoundingBox) {
+    markFeature("use_as_bounding_box", "supported");
+    if (currentPathBounds) {
+      extendPictureBounds(context, currentPathBounds);
+    }
+    frame.pictureSizeRelevant = false;
+  }
+
+  let statementElements = [...preActionElements, ...behindNodeElements, ...mainGeometry, ...frontNodeElements, ...postActionElements];
+  statementElements = attachClipChainToElements(statementElements, outputClipChain);
+  if (!style.clip && !style.useAsBoundingBox && frame.pictureSizeRelevant) {
+    extendPictureBounds(context, computeBounds(statementElements));
+  }
+
+  return statementElements;
+}
+
+function buildClipPath(
+  statement: PathStatement,
+  geometryElements: readonly SceneElement[],
+  fillRule: ResolvedStyle["fillRule"]
+): SceneClipPath | null {
+  const commands: ScenePathCommand[] = [];
+  for (const element of geometryElements) {
+    commands.push(...toClipCommands(element));
+  }
+  if (!commands.some((command) => command.kind === "L" || command.kind === "C" || command.kind === "A")) {
+    return null;
+  }
+  return {
+    id: `scene-clip:${statement.id}`,
+    sourceRef: {
+      sourceId: statement.id,
+      sourceSpan: statement.span,
+      sourceFingerprint: ""
+    },
+    commands,
+    fillRule
+  };
+}
+
+function toClipCommands(element: SceneElement): ScenePathCommand[] {
+  if (element.kind === "Path") {
+    return clonePathCommands(element.commands);
+  }
+
+  if (element.kind === "Circle") {
+    const commands: ScenePathCommand[] = [];
+    appendEllipseSubpath(commands, element.center, element.radius, element.radius, 0);
+    return commands;
+  }
+
+  if (element.kind === "Ellipse") {
+    const commands: ScenePathCommand[] = [];
+    appendEllipseSubpath(commands, element.center, element.rx, element.ry, element.rotation ?? 0);
+    return commands;
+  }
+
+  return [];
+}
+
+function clonePathCommands(commands: readonly ScenePathCommand[]): ScenePathCommand[] {
+  return commands.map((command) => {
+    if (command.kind === "Z") {
+      return { kind: "Z" };
+    }
+    if (command.kind === "M" || command.kind === "L") {
+      return { kind: command.kind, to: { ...command.to } };
+    }
+    if (command.kind === "C") {
+      return {
+        kind: "C",
+        c1: { ...command.c1 },
+        c2: { ...command.c2 },
+        to: { ...command.to }
+      };
+    }
+    return {
+      kind: "A",
+      rx: command.rx,
+      ry: command.ry,
+      xAxisRotation: command.xAxisRotation,
+      largeArc: command.largeArc,
+      sweep: command.sweep,
+      to: { ...command.to }
+    };
+  });
+}
+
+function attachClipChainToElements(elements: readonly SceneElement[], clipChain: readonly SceneClipPath[]): SceneElement[] {
+  return elements.map((element) => ({
+    ...element,
+    clipChain: clipChain.map((clipPath) => ({
+      ...clipPath,
+      sourceRef: { ...clipPath.sourceRef },
+      commands: clonePathCommands(clipPath.commands)
+    }))
+  }));
+}
+
+function extendPictureBounds(context: SemanticContext, bounds: Bounds | undefined): void {
+  if (!bounds) {
+    return;
+  }
+  if (!context.pictureBounds) {
+    context.pictureBounds = { ...bounds };
+    return;
+  }
+  context.pictureBounds = {
+    minX: Math.min(context.pictureBounds.minX, bounds.minX),
+    minY: Math.min(context.pictureBounds.minY, bounds.minY),
+    maxX: Math.max(context.pictureBounds.maxX, bounds.maxX),
+    maxY: Math.max(context.pictureBounds.maxY, bounds.maxY)
+  };
 }
 
 function resolveLengthTransform(

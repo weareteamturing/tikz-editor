@@ -22,6 +22,8 @@ export function defaultStyle(): ResolvedStyle {
     fillPattern: null,
     patternColor: "black",
     fillRule: "nonzero",
+    clip: false,
+    useAsBoundingBox: false,
     textColor: null,
     textOpacity: 1,
     fontSize: DEFAULT_TEXT_FONT_SIZE,
@@ -135,11 +137,22 @@ export function commandDefaultStyle(command: PathCommand, inheritedStyle: Resolv
         drawExplicit: true
       };
     case "clip":
+      return {
+        stroke: null,
+        fill: null,
+        fillPattern: null,
+        clip: true,
+        useAsBoundingBox: false,
+        drawExplicit: false,
+        shadeEnabled: false
+      };
     case "useasboundingbox":
       return {
         stroke: null,
         fill: null,
         fillPattern: null,
+        clip: false,
+        useAsBoundingBox: true,
         drawExplicit: false,
         shadeEnabled: false
       };

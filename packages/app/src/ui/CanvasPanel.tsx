@@ -41,6 +41,7 @@ import {
 import type { NodeTextEngine, NodeTextLayoutKind } from "tikz-editor/text/types";
 import type { Statement } from "tikz-editor/ast/types";
 import { PT_PER_CM } from "tikz-editor/edit/format";
+import { replaceSpan } from "tikz-editor/edit/patch";
 import { resolveEligibleExplicitPath } from "tikz-editor/edit/path-editing";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import {
@@ -2282,6 +2283,7 @@ export function CanvasPanel({
         sourceId: target.sourceId,
         sceneTextId: target.sceneTextId,
         sourceSpan: target.sourceSpan,
+        workingSource: source,
         text: target.text,
         selectionStart: normalizedStart,
         selectionEnd: normalizedEnd,
@@ -2292,7 +2294,7 @@ export function CanvasPanel({
         region: target.region
       });
     },
-    []
+    [source]
   );
 
   const beginCanvasTextInteraction = useCallback(
@@ -2407,22 +2409,37 @@ export function CanvasPanel({
       }
       const boundedStart = clamp(Math.floor(nextSelectionStart), 0, nextText.length);
       const boundedEnd = clamp(Math.floor(nextSelectionEnd), 0, nextText.length);
-      applyActionWithFeedback(
-        {
+      const updated = replaceSpan(current.workingSource, current.sourceSpan, nextText);
+      dispatch({
+        type: "APPLY_EDIT_ACTION",
+        action: {
           kind: "updateNodeText",
           elementId: current.sourceId,
           text: nextText
         },
-        current.historyMergeKey
-      );
+        historyMergeKey: current.historyMergeKey,
+        precomputedResult: {
+          kind: "success",
+          newSource: updated.source,
+          patches: [
+            {
+              oldSpan: current.sourceSpan,
+              newSpan: updated.changedSpan,
+              replacement: nextText
+            }
+          ]
+        }
+      });
       setTextEditingSession({
         ...current,
+        sourceSpan: updated.changedSpan,
+        workingSource: updated.source,
         text: nextText,
         selectionStart: boundedStart,
         selectionEnd: boundedEnd
       });
     },
-    [applyActionWithFeedback]
+    [dispatch]
   );
 
   const handleTextEditTextareaChange = useCallback(

@@ -497,6 +497,90 @@ describe("svg emitter", () => {
     expect(emitted.svg).not.toContain("<circle");
   });
 
+  it("installs clip paths for subsequent geometry from \\clip commands", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \clip (0,0) rectangle (1,1);
+  \fill[red] (-2,-2) rectangle (3,3);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(semantic.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:clip")).toBe(false);
+    expect(emitted.svg).toContain("<clipPath");
+    expect(emitted.svg).toContain('clip-path="url(#tikz-clip-');
+    expect(emitted.viewBox.width).toBeLessThan(80);
+    expect(emitted.viewBox.height).toBeLessThan(80);
+  });
+
+  it("supports [clip] path options and keeps the current statement drawable", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[clip] (0,0) rectangle (1,1);
+  \fill[blue] (-2,-2) rectangle (3,3);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(semantic.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:clip")).toBe(false);
+    expect(emitted.svg).toContain("<clipPath");
+    expect(emitted.svg).toContain('clip-path="url(#tikz-clip-');
+    expect(emitted.svg).toContain('data-source-id="path:0"');
+    expect(emitted.viewBox.width).toBeLessThan(80);
+  });
+
+  it("emits even-odd clip rules for compound clip paths", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path[clip,even odd rule] (0,0) circle (.5cm) (0.5,0) circle (.5cm);
+  \fill[red] (-2,-2) rectangle (3,3);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(semantic.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:clip")).toBe(false);
+    expect(emitted.svg).toContain("<clipPath");
+    expect(emitted.svg).toContain('clip-rule="evenodd"');
+  });
+
+  it("restores picture-size accumulation after leaving a clipped scope", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \clip (0,0) rectangle (1,1);
+    \fill[red] (-2,-2) rectangle (3,3);
+  \end{scope}
+  \fill[blue] (3,0) rectangle (4,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain("<clipPath");
+    expect(emitted.viewBox.width).toBeGreaterThan(120);
+  });
+
+  it("uses explicit bounding-box paths to constrain later geometry in command and option forms", () => {
+    const commandSource = String.raw`\begin{tikzpicture}
+  \useasboundingbox (0,0) rectangle (1,1);
+  \fill[red] (-2,-2) rectangle (3,3);
+\end{tikzpicture}`;
+    const optionSource = String.raw`\begin{tikzpicture}
+  \path[use as bounding box] (0,0) rectangle (1,1);
+  \fill[red] (-2,-2) rectangle (3,3);
+\end{tikzpicture}`;
+
+    for (const source of [commandSource, optionSource]) {
+      const parsed = parseTikz(source);
+      const semantic = evaluateTikzFigure(parsed.figure, source);
+      const emitted = emitSvg(semantic.scene);
+
+      expect(semantic.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:use as bounding box")).toBe(false);
+      expect(emitted.svg).not.toContain("<clipPath");
+      expect(emitted.viewBox.width).toBeLessThan(80);
+      expect(emitted.viewBox.height).toBeLessThan(80);
+    }
+  });
+
   it("renders fill paths with named color flags as fill-only paint", () => {
     const source = String.raw`\begin{tikzpicture}
   \fill [green] (0,0) rectangle (1,1);

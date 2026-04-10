@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   canvasViewport,
+  clearSceneSelection,
   clickHitRegionByTargetId,
   clickHitRegion,
   dragBetweenPoints,
@@ -104,6 +105,39 @@ test("cmd/ctrl+a selects all canvas elements for delete", async ({ page }) => {
 
   await expect.poll(async () => readSource(page)).not.toContain("\\draw (0,0) rectangle (2,1);");
   await expect.poll(async () => readSource(page)).not.toContain("\\draw (3,0) rectangle (4,1);");
+});
+
+test("clipped geometry only targets the visible clipped area on canvas", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\clip (0,0) rectangle (1,1);
+\fill[red] (0,0) rectangle (2,1);
+\end{tikzpicture}`);
+
+  await waitForHitRegions(page, 1);
+  await expect(page.locator("[data-hit-region-target-id='path:0']")).toHaveCount(0);
+  const region = page.locator("[data-hit-region-target-id='path:1']").first();
+  await expect(region).toBeVisible();
+  const regionBox = await region.boundingBox();
+  if (!regionBox) {
+    throw new Error("Missing clipped hit-region bounds.");
+  }
+
+  await expect(page.locator("[data-testid='canvas-svg-layer'] clipPath")).toHaveCount(1);
+
+  await clearSceneSelection(page);
+  await page.mouse.click(regionBox.x + regionBox.width * 0.75, regionBox.y + regionBox.height * 0.5);
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual([]);
+
+  await page.mouse.click(regionBox.x + regionBox.width * 0.25, regionBox.y + regionBox.height * 0.5);
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["path:1"]);
+
+  await clearSceneSelection(page);
+  await page.mouse.move(regionBox.x + regionBox.width * 0.72, regionBox.y + regionBox.height * 0.25);
+  await page.mouse.down();
+  await page.mouse.move(regionBox.x + regionBox.width * 0.95, regionBox.y + regionBox.height * 0.75, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual([]);
 });
 
 test("clearing source editor does not trigger maximum update depth crash", async ({ page }) => {

@@ -227,6 +227,7 @@ export type TextEditingSession = {
   sourceId: string;
   sceneTextId: string;
   sourceSpan: Span;
+  workingSource: string;
   text: string;
   selectionStart: number;
   selectionEnd: number;

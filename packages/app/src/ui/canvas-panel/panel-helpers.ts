@@ -6,8 +6,10 @@ import type {
   EditHandle,
   Matrix2D,
   Point,
+  SceneClipPath,
   SceneElement,
   ScenePath,
+  ScenePathCommand,
   ScenePathShapeHint,
   SceneText
 } from "tikz-editor/semantic/types";
@@ -118,7 +120,7 @@ export function collectSourceBounds(elements: SceneElement[], viewBox: SvgViewBo
     if (element.adornment?.kind === "pin" && element.kind === "Path") {
       continue;
     }
-    const bounds = elementBoundsInSvg(element, viewBox);
+    const bounds = effectiveElementBoundsInSvg(element, viewBox);
     if (!bounds) continue;
 
     const targetId = element.adornment?.targetId ?? element.sourceRef.sourceId;
@@ -269,6 +271,10 @@ export function elementBoundsInSvg(element: SceneElement, viewBox: SvgViewBox): 
   return applyElementTransformToSvgBounds(bounds, element.transform, viewBox);
 }
 
+export function effectiveElementBoundsInSvg(element: SceneElement, viewBox: SvgViewBox): Bounds | null {
+  return constrainBoundsToClipChain(elementBoundsInSvg(element, viewBox), element.clipChain ?? [], viewBox);
+}
+
 export function textBounds(element: SceneText, viewBox: SvgViewBox): Bounds {
   const textGeometry = textGeometryInSvg(element, viewBox);
   return computeRotatedRectBounds(
@@ -298,6 +304,36 @@ export function textGeometryInSvg(
 }
 
 export function pathBoundsInSvg(path: ScenePath, viewBox: SvgViewBox): Bounds | null {
+  return pathCommandBoundsInSvg(path.commands, viewBox);
+}
+
+export function clipPathBoundsInSvg(clipPath: SceneClipPath, viewBox: SvgViewBox): Bounds | null {
+  return pathCommandBoundsInSvg(clipPath.commands, viewBox);
+}
+
+export function constrainBoundsToClipChain(
+  bounds: Bounds | null,
+  clipChain: readonly SceneClipPath[],
+  viewBox: SvgViewBox
+): Bounds | null {
+  if (!bounds) {
+    return null;
+  }
+  let constrained: Bounds | null = { ...bounds };
+  for (const clipPath of clipChain) {
+    const clipBounds = clipPathBoundsInSvg(clipPath, viewBox);
+    if (!clipBounds) {
+      continue;
+    }
+    constrained = intersectBounds(constrained, clipBounds);
+    if (!constrained) {
+      return null;
+    }
+  }
+  return constrained;
+}
+
+function pathCommandBoundsInSvg(commands: readonly ScenePathCommand[], viewBox: SvgViewBox): Bounds | null {
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
@@ -311,7 +347,7 @@ export function pathBoundsInSvg(path: ScenePath, viewBox: SvgViewBox): Bounds | 
     maxY = Math.max(maxY, point.y);
   };
 
-  for (const command of path.commands) {
+  for (const command of commands) {
     if (command.kind === "Z") continue;
 
     if (command.kind === "C") {
@@ -340,6 +376,17 @@ export function pathBoundsInSvg(path: ScenePath, viewBox: SvgViewBox): Bounds | 
     return null;
   }
 
+  return { minX, minY, maxX, maxY };
+}
+
+function intersectBounds(a: Bounds, b: Bounds): Bounds | null {
+  const minX = Math.max(a.minX, b.minX);
+  const minY = Math.max(a.minY, b.minY);
+  const maxX = Math.min(a.maxX, b.maxX);
+  const maxY = Math.min(a.maxY, b.maxY);
+  if (minX > maxX || minY > maxY) {
+    return null;
+  }
   return { minX, minY, maxX, maxY };
 }
 
@@ -989,7 +1036,7 @@ export function preferredNodeBoundsForSource(
 
   let bounds: Bounds | null = null;
   for (const element of preferred) {
-    const next = elementBoundsInSvg(element, viewBox);
+    const next = effectiveElementBoundsInSvg(element, viewBox);
     if (!next) continue;
     bounds = bounds ? mergeBounds(bounds, next) : next;
   }
@@ -1022,7 +1069,11 @@ function collectTextOnlyNodeVisualBoundsInSvg(
       element.nodeVisualHeight,
       element.rotation ?? 0
     );
-    bounds = bounds ? mergeBounds(bounds, next) : next;
+    const clipped = constrainBoundsToClipChain(next, element.clipChain ?? [], viewBox);
+    if (!clipped) {
+      continue;
+    }
+    bounds = bounds ? mergeBounds(bounds, clipped) : clipped;
   }
   return bounds;
 }

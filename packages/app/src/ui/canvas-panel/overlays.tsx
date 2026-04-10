@@ -1,4 +1,4 @@
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
+import { Fragment, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactElement } from "react";
 import type { EditHandle, Point } from "tikz-editor/semantic/types";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import type { SnapLine } from "tikz-editor/edit/snapping";
@@ -558,8 +558,47 @@ export function HitRegionLayer({
   onElementDoubleClick: (event: ReactMouseEvent<SVGElement>, targetId: string, region?: HitRegion) => void;
   onHoverChange: (targetId: string | null) => void;
 }) {
+  const clipSvgIdBySceneId = new Map<string, string>();
+  const clipDefs: Array<{ sceneId: string; svgId: string; d: string; fillRule: "nonzero" | "evenodd" }> = [];
+  for (const region of hitRegions) {
+    for (const clipPath of region.clipChain ?? []) {
+      if (clipSvgIdBySceneId.has(clipPath.id)) {
+        continue;
+      }
+      const svgId = `canvas-hit-clip-${clipDefs.length + 1}`;
+      clipSvgIdBySceneId.set(clipPath.id, svgId);
+      clipDefs.push({
+        sceneId: clipPath.id,
+        svgId,
+        d: clipPath.d,
+        fillRule: clipPath.fillRule
+      });
+    }
+  }
+
+  const wrapWithClipChain = (region: HitRegion, content: ReactElement): ReactElement => {
+    let wrapped = content;
+    for (const clipPath of region.clipChain ?? []) {
+      const svgId = clipSvgIdBySceneId.get(clipPath.id);
+      if (!svgId) {
+        continue;
+      }
+      wrapped = <g clipPath={`url(#${svgId})`}>{wrapped}</g>;
+    }
+    return wrapped;
+  };
+
   return (
     <g className={css.hitRegions}>
+      {clipDefs.length > 0 ? (
+        <defs>
+          {clipDefs.map((clipPath) => (
+            <clipPath key={clipPath.sceneId} id={clipPath.svgId} clipPathUnits="userSpaceOnUse">
+              <path d={clipPath.d} clipRule={clipPath.fillRule === "evenodd" ? "evenodd" : undefined} />
+            </clipPath>
+          ))}
+        </defs>
+      ) : null}
       {hitRegions.map((region) => {
         const isHovered = hoveredElementId === (toolMode === "addBucket" ? region.sourceId : region.targetId);
         const cursor =
@@ -617,8 +656,9 @@ export function HitRegionLayer({
             ? `matrix(${fmt(region.transform.a)} ${fmt(region.transform.b)} ${fmt(region.transform.c)} ${fmt(region.transform.d)} ${fmt(region.transform.e)} ${fmt(region.transform.f)})`
             : undefined;
           return (
+            <Fragment key={region.key}>
+              {wrapWithClipChain(region, (
             <path
-              key={region.key}
               className={className}
               d={region.d}
               transform={transform}
@@ -635,13 +675,16 @@ export function HitRegionLayer({
               data-hit-region-target-id={region.targetId}
               data-hit-region-key={region.key}
             />
+              ))}
+            </Fragment>
           );
         }
 
         if (region.shape === "circle") {
           return (
+            <Fragment key={region.key}>
+              {wrapWithClipChain(region, (
             <circle
-              key={region.key}
               className={className}
               cx={region.cx}
               cy={region.cy}
@@ -659,6 +702,8 @@ export function HitRegionLayer({
               data-hit-region-target-id={region.targetId}
               data-hit-region-key={region.key}
             />
+              ))}
+            </Fragment>
           );
         }
 
@@ -668,8 +713,9 @@ export function HitRegionLayer({
               ? `rotate(${fmt(-region.rotation)} ${fmt(region.cx)} ${fmt(region.cy)})`
               : undefined;
           return (
+            <Fragment key={region.key}>
+              {wrapWithClipChain(region, (
             <ellipse
-              key={region.key}
               className={className}
               cx={region.cx}
               cy={region.cy}
@@ -689,6 +735,8 @@ export function HitRegionLayer({
               data-hit-region-target-id={region.targetId}
               data-hit-region-key={region.key}
             />
+              ))}
+            </Fragment>
           );
         }
 
@@ -698,30 +746,33 @@ export function HitRegionLayer({
             ? `rotate(${fmt(-region.rotation)} ${fmt(region.cx)} ${fmt(region.cy)})`
             : undefined;
         return (
-          <rect
-            key={region.key}
-            className={className}
-            x={region.x}
-            y={region.y}
-            width={region.width}
-            height={region.height}
-            transform={rectTransform}
-            fill={region.pointerMode === "stroke" ? "none" : "transparent"}
-            stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
-            strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
-            style={cursor ? { cursor } : undefined}
-            pointerEvents={pointerEvents}
-            onPointerDown={(event) => onElementPointerDown(event, region.targetId, region)}
-            onContextMenu={(event) => onElementContextMenu(event, region.targetId, region)}
-            onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
-            onPointerEnter={onEnter}
-            onPointerLeave={onLeave}
-            data-hit-region-target-id={region.targetId}
-            data-hit-region-key={region.key}
-            data-hit-region-interaction-mode={region.interactionMode}
-            data-hit-region-matrix-edge-kind={region.matrixEdgeSelection?.kind}
-            data-hit-region-matrix-source-id={region.matrixEdgeSelection?.matrixSourceId}
-          />
+          <Fragment key={region.key}>
+            {wrapWithClipChain(region, (
+              <rect
+                className={className}
+                x={region.x}
+                y={region.y}
+                width={region.width}
+                height={region.height}
+                transform={rectTransform}
+                fill={region.pointerMode === "stroke" ? "none" : "transparent"}
+                stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
+                strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
+                style={cursor ? { cursor } : undefined}
+                pointerEvents={pointerEvents}
+                onPointerDown={(event) => onElementPointerDown(event, region.targetId, region)}
+                onContextMenu={(event) => onElementContextMenu(event, region.targetId, region)}
+                onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
+                onPointerEnter={onEnter}
+                onPointerLeave={onLeave}
+                data-hit-region-target-id={region.targetId}
+                data-hit-region-key={region.key}
+                data-hit-region-interaction-mode={region.interactionMode}
+                data-hit-region-matrix-edge-kind={region.matrixEdgeSelection?.kind}
+                data-hit-region-matrix-source-id={region.matrixEdgeSelection?.matrixSourceId}
+              />
+            ))}
+          </Fragment>
         );
       })}
     </g>

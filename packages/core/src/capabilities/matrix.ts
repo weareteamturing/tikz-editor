@@ -104,6 +104,20 @@ export const capabilityMatrix: CapabilityMatrix = {
     notes:
       "General/drop/copy/double-copy/circular shadow presets resolve to semantic shadow layers and render via SVG duplicates; advanced fading variants remain partial."
   },
+  path_clipping: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["path_clipping"]
+  },
+  use_as_bounding_box: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["use_as_bounding_box"]
+  },
   arrow_tips: {
     parser: "stable",
     semantic: "stable",

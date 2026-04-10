@@ -34,6 +34,7 @@ export function makePath(
     shapeHint: shapeHint ?? null,
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
+    clipChain: [],
     commands: []
   };
 }
@@ -197,6 +198,7 @@ export function makeRectangleElement(
     shapeHint: "rectangle",
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
+    clipChain: [],
     commands
   };
 }
@@ -249,6 +251,7 @@ export function makeCircleElement(
     },
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
+    clipChain: [],
     center,
     radius
   };
@@ -275,6 +278,7 @@ export function makeEllipseElement(
     },
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
+    clipChain: [],
     center,
     rx,
     ry,

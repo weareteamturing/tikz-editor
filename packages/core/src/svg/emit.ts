@@ -2,6 +2,7 @@ import type {
   Matrix2D,
   ResolvedPattern,
   ResolvedStyle,
+  SceneClipPath,
   SceneElement,
   SceneFigure,
   ScenePathCommand,
@@ -96,7 +97,12 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
   const patternIdBySignature = new Map<string, string>();
   const patternDefById = new Map<string, string>();
   const shadowMaskDefById = new Map<string, string>();
+  const clipPathSvgIdBySceneId = new Map<string, string>();
+  const clipPathDefBySceneId = new Map<string, string>();
   const unsupportedShadingNames = new Set<string>();
+  const elementClipChainsById = new Map<string, readonly SceneClipPath[]>(
+    scene.elements.map((element) => [element.id, element.clipChain ?? []])
+  );
 
   const appendPart = (
     basePartId: string,
@@ -104,11 +110,13 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     elementId: string | null,
     markup: string
   ): void => {
+    const clipChain = elementId ? elementClipChainsById.get(elementId) : undefined;
+    const wrappedMarkup = clipChain && clipChain.length > 0 ? wrapMarkupWithClipChain(markup, clipChain) : markup;
     modelBuilder.addPart({
       basePartId,
       sourceId,
       elementId,
-      markup
+      markup: wrappedMarkup
     });
   };
 
@@ -144,6 +152,38 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
 
     shadowMaskDefById.set(id, renderCircularShadowMaskDefinition(id, `${id}-gradient`));
     return id;
+  };
+
+  const ensureClipPathDefinition = (clipPath: SceneClipPath): string | null => {
+    const existing = clipPathSvgIdBySceneId.get(clipPath.id);
+    if (existing) {
+      return existing;
+    }
+    const d = encodePathData(clipPath.commands, viewBox);
+    if (d.length === 0) {
+      return null;
+    }
+    const svgId = `tikz-clip-${clipPathSvgIdBySceneId.size + 1}`;
+    clipPathSvgIdBySceneId.set(clipPath.id, svgId);
+    clipPathDefBySceneId.set(
+      clipPath.id,
+      `<clipPath id="${svgId}" clipPathUnits="userSpaceOnUse"><path d="${escapeAttr(d)}"${
+        clipPath.fillRule === "evenodd" ? ` clip-rule="evenodd"` : ""
+      } /></clipPath>`
+    );
+    return svgId;
+  };
+
+  const wrapMarkupWithClipChain = (markup: string, clipChain: readonly SceneClipPath[]): string => {
+    let wrapped = markup;
+    for (const clipPath of clipChain) {
+      const clipSvgId = ensureClipPathDefinition(clipPath);
+      if (!clipSvgId) {
+        continue;
+      }
+      wrapped = `<g clip-path="url(#${escapeAttr(clipSvgId)})">${wrapped}</g>`;
+    }
+    return wrapped;
   };
 
   const resolveShadingFill = (style: ShadowRenderableStyle, sourceId: string, bounds: ElementBounds | null): string | null => {
@@ -230,9 +270,12 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     return resolveShadingFill(style, sourceId, bounds) ?? resolvePatternFill(style);
   };
 
-  const reuseContext = createSvgModelReuseContext(opts.reuse, viewBox);
+  const reuseContext = createSvgModelReuseContext(scene, opts.reuse, viewBox);
 
   const registerDefsForElement = (element: SceneElement): void => {
+    for (const clipPath of element.clipChain ?? []) {
+      ensureClipPathDefinition(clipPath);
+    }
     let elementBounds: ElementBounds | null = null;
     const svgElementTransform = element.transform ? worldTransformToSvgTransform(element.transform, viewBox) : null;
     if (element.kind === "Path") {
@@ -601,7 +644,12 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     );
   }
 
-  const defsParts = [...gradientDefById.values(), ...patternDefById.values(), ...shadowMaskDefById.values()];
+  const defsParts = [
+    ...gradientDefById.values(),
+    ...patternDefById.values(),
+    ...shadowMaskDefById.values(),
+    ...clipPathDefBySceneId.values()
+  ];
   return modelBuilder.build({
     viewBox,
     defs: defsParts,
@@ -1779,9 +1827,13 @@ function hasDrawablePathCommands(commands: ScenePathCommand[]): boolean {
 }
 
 function createSvgModelReuseContext(
+  scene: SceneFigure,
   reuse: EmitSvgOptions["reuse"] | undefined,
   viewBox: SvgRenderModel["viewBox"]
 ): SvgModelReuseContext | null {
+  if (scene.hasStatefulGraphicsState || scene.elements.some((element) => (element.clipChain?.length ?? 0) > 0)) {
+    return null;
+  }
   if (!reuse?.previousModel || !reuse.affectedSourceIds || reuse.affectedSourceIds.length === 0) {
     return null;
   }

@@ -53,6 +53,14 @@ export const capabilityFixtures: Record<string, string> = {
   shadow_styles: String.raw`\begin{tikzpicture}
   \draw[drop shadow,fill=white] (0,0) rectangle (1,1);
 \end{tikzpicture}`,
+  path_clipping: String.raw`\begin{tikzpicture}
+  \clip (0,0) rectangle (1,1);
+  \fill[red] (-1,-1) rectangle (2,2);
+\end{tikzpicture}`,
+  use_as_bounding_box: String.raw`\begin{tikzpicture}
+  \path[use as bounding box] (0,0) rectangle (1,1);
+  \fill[red] (-1,-1) rectangle (3,3);
+\end{tikzpicture}`,
   arrow_tips: String.raw`\begin{tikzpicture}[>=Stealth]
   \draw[arrows={-Latex[open,length=10pt]}] (0,0) -- (1,0);
 \end{tikzpicture}`,

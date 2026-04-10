@@ -46,6 +46,7 @@ export function makeCircleElement(
     adornment,
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
+    clipChain: [],
     center,
     radius
   };
@@ -79,6 +80,7 @@ export function makeTextElement(
     textHasFixedWidth,
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
+    clipChain: [],
     position,
     text,
     textBlockWidth,
@@ -219,6 +221,7 @@ export function makeNodeBoxElement(
     adornment,
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
+    clipChain: [],
     commands
   };
 }
@@ -242,6 +245,7 @@ export function makeNodeEllipseElement(
     adornment,
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
+    clipChain: [],
     center,
     rx: width / 2,
     ry: height / 2

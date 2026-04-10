@@ -1,7 +1,7 @@
 import type { OptionListAst } from "../options/types.js";
 import type { NodeTextEngine } from "../text/types.js";
 import type { MacroBinding, MacroExpansionTraceEvent } from "../macros/index.js";
-import type { EditHandle, Point, Matrix2D, ResolvedStyle, SceneElement } from "./types.js";
+import type { Bounds, EditHandle, Point, Matrix2D, ResolvedStyle, SceneClipPath, SceneElement } from "./types.js";
 import type { CustomStyleRegistry } from "./style/custom-styles.js";
 import { createDefaultCustomStyleRegistry } from "./style/custom-styles.js";
 import { computeSourceFingerprint } from "../utils/source-fingerprint.js";
@@ -104,6 +104,8 @@ export type SemanticContextFrame = {
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
   transform: Matrix2D;
+  clipChain: SceneClipPath[];
+  pictureSizeRelevant: boolean;
   customStyles: CustomStyleRegistry;
   colorAliases: Map<string, string>;
   macroBindings: Map<string, MacroBinding>;
@@ -161,6 +163,7 @@ export type SemanticContext = {
   stack: SemanticContextFrame[];
   source: string;
   sourceFingerprint: string;
+  pictureBounds: Bounds | null;
   namedCoordinates: PersistentMap<string, Point>;
   namedNodeSets: PersistentMap<string, Set<string>>;
   namedCoordinateRewriteHandles: PersistentMap<string, string>;
@@ -206,6 +209,7 @@ export type SemanticStatementEffectSummary = {
 
 export type SemanticContextSnapshot = {
   stack: SemanticContextFrame[];
+  pictureBounds: Bounds | null;
   namedCoordinatesState: PersistentMapSnapshot<string, Point>;
   namedNodeSetsState: PersistentMapSnapshot<string, Set<string>>;
   namedCoordinateRewriteHandlesState: PersistentMapSnapshot<string, string>;
@@ -266,6 +270,8 @@ export function createSemanticContext(
           }
         ],
         transform: initialTransform,
+        clipChain: [],
+        pictureSizeRelevant: true,
         customStyles: createDefaultCustomStyleRegistry(),
         colorAliases: new Map(),
         macroBindings: new Map(),
@@ -325,6 +331,7 @@ export function createSemanticContext(
     ],
     source,
     sourceFingerprint: computeSourceFingerprint(source),
+    pictureBounds: null,
     namedCoordinates: new PersistentMap<string, Point>(),
     namedNodeSets: new PersistentMap<string, Set<string>>(),
     namedCoordinateRewriteHandles: new PersistentMap<string, string>(),
@@ -366,6 +373,7 @@ export function snapshotSemanticContext(
   const editHandlesMode = options.editHandlesMode ?? "clone";
   return {
     stack: structuredClone(context.stack),
+    pictureBounds: context.pictureBounds ? { ...context.pictureBounds } : null,
     namedCoordinatesState: context.namedCoordinates.snapshot(),
     namedNodeSetsState: context.namedNodeSets.snapshot(),
     namedCoordinateRewriteHandlesState: context.namedCoordinateRewriteHandles.snapshot(),
@@ -389,6 +397,7 @@ export function restoreSemanticContext(
   options: RestoreSemanticContextOptions = {}
 ): void {
   context.stack = structuredClone(snapshot.stack);
+  context.pictureBounds = snapshot.pictureBounds ? { ...snapshot.pictureBounds } : null;
   context.namedCoordinates.restore(snapshot.namedCoordinatesState);
   context.namedNodeSets.restore(snapshot.namedNodeSetsState);
   context.namedCoordinateRewriteHandles.restore(snapshot.namedCoordinateRewriteHandlesState);

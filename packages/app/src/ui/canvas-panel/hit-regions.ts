@@ -1,9 +1,23 @@
 import { applyMatrix } from "tikz-editor/semantic/transform";
-import type { Bounds, Matrix2D, Point, SceneElement, ScenePathCommand, SceneText } from "tikz-editor/semantic/types";
+import type {
+  Bounds,
+  Matrix2D,
+  Point,
+  SceneClipPath,
+  SceneElement,
+  ScenePathCommand,
+  SceneText
+} from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 
 const HIT_STROKE_PX = 18;
 const ADORNMENT_TEXT_HIT_PADDING_PX = 8;
+
+export type HitRegionClipPath = {
+  id: string;
+  d: string;
+  fillRule: "nonzero" | "evenodd";
+};
 
 export type HitRegion =
   | {
@@ -11,6 +25,7 @@ export type HitRegion =
       key: string;
       sourceId: string;
       targetId: string;
+      clipChain?: HitRegionClipPath[];
       d: string;
       transform?: Matrix2D;
       pointerMode: "stroke" | "fill";
@@ -21,6 +36,7 @@ export type HitRegion =
       key: string;
       sourceId: string;
       targetId: string;
+      clipChain?: HitRegionClipPath[];
       cx: number;
       cy: number;
       r: number;
@@ -32,6 +48,7 @@ export type HitRegion =
       key: string;
       sourceId: string;
       targetId: string;
+      clipChain?: HitRegionClipPath[];
       cx: number;
       cy: number;
       rx: number;
@@ -45,6 +62,7 @@ export type HitRegion =
       key: string;
       sourceId: string;
       targetId: string;
+      clipChain?: HitRegionClipPath[];
       x: number;
       y: number;
       width: number;
@@ -89,55 +107,62 @@ export function buildHitRegions(
 
   for (const element of elements) {
     const sourceId = element.sourceRef.sourceId;
+    const clipChain = encodeClipChain(element.clipChain ?? [], viewBox);
     if (element.kind === "Path") {
+      const pointerMode = resolveShapePointerMode(element.style.fill, element.style.stroke, element.style.fillOpacity, element.style.strokeOpacity, element.style.opacity);
+      if (!pointerMode) continue;
       const d = encodePathData(element.commands, viewBox);
       if (!d) continue;
-      const filled = hasVisibleFill(element.style.fill);
       const transform = element.transform ? worldTransformToSvgTransform(element.transform, viewBox) : undefined;
       regions.push({
         shape: "path",
         key: `hit:${element.id}`,
         sourceId,
         targetId: element.adornment?.targetId ?? sourceId,
+        clipChain,
         d,
         transform,
-        pointerMode: filled ? "fill" : "stroke",
+        pointerMode,
         strokeWidth
       });
       continue;
     }
 
     if (element.kind === "Circle") {
+      const pointerMode = resolveShapePointerMode(element.style.fill, element.style.stroke, element.style.fillOpacity, element.style.strokeOpacity, element.style.opacity);
+      if (!pointerMode) continue;
       const center = worldToSvgPoint(element.center, viewBox);
-      const filled = hasVisibleFill(element.style.fill);
       regions.push({
         shape: "circle",
         key: `hit:${element.id}`,
         sourceId,
         targetId: element.adornment?.targetId ?? sourceId,
+        clipChain,
         cx: center.x,
         cy: center.y,
         r: element.radius,
-        pointerMode: filled ? "fill" : "stroke",
+        pointerMode,
         strokeWidth
       });
       continue;
     }
 
     if (element.kind === "Ellipse") {
+      const pointerMode = resolveShapePointerMode(element.style.fill, element.style.stroke, element.style.fillOpacity, element.style.strokeOpacity, element.style.opacity);
+      if (!pointerMode) continue;
       const center = worldToSvgPoint(element.center, viewBox);
-      const filled = hasVisibleFill(element.style.fill);
       regions.push({
         shape: "ellipse",
         key: `hit:${element.id}`,
         sourceId,
         targetId: element.adornment?.targetId ?? sourceId,
+        clipChain,
         cx: center.x,
         cy: center.y,
         rx: element.rx,
         ry: element.ry,
         rotation: element.rotation ?? 0,
-        pointerMode: filled ? "fill" : "stroke",
+        pointerMode,
         strokeWidth
       });
       continue;
@@ -152,6 +177,7 @@ export function buildHitRegions(
         key: `${sceneTextKey}:halo`,
         sourceId,
         targetId: element.adornment.targetId,
+        clipChain,
         x: textGeometry.cx - textGeometry.width / 2 - hitPadding,
         y: textGeometry.cy - textGeometry.height / 2 - hitPadding,
         width: textGeometry.width + 2 * hitPadding,
@@ -187,6 +213,7 @@ export function buildHitRegions(
           key: `${sceneTextKey}:node-area`,
           sourceId,
           targetId: sourceId,
+          clipChain,
           x: textGeometry.cx - nodeWidth / 2,
           y: textGeometry.cy - nodeHeight / 2,
           width: nodeWidth,
@@ -207,6 +234,7 @@ export function buildHitRegions(
       key: sceneTextKey,
       sourceId,
       targetId: element.adornment?.targetId ?? sourceId,
+      clipChain,
       x: textGeometry.cx - textGeometry.width / 2,
       y: textGeometry.cy - textGeometry.height / 2,
       width: textGeometry.width,
@@ -250,8 +278,49 @@ export function buildHitRegions(
   return regions;
 }
 
-function hasVisibleFill(fill: string | null): boolean {
-  return fill != null && fill !== "none";
+function resolveShapePointerMode(
+  fill: string | null,
+  stroke: string | null,
+  fillOpacity: number,
+  strokeOpacity: number,
+  opacity: number
+): "stroke" | "fill" | null {
+  if (hasVisibleFill(fill, fillOpacity, opacity)) {
+    return "fill";
+  }
+  if (hasVisibleStroke(stroke, strokeOpacity, opacity)) {
+    return "stroke";
+  }
+  return null;
+}
+
+function hasVisibleFill(fill: string | null, fillOpacity: number, opacity: number): boolean {
+  return fill != null && fill !== "none" && fillOpacity > 0 && opacity > 0;
+}
+
+function hasVisibleStroke(stroke: string | null, strokeOpacity: number, opacity: number): boolean {
+  return stroke != null && stroke !== "none" && strokeOpacity > 0 && opacity > 0;
+}
+
+function encodeClipChain(
+  clipChain: readonly SceneClipPath[],
+  viewBox: Pick<SvgViewBox, "y" | "height">
+): HitRegionClipPath[] | undefined {
+  if (clipChain.length === 0) {
+    return undefined;
+  }
+  const encoded = clipChain.flatMap((clipPath) => {
+    const d = encodePathData(clipPath.commands, viewBox);
+    if (!d) {
+      return [];
+    }
+    return [{
+      id: clipPath.id,
+      d,
+      fillRule: clipPath.fillRule
+    }];
+  });
+  return encoded.length > 0 ? encoded : undefined;
 }
 
 function textGeometryInSvg(

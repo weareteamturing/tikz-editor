@@ -48,6 +48,12 @@ export const PROFILING_SCENARIOS: ProfilingScenarioManifest[] = [
     category: "canvas-edit",
     description: "Bucket fill and multi-segment path creation profiling.",
     specPath: "profiling/profile-path-tool.spec.ts"
+  },
+  {
+    id: "node-text-edit",
+    category: "canvas-edit",
+    description: "Canvas node text editing profiling for single-line, wrapped, and explicit multiline nodes.",
+    specPath: "profiling/profile-node-text-edit.spec.ts"
   }
 ];
 

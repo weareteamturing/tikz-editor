@@ -85,6 +85,7 @@ export type SceneFigure = {
   requiredTikzLibraries: readonly string[];
   elements: SceneElement[];
   bounds?: Bounds;
+  hasStatefulGraphicsState?: boolean;
 };
 
 export type SceneAdornment = {
@@ -142,6 +143,13 @@ export type ScenePathCommand =
   | { kind: "A"; rx: number; ry: number; xAxisRotation: number; largeArc: boolean; sweep: boolean; to: Point }
   | { kind: "Z" };
 
+export type SceneClipPath = {
+  id: string;
+  sourceRef: SourceRef;
+  commands: ScenePathCommand[];
+  fillRule: "nonzero" | "evenodd";
+};
+
 export type ScenePathShapeHint = "rectangle" | "circle" | "ellipse";
 
 export type ScenePath = {
@@ -157,6 +165,7 @@ export type ScenePath = {
   undecoratedCommands?: ScenePathCommand[];
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
+  clipChain?: SceneClipPath[];
   commands: ScenePathCommand[];
   transform?: Matrix2D;
 };
@@ -172,6 +181,7 @@ export type SceneCircle = {
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
+  clipChain?: SceneClipPath[];
   center: Point;
   radius: number;
   transform?: Matrix2D;
@@ -188,6 +198,7 @@ export type SceneEllipse = {
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
+  clipChain?: SceneClipPath[];
   center: Point;
   rx: number;
   ry: number;
@@ -208,6 +219,7 @@ export type SceneText = {
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
+  clipChain?: SceneClipPath[];
   position: Point;
   text: string;
   textBlockWidth?: number;
@@ -352,6 +364,8 @@ export type ResolvedStyle = {
   fillPattern: ResolvedPattern | null;
   patternColor: string;
   fillRule: "nonzero" | "evenodd";
+  clip: boolean;
+  useAsBoundingBox: boolean;
   textColor: string | null;
   textOpacity: number;
   fontSize: number;

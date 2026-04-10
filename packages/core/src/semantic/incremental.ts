@@ -45,6 +45,7 @@ export type IncrementalSemanticFallbackReason =
   | "missing-changed-source-ids"
   | "no-previous-cache"
   | "statement-structure-changed"
+  | "stateful-graphics-state"
   | "opaque-dependency"
   | "unmapped-affected-source"
   | "checkpoint-missing"
@@ -126,6 +127,12 @@ export function createIncrementalSemanticSession(
     const statementCount = run.expandedFigureBody.length;
     const statementIds = run.expandedFigureBody.map((statement) => statement.id);
     const hints = input.hints ?? {};
+
+    if (containsStatefulGraphicsState(input.source)) {
+      const full = evaluateFullyAndCache(run, statementIds, "stateful-graphics-state");
+      cached = full.cached;
+      return full.output;
+    }
 
     const fallback = decideFallbackReason(hints, cached, statementIds);
     if (fallback) {
@@ -508,7 +515,9 @@ function assembleSelectiveSemanticResult(args: {
       elements
     }),
     elements,
-    bounds: computeBounds(elements)
+    bounds: run.context.pictureBounds ?? computeBounds(elements),
+    hasStatefulGraphicsState:
+      finalFeatureUsage.path_clipping === "used-supported" || finalFeatureUsage.use_as_bounding_box === "used-supported"
   };
   for (const libraryName of scene.requiredTikzLibraries) {
     requireContextLibrary(run.context, libraryName, null);
@@ -617,6 +626,15 @@ function sameStatementIds(
     }
   }
   return true;
+}
+
+function containsStatefulGraphicsState(source: string): boolean {
+  return (
+    /\\clip\b/.test(source) ||
+    /\\useasboundingbox\b/.test(source) ||
+    /\[\s*clip(?:[\],])/m.test(source) ||
+    /use as bounding box/.test(source)
+  );
 }
 
 function shouldCaptureCheckpoint(

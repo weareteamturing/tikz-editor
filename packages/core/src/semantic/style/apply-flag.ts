@@ -37,6 +37,26 @@ export function applyFlagEntry(
       diagnostics: []
     };
   }
+  if (key === "clip") {
+    return {
+      style: {
+        ...style,
+        clip: true
+      },
+      transform,
+      diagnostics: []
+    };
+  }
+  if (key === "use as bounding box") {
+    return {
+      style: {
+        ...style,
+        useAsBoundingBox: true
+      },
+      transform,
+      diagnostics: []
+    };
+  }
   if (key === "shade") {
     return { style: { ...style, fill: style.fill ?? "black", shadeEnabled: true }, transform, diagnostics: [] };
   }

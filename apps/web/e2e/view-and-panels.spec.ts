@@ -1,5 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { canvasViewport, gotoApp, openMenuCommand, openMenuSection, resetStorageBeforeNavigation } from "./helpers";
+import {
+  canvasViewport,
+  gotoApp,
+  openMenuCommand,
+  openMenuSection,
+  resetStorageBeforeNavigation,
+  setSource
+} from "./helpers";
 
 test.beforeEach(async ({ page }) => {
   await resetStorageBeforeNavigation(page);
@@ -176,4 +183,39 @@ test("magnify tool shows a temporary lens while the pointer is held down", async
 
   await page.mouse.up();
   await expect(magnifier).toHaveCount(0);
+});
+
+test("use as bounding box keeps fit-to-content anchored to explicit picture bounds", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\path[use as bounding box] (0,0) rectangle (1,1);
+\fill[blue] (5,0.5) circle (0.35);
+\end{tikzpicture}`);
+
+  await expect(page.getByTestId("canvas-svg-layer")).toBeVisible();
+
+  const boundedViewBox = await page.evaluate(() => {
+    const rootSvg = document.querySelector("[data-testid='canvas-svg-layer'] svg");
+    return rootSvg?.getAttribute("viewBox") ?? null;
+  });
+  expect(boundedViewBox).not.toBeNull();
+  if (!boundedViewBox) {
+    return;
+  }
+  const boundedWidth = Number(boundedViewBox.split(/\s+/)[2] ?? "0");
+  expect(boundedWidth).toBeLessThan(100);
+
+  await openMenuCommand(page, "view", "view.toggle-infinite-canvas");
+  await expect(page.getByTestId("canvas-svg-layer")).toHaveAttribute("data-show-document-bounds", "false");
+
+  const expandedViewBox = await page.evaluate(() => {
+    const rootSvg = document.querySelector("[data-testid='canvas-svg-layer'] svg");
+    return rootSvg?.getAttribute("viewBox") ?? null;
+  });
+  expect(expandedViewBox).not.toBeNull();
+  if (!expandedViewBox) {
+    return;
+  }
+  const expandedWidth = Number(expandedViewBox.split(/\s+/)[2] ?? "0");
+  expect(expandedWidth).toBeGreaterThan(boundedWidth);
 });

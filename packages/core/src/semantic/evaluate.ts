@@ -200,6 +200,8 @@ export function createSemanticEvaluationRun(
       style: rootDelta.style,
       styleChain: rootDelta.chain,
       transform: rootDelta.transform,
+      clipChain: [...parent.clipChain],
+      pictureSizeRelevant: parent.pictureSizeRelevant,
       customStyles: rootCustomStyles,
       colorAliases: new Map(parent.colorAliases),
       macroBindings: new Map(parent.macroBindings),
@@ -409,7 +411,9 @@ export function finalizeSemanticEvaluationRun(
       span: run.figure.span,
       requiredTikzLibraries,
       elements,
-      bounds: computeBounds(elements)
+      bounds: run.context.pictureBounds ?? computeBounds(elements),
+      hasStatefulGraphicsState:
+        run.featureUsage.path_clipping === "used-supported" || run.featureUsage.use_as_bounding_box === "used-supported"
     },
     diagnostics: run.diagnostics,
     featureUsage: run.featureUsage,
@@ -744,6 +748,8 @@ function evaluateStatement(
       style: resolved.style,
       styleChain: resolved.chain,
       transform: resolved.transform,
+      clipChain: [...parent.clipChain],
+      pictureSizeRelevant: parent.pictureSizeRelevant,
       customStyles: scopedCustomStyles,
       colorAliases: new Map(parent.colorAliases),
       macroBindings: new Map(parent.macroBindings),
@@ -829,6 +835,36 @@ function evaluateStatement(
           });
         }
       );
+      parent.clipChain = currentFrame(context).clipChain.map((clipPath) => ({
+        ...clipPath,
+        sourceRef: { ...clipPath.sourceRef },
+        commands: clipPath.commands.map((command) => {
+          if (command.kind === "Z") {
+            return { kind: "Z" };
+          }
+          if (command.kind === "M" || command.kind === "L") {
+            return { kind: command.kind, to: { ...command.to } };
+          }
+          if (command.kind === "C") {
+            return {
+              kind: "C",
+              c1: { ...command.c1 },
+              c2: { ...command.c2 },
+              to: { ...command.to }
+            };
+          }
+          return {
+            kind: "A",
+            rx: command.rx,
+            ry: command.ry,
+            xAxisRotation: command.xAxisRotation,
+            largeArc: command.largeArc,
+            sweep: command.sweep,
+            to: { ...command.to }
+          };
+        })
+      }));
+      parent.pictureSizeRelevant = currentFrame(context).pictureSizeRelevant;
       for (const name of intersectionDirectives.namedPathNames) {
         registerNamedPath(name, elements, context);
       }
@@ -892,6 +928,8 @@ function evaluateStatement(
       style: resolved.style,
       styleChain: resolved.chain,
       transform: resolved.transform,
+      clipChain: [...parent.clipChain],
+      pictureSizeRelevant: parent.pictureSizeRelevant,
       customStyles: scopedCustomStyles,
       colorAliases: new Map(parent.colorAliases),
       macroBindings: new Map(parent.macroBindings),

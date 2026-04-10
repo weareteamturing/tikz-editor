@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ScenePath, SceneText } from "../../packages/core/src/semantic/types.js";
+import type { SceneClipPath, ScenePath, SceneText } from "../../packages/core/src/semantic/types.js";
 import { parseTikz } from "../../packages/core/src/parser/index.js";
 import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js";
 import { parseLength } from "../../packages/core/src/semantic/coords/parse-length.js";
@@ -171,6 +171,91 @@ describe("rectHitRegionsForTargetId", () => {
     expect(scopeRegion.interactionMode).toBe("move");
     expect(scopeRegion.pointerMode).toBe("stroke");
     expect(scopeRegion.strokeWidth).toBeCloseTo(9, 6);
+  });
+
+  it("preserves encoded clip chains on hit regions and skips invisible clip-only paths", () => {
+    const clipPath: SceneClipPath = {
+      id: "scene-clip:test",
+      sourceRef: {
+        sourceId: "path:clip",
+        sourceSpan: { from: 0, to: 0 },
+        sourceFingerprint: "test-fingerprint"
+      },
+      commands: [
+        { kind: "M", to: { x: 0, y: 0 } },
+        { kind: "L", to: { x: 20, y: 0 } },
+        { kind: "L", to: { x: 20, y: 20 } },
+        { kind: "L", to: { x: 0, y: 20 } },
+        { kind: "Z" }
+      ],
+      fillRule: "evenodd"
+    };
+    const visiblePath: ScenePath = {
+      kind: "Path",
+      id: "scene-path:visible",
+      runtimeId: "runtime:scene-path:visible",
+      sourceRef: {
+        sourceId: "path:visible",
+        sourceSpan: { from: 0, to: 0 },
+        sourceFingerprint: "test-fingerprint"
+      },
+      style: {
+        fill: "#ff0000",
+        stroke: null,
+        fillOpacity: 1,
+        strokeOpacity: 1,
+        opacity: 1
+      } as ScenePath["style"],
+      styleChain: [],
+      clipChain: [clipPath],
+      commands: [
+        { kind: "M", to: { x: 0, y: 0 } },
+        { kind: "L", to: { x: 40, y: 0 } },
+        { kind: "L", to: { x: 40, y: 20 } },
+        { kind: "L", to: { x: 0, y: 20 } },
+        { kind: "Z" }
+      ]
+    };
+    const invisibleClipOnlyPath: ScenePath = {
+      kind: "Path",
+      id: "scene-path:clip-only",
+      runtimeId: "runtime:scene-path:clip-only",
+      sourceRef: {
+        sourceId: "path:clip-only",
+        sourceSpan: { from: 0, to: 0 },
+        sourceFingerprint: "test-fingerprint"
+      },
+      style: {
+        fill: null,
+        stroke: null,
+        fillOpacity: 1,
+        strokeOpacity: 1,
+        opacity: 1
+      } as ScenePath["style"],
+      styleChain: [],
+      commands: [
+        { kind: "M", to: { x: 0, y: 0 } },
+        { kind: "L", to: { x: 20, y: 0 } },
+        { kind: "L", to: { x: 20, y: 20 } },
+        { kind: "L", to: { x: 0, y: 20 } },
+        { kind: "Z" }
+      ]
+    };
+
+    const regions = buildHitRegions(
+      [visiblePath, invisibleClipOnlyPath],
+      { x: 0, y: 0, width: 100, height: 100 },
+      1
+    );
+
+    expect(regions).toHaveLength(1);
+    expect(regions[0]?.clipChain).toEqual([
+      {
+        id: "scene-clip:test",
+        d: "M 0 100 L 20 100 L 20 80 L 0 80 Z",
+        fillRule: "evenodd"
+      }
+    ]);
   });
 
   it("adds a move hit region for text-only node visual area outside text", () => {
@@ -346,6 +431,140 @@ describe("rectHitRegionsForTargetId", () => {
     const fallbackWidth = fallback.maxX - fallback.minX;
     const preferredWidth = preferred.maxX - preferred.minX;
     expect(preferredWidth).toBeGreaterThan(fallbackWidth + 15);
+  });
+
+  it("shrinks collected source bounds to the clip chain and omits fully clipped elements", () => {
+    const clipPath: SceneClipPath = {
+      id: "scene-clip:test",
+      sourceRef: {
+        sourceId: "path:clip",
+        sourceSpan: { from: 0, to: 0 },
+        sourceFingerprint: "test-fingerprint"
+      },
+      commands: [
+        { kind: "M", to: { x: 0, y: 0 } },
+        { kind: "L", to: { x: 20, y: 0 } },
+        { kind: "L", to: { x: 20, y: 20 } },
+        { kind: "L", to: { x: 0, y: 20 } },
+        { kind: "Z" }
+      ],
+      fillRule: "nonzero"
+    };
+    const partiallyClippedPath: ScenePath = {
+      kind: "Path",
+      id: "scene-path:partially-clipped",
+      runtimeId: "runtime:scene-path:partially-clipped",
+      sourceRef: {
+        sourceId: "path:visible",
+        sourceSpan: { from: 0, to: 0 },
+        sourceFingerprint: "test-fingerprint"
+      },
+      style: {
+        fill: "#ff0000",
+        stroke: null,
+        fillOpacity: 1,
+        strokeOpacity: 1,
+        opacity: 1
+      } as ScenePath["style"],
+      styleChain: [],
+      clipChain: [clipPath],
+      commands: [
+        { kind: "M", to: { x: 0, y: 0 } },
+        { kind: "L", to: { x: 40, y: 0 } },
+        { kind: "L", to: { x: 40, y: 20 } },
+        { kind: "L", to: { x: 0, y: 20 } },
+        { kind: "Z" }
+      ]
+    };
+    const fullyClippedPath: ScenePath = {
+      kind: "Path",
+      id: "scene-path:fully-clipped",
+      runtimeId: "runtime:scene-path:fully-clipped",
+      sourceRef: {
+        sourceId: "path:hidden",
+        sourceSpan: { from: 0, to: 0 },
+        sourceFingerprint: "test-fingerprint"
+      },
+      style: partiallyClippedPath.style,
+      styleChain: [],
+      clipChain: [clipPath],
+      commands: [
+        { kind: "M", to: { x: 30, y: 0 } },
+        { kind: "L", to: { x: 40, y: 0 } },
+        { kind: "L", to: { x: 40, y: 10 } },
+        { kind: "L", to: { x: 30, y: 10 } },
+        { kind: "Z" }
+      ]
+    };
+    const viewBox = { x: 0, y: 0, width: 100, height: 100 };
+
+    const boundsBySource = collectSourceBounds([partiallyClippedPath, fullyClippedPath], viewBox);
+
+    expect(boundsBySource.get("path:visible")).toEqual({
+      minX: 0,
+      minY: 80,
+      maxX: 20,
+      maxY: 100
+    });
+    expect(boundsBySource.has("path:hidden")).toBe(false);
+  });
+
+  it("uses clipped extents when resolving preferred node bounds", () => {
+    const clipPath: SceneClipPath = {
+      id: "scene-clip:test",
+      sourceRef: {
+        sourceId: "path:clip",
+        sourceSpan: { from: 0, to: 0 },
+        sourceFingerprint: "test-fingerprint"
+      },
+      commands: [
+        { kind: "M", to: { x: 0, y: 0 } },
+        { kind: "L", to: { x: 20, y: 0 } },
+        { kind: "L", to: { x: 20, y: 20 } },
+        { kind: "L", to: { x: 0, y: 20 } },
+        { kind: "Z" }
+      ],
+      fillRule: "nonzero"
+    };
+    const path: ScenePath = {
+      kind: "Path",
+      id: "scene-node-box:test",
+      runtimeId: "runtime:scene-node-box:test",
+      sourceRef: {
+        sourceId: "path:visible",
+        sourceSpan: { from: 0, to: 0 },
+        sourceFingerprint: "test-fingerprint"
+      },
+      style: {
+        fill: "#ff0000",
+        stroke: null,
+        fillOpacity: 1,
+        strokeOpacity: 1,
+        opacity: 1
+      } as ScenePath["style"],
+      styleChain: [],
+      clipChain: [clipPath],
+      commands: [
+        { kind: "M", to: { x: 0, y: 0 } },
+        { kind: "L", to: { x: 40, y: 0 } },
+        { kind: "L", to: { x: 40, y: 20 } },
+        { kind: "L", to: { x: 0, y: 20 } },
+        { kind: "Z" }
+      ]
+    };
+    const preferred = preferredNodeBoundsForSource(
+      [path],
+      "path:visible",
+      { x: 0, y: 0, width: 100, height: 100 },
+      null
+    );
+
+    expect(preferred).toEqual({
+      minX: 0,
+      minY: 80,
+      maxX: 20,
+      maxY: 100
+    });
   });
 });
 
