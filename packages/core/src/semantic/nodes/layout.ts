@@ -33,6 +33,8 @@ export function resolveNodeLayout(
   let minWidth = parseLength("1pt", "pt") ?? 1;
   let minHeight = parseLength("1pt", "pt") ?? 1;
   let minSize: number | null = null;
+  let textHeightOverride: number | null = null;
+  let textDepthOverride: number | null = null;
 
   let outerSep = style.lineWidth / 2;
   let outerXSep: number | null = null;
@@ -88,6 +90,16 @@ export function resolveNodeLayout(
         const parsed = parseLength(entry.valueRaw, "pt");
         if (parsed != null) {
           minSize = Math.max(0, parsed);
+        }
+      } else if (entry.key === "text height") {
+        const parsed = parseLength(entry.valueRaw, "pt");
+        if (parsed != null) {
+          textHeightOverride = Math.max(0, parsed);
+        }
+      } else if (entry.key === "text depth") {
+        const parsed = parseLength(entry.valueRaw, "pt");
+        if (parsed != null) {
+          textDepthOverride = Math.max(0, parsed);
         }
       } else if (entry.key === "outer sep") {
         const normalized = normalizeOptionValue(entry.valueRaw).toLowerCase();
@@ -158,11 +170,25 @@ export function resolveNodeLayout(
     textNaturalHeight = textLines.length * lineHeight;
   }
 
+  // Empty node text should not contribute a synthetic baseline line box
+  // unless explicit text metrics were requested.
+  if (normalizedText.length === 0 && textHeightOverride == null && textDepthOverride == null) {
+    textLines = [""];
+    textNaturalWidth = 0;
+    textNaturalHeight = 0;
+    baseLineY = 0;
+    midLineY = 0;
+  }
+
   const resolvedMinWidth = Math.max(minWidth, minSize ?? minWidth);
   const resolvedMinHeight = Math.max(minHeight, minSize ?? minHeight);
   const measuredTextWidth = textWidth != null ? Math.max(textNaturalWidth, textWidth) : textNaturalWidth;
+  const effectiveTextHeight =
+    textHeightOverride != null || textDepthOverride != null
+      ? Math.max(0, (textHeightOverride ?? 0) + (textDepthOverride ?? 0))
+      : textNaturalHeight;
   const naturalWidth = measuredTextWidth + innerXSep * 2;
-  const naturalHeight = textNaturalHeight + innerYSep * 2;
+  const naturalHeight = effectiveTextHeight + innerYSep * 2;
   const visualWidth = Math.max(naturalWidth, resolvedMinWidth);
   const visualHeight = Math.max(naturalHeight, resolvedMinHeight);
   const resolvedOuterX = outerXSep ?? outerSep;

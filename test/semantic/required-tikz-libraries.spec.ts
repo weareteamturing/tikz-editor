@@ -70,4 +70,23 @@ describe("semantic evaluator / required tikz libraries", () => {
       "shapes.symbols"
     ]);
   });
+
+  it("infers fit library when fit nodes are used", () => {
+    const result = evaluateSemantic(String.raw`\begin{tikzpicture}
+  \node (a) at (0,0) {};
+  \node (b) at (1,1) {};
+  \node[draw,fit=(a) (b)] {};
+\end{tikzpicture}`);
+
+    expect(result.scene.requiredTikzLibraries).toEqual(["fit"]);
+  });
+
+  it("does not infer fit library when fit is unused", () => {
+    const result = evaluateSemantic(String.raw`\begin{tikzpicture}
+  \node (a) at (0,0) {};
+  \node (b) at (1,1) {};
+\end{tikzpicture}`);
+
+    expect(result.scene.requiredTikzLibraries).toEqual([]);
+  });
 });

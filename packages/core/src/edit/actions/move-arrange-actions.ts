@@ -18,6 +18,7 @@ import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeA
 import { applyOptionMutationsToTarget, rewriteOptionListMutations, type OptionMutation } from "../option-mutations.js";
 import { parseTikzForEdit, type EditParseOptions } from "../parse-options.js";
 import { normalizeOptionKey } from "../option-key.js";
+import { FIT_DIRECT_MANIPULATION_BLOCK_REASON, sourceUsesFitNodeFromParseResult } from "../fit.js";
 
 const ARRANGE_EPSILON = 1e-6;
 
@@ -53,6 +54,12 @@ export function applyMoveElementsAction(
   const parsed = parseTikzForEdit(source, {
     ...parseOptions,
   });
+  const fitBlockedId = normalizedIds.find((elementId) =>
+    sourceUsesFitNodeFromParseResult(source, parsed, elementId)
+  );
+  if (fitBlockedId) {
+    return { kind: "unsupported", reason: FIT_DIRECT_MANIPULATION_BLOCK_REASON };
+  }
   const matrixElementIds = normalizedIds.filter((elementId) => {
     const statement = findPathStatementById(parsed.figure.body, elementId);
     return statement != null && isMatrixPathStatement(statement);

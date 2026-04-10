@@ -515,7 +515,7 @@ function assembleSelectiveSemanticResult(args: {
       elements
     }),
     elements,
-    bounds: run.context.pictureBounds ?? computeBounds(elements),
+    bounds: computeBounds(elements),
     hasStatefulGraphicsState:
       finalFeatureUsage.path_clipping === "used-supported" || finalFeatureUsage.use_as_bounding_box === "used-supported"
   };

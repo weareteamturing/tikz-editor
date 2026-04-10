@@ -122,6 +122,7 @@ export type SemanticContextFrame = {
   pinEdgeRaw: string | null;
   transformShape: boolean;
   everyNodeStyles: ProvenanceOptionList[];
+  everyFitStyles: ProvenanceOptionList[];
   everyRectangleNodeStyles: ProvenanceOptionList[];
   everyCircleNodeStyles: ProvenanceOptionList[];
   everyDiamondNodeStyles: ProvenanceOptionList[];
@@ -292,6 +293,7 @@ export function createSemanticContext(
         pinEdgeRaw: null,
         transformShape: false,
         everyNodeStyles: [],
+        everyFitStyles: [],
         everyRectangleNodeStyles: [],
         everyCircleNodeStyles: [],
         everyDiamondNodeStyles: [],

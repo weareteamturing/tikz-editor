@@ -247,5 +247,10 @@ export const capabilityFixtures: Record<string, string> = {
     A & B \\
     C & D \\
   };
+\end{tikzpicture}`,
+  fit_basic: String.raw`\begin{tikzpicture}
+  \node (a) at (0,0) {};
+  \node (b) at (1,1) {};
+  \node[draw,fit=(a) (b)] {};
 \end{tikzpicture}`
 };

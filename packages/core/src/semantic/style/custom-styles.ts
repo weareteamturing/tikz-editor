@@ -1,5 +1,7 @@
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
 import type { Span } from "../../ast/types.js";
+import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
+import { stripWrappingBraces } from "../../utils/braces.js";
 import { parseStyleValueAsOptionList } from "./option-utils.js";
 import type { StyleSourceRef } from "../style-chain.js";
 import { cloneStyleSourceRef } from "../style-chain.js";
@@ -33,6 +35,9 @@ const RESERVED_STYLE_DEFINITION_KEYS = new Set([
   "every node/.style",
   "every node/.append style",
   "every node/.prefix style",
+  "every fit/.style",
+  "every fit/.append style",
+  "every fit/.prefix style",
   "every child/.style",
   "every child/.append style",
   "every child/.prefix style",
@@ -200,7 +205,7 @@ export function resolveCustomStyleInvocation(entry: OptionEntry, customStyles: C
   const key =
     entry.kind === "flag"
       ? entry.key
-      : entry.kind === "kv" && entry.valueRaw.trim().length === 0
+      : entry.kind === "kv"
         ? entry.key
         : entry.kind === "unknown"
           ? entry.raw.trim()
@@ -219,9 +224,18 @@ export function resolveCustomStyleInvocation(entry: OptionEntry, customStyles: C
     return null;
   }
 
+  const invocationArgs = entry.kind === "kv" ? parseCustomStyleInvocationArgs(entry.valueRaw) : [];
+  const resolvedLayers =
+    invocationArgs.length > 0
+      ? layers.map((layer) => ({
+          options: substituteCustomStyleArgs(layer.options, invocationArgs),
+          sourceRef: layer.sourceRef
+        }))
+      : layers;
+
   return {
     name: normalizedName,
-    layers
+    layers: resolvedLayers
   };
 }
 
@@ -370,4 +384,56 @@ function cloneOptionList(optionList: OptionListAst): OptionListAst {
       }
     }))
   };
+}
+
+function parseCustomStyleInvocationArgs(valueRaw: string): string[] {
+  const normalized = stripWrappingBraces(valueRaw).trim();
+  if (normalized.length === 0) {
+    return [];
+  }
+
+  const split = splitAllAtTopLevel(normalized, ",")
+    .map((part) => stripWrappingBraces(part).trim())
+    .filter((part) => part.length > 0);
+  return split.length > 0 ? split : [normalized];
+}
+
+function substituteCustomStyleArgs(optionList: OptionListAst, args: string[]): OptionListAst {
+  const mapEntry = (entry: OptionEntry): OptionEntry => {
+    if (entry.kind === "flag") {
+      return {
+        ...entry,
+        key: substituteArgPlaceholders(entry.key, args),
+        raw: substituteArgPlaceholders(entry.raw, args)
+      };
+    }
+    if (entry.kind === "kv") {
+      return {
+        ...entry,
+        key: substituteArgPlaceholders(entry.key, args),
+        valueRaw: substituteArgPlaceholders(entry.valueRaw, args),
+        raw: substituteArgPlaceholders(entry.raw, args)
+      };
+    }
+    return {
+      ...entry,
+      raw: substituteArgPlaceholders(entry.raw, args)
+    };
+  };
+
+  return {
+    ...optionList,
+    raw: substituteArgPlaceholders(optionList.raw, args),
+    entries: optionList.entries.map(mapEntry)
+  };
+}
+
+function substituteArgPlaceholders(input: string, args: string[]): string {
+  return input.replace(/#([1-9])/g, (match, indexRaw: string) => {
+    const index = Number(indexRaw);
+    if (!Number.isFinite(index) || index < 1 || index > args.length) {
+      return match;
+    }
+    return args[index - 1] ?? match;
+  });
 }

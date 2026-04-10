@@ -1,6 +1,9 @@
 import type { NodeItem, PathStatement } from "../../ast/types.js";
+import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings } from "../../macros/index.js";
+import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
+import { stripWrappingBraces } from "../../utils/braces.js";
 import {
   readNamedNodeGeometry,
   resolveContextColorAliasValue,
@@ -8,6 +11,7 @@ import {
   type SemanticContext
 } from "../context.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
+import { parseQuantityExpression } from "../coords/parse-length.js";
 import { applyDecorationToPath } from "../decorations/index.js";
 import { appendCircleSubpath, appendEllipseSubpath } from "../path/elements.js";
 import {
@@ -295,11 +299,13 @@ export function evaluateNodeItem(
   const frame = context.stack[context.stack.length - 1];
   const effectiveBaseStyleChain = baseStyleChain ?? frame.styleChain;
   const everyNodeStyles = item.adornment ? [] : frame.everyNodeStyles;
+  const everyFitStyles = item.adornment ? [] : frame.everyFitStyles;
   const nodeOptions = withDefaultNodePosition(item.options, defaultPositionFraction);
-  const effectiveNodeOptions = resolveEffectiveNodeOptions({
+  let effectiveNodeOptions = resolveEffectiveNodeOptions({
     statementOptions: statement.options,
     nodeOptions,
     everyNodeStyles,
+    everyFitStyles,
     everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
     everyCircleNodeStyles: frame.everyCircleNodeStyles,
     everyDiamondNodeStyles: frame.everyDiamondNodeStyles,
@@ -319,10 +325,11 @@ export function evaluateNodeItem(
     everySingleArrowNodeStyles: frame.everySingleArrowNodeStyles,
     everyDoubleArrowNodeStyles: frame.everyDoubleArrowNodeStyles
   });
-  const effectiveNodeLocalOptions = resolveEffectiveNodeOptions({
+  let effectiveNodeLocalOptions = resolveEffectiveNodeOptions({
     statementOptions: undefined,
     nodeOptions,
     everyNodeStyles,
+    everyFitStyles,
     everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
     everyCircleNodeStyles: frame.everyCircleNodeStyles,
     everyDiamondNodeStyles: frame.everyDiamondNodeStyles,
@@ -342,8 +349,74 @@ export function evaluateNodeItem(
     everySingleArrowNodeStyles: frame.everySingleArrowNodeStyles,
     everyDoubleArrowNodeStyles: frame.everyDoubleArrowNodeStyles
   });
-  const expandedNodeOptions = expandNodePlacementOptions(effectiveNodeOptions, context);
-  const expandedNodeLocalOptions = expandNodePlacementOptions(effectiveNodeLocalOptions, context);
+  let expandedNodeOptions = expandNodePlacementOptions(effectiveNodeOptions, context);
+  let expandedNodeLocalOptions = expandNodePlacementOptions(effectiveNodeLocalOptions, context);
+
+  const fitOverrides = resolveFitOverrides(expandedNodeOptions, context);
+  if (fitOverrides.hasFit) {
+    markFeature("fit_node", fitOverrides.overrideOptions ? "supported" : "unsupported");
+    for (const diagnostic of fitOverrides.diagnostics) {
+      pushDiagnostic(diagnostic.code, diagnostic.message, item.span.from, item.span.to);
+    }
+    const fitSyntheticOptions = fitOverrides.overrideOptions ? [fitOverrides.overrideOptions] : [];
+
+    effectiveNodeOptions = resolveEffectiveNodeOptions({
+      statementOptions: statement.options,
+      nodeOptions,
+      everyNodeStyles,
+      everyFitStyles,
+      applyEveryFitStyles: true,
+      syntheticOptions: fitSyntheticOptions,
+      everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
+      everyCircleNodeStyles: frame.everyCircleNodeStyles,
+      everyDiamondNodeStyles: frame.everyDiamondNodeStyles,
+      everyTrapeziumNodeStyles: frame.everyTrapeziumNodeStyles,
+      everyIsoscelesTriangleNodeStyles: frame.everyIsoscelesTriangleNodeStyles,
+      everyKiteNodeStyles: frame.everyKiteNodeStyles,
+      everyDartNodeStyles: frame.everyDartNodeStyles,
+      everyCircularSectorNodeStyles: frame.everyCircularSectorNodeStyles,
+      everyCylinderNodeStyles: frame.everyCylinderNodeStyles,
+      everyCloudNodeStyles: frame.everyCloudNodeStyles,
+      everyStarburstNodeStyles: frame.everyStarburstNodeStyles,
+      everySignalNodeStyles: frame.everySignalNodeStyles,
+      everyTapeNodeStyles: frame.everyTapeNodeStyles,
+      everyRectangleCalloutNodeStyles: frame.everyRectangleCalloutNodeStyles,
+      everyEllipseCalloutNodeStyles: frame.everyEllipseCalloutNodeStyles,
+      everyCloudCalloutNodeStyles: frame.everyCloudCalloutNodeStyles,
+      everySingleArrowNodeStyles: frame.everySingleArrowNodeStyles,
+      everyDoubleArrowNodeStyles: frame.everyDoubleArrowNodeStyles
+    });
+    effectiveNodeLocalOptions = resolveEffectiveNodeOptions({
+      statementOptions: undefined,
+      nodeOptions,
+      everyNodeStyles,
+      everyFitStyles,
+      applyEveryFitStyles: true,
+      syntheticOptions: fitSyntheticOptions,
+      everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
+      everyCircleNodeStyles: frame.everyCircleNodeStyles,
+      everyDiamondNodeStyles: frame.everyDiamondNodeStyles,
+      everyTrapeziumNodeStyles: frame.everyTrapeziumNodeStyles,
+      everyIsoscelesTriangleNodeStyles: frame.everyIsoscelesTriangleNodeStyles,
+      everyKiteNodeStyles: frame.everyKiteNodeStyles,
+      everyDartNodeStyles: frame.everyDartNodeStyles,
+      everyCircularSectorNodeStyles: frame.everyCircularSectorNodeStyles,
+      everyCylinderNodeStyles: frame.everyCylinderNodeStyles,
+      everyCloudNodeStyles: frame.everyCloudNodeStyles,
+      everyStarburstNodeStyles: frame.everyStarburstNodeStyles,
+      everySignalNodeStyles: frame.everySignalNodeStyles,
+      everyTapeNodeStyles: frame.everyTapeNodeStyles,
+      everyRectangleCalloutNodeStyles: frame.everyRectangleCalloutNodeStyles,
+      everyEllipseCalloutNodeStyles: frame.everyEllipseCalloutNodeStyles,
+      everyCloudCalloutNodeStyles: frame.everyCloudCalloutNodeStyles,
+      everySingleArrowNodeStyles: frame.everySingleArrowNodeStyles,
+      everyDoubleArrowNodeStyles: frame.everyDoubleArrowNodeStyles
+    });
+
+    expandedNodeOptions = expandNodePlacementOptions(effectiveNodeOptions, context);
+    expandedNodeLocalOptions = expandNodePlacementOptions(effectiveNodeLocalOptions, context);
+  }
+
   const nodeDecorationBaseStyle: ResolvedStyle = {
     ...style,
     decoration: {
@@ -356,6 +429,34 @@ export function evaluateNodeItem(
   };
   const nodeLocalStyle = resolveNodeStyle(expandedNodeLocalOptions, nodeDecorationBaseStyle, context, 1);
   const nodeShape = resolveNodeShape(expandedNodeOptions);
+  const commandNodeOptions = fitOverrides.overrideOptions
+    ? resolveEffectiveNodeOptions({
+        statementOptions: undefined,
+        nodeOptions,
+        everyNodeStyles: [],
+        everyFitStyles: [],
+        syntheticOptions: [fitOverrides.overrideOptions],
+        everyRectangleNodeStyles: [],
+        everyCircleNodeStyles: [],
+        everyDiamondNodeStyles: [],
+        everyTrapeziumNodeStyles: [],
+        everyIsoscelesTriangleNodeStyles: [],
+        everyKiteNodeStyles: [],
+        everyDartNodeStyles: [],
+        everyCircularSectorNodeStyles: [],
+        everyCylinderNodeStyles: [],
+        everyCloudNodeStyles: [],
+        everyStarburstNodeStyles: [],
+        everySignalNodeStyles: [],
+        everyTapeNodeStyles: [],
+        everyRectangleCalloutNodeStyles: [],
+        everyEllipseCalloutNodeStyles: [],
+        everyCloudCalloutNodeStyles: [],
+        everySingleArrowNodeStyles: [],
+        everyDoubleArrowNodeStyles: []
+      })
+    : nodeOptions;
+
   const nodeStyleTrace = resolveNodeStyleTrace({
     item,
     statement,
@@ -363,7 +464,8 @@ export function evaluateNodeItem(
     baseStyle: style,
     baseStyleChain: effectiveBaseStyleChain,
     nodeShape,
-    nodeOptions,
+    nodeOptions: commandNodeOptions,
+    applyEveryFitStyles: fitOverrides.hasFit,
     transformScale: 1
   });
   const nodeStyle = nodeStyleTrace.style;
@@ -1019,11 +1121,16 @@ function resolveNodeStyleTrace(params: {
   baseStyleChain: StyleChainEntry[];
   nodeShape: NodeShape;
   nodeOptions: OptionListAst | undefined;
+  applyEveryFitStyles?: boolean;
   transformScale: number;
 }): { style: ResolvedStyle; chain: StyleChainEntry[] } {
   const frame = params.context.stack[params.context.stack.length - 1];
   const macroTrace = params.context.macroTraceCollector ?? undefined;
   const everyNodeLayers = expandProvenanceOptionLayers(frame.everyNodeStyles, frame, macroTrace);
+  const everyFitLayers =
+    params.applyEveryFitStyles === true
+      ? expandProvenanceOptionLayers(frame.everyFitStyles, frame, macroTrace)
+      : [];
   const includeEveryNodeLayers = !params.item.adornment;
   const everyShapeLayers = expandProvenanceOptionLayers(resolveEveryShapeNodeStyleLayers(frame, params.nodeShape), frame, macroTrace);
   const expandedStatementOptions = params.statement.options
@@ -1035,6 +1142,15 @@ function resolveNodeStyleTrace(params: {
   const layers: StyleTraceLayerInput[] = [
     ...(includeEveryNodeLayers
       ? everyNodeLayers.map(
+          (layer): StyleTraceLayerInput => ({
+            kind: "every-node",
+            sourceRef: layer.sourceRef,
+            rawOptions: [layer.options]
+          })
+        )
+      : []),
+    ...(includeEveryNodeLayers
+      ? everyFitLayers.map(
           (layer): StyleTraceLayerInput => ({
             kind: "every-node",
             sourceRef: layer.sourceRef,
@@ -1900,6 +2016,245 @@ function registerNodeSetMembership(nodeNames: string[], setNames: string[], cont
       context.namedNodeSets.set(setName, members);
     }
   }
+}
+
+type FitDiagnostic = {
+  code: string;
+  message: string;
+};
+
+type FitOverrideResolution = {
+  hasFit: boolean;
+  overrideOptions: OptionListAst | null;
+  diagnostics: FitDiagnostic[];
+};
+
+function resolveFitOverrides(options: OptionListAst | undefined, context: SemanticContext): FitOverrideResolution {
+  if (!options) {
+    return { hasFit: false, overrideOptions: null, diagnostics: [] };
+  }
+
+  let fitEntry: Extract<OptionEntry, { kind: "kv" }> | null = null;
+  let rotateFitDegrees: number | null = null;
+  const diagnostics: FitDiagnostic[] = [];
+
+  for (const entry of options.entries) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    if (entry.key === "fit") {
+      fitEntry = entry;
+      continue;
+    }
+    if (entry.key === "rotate fit") {
+      const parsed = parseQuantityExpression(normalizeOptionValue(entry.valueRaw));
+      if (parsed && Number.isFinite(parsed.value)) {
+        rotateFitDegrees = parsed.value;
+      } else {
+        diagnostics.push({
+          code: `unsupported-fit-rotate:${entry.valueRaw}`,
+          message: `Node fit issue: unsupported-fit-rotate:${entry.valueRaw}`
+        });
+      }
+    }
+  }
+
+  if (!fitEntry) {
+    return { hasFit: false, overrideOptions: null, diagnostics };
+  }
+
+  const fitPoints = collectFitSamplePoints(fitEntry.valueRaw, context);
+  if (fitPoints.length === 0) {
+    diagnostics.push({
+      code: "unsupported-fit-targets",
+      message: "Node fit issue: unsupported-fit-targets"
+    });
+    return { hasFit: true, overrideOptions: null, diagnostics };
+  }
+
+  const bounds = computeFitBounds(fitPoints, rotateFitDegrees);
+  if (!bounds) {
+    diagnostics.push({
+      code: "unsupported-fit-targets",
+      message: "Node fit issue: unsupported-fit-targets"
+    });
+    return { hasFit: true, overrideOptions: null, diagnostics };
+  }
+
+  const rotateSegment =
+    rotateFitDegrees != null && Number.isFinite(rotateFitDegrees)
+      ? `,rotate=${formatFitNumber(rotateFitDegrees)}`
+      : "";
+  const halfHeight = bounds.height / 2;
+  const overrideRaw = `[at=(${formatFitNumber(bounds.center.x)}pt,${formatFitNumber(bounds.center.y)}pt),anchor=center,align=center,text width={${formatFitNumber(bounds.width)}pt},minimum width={${formatFitNumber(bounds.width)}pt},minimum height={${formatFitNumber(bounds.height)}pt},text height={${formatFitNumber(halfHeight)}pt},text depth={${formatFitNumber(halfHeight)}pt}${rotateSegment}]`;
+  const overrideOptions = parseOptionListRaw(overrideRaw, fitEntry.span.from);
+  return { hasFit: true, overrideOptions, diagnostics };
+}
+
+function collectFitSamplePoints(fitRaw: string, context: SemanticContext): Point[] {
+  const normalized = stripWrappingBraces(fitRaw).trim();
+  if (normalized.length === 0) {
+    return [];
+  }
+
+  const tokens = extractTopLevelCoordinateTokens(normalized);
+  const points: Point[] = [];
+  for (const token of tokens) {
+    for (const point of resolveFitTokenPoints(token, context)) {
+      points.push(point);
+    }
+  }
+  return points;
+}
+
+function extractTopLevelCoordinateTokens(raw: string): string[] {
+  const tokens: string[] = [];
+  let start = -1;
+  let depth = 0;
+
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index]!;
+    if (char === "\\" && index + 1 < raw.length) {
+      index += 1;
+      continue;
+    }
+    if (char === "(") {
+      if (depth === 0) {
+        start = index;
+      }
+      depth += 1;
+      continue;
+    }
+    if (char === ")") {
+      if (depth === 0) {
+        continue;
+      }
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        tokens.push(raw.slice(start, index + 1));
+        start = -1;
+      }
+    }
+  }
+
+  return tokens;
+}
+
+function resolveFitTokenPoints(tokenRaw: string, context: SemanticContext): Point[] {
+  const coordinate = evaluateRawCoordinate(tokenRaw, context);
+  if (!coordinate.world) {
+    return [];
+  }
+
+  const parsed = parseCoordinate(tokenRaw);
+  const maybeName = parsed.form === "named" ? parsed.x.trim() : "";
+  if (!isBareNodeReference(maybeName)) {
+    return [coordinate.world];
+  }
+
+  const geometry = resolveScopedNamedNodeGeometry(maybeName, context);
+  if (!geometry) {
+    return [coordinate.world];
+  }
+
+  const anchors: Point[] = [];
+  for (const anchor of ["west", "east", "north", "south"]) {
+    const resolved = evaluateRawCoordinate(`(${maybeName}.${anchor})`, context);
+    if (resolved.world) {
+      anchors.push(resolved.world);
+    }
+  }
+  return anchors.length > 0 ? anchors : [coordinate.world];
+}
+
+function isBareNodeReference(nameRaw: string): boolean {
+  if (nameRaw.length === 0) {
+    return false;
+  }
+  if (nameRaw.includes(".")) {
+    return false;
+  }
+  const normalized = stripWrappingBraces(nameRaw).trim().toLowerCase();
+  if (normalized.length === 0) {
+    return false;
+  }
+  if (normalized.startsWith("intersection ") || normalized.includes(" of ")) {
+    return false;
+  }
+  if (normalized.includes("|-") || normalized.includes("-|")) {
+    return false;
+  }
+  return true;
+}
+
+function resolveScopedNamedNodeGeometry(name: string, context: SemanticContext) {
+  const frame = context.stack[context.stack.length - 1];
+  const prefix = frame?.namePrefix ?? "";
+  const suffix = frame?.nameSuffix ?? "";
+  const scoped = applyRawNameScope(name, prefix, suffix);
+  return readNamedNodeGeometry(context, scoped) ?? readNamedNodeGeometry(context, name);
+}
+
+function applyRawNameScope(name: string, prefix: string, suffix: string): string {
+  if (prefix.length === 0 && suffix.length === 0) {
+    return name;
+  }
+  const dot = name.indexOf(".");
+  if (dot === -1) {
+    return `${prefix}${name}${suffix}`;
+  }
+  const base = name.slice(0, dot);
+  const anchor = name.slice(dot);
+  return `${prefix}${base}${suffix}${anchor}`;
+}
+
+function computeFitBounds(
+  points: Point[],
+  rotateFitDegrees: number | null
+): { center: Point; width: number; height: number } | null {
+  if (points.length === 0) {
+    return null;
+  }
+
+  const hasRotate = rotateFitDegrees != null && Number.isFinite(rotateFitDegrees);
+  const sampled = hasRotate ? points.map((point) => rotatePoint(point, -rotateFitDegrees!)) : points;
+  const minX = Math.min(...sampled.map((point) => point.x));
+  const maxX = Math.max(...sampled.map((point) => point.x));
+  const minY = Math.min(...sampled.map((point) => point.y));
+  const maxY = Math.max(...sampled.map((point) => point.y));
+
+  if (![minX, maxX, minY, maxY].every(Number.isFinite)) {
+    return null;
+  }
+
+  const centerRotated = {
+    x: (minX + maxX) / 2,
+    y: (minY + maxY) / 2
+  };
+  const center = hasRotate ? rotatePoint(centerRotated, rotateFitDegrees!) : centerRotated;
+  return {
+    center,
+    width: Math.max(0, maxX - minX),
+    height: Math.max(0, maxY - minY)
+  };
+}
+
+function rotatePoint(point: Point, degrees: number): Point {
+  const radians = (degrees * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return {
+    x: point.x * cos - point.y * sin,
+    y: point.x * sin + point.y * cos
+  };
+}
+
+function formatFitNumber(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+  const rounded = Math.abs(value) < 1e-9 ? 0 : value;
+  return Number(rounded.toFixed(6)).toString();
 }
 
 function collectSetNames(options: OptionListAst | undefined): string[] {

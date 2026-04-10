@@ -2637,6 +2637,47 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).not.toContain("\\node[draw,(");
   });
 
+  it("blocks moveElements direct manipulation for fit nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node (a) at (0,0) {};
+  \node (b) at (1,0) {};
+  \node[draw,fit=(a) (b)] (f) {};
+\end{tikzpicture}`;
+
+    const parsed = parseTikz(source, { recover: true });
+    const fitPathId =
+      parsed.figure.body
+        .find(
+          (statement) =>
+            statement.kind === "Path"
+            && statement.items.some(
+              (item) =>
+                item.kind === "Node"
+                && item.options?.entries.some(
+                  (entry) => (entry.kind === "flag" || entry.kind === "kv") && entry.key === "fit"
+                )
+            )
+        )?.id ?? null;
+    expect(fitPathId).not.toBeNull();
+    if (!fitPathId) {
+      return;
+    }
+
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const result = applyEditAction(source, semantic.editHandles, {
+      kind: "moveElements",
+      elementIds: [fitPathId],
+      delta: { x: 1, y: 0 }
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind !== "unsupported") {
+      return;
+    }
+    expect(result.reason).toContain("fit");
+    expect(result.reason).toContain("disabled");
+  });
+
   it("resizes transform-rotated circle statements", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[rotate=45] (0,0) circle (1cm);
@@ -2819,6 +2860,47 @@ describe("applyEditAction – resizeElement", () => {
     if (result.kind !== "success") return;
     expect(result.changedSourceIds).toEqual(["path:0"]);
   });
+
+  it("blocks resizeElement direct manipulation for fit nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node (a) at (0,0) {};
+  \node (b) at (1,0) {};
+  \node[draw,fit=(a) (b)] (f) {};
+\end{tikzpicture}`;
+
+    const parsed = parseTikz(source, { recover: true });
+    const fitPathId =
+      parsed.figure.body
+        .find(
+          (statement) =>
+            statement.kind === "Path"
+            && statement.items.some(
+              (item) =>
+                item.kind === "Node"
+                && item.options?.entries.some(
+                  (entry) => (entry.kind === "flag" || entry.kind === "kv") && entry.key === "fit"
+                )
+            )
+        )?.id ?? null;
+    expect(fitPathId).not.toBeNull();
+    if (!fitPathId) {
+      return;
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: fitPathId,
+      role: "bottom-right",
+      newWorld: { x: cm(2), y: cm(1) }
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind !== "unsupported") {
+      return;
+    }
+    expect(result.reason).toContain("fit");
+    expect(result.reason).toContain("disabled");
+  });
 });
 
 // ── addElement / unimplemented actions ─────────────────────────────────────────
@@ -2958,6 +3040,26 @@ describe("applyEditAction – deleteElement", () => {
       expect(result.newSource).toContain("\\draw (0,1) -- (1,1);");
       expect(result.newSource).not.toContain("\\draw (0,2) -- (1,2);");
     }
+  });
+
+  it("prunes deleted node references from fit options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node (a) at (0,0) {};
+  \node (b) at (1,0) {};
+  \node[draw,fit=(a) (b)] (f) {};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "deleteElement",
+      elementId: "path:0"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      return;
+    }
+    expect(result.newSource).not.toContain("(a)");
+    expect(result.newSource).toContain("fit=(b)");
   });
 });
 

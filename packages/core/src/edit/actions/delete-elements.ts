@@ -1,8 +1,10 @@
-import type { PathItem, Span, Statement } from "../../ast/types.js";
+import type { NodeItem, PathItem, Span, Statement } from "../../ast/types.js";
+import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import { replaceSpan } from "../patch.js";
 import { resolvePropertyTarget } from "../property-target.js";
 import type { SourcePatch } from "../types.js";
 import { parseTikzForEdit, type EditParseOptions } from "../parse-options.js";
+import { applyOptionMutationsToTarget, normalizeOptionKey, type OptionMutation } from "../option-mutations.js";
 
 type EditActionResultLike =
   | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[]; changedSourceIds?: string[] }
@@ -38,6 +40,7 @@ export function applyDeleteElementsAction(
   if (collapsedTargets.length === 0) {
     return { kind: "unsupported", reason: "No deletable source span was found for the selected element(s)" };
   }
+  const deletedNamedNodes = collectDeletedNamedNodes(parsed.figure.body, collapsedTargets);
 
   const sorted = [...collapsedTargets].sort((a, b) => {
     if (a.span.from !== b.span.from) {
@@ -60,11 +63,16 @@ export function applyDeleteElementsAction(
     currentSource = updated.source;
   }
 
+  const fitPruneResult = pruneFitReferencesAfterDelete(currentSource, deletedNamedNodes, parseOptions);
+  currentSource = fitPruneResult.source;
+  patches.push(...fitPruneResult.patches);
+
   return {
     kind: "success",
     newSource: currentSource,
     patches,
-    selectedSourceIds: []
+    selectedSourceIds: [],
+    changedSourceIds: fitPruneResult.changedSourceIds
   };
 }
 
@@ -228,6 +236,244 @@ function normalizeAdornmentDeleteSpan(source: string, span: Span): Span {
 function clampOffset(value: number, sourceLength: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(sourceLength, Math.trunc(value)));
+}
+
+function collectDeletedNamedNodes(statements: Statement[], targets: readonly DeleteTarget[]): Set<string> {
+  const names = new Set<string>();
+  if (targets.length === 0) {
+    return names;
+  }
+
+  const withinDeletedTarget = (span: Span): boolean =>
+    targets.some((target) => span.from >= target.span.from && span.to <= target.span.to);
+
+  for (const node of collectNodeItems(statements)) {
+    if (!withinDeletedTarget(node.span)) {
+      continue;
+    }
+    if (node.name && node.name.trim().length > 0) {
+      names.add(node.name.trim());
+    }
+    for (const alias of node.aliases ?? []) {
+      if (alias.trim().length > 0) {
+        names.add(alias.trim());
+      }
+    }
+  }
+  return names;
+}
+
+function pruneFitReferencesAfterDelete(
+  source: string,
+  deletedNodeNames: ReadonlySet<string>,
+  parseOptions: EditParseOptions
+): { source: string; patches: SourcePatch[]; changedSourceIds: string[] } {
+  if (deletedNodeNames.size === 0) {
+    return { source, patches: [], changedSourceIds: [] };
+  }
+
+  const parsed = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
+  const fitNodeIds = new Set<string>();
+  for (const node of collectNodeItems(parsed.figure.body)) {
+    if (!optionListHasFitEntry(node.options)) {
+      continue;
+    }
+    fitNodeIds.add(node.id);
+  }
+
+  let currentSource = source;
+  const patches: SourcePatch[] = [];
+  const changedSourceIds = new Set<string>();
+  for (const fitNodeId of fitNodeIds) {
+    const resolved = resolvePropertyTarget(currentSource, fitNodeId, parseOptions);
+    if (resolved.kind !== "found" || !resolved.target.options) {
+      continue;
+    }
+    const fitEntry = resolved.target.options.entries.find(
+      (entry): entry is Extract<typeof entry, { kind: "kv" }> =>
+        entry.kind === "kv" && normalizeOptionKey(entry.key) === "fit"
+    );
+    if (!fitEntry) {
+      continue;
+    }
+
+    const nextFitValue = pruneFitValueRaw(fitEntry.valueRaw, deletedNodeNames);
+    if (nextFitValue.kind === "unchanged") {
+      continue;
+    }
+
+    const mutations = new Map<string, OptionMutation>();
+    if (nextFitValue.value == null) {
+      mutations.set("fit", { kind: "remove" });
+      mutations.set("rotate fit", { kind: "remove" });
+    } else {
+      mutations.set("fit", { kind: "set", value: nextFitValue.value });
+    }
+    const rewritten = applyOptionMutationsToTarget(currentSource, resolved.target, mutations);
+    if (!rewritten) {
+      continue;
+    }
+    currentSource = rewritten.source;
+    patches.push(rewritten.patch);
+    changedSourceIds.add(fitNodeId);
+  }
+
+  return { source: currentSource, patches, changedSourceIds: [...changedSourceIds] };
+}
+
+function pruneFitValueRaw(
+  valueRaw: string,
+  deletedNodeNames: ReadonlySet<string>
+): { kind: "unchanged" } | { kind: "changed"; value: string | null } {
+  const trimmed = valueRaw.trim();
+  if (trimmed.length === 0) {
+    return { kind: "unchanged" };
+  }
+  const wrapped = unwrapSingleBraceLayer(trimmed);
+  const tokens = extractTopLevelCoordinateTokens(wrapped.content);
+  if (tokens.length === 0) {
+    return { kind: "unchanged" };
+  }
+
+  const kept = tokens.filter((token) => !fitTokenReferencesDeletedNode(token, deletedNodeNames));
+  if (kept.length === tokens.length) {
+    return { kind: "unchanged" };
+  }
+  if (kept.length === 0) {
+    return { kind: "changed", value: null };
+  }
+
+  const compact = kept.join(" ");
+  return {
+    kind: "changed",
+    value: wrapped.hadOuterBraces ? `{${compact}}` : compact
+  };
+}
+
+function fitTokenReferencesDeletedNode(tokenRaw: string, deletedNodeNames: ReadonlySet<string>): boolean {
+  const parsed = parseCoordinate(tokenRaw);
+  if (parsed.form !== "named") {
+    return false;
+  }
+  const maybeName = stripOuterBraces(parsed.x.trim());
+  if (maybeName.length === 0) {
+    return false;
+  }
+  const dot = maybeName.indexOf(".");
+  const baseName = (dot >= 0 ? maybeName.slice(0, dot) : maybeName).trim();
+  return baseName.length > 0 && deletedNodeNames.has(baseName);
+}
+
+function extractTopLevelCoordinateTokens(raw: string): string[] {
+  const tokens: string[] = [];
+  let start = -1;
+  let depth = 0;
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index]!;
+    if (char === "\\" && index + 1 < raw.length) {
+      index += 1;
+      continue;
+    }
+    if (char === "(") {
+      if (depth === 0) {
+        start = index;
+      }
+      depth += 1;
+      continue;
+    }
+    if (char === ")") {
+      if (depth === 0) {
+        continue;
+      }
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        tokens.push(raw.slice(start, index + 1));
+        start = -1;
+      }
+    }
+  }
+  return tokens;
+}
+
+function optionListHasFitEntry(options: NodeItem["options"] | undefined): boolean {
+  if (!options) {
+    return false;
+  }
+  return options.entries.some(
+    (entry) => (entry.kind === "flag" || entry.kind === "kv") && normalizeOptionKey(entry.key) === "fit"
+  );
+}
+
+function collectNodeItems(statements: readonly Statement[]): NodeItem[] {
+  const nodes: NodeItem[] = [];
+  const visitPathItems = (items: readonly PathItem[]) => {
+    for (const item of items) {
+      if (item.kind === "Node") {
+        nodes.push(item);
+        continue;
+      }
+      if (item.kind === "ChildOperation") {
+        visitPathItems(item.body);
+        continue;
+      }
+      if ((item.kind === "ToOperation" || item.kind === "EdgeOperation") && item.nodes) {
+        for (const node of item.nodes) {
+          nodes.push(node);
+        }
+      }
+    }
+  };
+
+  const visitStatements = (entries: readonly Statement[]) => {
+    for (const statement of entries) {
+      if (statement.kind === "Path") {
+        visitPathItems(statement.items);
+        continue;
+      }
+      if (statement.kind === "Scope") {
+        visitStatements(statement.body);
+      }
+    }
+  };
+  visitStatements(statements);
+  return nodes;
+}
+
+function unwrapSingleBraceLayer(raw: string): { content: string; hadOuterBraces: boolean } {
+  if (!raw.startsWith("{") || !raw.endsWith("}")) {
+    return { content: raw, hadOuterBraces: false };
+  }
+  let depth = 0;
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index]!;
+    if (char === "\\" && index + 1 < raw.length) {
+      index += 1;
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0 && index !== raw.length - 1) {
+        return { content: raw, hadOuterBraces: false };
+      }
+      if (depth < 0) {
+        return { content: raw, hadOuterBraces: false };
+      }
+    }
+  }
+  return depth === 0
+    ? { content: raw.slice(1, -1), hadOuterBraces: true }
+    : { content: raw, hadOuterBraces: false };
+}
+
+function stripOuterBraces(raw: string): string {
+  const unwrapped = unwrapSingleBraceLayer(raw);
+  return unwrapped.content.trim();
 }
 
 function normalizeElementIds(elementIds: readonly string[]): string[] {

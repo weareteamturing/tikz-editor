@@ -5037,7 +5037,11 @@ function resolveInlineWriteTarget(
           writable: true
         };
       }
-      return { targetId, targetKind: resolved.target.kind, writable: true };
+      return {
+        targetId,
+        targetKind: resolved.target.kind,
+        writable: true
+      };
     }
   }
 

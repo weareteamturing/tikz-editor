@@ -190,6 +190,9 @@ export function resolveEffectiveNodeOptions(params: {
   statementOptions: OptionListAst | undefined;
   nodeOptions: OptionListAst | undefined;
   everyNodeStyles: NodeStyleOptionList[];
+  everyFitStyles?: NodeStyleOptionList[];
+  applyEveryFitStyles?: boolean;
+  syntheticOptions?: OptionListAst[];
   everyRectangleNodeStyles: NodeStyleOptionList[];
   everyCircleNodeStyles: NodeStyleOptionList[];
   everyDiamondNodeStyles: NodeStyleOptionList[];
@@ -209,19 +212,25 @@ export function resolveEffectiveNodeOptions(params: {
   everySingleArrowNodeStyles: NodeStyleOptionList[];
   everyDoubleArrowNodeStyles: NodeStyleOptionList[];
 }): OptionListAst | undefined {
+  const everyFitStyles = params.applyEveryFitStyles ? (params.everyFitStyles ?? []) : [];
+  const syntheticOptions = params.syntheticOptions ?? [];
   const base = mergeOptionLists([
     ...params.everyNodeStyles.map(optionListFromNodeStyleSource),
+    ...everyFitStyles.map(optionListFromNodeStyleSource),
     params.statementOptions,
-    params.nodeOptions
+    params.nodeOptions,
+    ...syntheticOptions
   ]);
   const shape = resolveNodeShape(base);
   const shapeStyles = resolveShapeStyleLists(shape, params);
 
   return mergeOptionLists([
     ...params.everyNodeStyles.map(optionListFromNodeStyleSource),
+    ...everyFitStyles.map(optionListFromNodeStyleSource),
     ...shapeStyles.map(optionListFromNodeStyleSource),
     params.statementOptions,
-    params.nodeOptions
+    params.nodeOptions,
+    ...syntheticOptions
   ]);
 }
 

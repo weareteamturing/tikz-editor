@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { renderTikzToSvg, renderTikzToSvgAsync } from "../packages/core/src/render/index.js";
 import { parseLength } from "../packages/core/src/semantic/coords/parse-length.js";
-import type { ScenePath, SceneText } from "../packages/core/src/semantic/types.js";
+import type { SceneCircle, ScenePath, SceneText } from "../packages/core/src/semantic/types.js";
 import { applyMatrix } from "../packages/core/src/semantic/transform.js";
 import type { NodeTextEngine, NodeTextMeasureRequest, NodeTextMetrics } from "../packages/core/src/text/types.js";
 
@@ -19,6 +19,29 @@ function readLineboxTranslateXs(svg: string): number[] {
 
 function countLineboxes(svg: string): number {
   return (svg.match(/data-mjx-linebox=/g) ?? []).length;
+}
+
+function pathBounds(path: ScenePath): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  const points = path.commands.flatMap((command) => {
+    if (command.kind === "M" || command.kind === "L" || command.kind === "A") {
+      return [command.to];
+    }
+    if (command.kind === "C") {
+      return [command.c1, command.c2, command.to];
+    }
+    return [];
+  });
+  if (points.length === 0) {
+    return null;
+  }
+
+  const transformed = points.map((point) => (path.transform ? applyMatrix(path.transform, point) : point));
+  return {
+    minX: Math.min(...transformed.map((point) => point.x)),
+    minY: Math.min(...transformed.map((point) => point.y)),
+    maxX: Math.max(...transformed.map((point) => point.x)),
+    maxY: Math.max(...transformed.map((point) => point.y))
+  };
 }
 
 describe("render pipeline", () => {
@@ -89,6 +112,121 @@ describe("render pipeline", () => {
     expect(result.svg.svg).toContain('data-latex="x^2"');
     expect(result.svg.svg).toContain('data-latex="\\frac{1}{y}"');
     expect(result.svg.svg).not.toContain('\\mbox{x^2}');
+  });
+
+  it("supports fit around coordinates and marks fit capability usage", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,fit=(0,0) (1,1)] {};
+\end{tikzpicture}`;
+    const result = renderTikzToSvg(source);
+
+    expect(result.semantic.featureUsage.fit_node).toBe("used-supported");
+    expect(result.semantic.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-fit-targets")).toBe(false);
+    expect(result.semantic.scene.requiredTikzLibraries).toContain("fit");
+  });
+
+  it("expands bare fit node references to side anchors rather than center only", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,minimum width=2cm] (a) at (0,0) {};
+  \node[draw,fit=(a)] (fit) {};
+\end{tikzpicture}`;
+    const result = renderTikzToSvg(source);
+    const fitPath = result.semantic.scene.elements.find(
+      (element): element is ScenePath => element.kind === "Path" && element.sourceRef.sourceId === "path:1"
+    );
+    expect(fitPath).toBeDefined();
+    if (!fitPath) {
+      throw new Error("Expected fit node path element.");
+    }
+    const bounds = pathBounds(fitPath);
+    expect(bounds).not.toBeNull();
+    if (bounds) {
+      expect(bounds.maxX - bounds.minX).toBeGreaterThan(parseLength("1cm", "pt") ?? 28.4);
+    }
+  });
+
+  it("treats explicit center references in fit as center-only samples", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,minimum width=2cm] (a) at (0,0) {};
+  \node[draw,fit=(a.center)] (fit) {};
+\end{tikzpicture}`;
+    const result = renderTikzToSvg(source);
+    const fitPath = result.semantic.scene.elements.find(
+      (element): element is ScenePath => element.kind === "Path" && element.sourceRef.sourceId === "path:1"
+    );
+    expect(fitPath).toBeDefined();
+    if (!fitPath) {
+      throw new Error("Expected fit node path element.");
+    }
+    const bounds = pathBounds(fitPath);
+    expect(bounds).not.toBeNull();
+    if (bounds) {
+      expect(bounds.maxX - bounds.minX).toBeLessThan(parseLength("1cm", "pt") ?? 28.4);
+    }
+  });
+
+  it("applies rotate fit as node rotation side effect", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node (a) at (0,0) {};
+  \node (b) at (2,0) {};
+  \node[draw,rotate fit=30,fit=(a) (b)] {};
+\end{tikzpicture}`;
+    const result = renderTikzToSvg(source);
+    const fitPath = result.semantic.scene.elements.find(
+      (element): element is ScenePath => element.kind === "Path" && element.sourceRef.sourceId === "path:2"
+    );
+    expect(fitPath).toBeDefined();
+    if (!fitPath) {
+      throw new Error("Expected rotated fit node path element.");
+    }
+    expect(fitPath.transform).toBeDefined();
+    if (fitPath.transform) {
+      expect(Math.abs(fitPath.transform.b) + Math.abs(fitPath.transform.c)).toBeGreaterThan(0.01);
+    }
+  });
+
+  it("applies every fit styles only to fit nodes", () => {
+    const source = String.raw`\begin{tikzpicture}[every fit/.style={fill=red}]
+  \node (a) at (0,0) {};
+  \node[draw,fit=(a)] {};
+  \node[draw] at (2,0) {};
+\end{tikzpicture}`;
+    const result = renderTikzToSvg(source);
+    const fitPath = result.semantic.scene.elements.find(
+      (element): element is ScenePath => element.kind === "Path" && element.sourceRef.sourceId === "path:1"
+    );
+    const nonFitPath = result.semantic.scene.elements.find(
+      (element): element is ScenePath => element.kind === "Path" && element.sourceRef.sourceId === "path:2"
+    );
+    expect(fitPath?.style.fill).toBe("#ff0000");
+    expect(nonFitPath?.style.fill).not.toBe("#ff0000");
+  });
+
+  it("supports fit references to node names with apostrophes and spaces", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node (d) at (-1,-1) {};
+  \node (e) at (1,-1) {};
+  \node (b's parent) at (0,0) {};
+  \node[draw,fit=(d) (e) (b's parent)] {};
+\end{tikzpicture}`;
+    const result = renderTikzToSvg(source);
+
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.semantic.featureUsage.fit_node).toBe("used-supported");
+    expect(result.semantic.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-fit-targets")).toBe(false);
+  });
+
+  it("inherits picture-level inner sep into node layout defaults", () => {
+    const source = String.raw`\begin{tikzpicture}[inner sep=0pt]
+  \node[fill=blue,circle,minimum size=3pt] at (0,0) {};
+\end{tikzpicture}`;
+    const result = renderTikzToSvg(source);
+    const circle = result.semantic.scene.elements.find((element): element is SceneCircle => element.kind === "Circle");
+    expect(circle).toBeDefined();
+    if (!circle) {
+      throw new Error("Expected circle node path element.");
+    }
+    expect(circle.radius).toBeLessThan(2.5);
   });
 
   it("mirrors rotated ellipse arc angles when emitting SVG path data", () => {

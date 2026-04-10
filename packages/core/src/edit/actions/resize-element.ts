@@ -33,6 +33,7 @@ import {
 } from "../option-mutations.js";
 import type { SourcePatch } from "../types.js";
 import { parseTikzForEdit, type EditParseOptions } from "../parse-options.js";
+import { FIT_DIRECT_MANIPULATION_BLOCK_REASON, propertyTargetUsesFit, sourceUsesFitNodeFromParseResult } from "../fit.js";
 
 const RESIZE_EPSILON = 1e-3;
 
@@ -88,10 +89,16 @@ export function applyResizeElementAction(
   if (resolved.kind === "not-found") {
     return { kind: "unsupported", reason: resolved.reason };
   }
+  if (propertyTargetUsesFit(resolved.target)) {
+    return { kind: "unsupported", reason: FIT_DIRECT_MANIPULATION_BLOCK_REASON };
+  }
 
   const parsed = parseTikzForEdit(source, {
     ...parseOptions,
   });
+  if (sourceUsesFitNodeFromParseResult(source, parsed, elementId)) {
+    return { kind: "unsupported", reason: FIT_DIRECT_MANIPULATION_BLOCK_REASON };
+  }
   const semantic = evaluateTikzFigure(parsed.figure, source, evaluateOptions);
   const boundsBySource = collectSourceWorldBounds(semantic.scene.elements);
   const scopeBoundsById = buildScopeBoundsById(parsed.figure.body, boundsBySource);

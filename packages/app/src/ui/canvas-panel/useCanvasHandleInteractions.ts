@@ -63,6 +63,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
     setNodeAnchorOverlay,
     selectedElementIds,
     dragCapability,
+    directManipulationDisabledReasonBySourceId,
     snapshot,
     source,
     setWarning,
@@ -100,6 +101,10 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       }
 
       if (!dragCapability.draggableHandleIds.has(handle.id)) {
+        const reason = directManipulationDisabledReasonBySourceId?.get(handle.sourceRef.sourceId);
+        if (reason) {
+          setWarning(reason);
+        }
         setSnapLines([]);
         return;
       }
@@ -160,6 +165,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
     },
     [
       canvasTransform.scale,
+      directManipulationDisabledReasonBySourceId,
       dispatch,
       dragCapability.draggableHandleIds,
       logSnapDebug,
@@ -186,6 +192,14 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
   const onResizeHandlePointerDown = useCallback(
     (event: ReactPointerEvent<SVGElement>, sourceId: string, role: ResizeRole, cursor: string) => {
       if (!svgResult || toolMode !== "select" || event.button !== 0) return;
+      if (cursor === "not-allowed") {
+        const reason = directManipulationDisabledReasonBySourceId?.get(sourceId);
+        if (reason) {
+          setWarning(reason);
+        }
+        setSnapLines([]);
+        return;
+      }
       const propertyTarget = resolvePropertyTarget(source, sourceId, parseOptions);
       if (
         sourceId.includes(":tree-child:")
@@ -291,6 +305,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       setSnapLines,
       setTextEditingSession,
       setWarning,
+      directManipulationDisabledReasonBySourceId,
       snapshot.editHandles,
       snapshot.parseResult,
       snapshot.scene,
@@ -345,6 +360,14 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
   const onRotateHandlePointerDown = useCallback(
     (event: ReactPointerEvent<SVGElement>, sourceId: string, centerWorld: Point, cursor: string) => {
       if (!svgResult || toolMode !== "select" || event.button !== 0) return;
+      if (cursor === "not-allowed") {
+        const reason = directManipulationDisabledReasonBySourceId?.get(sourceId);
+        if (reason) {
+          setWarning(reason);
+        }
+        setSnapLines([]);
+        return;
+      }
 
       viewportRef.current?.focus({ preventScroll: true });
       event.preventDefault();
@@ -409,6 +432,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       parseOptions,
       resolveRotateWriteTargetIdInternal,
       selectedElementIds,
+      directManipulationDisabledReasonBySourceId,
       setDragState,
       setNodeAnchorOverlay,
       setSnapLines,

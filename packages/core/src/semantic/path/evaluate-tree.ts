@@ -296,6 +296,7 @@ export function handleChildOperationCluster(params: {
       pinEdgeRaw: childFrameMeta.pinEdgeRaw,
       transformShape: childFrameMeta.transformShape,
       everyNodeStyles: childFrameMeta.everyNodeStyles,
+      everyFitStyles: childFrameMeta.everyFitStyles,
       everyRectangleNodeStyles: childFrameMeta.everyRectangleNodeStyles,
       everyCircleNodeStyles: childFrameMeta.everyCircleNodeStyles,
       everyDiamondNodeStyles: childFrameMeta.everyDiamondNodeStyles,

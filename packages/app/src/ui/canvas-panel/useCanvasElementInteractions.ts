@@ -28,6 +28,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     interactionSvgRef,
     dispatch,
     draggableSourceIds,
+    directManipulationDisabledReasonBySourceId,
     snapshot,
     source,
     setWarning,
@@ -69,6 +70,12 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       options: { adornmentDragFromText?: boolean } = {}
     ) => {
       if (draggedIds.some((id) => !draggableSourceIds.has(id))) {
+        const reason = draggedIds
+          .map((id) => directManipulationDisabledReasonBySourceId?.get(id))
+          .find((candidate): candidate is string => Boolean(candidate && candidate.trim().length > 0));
+        if (reason) {
+          setWarning(reason);
+        }
         setSnapLines([]);
         return;
       }
@@ -169,6 +176,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     },
     [
       canvasTransform.scale,
+      directManipulationDisabledReasonBySourceId,
       draggableSourceIds,
       logSnapDebug,
       scopeOverlay.ancestorScopeIdsBySourceId,

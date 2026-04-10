@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { ResizeRole } from "tikz-editor/edit/actions";
+import { FIT_DIRECT_MANIPULATION_BLOCK_REASON, sourceUsesFitNodeFromParseResult } from "tikz-editor/edit/fit";
 import { resolvePropertyTargetFromParseResult } from "tikz-editor/edit/property-target";
 import { resolveTransformInspectorMutationContextFromOptionEntries } from "tikz-editor/edit/inspector";
 import { collectSourceWorldBounds } from "tikz-editor/edit/snapping";
@@ -112,6 +113,29 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     () => computeDragCapability(snapshot.editHandles),
     [snapshot.editHandles]
   );
+  const fitNodeSourceIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!snapshot.parseResult) {
+      return ids;
+    }
+    const allSourceIds = new Set<string>();
+    for (const element of snapshot.scene?.elements ?? []) {
+      allSourceIds.add(element.sourceRef.sourceId);
+    }
+    for (const sourceId of allSourceIds) {
+      if (sourceUsesFitNodeFromParseResult(snapshot.source, snapshot.parseResult, sourceId)) {
+        ids.add(sourceId);
+      }
+    }
+    return ids;
+  }, [snapshot.parseResult, snapshot.scene, snapshot.source]);
+  const directManipulationDisabledReasonBySourceId = useMemo(() => {
+    const reasons = new Map<string, string>();
+    for (const sourceId of fitNodeSourceIds) {
+      reasons.set(sourceId, FIT_DIRECT_MANIPULATION_BLOCK_REASON);
+    }
+    return reasons;
+  }, [fitNodeSourceIds]);
   const adornmentTargetIds = useMemo(() => {
     const ids = new Set<string>();
     for (const element of snapshot.scene?.elements ?? []) {
@@ -203,6 +227,9 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
 
   const draggableSourceIds = useMemo(() => {
     const ids = new Set<string>(dragCapability.draggableSourceIds);
+    for (const fitId of fitNodeSourceIds) {
+      ids.delete(fitId);
+    }
     for (const matrixCellId of matrixCellSourceIds) {
       ids.delete(matrixCellId);
     }
@@ -222,7 +249,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       ids.add(targetId);
     }
     return ids;
-  }, [adornmentTargetIds, dragCapability.draggableSourceIds, matrixCellSourceIds, matrixSourceIds, movableScopeSourceIds, treeChildSourceIds, treeRootSourceIds]);
+  }, [adornmentTargetIds, dragCapability.draggableSourceIds, fitNodeSourceIds, matrixCellSourceIds, matrixSourceIds, movableScopeSourceIds, treeChildSourceIds, treeRootSourceIds]);
 
   const selectionBounds = useMemo(() => {
     const selected: Array<{ sourceId: string; bounds: any }> = [];
@@ -297,12 +324,13 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
         handle.kind === "node-position"
         && !matrixSourceIds.has(handle.sourceRef.sourceId)
         && !matrixCellSourceIds.has(handle.sourceRef.sourceId)
+        && !fitNodeSourceIds.has(handle.sourceRef.sourceId)
       ) {
         sourceIds.add(handle.sourceRef.sourceId);
       }
     }
     return sourceIds;
-  }, [matrixCellSourceIds, matrixSourceIds, selectedHandles, treeChildSourceIds]);
+  }, [fitNodeSourceIds, matrixCellSourceIds, matrixSourceIds, selectedHandles, treeChildSourceIds]);
 
   const scopeResizeSourceIds = useMemo(() => {
     const sourceIds = new Set<string>();
@@ -612,6 +640,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       toolMode === "select" &&
       singleSelectedSourceId &&
       resizeHandleSourceIds.has(singleSelectedSourceId) &&
+      !fitNodeSourceIds.has(singleSelectedSourceId) &&
       !matrixSourceIds.has(singleSelectedSourceId) &&
       !matrixCellSourceIds.has(singleSelectedSourceId) &&
       !scopeResizeSourceIds.has(singleSelectedSourceId)
@@ -672,7 +701,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       const resizeFrame = resizeFramesBySource.get(sourceId) ?? null;
       if (resizeFrame) {
         const resizeDisabled =
-          treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId);
+          fitNodeSourceIds.has(sourceId) || treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId);
         displays.push(
           ...buildResizeHandleDisplaysForFrame({
             sourceId,
@@ -710,7 +739,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       }
 
       const resizeDisabled =
-        treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId);
+        fitNodeSourceIds.has(sourceId) || treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId);
       displays.push(
         ...buildResizeHandleDisplaysForBounds({
           sourceId,
@@ -744,7 +773,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     }
 
     return displays;
-  }, [ROTATE_HANDLE_OFFSET_PX, canvasTransform.scale, collapsedDensePathEndpointsBySource, collapsedDensePathSourceIds, dragCapability.draggableHandleIds, draggableSourceIds, matrixCellSourceIds, matrixSourceIds, resizablePathShapeSourceIds, resizeFrameSourceIds, resizeFramesBySource, scopeResizeSourceIds, selectedElementIds, selectedHandles, selectionBoundsBySource, snapshot.editHandles, snapshot.scene, svgResult, toolMode, treeChildSourceIds]);
+  }, [ROTATE_HANDLE_OFFSET_PX, canvasTransform.scale, collapsedDensePathEndpointsBySource, collapsedDensePathSourceIds, dragCapability.draggableHandleIds, draggableSourceIds, fitNodeSourceIds, matrixCellSourceIds, matrixSourceIds, resizablePathShapeSourceIds, resizeFrameSourceIds, resizeFramesBySource, scopeResizeSourceIds, selectedElementIds, selectedHandles, selectionBoundsBySource, snapshot.editHandles, snapshot.scene, svgResult, toolMode, treeChildSourceIds]);
 
   const hitRegions = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];
@@ -778,6 +807,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     matrixCellAnchorHints,
     matrixSourceIds,
     dragCapability,
+    directManipulationDisabledReasonBySourceId,
     adornmentTargetIds,
     draggableSourceIds,
     selectionBounds,

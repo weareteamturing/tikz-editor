@@ -218,6 +218,7 @@ export function createSemanticEvaluationRun(
       pinEdgeRaw: rootMeta.pinEdgeRaw,
       transformShape: rootMeta.transformShape,
       everyNodeStyles: rootMeta.everyNodeStyles,
+      everyFitStyles: rootMeta.everyFitStyles,
       everyRectangleNodeStyles: rootMeta.everyRectangleNodeStyles,
       everyCircleNodeStyles: rootMeta.everyCircleNodeStyles,
       everyDiamondNodeStyles: rootMeta.everyDiamondNodeStyles,
@@ -766,6 +767,7 @@ function evaluateStatement(
       pinEdgeRaw: frameMeta.pinEdgeRaw,
       transformShape: frameMeta.transformShape,
       everyNodeStyles: frameMeta.everyNodeStyles,
+      everyFitStyles: frameMeta.everyFitStyles,
       everyRectangleNodeStyles: frameMeta.everyRectangleNodeStyles,
       everyCircleNodeStyles: frameMeta.everyCircleNodeStyles,
       everyDiamondNodeStyles: frameMeta.everyDiamondNodeStyles,
@@ -946,6 +948,7 @@ function evaluateStatement(
       pinEdgeRaw: frameMeta.pinEdgeRaw,
       transformShape: frameMeta.transformShape,
       everyNodeStyles: frameMeta.everyNodeStyles,
+      everyFitStyles: frameMeta.everyFitStyles,
       everyRectangleNodeStyles: frameMeta.everyRectangleNodeStyles,
       everyCircleNodeStyles: frameMeta.everyCircleNodeStyles,
       everyDiamondNodeStyles: frameMeta.everyDiamondNodeStyles,
@@ -1462,6 +1465,7 @@ function applyOptionListsToCurrentFrame(
   frame.pinEdgeRaw = frameMeta.pinEdgeRaw;
   frame.transformShape = frameMeta.transformShape;
   frame.everyNodeStyles = frameMeta.everyNodeStyles;
+  frame.everyFitStyles = frameMeta.everyFitStyles;
   frame.everyRectangleNodeStyles = frameMeta.everyRectangleNodeStyles;
   frame.everyCircleNodeStyles = frameMeta.everyCircleNodeStyles;
   frame.everyDiamondNodeStyles = frameMeta.everyDiamondNodeStyles;
@@ -2487,6 +2491,7 @@ function cloneForeachStack(stack: ExpansionForeachOriginFrame[]): ExpansionForea
 
 type FrameStyleBuckets = {
   everyNodeStyles: ProvenanceOptionList[];
+  everyFitStyles: ProvenanceOptionList[];
   everyRectangleNodeStyles: ProvenanceOptionList[];
   everyCircleNodeStyles: ProvenanceOptionList[];
   everyDiamondNodeStyles: ProvenanceOptionList[];
@@ -2509,6 +2514,7 @@ type FrameStyleBuckets = {
 
 const FRAME_STYLE_BUCKET_BY_STYLE_KEY: Record<string, keyof FrameStyleBuckets> = {
   "every node/.style": "everyNodeStyles",
+  "every fit/.style": "everyFitStyles",
   "every rectangle node/.style": "everyRectangleNodeStyles",
   "every circle node/.style": "everyCircleNodeStyles",
   "every diamond node/.style": "everyDiamondNodeStyles",
@@ -2531,6 +2537,7 @@ const FRAME_STYLE_BUCKET_BY_STYLE_KEY: Record<string, keyof FrameStyleBuckets> =
 
 const FRAME_STYLE_BUCKET_BY_APPEND_KEY: Record<string, keyof FrameStyleBuckets> = {
   "every node/.append style": "everyNodeStyles",
+  "every fit/.append style": "everyFitStyles",
   "every rectangle node/.append style": "everyRectangleNodeStyles",
   "every circle node/.append style": "everyCircleNodeStyles",
   "every diamond node/.append style": "everyDiamondNodeStyles",
@@ -2553,6 +2560,7 @@ const FRAME_STYLE_BUCKET_BY_APPEND_KEY: Record<string, keyof FrameStyleBuckets> 
 
 const LEGACY_TIKZSTYLE_BUCKET_BY_NAME: Record<string, keyof FrameStyleBuckets> = {
   "every node": "everyNodeStyles",
+  "every fit": "everyFitStyles",
   "every rectangle node": "everyRectangleNodeStyles",
   "every circle node": "everyCircleNodeStyles",
   "every diamond node": "everyDiamondNodeStyles",
@@ -2572,6 +2580,18 @@ const LEGACY_TIKZSTYLE_BUCKET_BY_NAME: Record<string, keyof FrameStyleBuckets> =
   "every single arrow node": "everySingleArrowNodeStyles",
   "every double arrow node": "everyDoubleArrowNodeStyles"
 };
+
+const INHERITED_NODE_LAYOUT_KEYS = new Set([
+  "inner sep",
+  "inner xsep",
+  "inner ysep",
+  "outer sep",
+  "outer xsep",
+  "outer ysep",
+  "minimum width",
+  "minimum height",
+  "minimum size"
+]);
 
 type TreeMetaBuckets = {
   treeEveryChildStyles: ProvenanceOptionList[];
@@ -2679,6 +2699,7 @@ export function resolveFrameMeta(
 
   const styleBuckets: FrameStyleBuckets = {
     everyNodeStyles: [...base.everyNodeStyles],
+    everyFitStyles: [...base.everyFitStyles],
     everyRectangleNodeStyles: [...base.everyRectangleNodeStyles],
     everyCircleNodeStyles: [...base.everyCircleNodeStyles],
     everyDiamondNodeStyles: [...base.everyDiamondNodeStyles],
@@ -2853,6 +2874,14 @@ export function resolveFrameMeta(
         if (parsedLayer) {
           styleBuckets.everyNodeStyles = [...styleBuckets.everyNodeStyles, parsedLayer];
         }
+        continue;
+      }
+
+      if (INHERITED_NODE_LAYOUT_KEYS.has(entry.key)) {
+        styleBuckets.everyNodeStyles = [
+          ...styleBuckets.everyNodeStyles,
+          parseProvenanceSingleOptionLayer(entry, sourceRef)
+        ];
         continue;
       }
 
@@ -3162,6 +3191,25 @@ function parseProvenanceStyleLayer(
   }
   return {
     options: parsed,
+    sourceRef: {
+      sourceId: sourceRef.sourceId,
+      sourceSpan: entry.span,
+      sourceKind: sourceRef.sourceKind,
+      label: entry.key
+    }
+  };
+}
+
+function parseProvenanceSingleOptionLayer(
+  entry: Extract<OptionListAst["entries"][number], { kind: "kv" }>,
+  sourceRef: StyleSourceRef
+): ProvenanceOptionList {
+  return {
+    options: {
+      span: entry.span,
+      raw: `[${entry.raw}]`,
+      entries: [entry]
+    },
     sourceRef: {
       sourceId: sourceRef.sourceId,
       sourceSpan: entry.span,

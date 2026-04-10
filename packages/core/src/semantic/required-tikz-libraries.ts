@@ -91,6 +91,9 @@ export function inferRequiredTikzLibraries(input: InferRequiredTikzLibrariesInpu
   if (isFeatureUsed(featureUsage, "matrix_node")) {
     required.add("matrix");
   }
+  if (isFeatureUsed(featureUsage, "fit_node")) {
+    required.add("fit");
+  }
   if (isFeatureUsed(featureUsage, "graph_operation")) {
     required.add("graphs");
   }
