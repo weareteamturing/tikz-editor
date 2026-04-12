@@ -88,11 +88,11 @@ function MenuPopup({
             disabled={!binding.enabled}
             className={[css.item, hasCheckItems ? "" : css.itemNoCheck].filter(Boolean).join(" ")}
             data-testid={`menu-cmd-${item.commandId}`}
-            onClick={() => {
+            onClick={async () => {
               if (!binding.enabled) {
                 return;
               }
-              binding.run("menu");
+              await binding.run("menu");
               onCommandRun();
             }}
           >

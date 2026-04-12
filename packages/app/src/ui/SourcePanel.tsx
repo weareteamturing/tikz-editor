@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useSettingsStore } from "../settings/useSettingsStore";
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from "@codemirror/autocomplete";
 import {
@@ -295,8 +296,6 @@ function buildExternalSourceSyncChanges(
 
 class ExternalSourceSyncManager {
   private lastKnownSource: string;
-  private pending: PendingExternalSourceSync | null = null;
-  private rafId: number | null = null;
 
   constructor(private readonly view: EditorView) {
     this.lastKnownSource = view.state.doc.toString();
@@ -315,45 +314,21 @@ class ExternalSourceSyncManager {
   }
 
   destroy(): void {
-    this.cancelPending();
+    // No-op. React owns scheduling and cleanup.
   }
 
-  schedule(nextSource: string, lastEditPatches: readonly SourceSyncPatch[] | null, coalesceToAnimationFrame: boolean): void {
-    if (nextSource === this.lastKnownSource && !this.pending) {
+  syncExternalSource(
+    nextSource: string,
+    lastEditPatches: readonly SourceSyncPatch[] | null,
+    coalescedToAnimationFrame: boolean
+  ): void {
+    if (nextSource === this.lastKnownSource) {
       return;
     }
-
-    const request = { nextSource, lastEditPatches, coalescedToAnimationFrame: coalesceToAnimationFrame };
-    if (!coalesceToAnimationFrame) {
-      this.cancelPending();
-      this.apply(request);
-      return;
-    }
-
-    this.pending = request;
-    if (this.rafId != null) {
-      return;
-    }
-    this.rafId = window.requestAnimationFrame(() => {
-      this.rafId = null;
-      const pending = this.pending;
-      this.pending = null;
-      if (!pending) {
-        return;
-      }
-      this.apply(pending);
-    });
-  }
-
-  private apply(request: PendingExternalSourceSync): void {
-    if (request.nextSource === this.lastKnownSource) {
-      return;
-    }
-
     const changes = buildExternalSourceSyncChanges(
       this.lastKnownSource,
-      request.nextSource,
-      request.lastEditPatches
+      nextSource,
+      lastEditPatches
     );
     const patchCount = Array.isArray(changes) ? changes.length : 1;
     const mode = Array.isArray(changes) ? "patch" : "replace";
@@ -364,30 +339,83 @@ class ExternalSourceSyncManager {
         Transaction.addToHistory.of(false),
         isolateHistory.of("before"),
         isolateHistory.of("after"),
-        sourcePanelExternalSyncAnnotation.of({ nextSource: request.nextSource })
+        sourcePanelExternalSyncAnnotation.of({ nextSource })
       ]
     });
     recordProfilingSourcePanelSyncTiming({
       kind: "externalSyncDispatch",
       durationMs: performance.now() - startedAt,
       mode,
-      coalescedToAnimationFrame: request.coalescedToAnimationFrame,
+      coalescedToAnimationFrame,
       patchCount,
-      docLength: request.nextSource.length
+      docLength: nextSource.length
     });
-    this.lastKnownSource = request.nextSource;
-  }
-
-  private cancelPending(): void {
-    if (this.rafId != null) {
-      window.cancelAnimationFrame(this.rafId);
-      this.rafId = null;
-    }
-    this.pending = null;
+    this.lastKnownSource = nextSource;
   }
 }
 
 const externalSourceSyncPlugin = ViewPlugin.fromClass(ExternalSourceSyncManager);
+
+function useExternalSourceSync(
+  viewRef: RefObject<EditorView | null>,
+  source: string,
+  lastEditPatches: readonly SourceSyncPatch[] | null,
+  coalesceToAnimationFrame: boolean
+) {
+  const rafIdRef = useRef<number | null>(null);
+  const pendingSyncRef = useRef<PendingExternalSourceSync | null>(null);
+
+  useLayoutEffect(() => {
+    const view = viewRef.current;
+    if (!view) {
+      return;
+    }
+    const plugin = view.plugin(externalSourceSyncPlugin);
+    if (!plugin) {
+      return;
+    }
+
+    if (!coalesceToAnimationFrame) {
+      if (rafIdRef.current != null) {
+        window.cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      pendingSyncRef.current = null;
+      plugin.syncExternalSource(source, lastEditPatches, false);
+      return;
+    }
+
+    pendingSyncRef.current = {
+      nextSource: source,
+      lastEditPatches,
+      coalescedToAnimationFrame: true
+    };
+    if (rafIdRef.current != null) {
+      return;
+    }
+    rafIdRef.current = window.requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      const pending = pendingSyncRef.current;
+      pendingSyncRef.current = null;
+      if (!pending) {
+        return;
+      }
+      plugin.syncExternalSource(
+        pending.nextSource,
+        pending.lastEditPatches,
+        pending.coalescedToAnimationFrame
+      );
+    });
+
+    return () => {
+      if (rafIdRef.current != null) {
+        window.cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      pendingSyncRef.current = null;
+    };
+  }, [coalesceToAnimationFrame, lastEditPatches, source, viewRef]);
+}
 
 const diagnosticTooltip = hoverTooltip((view, pos) => {
   const field = view.state.field(diagnosticsField, false);
@@ -525,23 +553,44 @@ const editorKeymap = Prec.highest(
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function SourcePanel() {
-  const source = useEditorStore((s) => s.source);
-  const lastEditPatches = useEditorStore((s) => s.lastEditPatches);
-  const activeFigureId = useEditorStore((s) => s.activeFigureId);
-  const snapshot = useEditorStore((s) => s.snapshot);
-  const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
+  const {
+    source,
+    lastEditPatches,
+    activeFigureId,
+    snapshot,
+    activeCanvasDragKind,
+    selectedElementIds,
+    hoveredElementId,
+    assistantLockReason,
+    dispatch
+  } = useEditorStore(useShallow((s) => ({
+    source: s.source,
+    lastEditPatches: s.lastEditPatches,
+    activeFigureId: s.activeFigureId,
+    snapshot: s.snapshot,
+    activeCanvasDragKind: s.activeCanvasDragKind,
+    selectedElementIds: s.selectedElementIds,
+    hoveredElementId: s.hoveredElementId,
+    assistantLockReason: s.documents[s.activeDocumentId]?.assistantLockReason ?? null,
+    dispatch: s.dispatch
+  })));
   const figures = snapshot.figures;
-  const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
-  const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
-  const assistantLockReason = useEditorStore((s) => s.documents[s.activeDocumentId]?.assistantLockReason ?? null);
-  const dispatch = useEditorStore((s) => s.dispatch);
-  const editorWordWrap = useSettingsStore((s) => s.settings.editor.wordWrap);
-  const editorFontSize = useSettingsStore((s) => s.settings.editor.fontSize);
-  const editorLineNumbers = useSettingsStore((s) => s.settings.editor.lineNumbers);
-  const editorIndentSize = useSettingsStore((s) => s.settings.editor.indentSize);
+  const {
+    editorWordWrap,
+    editorFontSize,
+    editorLineNumbers,
+    editorIndentSize,
+    formatterReflowLongOptions,
+    formatterMaxLineLength
+  } = useSettingsStore(useShallow((s) => ({
+    editorWordWrap: s.settings.editor.wordWrap,
+    editorFontSize: s.settings.editor.fontSize,
+    editorLineNumbers: s.settings.editor.lineNumbers,
+    editorIndentSize: s.settings.editor.indentSize,
+    formatterReflowLongOptions: s.settings.editor.formatterReflowLongOptions,
+    formatterMaxLineLength: s.settings.editor.formatterMaxLineLength
+  })));
   const [darkMode, setDarkMode] = useState(() => document.documentElement.dataset.colorScheme === "dark");
-  const formatterReflowLongOptions = useSettingsStore((s) => s.settings.editor.formatterReflowLongOptions);
-  const formatterMaxLineLength = useSettingsStore((s) => s.settings.editor.formatterMaxLineLength);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -867,15 +916,12 @@ export function SourcePanel() {
   }, [selectedElementIds]);
 
   // ── Sync store source → CodeMirror (for WYSIWYG changes) ───────────────────
-  useEffect(() => {
-    const view = viewRef.current;
-    if (!view) return;
-    view.plugin(externalSourceSyncPlugin)?.schedule(
-      source,
-      lastEditPatches as readonly SourceSyncPatch[] | null,
-      activeCanvasDragKind != null
-    );
-  }, [activeCanvasDragKind, lastEditPatches, source]);
+  useExternalSourceSync(
+    viewRef,
+    source,
+    lastEditPatches as readonly SourceSyncPatch[] | null,
+    activeCanvasDragKind != null
+  );
 
   useEffect(() => {
     const view = viewRef.current;

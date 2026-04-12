@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useMemo, type Dispatch, type MutableRefObject, type PointerEvent as ReactPointerEvent, type RefObject, type SetStateAction } from "react";
 import {
   buildTicks,
   buildValueSequence,
@@ -8,15 +8,17 @@ import {
   toViewportYFromWorld,
   viewportToWorldPoint,
   worldToSvgY,
-  type RulerTick
+  type RulerTick,
+  type VisibleRanges
 } from "./geometry";
 import {
   isPointInsideRect,
   removeGuideValue,
   upsertGuideValue
 } from "./panel-helpers";
-
-export type GuideOrientation = "vertical" | "horizontal";
+import type { CanvasTransform } from "../../store/types";
+import type { GuideDragState, GuideOrientation, GuidePreview, GuidesState } from "./types";
+import type { SvgViewBox } from "tikz-editor/svg/index";
 
 export type GridLines = {
   verticalMinor: number[];
@@ -28,7 +30,26 @@ export type GridLines = {
 };
 
 export type UseCanvasGuidesAndRulersArgs = {
-  [key: string]: any;
+  showGuides: boolean;
+  guides: GuidesState;
+  guidePreview: GuidePreview | null;
+  snapModes: {
+    guides: boolean;
+    grid: boolean;
+    points: boolean;
+    gaps: boolean;
+  };
+  gridMinorTargetPx: number;
+  canvasTransform: CanvasTransform;
+  svgResult: { viewBox: SvgViewBox } | null;
+  visibleRanges: VisibleRanges | null;
+  showGrid: boolean;
+  viewportRef: RefObject<HTMLDivElement | null>;
+  svgResultRef: MutableRefObject<{ viewBox: SvgViewBox } | null>;
+  canvasTransformRef: MutableRefObject<CanvasTransform>;
+  guideDragRef: MutableRefObject<GuideDragState | null>;
+  setGuidePreview: Dispatch<SetStateAction<GuidePreview | null>>;
+  LEFT_RULER_DRAG_SOURCE_WIDTH_PX: number;
 };
 
 export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {

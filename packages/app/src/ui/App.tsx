@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   APP_MENU_COMMAND_IDS,
   APP_MENU_DEFINITION,
@@ -37,6 +38,7 @@ import type { AssistantEvent } from "../platform/types";
 import { resolveOpenedFileForDocument, dataTransferHasFilePayload } from "./svg-import";
 import type { AssistantComposerImageAttachment } from "./assistant-image-attachments";
 import { formatEquationText, type EquationNodeTarget } from "./equation-utils";
+import { useDebouncedEffect } from "./hooks/useDebouncedEffect";
 import "./selection.css";
 
 const DevPanel = lazy(async () => {
@@ -162,25 +164,45 @@ type RepeatModalState = {
 };
 
 export function App() {
-  const source = useEditorStore((s) => s.source);
-  const snapshot = useEditorStore((s) => s.snapshot);
-  const activeFigureId = useEditorStore((s) => s.activeFigureId);
-  const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
-  const pendingRequestId = useEditorStore((s) => s.pendingRequestId);
-  const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
-  const documents = useEditorStore((s) => s.documents);
-  const tabOrder = useEditorStore((s) => s.tabOrder);
-  const toolMode = useEditorStore((s) => s.toolMode);
-  const lastEditChangedSourceIds = useEditorStore((s) => s.lastEditChangedSourceIds);
-  const lastEditPatches = useEditorStore((s) => s.lastEditPatches);
-  const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
-  const activeSourceScrubSourceId = useEditorStore((s) => s.activeSourceScrubSourceId);
-  const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
-  const uiFontSizePx = useSettingsStore((s) => s.settings.general.uiFontSizePx);
-  const colorScheme = useSettingsStore((s) => s.settings.general.colorScheme);
-  const canvasInvert = useSettingsStore((s) => s.settings.general.canvasInvert);
-  const mathJaxFont = useSettingsStore((s) => s.settings.rendering.mathJaxFont);
-  const dispatch = useEditorStore((s) => s.dispatch);
+  const {
+    source,
+    snapshot,
+    activeFigureId,
+    selectedElementIds,
+    pendingRequestId,
+    activeDocumentId,
+    documents,
+    tabOrder,
+    toolMode,
+    lastEditChangedSourceIds,
+    lastEditPatches,
+    activeCanvasDragKind,
+    activeSourceScrubSourceId,
+    hoveredElementId,
+    dispatch
+  } = useEditorStore(useShallow((s) => ({
+    source: s.source,
+    snapshot: s.snapshot,
+    activeFigureId: s.activeFigureId,
+    selectedElementIds: s.selectedElementIds,
+    pendingRequestId: s.pendingRequestId,
+    activeDocumentId: s.activeDocumentId,
+    documents: s.documents,
+    tabOrder: s.tabOrder,
+    toolMode: s.toolMode,
+    lastEditChangedSourceIds: s.lastEditChangedSourceIds,
+    lastEditPatches: s.lastEditPatches,
+    activeCanvasDragKind: s.activeCanvasDragKind,
+    activeSourceScrubSourceId: s.activeSourceScrubSourceId,
+    hoveredElementId: s.hoveredElementId,
+    dispatch: s.dispatch
+  })));
+  const { uiFontSizePx, colorScheme, canvasInvert, mathJaxFont } = useSettingsStore(useShallow((s) => ({
+    uiFontSizePx: s.settings.general.uiFontSizePx,
+    colorScheme: s.settings.general.colorScheme,
+    canvasInvert: s.settings.general.canvasInvert,
+    mathJaxFont: s.settings.rendering.mathJaxFont
+  })));
   const platform = getActiveEditorPlatform();
   const menuTarget = menuTargetFromPlatformId(platform.id);
   const menuDefinition = useMemo(() => filterAppMenuDefinitionForTarget(APP_MENU_DEFINITION, menuTarget), [menuTarget]);
@@ -206,7 +228,6 @@ export function App() {
   const [pendingClose, setPendingClose] = useState<{ intent: CloseIntent; dirtyDocumentIds: string[] } | null>(null);
   const requestCloseIntentRef = useRef<(intent: CloseIntent) => void>(() => undefined);
   const computeSchedulerRef = useRef<ReturnType<typeof createSingleFlightScheduler<ComputeRequest, ComputeResponse>> | null>(null);
-  const computeDebounceTimerRef = useRef<number | null>(null);
   const sourceRef = useRef(source);
   const snapshotRef = useRef(snapshot);
   const activeDocumentIdRef = useRef(activeDocumentId);
@@ -438,10 +459,6 @@ export function App() {
     });
     computeSchedulerRef.current = scheduler;
     return () => {
-      if (computeDebounceTimerRef.current != null) {
-        window.clearTimeout(computeDebounceTimerRef.current);
-        computeDebounceTimerRef.current = null;
-      }
       scheduler.dispose();
       computeSchedulerRef.current = null;
     };
@@ -449,90 +466,71 @@ export function App() {
 
   // ── Compute pipeline ─────────────────────────────────────────────────────────
   // Keep at most one in-flight compute; while in-flight, coalesce to the latest source.
+  const changedSourceIds = lastEditChangedSourceIds ?? (activeSourceScrubSourceId ? [activeSourceScrubSourceId] : null);
+  const trigger = computeTrigger(activeCanvasDragKind, activeSourceScrubSourceId);
+  const typingComputeDelay = trigger === "other" && changedSourceIds == null
+    ? (source.length > 80_000 ? 220 : 120)
+    : null;
+
   useEffect(() => {
     const scheduler = computeSchedulerRef.current;
-    if (!scheduler) {
+    if (!scheduler || typingComputeDelay != null) {
       return;
     }
     setMathJaxFont(mathJaxFont);
-    const changedSourceIds = lastEditChangedSourceIds ?? (activeSourceScrubSourceId ? [activeSourceScrubSourceId] : null);
-    const trigger = computeTrigger(activeCanvasDragKind, activeSourceScrubSourceId);
+    const requestId = crypto.randomUUID();
+    dispatch({ type: "COMPUTE_REQUESTED", requestId, documentId: activeDocumentId });
+    scheduler.schedule({
+      id: requestId,
+      documentId: activeDocumentId,
+      kind: "render",
+      source,
+      activeFigureId,
+      changedSourceIds,
+      patches: lastEditPatches ? [...lastEditPatches] : null,
+      trigger
+    });
+  }, [activeDocumentId, activeFigureId, changedSourceIds, dispatch, lastEditPatches, mathJaxFont, source, trigger, typingComputeDelay]);
 
-    const scheduleCompute = () => {
-      const requestId = crypto.randomUUID();
-      dispatch({ type: "COMPUTE_REQUESTED", requestId, documentId: activeDocumentId });
-      scheduler.schedule({
-        id: requestId,
-        documentId: activeDocumentId,
-        kind: "render",
-        source,
-        activeFigureId,
-        changedSourceIds,
-        patches: lastEditPatches ? [...lastEditPatches] : null,
-        trigger
-      });
-    };
-
-    if (computeDebounceTimerRef.current != null) {
-      window.clearTimeout(computeDebounceTimerRef.current);
-      computeDebounceTimerRef.current = null;
-    }
-
-    const shouldDebounceTyping = trigger === "other" && changedSourceIds == null;
-    if (shouldDebounceTyping) {
-      const delay = source.length > 80_000 ? 220 : 120;
-      computeDebounceTimerRef.current = window.setTimeout(() => {
-        computeDebounceTimerRef.current = null;
-        scheduleCompute();
-      }, delay);
-      return () => {
-        if (computeDebounceTimerRef.current != null) {
-          window.clearTimeout(computeDebounceTimerRef.current);
-          computeDebounceTimerRef.current = null;
-        }
-      };
-    }
-
-    scheduleCompute();
-  }, [activeCanvasDragKind, activeDocumentId, activeFigureId, activeSourceScrubSourceId, dispatch, lastEditChangedSourceIds, lastEditPatches, mathJaxFont, source]);
-
-  useEffect(() => {
+  useDebouncedEffect(() => {
     const scheduler = computeSchedulerRef.current;
-    if (!scheduler) {
+    if (!scheduler || typingComputeDelay == null) {
       return;
     }
-    if (activeCanvasDragKind) {
-      return;
-    }
-    if (activeSourceScrubSourceId) {
-      return;
-    }
-    if (pendingRequestId != null) {
-      return;
-    }
-    if (!hoveredElementId) {
-      return;
-    }
-    if (snapshot.source !== source) {
-      return;
-    }
+    setMathJaxFont(mathJaxFont);
+    const requestId = crypto.randomUUID();
+    dispatch({ type: "COMPUTE_REQUESTED", requestId, documentId: activeDocumentId });
+    scheduler.schedule({
+      id: requestId,
+      documentId: activeDocumentId,
+      kind: "render",
+      source,
+      activeFigureId,
+      changedSourceIds,
+      patches: lastEditPatches ? [...lastEditPatches] : null,
+      trigger
+    });
+  }, typingComputeDelay, [activeDocumentId, activeFigureId, changedSourceIds, dispatch, lastEditPatches, mathJaxFont, source, trigger, typingComputeDelay]);
 
-    const timer = window.setTimeout(() => {
-      scheduler.schedule({
-        id: crypto.randomUUID(),
-        documentId: activeDocumentId,
-        kind: "prewarm",
-        source,
-        activeFigureId,
-        changedSourceIds: [hoveredElementId],
-        trigger: "drag-element"
-      });
-    }, 120);
+  const prewarmDelay = activeCanvasDragKind || activeSourceScrubSourceId || pendingRequestId != null || !hoveredElementId || snapshot.source !== source
+    ? null
+    : 120;
 
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [activeCanvasDragKind, activeDocumentId, activeFigureId, activeSourceScrubSourceId, hoveredElementId, pendingRequestId, snapshot.source, source]);
+  useDebouncedEffect(() => {
+    const scheduler = computeSchedulerRef.current;
+    if (!scheduler || !hoveredElementId) {
+      return;
+    }
+    scheduler.schedule({
+      id: crypto.randomUUID(),
+      documentId: activeDocumentId,
+      kind: "prewarm",
+      source,
+      activeFigureId,
+      changedSourceIds: [hoveredElementId],
+      trigger: "drag-element"
+    });
+  }, prewarmDelay, [activeDocumentId, activeFigureId, hoveredElementId, source, prewarmDelay]);
 
   useEffect(() => {
     if (!platform.assistant?.bindEvents) {

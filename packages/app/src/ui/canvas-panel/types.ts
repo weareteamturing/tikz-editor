@@ -18,6 +18,30 @@ export type Bounds = {
   maxY: number;
 };
 
+export type GuideOrientation = "vertical" | "horizontal";
+
+export type GuidesState = {
+  vertical: number[];
+  horizontal: number[];
+};
+
+export type GuidePreview = {
+  orientation: GuideOrientation;
+  value: number;
+  hideValue?: number;
+  visible?: boolean;
+};
+
+export type GuideDragState = {
+  pointerId: number;
+  orientation: GuideOrientation;
+  source: "ruler" | "guide";
+  sourceValue?: number;
+  value: number;
+  overViewport: boolean;
+  overDeleteZone: boolean;
+};
+
 export type GridResizeSnapConfig = {
   anchorWorld: Point;
   stepX: number;

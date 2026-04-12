@@ -43,16 +43,12 @@ import type { ResizeFrame } from "./resize-frames";
 import { resolveScopeAwareMarqueeSelection, type ScopeOverlayIndex } from "./scope-overlay";
 import { toolCreateSnapKind } from "../tool-config";
 import type {
-  ApplyActionFeedback,
   Bounds,
   DragState,
-  DragTooltipState,
-  NodeAnchorOverlayState,
-  PendingAddedSelection,
-  PendingBezier,
-  SnapDebugLogInput,
   GridResizeSnapConfig
 } from "./types";
+import type { NodeAnchorOverlayState } from "./types";
+import type { UseCanvasDragControllerParams } from "./useCanvasDragController.types";
 
 const ROTATE_SHIFT_SNAP_STEP_DEG = 15;
 const ROTATE_SOFT_SNAP_STEP_DEG = 90;
@@ -62,47 +58,7 @@ const GRID_RESIZE_STEP_EPSILON = 1e-9;
 const SNAP_FEEDBACK_EPSILON = 1e-6;
 const ADORNMENT_OWNER_CENTER_EPSILON = 1e-6;
 
-export function useCanvasDragController(params: {
-  applyActionWithFeedback: (action: EditAction, mergeKey?: string) => ApplyActionFeedback;
-  dispatch: (action: any) => void;
-  dispatchCanvasTransform: (transform: { translateX: number; translateY: number; scale: number }) => void;
-  logSnapDebug: (input: SnapDebugLogInput) => void;
-  queueSelectionForAddedElement: (preferredWorld: Point, preferredSourceId?: string) => void;
-  snapshotSource: string;
-  snapshotScene: { elements: SceneElement[] } | null;
-  snapshotEditHandles: EditHandle[];
-  nodeAnchorTargets: readonly NodeAnchorTarget[];
-  matrixCellAnchorHints: readonly MatrixCellAnchorHint[];
-  source: string;
-  svgResult: { viewBox: SvgViewBox } | null;
-  dragRef: { current: DragState | null };
-  suppressNextBackgroundClickRef: { current: boolean };
-  svgResultRef: { current: { viewBox: SvgViewBox } | null };
-  interactionSvgRef: { current: SVGSVGElement | null };
-  liveResizeFramesRef: { current: ReadonlyMap<string, ResizeFrame | null> };
-  selectedElementIdsRef: { current: ReadonlySet<string> };
-  sourceBoundsSvgRef: { current: ReadonlyMap<string, Bounds> };
-  scopeOverlay: ScopeOverlayIndex;
-  pendingAddedSelectionRef: { current: PendingAddedSelection | null };
-  setDragState: (drag: DragState | null) => void;
-  setSnapLines: (lines: SnapLine[]) => void;
-  setToolDraft: (draft: Extract<DragState, { kind: "tool-create" }> | null) => void;
-  setBezierBendDraft: (draft: Extract<DragState, { kind: "tool-bezier-bend" }> | null) => void;
-  setPathSegmentDraft: (draft: Extract<DragState, { kind: "tool-path-segment" }> | null) => void;
-  commitPathToolSegment: (segment: PathToolGestureSegment) => void;
-  appendFreehandSamplePoint: (point: Point) => Point[] | null;
-  finalizeFreehandDraft: (overridePoints?: Point[]) => void;
-  setPendingBezier: (pending: PendingBezier | null) => void;
-  setToolCursorWorld: (point: Point | null) => void;
-  setMarqueeDraft: (draft: Extract<DragState, { kind: "marquee" }> | null) => void;
-  setNodeAnchorOverlay: (overlay: NodeAnchorOverlayState | null) => void;
-  setDragTooltip: (tooltip: DragTooltipState | null) => void;
-  setWarning: (warning: string | null) => void;
-  selectedAddShape: string;
-  creationStrokeColor: string;
-  creationFillColor: string;
-  onSnapFeedback?: () => void;
-}) {
+export function useCanvasDragController(params: UseCanvasDragControllerParams) {
   const {
     applyActionWithFeedback,
     dispatch,
@@ -737,6 +693,7 @@ export function useCanvasDragController(params: {
       const drag = dragRef.current;
       if (!drag || event.pointerId !== drag.pointerId) return;
       resetSnapFeedbackState();
+      suppressNextBackgroundClickRef.current = true;
       const ctrlOrMeta = event.ctrlKey || event.metaKey;
 
       const currentSvg = svgResultRef.current;

@@ -1,6 +1,7 @@
 import {
   Suspense,
   lazy,
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -15,6 +16,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type SyntheticEvent as ReactSyntheticEvent
 } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { AppMenuCommandId } from "../app-menu";
 import { buildCanvasContextMenuDefinition, type CanvasContextMenuTarget } from "../context-menu";
 import { collectGeometryInvalidation } from "tikz-editor/semantic/index";
@@ -72,22 +74,25 @@ import {
 } from "./canvas-panel/interaction-helpers";
 import { useCanvasDragController } from "./canvas-panel/useCanvasDragController";
 import type {
-    ApplyActionFeedback,
-    Bounds,
-    DragState,
-    DragTooltipState,
-    EditableTextTarget,
+  ApplyActionFeedback,
+  Bounds,
+  DragState,
+  DragTooltipState,
+  EditableTextTarget,
   FreehandToolDraft,
+  GuideDragState,
+  GuidePreview,
+  GuidesState,
   NodeAnchorOverlayState,
   PendingTouchViewport,
   PendingAddedSelection,
   PendingBezier,
-    PathToolDraft,
-    SelectionBounds,
-    SnapDebugLogInput,
-    TextEditingSession,
-    TextSelectionOverlay
-  } from "./canvas-panel/types";
+  PathToolDraft,
+  SelectionBounds,
+  SnapDebugLogInput,
+  TextEditingSession,
+  TextSelectionOverlay
+} from "./canvas-panel/types";
 import {
   buildValueSequence,
   buildTicks,
@@ -321,35 +326,11 @@ type ToolPreview =
   | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number }
   | { kind: "circle"; cx: number; cy: number; r: number };
 
-type GuideOrientation = "vertical" | "horizontal";
-
-type GuidesState = {
-  vertical: number[];
-  horizontal: number[];
-};
-
-type GuidePreview = {
-  orientation: GuideOrientation;
-  value: number;
-  hideValue?: number;
-  visible?: boolean;
-};
-
-
 type BucketPreviewSession = {
   sourceId: string;
   colorToken: string;
   baseSource: string;
   previewSource: string;
-};
-type GuideDragState = {
-  pointerId: number;
-  orientation: GuideOrientation;
-  source: "ruler" | "guide";
-  sourceValue?: number;
-  value: number;
-  overViewport: boolean;
-  overDeleteZone: boolean;
 };
 
 type CanvasContextMenuState = {
@@ -895,55 +876,96 @@ function computeAutoScaleForImportedTikz(
   return formatScopeScale(clampedScale);
 }
 
-export function CanvasPanel({
+export const CanvasPanel = memo(function CanvasPanel({
   repeatPreviewModel = null
 }: {
   repeatPreviewModel?: SvgRenderModel | null;
 }) {
   const platform = getActiveEditorPlatform();
   const [prefersNonBlinkingTextInsertionIndicator, setPrefersNonBlinkingTextInsertionIndicator] = useState(false);
-  const assistantLockReason = useEditorStore((s) => s.documents[s.activeDocumentId]?.assistantLockReason ?? null);
-  const source = useEditorStore((s) => s.source);
-  const activeFigureId = useEditorStore((s) => s.activeFigureId);
-  const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
-  const tabOrder = useEditorStore((s) => s.tabOrder);
-  const sourceRevision = useEditorStore((s) => s.sourceRevision);
-  const snapshot = useEditorStore((s) => s.snapshot);
-  const toolMode = useEditorStore((s) => s.toolMode);
-  const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
-  const focusedScopeId = useEditorStore((s) => s.focusedScopeId);
-  const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
-  const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
-  const activeSourceScrubSourceId = useEditorStore((s) => s.activeSourceScrubSourceId);
-  const lastEditChangedSourceIds = useEditorStore((s) => s.lastEditChangedSourceIds);
-  const lastEditChangeToken = useEditorStore((s) => s.lastEditChangeToken);
-  const lastEditWarningMessage = useEditorStore((s) => s.documents[s.activeDocumentId]?.lastEditWarningMessage ?? null);
-  const lastEditWarningToken = useEditorStore((s) => s.documents[s.activeDocumentId]?.lastEditWarningToken ?? 0);
-  const canvasTransform = useEditorStore((s) => s.canvasTransform);
-  const fitToContentRequestToken = useEditorStore((s) => s.fitToContentRequestToken);
-  const zoomRequestToken = useEditorStore((s) => s.zoomRequestToken);
-  const zoomRequestDirection = useEditorStore((s) => s.zoomRequestDirection);
-  const showGrid = useEditorStore((s) => s.showGrid);
-  const showTransparencyGrid = useEditorStore((s) => s.showTransparencyGrid);
-  const snapModes = useEditorStore((s) => s.snapModes);
-  const freehandSmoothingPx = useEditorStore((s) => s.freehandSmoothingPx);
-  const bucketFillColor = useEditorStore((s) => s.bucketFillColor);
-  const selectedAddShape = useEditorStore((s) => s.selectedAddShape);
-  const selectedAddMatrixRows = useEditorStore((s) => s.selectedAddMatrixRows);
-  const selectedAddMatrixColumns = useEditorStore((s) => s.selectedAddMatrixColumns);
-  const creationStrokeColor = useEditorStore((s) => s.creationStrokeColor);
-  const creationFillColor = useEditorStore((s) => s.creationFillColor);
-  const gridSize = useSettingsStore((s) => s.settings.canvas.gridSize);
-  const handleSizePx = useSettingsStore((s) => s.settings.canvas.handleSizePx);
-  const zoomSpeed = useSettingsStore((s) => s.settings.canvas.zoomSpeed);
-  const snapHapticsEnabled = useSettingsStore((s) => s.settings.canvas.snapHapticsEnabled);
-  const mathJaxFont = useSettingsStore((s) => s.settings.rendering.mathJaxFont);
+  const {
+    assistantLockReason,
+    source,
+    activeFigureId,
+    activeDocumentId,
+    tabOrder,
+    sourceRevision,
+    snapshot,
+    toolMode,
+    selectedElementIds,
+    focusedScopeId,
+    hoveredElementId,
+    activeCanvasDragKind,
+    activeSourceScrubSourceId,
+    lastEditChangedSourceIds,
+    lastEditChangeToken,
+    lastEditWarningMessage,
+    lastEditWarningToken,
+    canvasTransform,
+    fitToContentRequestToken,
+    zoomRequestToken,
+    zoomRequestDirection,
+    showGrid,
+    showTransparencyGrid,
+    snapModes,
+    freehandSmoothingPx,
+    bucketFillColor,
+    selectedAddShape,
+    selectedAddMatrixRows,
+    selectedAddMatrixColumns,
+    creationStrokeColor,
+    creationFillColor,
+    showRulers,
+    showGuides,
+    showDocumentBounds,
+    showDevPanel,
+    dispatch
+  } = useEditorStore(useShallow((s) => ({
+    assistantLockReason: s.documents[s.activeDocumentId]?.assistantLockReason ?? null,
+    source: s.source,
+    activeFigureId: s.activeFigureId,
+    activeDocumentId: s.activeDocumentId,
+    tabOrder: s.tabOrder,
+    sourceRevision: s.sourceRevision,
+    snapshot: s.snapshot,
+    toolMode: s.toolMode,
+    selectedElementIds: s.selectedElementIds,
+    focusedScopeId: s.focusedScopeId,
+    hoveredElementId: s.hoveredElementId,
+    activeCanvasDragKind: s.activeCanvasDragKind,
+    activeSourceScrubSourceId: s.activeSourceScrubSourceId,
+    lastEditChangedSourceIds: s.lastEditChangedSourceIds,
+    lastEditChangeToken: s.lastEditChangeToken,
+    lastEditWarningMessage: s.documents[s.activeDocumentId]?.lastEditWarningMessage ?? null,
+    lastEditWarningToken: s.documents[s.activeDocumentId]?.lastEditWarningToken ?? 0,
+    canvasTransform: s.canvasTransform,
+    fitToContentRequestToken: s.fitToContentRequestToken,
+    zoomRequestToken: s.zoomRequestToken,
+    zoomRequestDirection: s.zoomRequestDirection,
+    showGrid: s.showGrid,
+    showTransparencyGrid: s.showTransparencyGrid,
+    snapModes: s.snapModes,
+    freehandSmoothingPx: s.freehandSmoothingPx,
+    bucketFillColor: s.bucketFillColor,
+    selectedAddShape: s.selectedAddShape,
+    selectedAddMatrixRows: s.selectedAddMatrixRows,
+    selectedAddMatrixColumns: s.selectedAddMatrixColumns,
+    creationStrokeColor: s.creationStrokeColor,
+    creationFillColor: s.creationFillColor,
+    showRulers: s.showRulers,
+    showGuides: s.showGuides,
+    showDocumentBounds: s.showDocumentBounds,
+    showDevPanel: s.showDevPanel,
+    dispatch: s.dispatch
+  })));
+  const { gridSize, handleSizePx, zoomSpeed, snapHapticsEnabled, mathJaxFont } = useSettingsStore(useShallow((s) => ({
+    gridSize: s.settings.canvas.gridSize,
+    handleSizePx: s.settings.canvas.handleSizePx,
+    zoomSpeed: s.settings.canvas.zoomSpeed,
+    snapHapticsEnabled: s.settings.canvas.snapHapticsEnabled,
+    mathJaxFont: s.settings.rendering.mathJaxFont
+  })));
   const gridMinorTargetPx = GRID_SIZE_MINOR_TARGET_PX[gridSize];
-  const showRulers = useEditorStore((s) => s.showRulers);
-  const showGuides = useEditorStore((s) => s.showGuides);
-  const showDocumentBounds = useEditorStore((s) => s.showDocumentBounds);
-  const showDevPanel = useEditorStore((s) => s.showDevPanel);
-  const dispatch = useEditorStore((s) => s.dispatch);
 
   const baseSvgResult = snapshot.svg;
   const baseSvgModel = snapshot.svgModel;
@@ -1058,7 +1080,9 @@ export function CanvasPanel({
   }, [platform.accessibility]);
   const pendingNativeContextMenuTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textEditingSessionRef = useRef<TextEditingSession | null>(null);
-  textEditingSessionRef.current = textEditingSession;
+  useLayoutEffect(() => {
+    textEditingSessionRef.current = textEditingSession;
+  }, [textEditingSession]);
 
   const contextMenuHandleIdOverride =
     pendingNativeContextMenuRequest?.clickedHandleId ?? contextMenuState?.handleIdOverride;
@@ -3511,7 +3535,7 @@ export function CanvasPanel({
     viewportSize.width
   ]);
 
-  useCanvasDragController({
+  const dragControllerConfig = useMemo(() => ({
     applyActionWithFeedback,
     dispatch,
     dispatchCanvasTransform,
@@ -3551,7 +3575,49 @@ export function CanvasPanel({
     creationStrokeColor,
     creationFillColor,
     onSnapFeedback: performSnapHapticFeedback
-  });
+  }), [
+    applyActionWithFeedback,
+    appendFreehandSamplePoint,
+    commitPathToolSegment,
+    creationFillColor,
+    creationStrokeColor,
+    dispatch,
+    dispatchCanvasTransform,
+    dragRef,
+    finalizeFreehandDraft,
+    interactionSvgRef,
+    liveResizeFramesRef,
+    logSnapDebug,
+    matrixCellAnchorHints,
+    nodeAnchorTargets,
+    pendingAddedSelectionRef,
+    performSnapHapticFeedback,
+    queueSelectionForAddedElement,
+    scopeOverlay,
+    selectedAddShape,
+    selectedElementIdsRef,
+    setBezierBendDraft,
+    setDragState,
+    setDragTooltip,
+    setMarqueeDraft,
+    setNodeAnchorOverlay,
+    setPathSegmentDraft,
+    setPendingBezier,
+    setSnapLines,
+    setToolCursorWorld,
+    setToolDraft,
+    setWarning,
+    snapshot.editHandles,
+    snapshot.scene,
+    snapshot.source,
+    source,
+    sourceBoundsSvgRef,
+    suppressNextBackgroundClickRef,
+    svgResult,
+    svgResultRef
+  ]);
+
+  useCanvasDragController(dragControllerConfig);
 
   useEffect(() => () => setActiveCanvasDragKind(null), [setActiveCanvasDragKind]);
 
@@ -3845,7 +3911,7 @@ export function CanvasPanel({
       ) : null}
     </>
   );
-}
+});
 
 function collectMatrixDescendantSourceIdsForChangedSources(
   elements: readonly SceneElement[],

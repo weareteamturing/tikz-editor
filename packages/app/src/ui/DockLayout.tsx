@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layout, Model, Actions, DockLocation, type IJsonModel, type TabNode, type Action } from "flexlayout-react";
 import { useEditorStore } from "../store/store";
 import { getActiveEditorPlatform } from "../platform/current";
@@ -31,6 +31,21 @@ export const PANEL_IDS = {
 
 function isAssistantAvailable(): boolean {
   return typeof getActiveEditorPlatform().assistant?.startTurn === "function";
+}
+
+type LayoutJsonNode = {
+  type: string;
+  component?: string;
+  children?: LayoutJsonNode[];
+  [key: string]: unknown;
+};
+
+type FlexLayoutSelectionParent = {
+  getSelectedNode(): { getId(): string } | null;
+};
+
+function isLayoutSelectionParent(value: unknown): value is FlexLayoutSelectionParent {
+  return typeof value === "object" && value != null && "getSelectedNode" in value;
 }
 
 function buildDefaultLayout(): IJsonModel {
@@ -98,14 +113,25 @@ function sanitizeLayout(json: IJsonModel): IJsonModel {
 
   if (isAssistantAvailable()) return jsonWithNormalizedGlobal;
 
-  function stripAssistantTabs(node: any): any {
+  function stripAssistantTabs(node: LayoutJsonNode | null): LayoutJsonNode | null {
+    if (!node) {
+      return null;
+    }
     if (node.type === "tab" && node.component === "assistant") return null;
     if (node.children) {
-      node = { ...node, children: node.children.map(stripAssistantTabs).filter(Boolean) };
+      node = {
+        ...node,
+        children: node.children
+          .map(stripAssistantTabs)
+          .filter((child): child is LayoutJsonNode => child != null)
+      };
     }
     return node;
   }
-  return { ...jsonWithNormalizedGlobal, layout: stripAssistantTabs(jsonWithNormalizedGlobal.layout) };
+  return {
+    ...jsonWithNormalizedGlobal,
+    layout: stripAssistantTabs(jsonWithNormalizedGlobal.layout as LayoutJsonNode) as IJsonModel["layout"]
+  };
 }
 
 // ── Preset layouts ────────────────────────────────────────────────────────────
@@ -238,8 +264,8 @@ function syncLayoutStateToStore(model: Model, dispatch: (action: any) => void) {
     const node = model.getNodeById(id);
     if (node && node.getParent()) {
       const parent = node.getParent()!;
-      if ("getSelectedNode" in parent) {
-        const selected = (parent as any).getSelectedNode();
+      if (isLayoutSelectionParent(parent)) {
+        const selected = parent.getSelectedNode();
         if (selected && selected.getId() === id) {
           activeRightTab = id;
           break;
@@ -283,6 +309,14 @@ export type DockLayoutHandle = {
 // Module-level ref so editor commands can access the handle without prop drilling.
 let activeDockHandle: DockLayoutHandle | null = null;
 
+const MemoSourcePanel = memo(SourcePanel);
+const MemoCanvasPanel = memo(CanvasPanel);
+const MemoFigureNavigator = memo(FigureNavigator);
+const MemoInspectorPanel = memo(InspectorPanel);
+const MemoObjectsPanel = memo(ObjectsPanel);
+const MemoStylesPanel = memo(StylesPanel);
+const MemoAssistantPanel = memo(AssistantPanel);
+
 export function getDockLayoutHandle(): DockLayoutHandle | null {
   return activeDockHandle;
 }
@@ -309,29 +343,29 @@ export function DockLayout({ repeatPreviewModel, onSubmitPrompt, onInterruptTurn
         case "source":
           return (
             <Suspense fallback={<div style={{ display: "grid", placeItems: "center", height: "100%" }}>Loading source editor…</div>}>
-              <SourcePanel />
+              <MemoSourcePanel />
             </Suspense>
           );
         case "canvas":
           return (
             <Suspense fallback={<div style={{ display: "grid", placeItems: "center", height: "100%" }}>Loading canvas…</div>}>
-              <CanvasPanel repeatPreviewModel={repeatPreviewModel} />
+              <MemoCanvasPanel repeatPreviewModel={repeatPreviewModel} />
             </Suspense>
           );
         case "figure-navigator":
           return (
             <Suspense fallback={null}>
-              <FigureNavigator />
+              <MemoFigureNavigator />
             </Suspense>
           );
         case "inspector":
-          return <InspectorPanel />;
+          return <MemoInspectorPanel />;
         case "objects":
-          return <ObjectsPanel />;
+          return <MemoObjectsPanel />;
         case "styles":
-          return <StylesPanel />;
+          return <MemoStylesPanel />;
         case "assistant":
-          return <AssistantPanel onSubmitPrompt={onSubmitPrompt} onInterruptTurn={onInterruptTurn} />;
+          return <MemoAssistantPanel onSubmitPrompt={onSubmitPrompt} onInterruptTurn={onInterruptTurn} />;
         default:
           return <div>Unknown panel: {component}</div>;
       }

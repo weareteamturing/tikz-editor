@@ -142,6 +142,7 @@ export function useFigureThumbnails(
     let cancelled = false;
     const groupId = `figure-thumb-group-${(thumbnailGroupCounter += 1).toString(36)}`;
     const timers: Array<{ kind: "idle" | "timeout"; id: number }> = [];
+    let shouldRetryMissing = false;
 
     const queue = async (): Promise<void> => {
       for (const figureId of orderedMissing) {
@@ -202,6 +203,7 @@ export function useFigureThumbnails(
           return;
         }
         if (!url) {
+          shouldRetryMissing = true;
           continue;
         }
         thumbnailCache.set(key, url);
@@ -216,6 +218,13 @@ export function useFigureThumbnails(
           const id = window.setTimeout(() => resolve(), 0);
           timers.push({ kind: "timeout", id });
         });
+      }
+
+      if (shouldRetryMissing && !cancelled) {
+        const id = window.setTimeout(() => {
+          setTick((value) => value + 1);
+        }, 300);
+        timers.push({ kind: "timeout", id });
       }
     };
 

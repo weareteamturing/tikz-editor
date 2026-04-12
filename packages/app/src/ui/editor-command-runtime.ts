@@ -72,7 +72,7 @@ export type CommandOrigin = "menu" | "shortcut" | "context-menu" | "platform";
 export type CommandBinding = {
   enabled: boolean;
   checked?: boolean;
-  run: (origin: CommandOrigin) => void;
+  run: (origin: CommandOrigin) => void | Promise<void>;
 };
 
 export type CommandBindings = Record<AppMenuCommandId, CommandBinding>;

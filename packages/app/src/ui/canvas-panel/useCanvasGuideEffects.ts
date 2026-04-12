@@ -1,8 +1,22 @@
-import { useEffect } from "react";
+import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { addGuide, moveGuide, removeGuide } from "./panel-helpers";
+import type { GuideDragState, GuideOrientation, GuidePreview, GuidesState } from "./types";
 
 export type UseCanvasGuideEffectsArgs = {
-  [key: string]: any;
+  guideDragRef: MutableRefObject<GuideDragState | null>;
+  setGuidePreview: Dispatch<SetStateAction<GuidePreview | null>>;
+  resolveGuideFromClient: (
+    orientation: GuideOrientation,
+    clientX: number,
+    clientY: number
+  ) => { value: number; overViewport: boolean } | null;
+  isPointerOverGuideDeleteZone: (
+    orientation: GuideOrientation,
+    clientX: number,
+    clientY: number
+  ) => boolean;
+  setGuides: Dispatch<SetStateAction<GuidesState>>;
+  showGuides: boolean;
 };
 
 export function useCanvasGuideEffects(args: UseCanvasGuideEffectsArgs) {
@@ -85,14 +99,15 @@ export function useCanvasGuideEffects(args: UseCanvasGuideEffectsArgs) {
 
       if (drag.source === "ruler") {
         if (drag.overViewport) {
-          setGuides((current: any) => addGuide(current, drag.orientation, drag.value));
+          setGuides((current) => addGuide(current, drag.orientation, drag.value));
         }
       } else if (drag.source === "guide" && drag.sourceValue != null) {
+        const sourceValue = drag.sourceValue;
         if (drag.overDeleteZone) {
-          setGuides((current: any) => removeGuide(current, drag.orientation, drag.sourceValue!));
+          setGuides((current) => removeGuide(current, drag.orientation, sourceValue));
         } else if (drag.overViewport) {
-          setGuides((current: any) =>
-            moveGuide(current, drag.orientation, drag.sourceValue!, drag.value)
+          setGuides((current) =>
+            moveGuide(current, drag.orientation, sourceValue, drag.value)
           );
         }
       }
