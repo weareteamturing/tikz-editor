@@ -2113,7 +2113,8 @@ export function CanvasPanel({
       if (sourceSlice.length === 0) {
         return null;
       }
-      if (!(sceneText.textBlockWidth != null && sceneText.textBlockWidth > 0)) {
+      const textBlockWidth = sceneText.textBlockWidth ?? region.width;
+      if (!(Number.isFinite(textBlockWidth) && textBlockWidth > 0)) {
         return null;
       }
       return {
@@ -2134,7 +2135,7 @@ export function CanvasPanel({
             ? sceneText.textRenderInfo.layoutKind
             : resolveFallbackTextLayoutKind(sourceSlice, sceneText.textHasFixedWidth, !!sceneText.matrixCell),
         style: sceneText.style,
-        totalWidth: sceneText.textBlockWidth,
+        totalWidth: textBlockWidth,
         region
       };
     },

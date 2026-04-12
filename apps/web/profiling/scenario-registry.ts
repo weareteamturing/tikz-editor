@@ -52,7 +52,7 @@ export const PROFILING_SCENARIOS: ProfilingScenarioManifest[] = [
   {
     id: "node-text-edit",
     category: "canvas-edit",
-    description: "Canvas node text editing profiling for single-line, wrapped, and explicit multiline nodes.",
+    description: "Canvas node text editing profiling for single-line, wrapped, explicit multiline, and matrix cell nodes.",
     specPath: "profiling/profile-node-text-edit.spec.ts"
   }
 ];

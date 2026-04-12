@@ -47,8 +47,14 @@ type NodeTextEditVariant = {
   source: string;
   initialText: string;
   expectedInsertedText: string;
+  expectedSourceSubstring?: string;
+  expectedSourceSubstringNormalized?: string;
   openEditMode: (page: Page) => Promise<void>;
 };
+
+function normalizeSourceWhitespace(source: string): string {
+  return source.replace(/\s+/g, "");
+}
 
 const VARIANTS: NodeTextEditVariant[] = [
   {
@@ -111,6 +117,37 @@ const VARIANTS: NodeTextEditVariant[] = [
     expectedInsertedText: String.raw`Let me think of something long\\ and fun to write that will be interesting`,
     async openEditMode(page) {
       await clickTextHitRegionByTargetId(page, "path:0");
+    }
+  },
+  {
+    id: "matrix-cell-4x3-append",
+    label: "Matrix cell append in 4x3 matrix",
+    dimensions: {
+      layout: "matrix-of-nodes",
+      rows: 4,
+      columns: 3,
+      textWidth: null,
+      explicitLineBreaks: false
+    },
+    source: String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (M) {
+    A & B & C \\
+    D & E & F \\
+    G & H & I \\
+    J & K & L \\
+  };
+\end{tikzpicture}`,
+    initialText: "E",
+    expectedInsertedText: `E${APPEND_TEXT}`,
+    expectedSourceSubstringNormalized: `D&Ethatwillbeinteresting&F`,
+    async openEditMode(page) {
+      const textRegion = page
+        .locator("[data-hit-region-target-id$=':matrix-cell:2:2'][data-hit-region-interaction-mode='text']")
+        .first();
+      await expect(textRegion).toBeVisible();
+      await textRegion.click({ force: true });
+      await textRegion.click({ force: true });
+      await textRegion.click({ force: true });
     }
   }
 ];
@@ -399,7 +436,13 @@ async function runVariant(page: Page, variant: NodeTextEditVariant) {
   await textarea.fill(variant.expectedInsertedText);
 
   await expect(textarea).toHaveValue(variant.expectedInsertedText);
-  await expect.poll(async () => await readStoreSource(page)).toContain(`{${variant.expectedInsertedText}}`);
+  if (variant.expectedSourceSubstringNormalized) {
+    await expect
+      .poll(async () => normalizeSourceWhitespace(await readStoreSource(page)))
+      .toContain(variant.expectedSourceSubstringNormalized);
+  } else {
+    await expect.poll(async () => await readStoreSource(page)).toContain(`{${variant.expectedInsertedText}}`);
+  }
 
   const probe = await readProbe(page);
   return summarizeProbe(probe);
