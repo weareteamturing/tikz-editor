@@ -188,6 +188,7 @@ async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
   await preloadMathJaxWarmupExpressions(runtime);
 
   const cache = new Map<string, CachedRenderEntry>();
+  const exactSingleLineWidthCache = new Map<string, number>();
   const validationCache = new Map<string, NodeTextValidationIssue | null>();
   const pendingAsyncRenders = new Set<Promise<void>>();
   const finalizedPendingCacheKeys = new Set<string>();
@@ -209,6 +210,7 @@ async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
         if (!cache.has(defaultMeasureKey)) {
           const entry = buildMeasuredCacheEntry({
             runtime,
+            exactSingleLineWidthCache,
             cacheKey: defaultMeasureKey,
             sourceText: prepared.text,
             textWidthPt: null,
@@ -260,6 +262,7 @@ async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
         try {
           entry = buildMeasuredCacheEntry({
             runtime,
+            exactSingleLineWidthCache,
             cacheKey,
             sourceText: prepared.text,
             textWidthPt: normalizedWidth,
@@ -964,6 +967,7 @@ function trimArrayVerticalPaddingFromViewBox(viewBox: NodeTextRenderPayload["vie
 
 function buildMeasuredCacheEntry(params: {
   runtime: MathJaxRuntime;
+  exactSingleLineWidthCache: Map<string, number>;
   cacheKey: string;
   sourceText: string;
   textWidthPt: number | null;
@@ -971,7 +975,7 @@ function buildMeasuredCacheEntry(params: {
   mode: "text" | "math";
   alignment: NodeTextParagraphAlignment | null;
 }): CachedRenderEntry | null {
-  const { runtime, cacheKey, sourceText, textWidthPt, font, mode, alignment } = params;
+  const { runtime, exactSingleLineWidthCache, cacheKey, sourceText, textWidthPt, font, mode, alignment } = params;
   const adaptor = runtime.startup?.adaptor ?? null;
   const explicitMultiline = hasExplicitMultilineBreaks(sourceText);
   if (shouldUseExplicitMultilineArrayRendering(mode, textWidthPt, explicitMultiline, alignment)) {
@@ -987,7 +991,7 @@ function buildMeasuredCacheEntry(params: {
   const measuredWidth =
     textWidthPt ??
     (explicitMultiline
-      ? measureExplicitMultilineNaturalWidth(runtime, sourceText, font, mode)
+      ? measureExplicitMultilineNaturalWidth(runtime, exactSingleLineWidthCache, sourceText, font, mode)
       : measureNaturalWidth(runtime, sourceText, font, mode));
   if (!(Number.isFinite(measuredWidth) && measuredWidth > 0)) {
     return null;
@@ -1025,6 +1029,7 @@ function measureNaturalWidth(
 
 function measureExplicitMultilineNaturalWidth(
   runtime: MathJaxRuntime,
+  exactSingleLineWidthCache: Map<string, number>,
   sourceText: string,
   font: TextFontOptions,
   mode: "text" | "math"
@@ -1039,7 +1044,7 @@ function measureExplicitMultilineNaturalWidth(
     if (line.length === 0) {
       continue;
     }
-    const width = measureExactSingleLineWidth(runtime, line, font, mode);
+    const width = measureExactSingleLineWidth(runtime, exactSingleLineWidthCache, line, font, mode);
     if (Number.isFinite(width)) {
       maxWidth = Math.max(maxWidth, width);
     }
@@ -1132,12 +1137,19 @@ function measureParagraphRunWidth(report: ParagraphLayoutReport | null): number 
 
 function measureExactSingleLineWidth(
   runtime: MathJaxRuntime,
+  exactSingleLineWidthCache: Map<string, number>,
   sourceText: string,
   font: TextFontOptions,
   mode: "text" | "math"
 ): number {
+  const cacheKey = exactSingleLineWidthMeasurementKey(mode, sourceText, font);
+  const cached = exactSingleLineWidthCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
   const measuredWidthPt = measureNaturalWidth(runtime, sourceText, font, mode);
   if (!(Number.isFinite(measuredWidthPt) && measuredWidthPt > 0)) {
+    exactSingleLineWidthCache.set(cacheKey, Number.NaN);
     return Number.NaN;
   }
   const entry = buildExactSingleLineCacheEntry({
@@ -1151,7 +1163,17 @@ function measureExactSingleLineWidth(
   });
   const report = resolveParagraphReportById(runtime, entry?.paragraphId ?? null);
   const paragraphWidthPt = Number(report?.width) * MATHJAX_PARAGRAPH_PT_PER_WIDTH_UNIT;
-  return Number.isFinite(paragraphWidthPt) && paragraphWidthPt > 0 ? paragraphWidthPt : entry?.baseWidthPt ?? measuredWidthPt;
+  const width = Number.isFinite(paragraphWidthPt) && paragraphWidthPt > 0 ? paragraphWidthPt : entry?.baseWidthPt ?? measuredWidthPt;
+  exactSingleLineWidthCache.set(cacheKey, width);
+  return width;
+}
+
+function exactSingleLineWidthMeasurementKey(
+  mode: "text" | "math",
+  sourceText: string,
+  font: TextFontOptions
+): string {
+  return `${mode}|${font.fontStyle}|${font.fontWeight}|${font.fontFamily}|${sourceText}`;
 }
 
 async function measureExactSingleLineWidthWithPromise(

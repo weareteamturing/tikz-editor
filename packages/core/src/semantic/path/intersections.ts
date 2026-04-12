@@ -31,6 +31,11 @@ type IntersectionPoint = {
   discoveryOrder: number;
 };
 
+type IntersectionBucketIndex = {
+  bucketSize: number;
+  buckets: Map<string, IntersectionPoint[]>;
+};
+
 export type NameIntersectionsDirective = {
   firstPathName: string;
   secondPathName: string;
@@ -559,6 +564,10 @@ function cubicBezierPoint(p0: Point, p1: Point, p2: Point, p3: Point, t: number)
 function intersectSampledPaths(first: SampledPath, second: SampledPath): IntersectionPoint[] {
   const intersections: IntersectionPoint[] = [];
   const dedupeTolerance = 1e-3;
+  const index: IntersectionBucketIndex = {
+    bucketSize: dedupeTolerance,
+    buckets: new Map<string, IntersectionPoint[]>()
+  };
 
   for (const firstSegment of first.segments) {
     const firstSegmentLength = distance(firstSegment.from, firstSegment.to);
@@ -573,23 +582,68 @@ function intersectSampledPaths(first: SampledPath, second: SampledPath): Interse
       const secondParamAbsolute = secondSegment.paramStart + intersection.u * secondSegmentLength;
       const firstParam = first.totalLength > 1e-9 ? firstParamAbsolute / first.totalLength : 0;
       const secondParam = second.totalLength > 1e-9 ? secondParamAbsolute / second.totalLength : 0;
-      const existing = intersections.find((entry) => distance(entry.point, intersection.point) <= dedupeTolerance);
+      const existing = findIndexedIntersection(index, intersection.point, dedupeTolerance);
       if (existing) {
         existing.firstParam = Math.min(existing.firstParam, firstParam);
         existing.secondParam = Math.min(existing.secondParam, secondParam);
         continue;
       }
 
-      intersections.push({
+      const entry = {
         point: intersection.point,
         firstParam,
         secondParam,
         discoveryOrder: intersections.length
-      });
+      };
+      intersections.push(entry);
+      addIndexedIntersection(index, entry);
     }
   }
 
   return intersections;
+}
+
+function findIndexedIntersection(
+  index: IntersectionBucketIndex,
+  point: Point,
+  tolerance: number
+): IntersectionPoint | undefined {
+  const originX = quantizeBucket(point.x, index.bucketSize);
+  const originY = quantizeBucket(point.y, index.bucketSize);
+  for (let dx = -1; dx <= 1; dx += 1) {
+    for (let dy = -1; dy <= 1; dy += 1) {
+      const bucket = index.buckets.get(bucketKey(originX + dx, originY + dy));
+      if (!bucket) {
+        continue;
+      }
+      for (const entry of bucket) {
+        if (distance(entry.point, point) <= tolerance) {
+          return entry;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+function addIndexedIntersection(index: IntersectionBucketIndex, entry: IntersectionPoint): void {
+  const bucketX = quantizeBucket(entry.point.x, index.bucketSize);
+  const bucketY = quantizeBucket(entry.point.y, index.bucketSize);
+  const key = bucketKey(bucketX, bucketY);
+  const bucket = index.buckets.get(key);
+  if (bucket) {
+    bucket.push(entry);
+    return;
+  }
+  index.buckets.set(key, [entry]);
+}
+
+function quantizeBucket(value: number, bucketSize: number): number {
+  return Math.round(value / bucketSize);
+}
+
+function bucketKey(x: number, y: number): string {
+  return `${x},${y}`;
 }
 
 function sortIntersections(

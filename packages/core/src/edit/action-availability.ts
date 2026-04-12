@@ -99,6 +99,13 @@ type AvailabilityFacts = {
 
 type AvailabilityRule = (facts: AvailabilityFacts) => string | null;
 
+type AnchorSegmentKinds = {
+  hasPreviousLine: boolean;
+  hasNextLine: boolean;
+  hasPreviousCubic: boolean;
+  hasNextCubic: boolean;
+};
+
 const RULES: Record<EditActionId, AvailabilityRule> = {
   cut: (facts) =>
     facts.selectedSourceIds.length > 0
@@ -425,17 +432,9 @@ function makePathRule(
     if (anchorIndex <= 0 || anchorIndex >= eligible.analysis.anchors.length - 1) {
       return "Choose an interior path anchor point.";
     }
-    const hasPreviousLine = eligible.analysis.segments.some(
-      (segment) => segment.kind === "line" && segment.endAnchorIndex === anchorIndex
-    );
-    const hasNextLine = eligible.analysis.segments.some(
-      (segment) => segment.kind === "line" && segment.startAnchorIndex === anchorIndex
-    );
-    const hasPreviousCubic = eligible.analysis.segments.some(
-      (segment) => segment.kind === "cubic" && segment.endAnchorIndex === anchorIndex
-    );
-    const hasNextCubic = eligible.analysis.segments.some(
-      (segment) => segment.kind === "cubic" && segment.startAnchorIndex === anchorIndex
+    const { hasPreviousLine, hasNextLine, hasPreviousCubic, hasNextCubic } = collectAnchorSegmentKinds(
+      eligible.analysis,
+      anchorIndex
     );
     if (mode === "point-smooth") {
       return (hasPreviousCubic && hasNextCubic) || (hasPreviousLine && hasNextLine)
@@ -446,6 +445,40 @@ function makePathRule(
       ? null
       : "Point to Corner currently supports anchors between two cubic segments.";
   };
+}
+
+function collectAnchorSegmentKinds(analysis: ExplicitPathAnalysis, anchorIndex: number): AnchorSegmentKinds {
+  const summary: AnchorSegmentKinds = {
+    hasPreviousLine: false,
+    hasNextLine: false,
+    hasPreviousCubic: false,
+    hasNextCubic: false
+  };
+
+  for (const segment of analysis.segments) {
+    if (segment.startAnchorIndex === anchorIndex) {
+      if (segment.kind === "line") {
+        summary.hasNextLine = true;
+      } else if (segment.kind === "cubic") {
+        summary.hasNextCubic = true;
+      }
+    }
+    if (segment.endAnchorIndex === anchorIndex) {
+      if (segment.kind === "line") {
+        summary.hasPreviousLine = true;
+      } else if (segment.kind === "cubic") {
+        summary.hasPreviousCubic = true;
+      }
+    }
+    if (
+      (summary.hasPreviousLine || summary.hasPreviousCubic) &&
+      (summary.hasNextLine || summary.hasNextCubic)
+    ) {
+      break;
+    }
+  }
+
+  return summary;
 }
 
 function makeDistributeRule(axis: DistributeAxis): AvailabilityRule {

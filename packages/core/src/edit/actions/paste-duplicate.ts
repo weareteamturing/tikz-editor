@@ -3,15 +3,16 @@ import type { Span } from "../../ast/types.js";
 import { evaluateTikzFigure } from "../../semantic/evaluate.js";
 import {
   applyTextReplacements,
+  buildStatementSnapshotFromStatements,
   formatSnippetsForInsertion,
   groupStatementRefsByParent,
   lineIndentAtOffset,
-  mapSpansToStatementIds,
   parseStatementSnapshot,
   resolveRootInsertionPoint,
   resolveStatementRefs,
   shiftSpansAfterReplacement,
-  statementSnippet
+  statementSnippet,
+  type StatementSnapshot
 } from "../statement-ops.js";
 import { renameSnippetDeclaredNames } from "../name-conflicts.js";
 import type { SourcePatch } from "../types.js";
@@ -66,12 +67,24 @@ type OffsetSnippetsResult = {
   skippedHandles: string[];
 };
 
+type OffsetPreparation = {
+  wrappedSource: string;
+  rootIds: string[];
+  editHandles: EditHandle[];
+};
+
+type PasteDuplicateCaches = {
+  snapshots: Map<string, StatementSnapshot>;
+  offsetPreparations: Map<string, OffsetPreparation>;
+};
+
 export function applyPasteStatementsAction(
   source: string,
   action: PasteStatementsAction,
   deps: PasteDuplicateDeps,
   parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
+  const caches = createPasteDuplicateCaches();
   const snippets = action.snippets
     .map((snippet) => snippet.replace(/\r\n?/g, "\n").trimEnd())
     .filter((snippet) => snippet.trim().length > 0);
@@ -80,10 +93,10 @@ export function applyPasteStatementsAction(
   }
 
   const delta = normalizeDuplicateDelta(action.delta, deps.defaultDuplicateOffsetPt);
-  const shifted = offsetSnippetsByDelta(snippets, delta, deps, parseOptions);
+  const shifted = offsetSnippetsByDelta(snippets, delta, deps, parseOptions, caches);
   const renamedSnippets = renameSnippetDeclaredNames(source, shifted.snippets, parseOptions);
 
-  const snapshot = parseStatementSnapshot(source, parseOptions);
+  const snapshot = getStatementSnapshot(source, parseOptions, caches);
   const anchorId = action.anchorElementId?.trim();
   const anchorRef = anchorId ? snapshot.byId.get(anchorId) : undefined;
 
@@ -117,7 +130,10 @@ export function applyPasteStatementsAction(
     from: appliedInsertion.newSpan.from + span.from,
     to: appliedInsertion.newSpan.from + span.to
   }));
-  const selectedSourceIds = mapSpansToStatementIds(applied.source, insertedSpans);
+  const selectedSourceIds = mapSpansToStatementIdsWithSnapshot(
+    getStatementSnapshot(applied.source, parseOptions, caches),
+    insertedSpans
+  );
 
   if (shifted.partialReason) {
     return {
@@ -144,12 +160,13 @@ export function applyDuplicateElementsAction(
   deps: PasteDuplicateDeps,
   parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
+  const caches = createPasteDuplicateCaches();
   const normalizedIds = deps.normalizeElementIds(action.elementIds);
   if (normalizedIds.length === 0) {
     return { kind: "unsupported", reason: "No element ids were provided for duplicateElements." };
   }
 
-  const initialSnapshot = parseStatementSnapshot(source, parseOptions);
+  const initialSnapshot = getStatementSnapshot(source, parseOptions, caches);
   const initialRefs = resolveStatementRefs(initialSnapshot, normalizedIds);
   if (initialRefs.length === 0) {
     return { kind: "unsupported", reason: "No duplicable statements were found for the selected element ids." };
@@ -164,7 +181,7 @@ export function applyDuplicateElementsAction(
   const delta = normalizeDuplicateDelta(action.delta, deps.defaultDuplicateOffsetPt);
 
   for (const group of groups) {
-    const snapshot = parseStatementSnapshot(currentSource, parseOptions);
+    const snapshot = getStatementSnapshot(currentSource, parseOptions, caches);
     const currentRefs = resolveStatementRefs(
       snapshot,
       group.refs.map((ref) => ref.id)
@@ -177,7 +194,7 @@ export function applyDuplicateElementsAction(
     for (const resolvedGroup of resolvedGroups) {
       const orderedRefs = [...resolvedGroup.refs].sort((left, right) => left.index - right.index);
       const snippets = orderedRefs.map((ref) => statementSnippet(currentSource, ref));
-      const shifted = offsetSnippetsByDelta(snippets, delta, deps, parseOptions);
+      const shifted = offsetSnippetsByDelta(snippets, delta, deps, parseOptions, caches);
       const renamedSnippets = renameSnippetDeclaredNames(currentSource, shifted.snippets, parseOptions);
       if (shifted.partialReason) {
         partialReasons.push(shifted.partialReason);
@@ -224,7 +241,10 @@ export function applyDuplicateElementsAction(
     return { kind: "unsupported", reason: "Duplicate operation produced no inserted statements." };
   }
 
-  const selectedSourceIds = mapSpansToStatementIds(currentSource, insertedSpans);
+  const selectedSourceIds = mapSpansToStatementIdsWithSnapshot(
+    getStatementSnapshot(currentSource, parseOptions, caches),
+    insertedSpans
+  );
   if (partialReasons.length > 0) {
     return {
       kind: "partial",
@@ -248,7 +268,8 @@ function offsetSnippetsByDelta(
   snippets: readonly string[],
   delta: Point,
   deps: PasteDuplicateDeps,
-  parseOptions: EditParseOptions
+  parseOptions: EditParseOptions,
+  caches: PasteDuplicateCaches
 ): OffsetSnippetsResult {
   const normalized = snippets
     .map((snippet) => snippet.replace(/\r\n?/g, "\n").trimEnd())
@@ -260,19 +281,18 @@ function offsetSnippetsByDelta(
     return { snippets: normalized, skippedHandles: [] };
   }
 
-  const wrappedSource = wrapSnippetsInFigure(normalized);
-  const wrappedSnapshot = parseStatementSnapshot(wrappedSource, parseOptions);
-  const rootRefs = wrappedSnapshot.byParentKey.get("root") ?? [];
-  const rootIds = rootRefs.map((ref) => ref.id);
-  if (rootIds.length === 0) {
+  const preparation = getOffsetPreparation(normalized, parseOptions, caches);
+  if (preparation.rootIds.length === 0) {
     return { snippets: normalized, skippedHandles: [] };
   }
 
-  const parsed = parseTikzForEdit(wrappedSource, {
-    ...parseOptions,
-  });
-  const semantic = evaluateTikzFigure(parsed.figure, wrappedSource);
-  const moved = deps.applyMoveElements(wrappedSource, semantic.editHandles, rootIds, delta, parseOptions);
+  const moved = deps.applyMoveElements(
+    preparation.wrappedSource,
+    preparation.editHandles,
+    preparation.rootIds,
+    delta,
+    parseOptions
+  );
 
   if (moved.kind !== "success" && moved.kind !== "partial") {
     return {
@@ -285,7 +305,7 @@ function offsetSnippetsByDelta(
     };
   }
 
-  const movedSnapshot = parseStatementSnapshot(moved.newSource, parseOptions);
+  const movedSnapshot = getStatementSnapshot(moved.newSource, parseOptions, caches);
   const movedRootRefs = movedSnapshot.byParentKey.get("root") ?? [];
   const movedSnippets = movedRootRefs.map((ref) => statementSnippet(moved.newSource, ref));
   if (movedSnippets.length !== normalized.length) {
@@ -316,6 +336,102 @@ function offsetSnippetsByDelta(
 function wrapSnippetsInFigure(snippets: readonly string[]): string {
   const body = snippets.map((snippet) => `  ${snippet}`).join("\n");
   return `\\begin{tikzpicture}\n${body}\n\\end{tikzpicture}`;
+}
+
+function createPasteDuplicateCaches(): PasteDuplicateCaches {
+  return {
+    snapshots: new Map<string, StatementSnapshot>(),
+    offsetPreparations: new Map<string, OffsetPreparation>()
+  };
+}
+
+function getStatementSnapshot(
+  source: string,
+  parseOptions: EditParseOptions,
+  caches: PasteDuplicateCaches
+): StatementSnapshot {
+  const cached = caches.snapshots.get(source);
+  if (cached) {
+    return cached;
+  }
+  const snapshot = parseStatementSnapshot(source, parseOptions);
+  caches.snapshots.set(source, snapshot);
+  return snapshot;
+}
+
+function getOffsetPreparation(
+  snippets: readonly string[],
+  parseOptions: EditParseOptions,
+  caches: PasteDuplicateCaches
+): OffsetPreparation {
+  const wrappedSource = wrapSnippetsInFigure(snippets);
+  const cached = caches.offsetPreparations.get(wrappedSource);
+  if (cached) {
+    return cached;
+  }
+
+  const parsed = parseTikzForEdit(wrappedSource, {
+    ...parseOptions
+  });
+  const snapshot = buildStatementSnapshotFromStatements(wrappedSource, parsed.figure.body);
+  caches.snapshots.set(wrappedSource, snapshot);
+  const semantic = evaluateTikzFigure(parsed.figure, wrappedSource);
+  const preparation: OffsetPreparation = {
+    wrappedSource,
+    rootIds: (snapshot.byParentKey.get("root") ?? []).map((ref) => ref.id),
+    editHandles: semantic.editHandles
+  };
+  caches.offsetPreparations.set(wrappedSource, preparation);
+  return preparation;
+}
+
+function mapSpansToStatementIdsWithSnapshot(snapshot: StatementSnapshot, spans: readonly Span[]): string[] {
+  if (spans.length === 0) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const ids: string[] = [];
+
+  for (const span of spans) {
+    const exact = snapshot.all.find((ref) => ref.span.from === span.from && ref.span.to === span.to);
+    if (exact && !seen.has(exact.id)) {
+      seen.add(exact.id);
+      ids.push(exact.id);
+      continue;
+    }
+
+    let bestContained = null;
+    for (const ref of snapshot.all) {
+      if (ref.span.from <= span.from && ref.span.to >= span.to) {
+        if (!bestContained || (ref.span.to - ref.span.from) < (bestContained.span.to - bestContained.span.from)) {
+          bestContained = ref;
+        }
+      }
+    }
+    if (bestContained && !seen.has(bestContained.id)) {
+      seen.add(bestContained.id);
+      ids.push(bestContained.id);
+      continue;
+    }
+
+    let bestOverlap: { id: string; overlap: number } | null = null;
+    for (const ref of snapshot.all) {
+      const overlap = Math.max(0, Math.min(span.to, ref.span.to) - Math.max(span.from, ref.span.from));
+      if (overlap <= 0) {
+        continue;
+      }
+      if (!bestOverlap || overlap > bestOverlap.overlap) {
+        bestOverlap = { id: ref.id, overlap };
+      }
+    }
+    if (bestOverlap && !seen.has(bestOverlap.id)) {
+      seen.add(bestOverlap.id);
+      ids.push(bestOverlap.id);
+    }
+  }
+
+  return ids;
 }
 
 function normalizeDuplicateDelta(delta: Point | undefined, defaultDuplicateOffsetPt: number): Point {
