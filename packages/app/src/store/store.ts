@@ -16,7 +16,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
       documents: next.documents,
       tabOrder: next.tabOrder,
       activeDocumentId: next.activeDocumentId,
-      recentDocumentIds: next.workspace.recentDocumentIds
+      recentDocumentIds: next.recentDocumentIds
     });
     return next;
   })

@@ -545,10 +545,10 @@ function createStatementFragment(
     statementId: evaluated.statementId,
     sourceId: evaluated.sourceId,
     sourceSpan: { ...evaluated.sourceSpan },
-    elements: structuredClone(evaluated.elements),
-    editHandles: structuredClone(evaluated.editHandles),
-    diagnostics: structuredClone(evaluated.diagnostics),
-    effectSummary: structuredClone(evaluated.effectSummary)
+    elements: evaluated.elements,
+    editHandles: evaluated.editHandles,
+    diagnostics: evaluated.diagnostics,
+    effectSummary: evaluated.effectSummary
   };
 }
 
@@ -725,39 +725,43 @@ function normalizeChangedSourceIds(
 }
 
 function retargetElementsSourceFingerprint(
-  elements: readonly SceneElement[],
+  elements: SceneElement[],
   sourceFingerprint: string
 ): SceneElement[] {
-  return elements.map((element) => {
-    if (element.sourceRef.sourceFingerprint === sourceFingerprint) {
-      return element;
+  for (let index = 0; index < elements.length; index += 1) {
+    const element = elements[index];
+    if (!element || element.sourceRef.sourceFingerprint === sourceFingerprint) {
+      continue;
     }
-    return {
+    elements[index] = {
       ...element,
       sourceRef: {
         ...element.sourceRef,
         sourceFingerprint
       }
     };
-  });
+  }
+  return elements;
 }
 
 function retargetHandlesSourceFingerprint(
-  handles: readonly EditHandle[],
+  handles: EditHandle[],
   sourceFingerprint: string
 ): EditHandle[] {
-  return handles.map((handle) => {
-    if (handle.sourceRef.sourceFingerprint === sourceFingerprint) {
-      return handle;
+  for (let index = 0; index < handles.length; index += 1) {
+    const handle = handles[index];
+    if (!handle || handle.sourceRef.sourceFingerprint === sourceFingerprint) {
+      continue;
     }
-    return {
+    handles[index] = {
       ...handle,
       sourceRef: {
         ...handle.sourceRef,
         sourceFingerprint
       }
     };
-  });
+  }
+  return handles;
 }
 
 function materializeFragmentForCurrentSource(
@@ -767,18 +771,12 @@ function materializeFragmentForCurrentSource(
   sourceFingerprint: string
 ): Pick<SemanticStatementFragment, "elements" | "editHandles"> {
   if (fragment.effectSummary.suffixSkipKind === "foreach-origin-safe") {
-    const elements = retargetElementsSourceFingerprint(
-      rebaseForeachOriginElements(
-        structuredClone(fragment.elements),
-        fragment.sourceId,
-        currentSourceSpan
-      ),
-      sourceFingerprint
-    );
-    const editHandles = retargetHandlesSourceFingerprint(
-      structuredClone(fragment.editHandles),
-      sourceFingerprint
-    );
+    const elements = structuredClone(fragment.elements);
+    rebaseForeachOriginElements(elements, fragment.sourceId, currentSourceSpan);
+    retargetElementsSourceFingerprint(elements, sourceFingerprint);
+
+    const editHandles = structuredClone(fragment.editHandles);
+    retargetHandlesSourceFingerprint(editHandles, sourceFingerprint);
     return {
       elements,
       editHandles
@@ -786,17 +784,23 @@ function materializeFragmentForCurrentSource(
   }
 
   const delta = currentSourceSpan.from - fragment.sourceSpan.from;
-  const elements = retargetElementsSourceFingerprint(
-    shiftSpansDeep(structuredClone(fragment.elements), delta),
-    sourceFingerprint
-  );
-  const editHandles = retargetHandlesSourceFingerprint(
-    shiftSpansDeep(structuredClone(fragment.editHandles), delta),
-    sourceFingerprint
-  ).map((handle) => ({
-    ...handle,
-    sourceText: source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to)
-  }));
+  const elements = structuredClone(fragment.elements);
+  shiftSpansDeep(elements, delta);
+  retargetElementsSourceFingerprint(elements, sourceFingerprint);
+
+  const editHandles = structuredClone(fragment.editHandles);
+  shiftSpansDeep(editHandles, delta);
+  retargetHandlesSourceFingerprint(editHandles, sourceFingerprint);
+  for (let index = 0; index < editHandles.length; index += 1) {
+    const handle = editHandles[index];
+    if (!handle) {
+      continue;
+    }
+    editHandles[index] = {
+      ...handle,
+      sourceText: source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to)
+    };
+  }
   return {
     elements,
     editHandles

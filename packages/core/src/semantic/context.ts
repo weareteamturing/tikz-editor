@@ -408,13 +408,13 @@ export function restoreSemanticContext(
   context.currentPoint = snapshot.currentPoint ? { ...snapshot.currentPoint } : null;
   context.pathStartPoint = snapshot.pathStartPoint ? { ...snapshot.pathStartPoint } : null;
   if (snapshot.editHandles) {
-    context.editHandles = structuredClone(snapshot.editHandles);
+    context.editHandles = snapshot.editHandles.slice();
   } else {
     const source = options.editHandleSource;
     if (!source || snapshot.editHandlesLength > source.length) {
       throw new Error("Missing edit handle source for compact semantic context restore");
     }
-    context.editHandles = structuredClone(source.slice(0, snapshot.editHandlesLength));
+    context.editHandles = source.slice(0, snapshot.editHandlesLength);
   }
   context.dependencyBuilder.importState(snapshot.dependencyBuilderState);
   context.dependencyActiveSourceId = snapshot.dependencyActiveSourceId;

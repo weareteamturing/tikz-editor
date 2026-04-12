@@ -224,8 +224,6 @@ function resolveActiveDocument(workspace: WorkspacePersistedState): DocumentSess
 function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeralState): EditorState {
   const active = resolveActiveDocument(workspace);
   return {
-    workspace,
-    ui,
     source: active.source,
     sourceRevision: active.sourceRevision,
     activeFigureId: active.activeFigureId,
@@ -245,6 +243,7 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     tabOrder: workspace.tabOrder,
     documents: workspace.documents,
     workspaceVersion: workspace.workspaceVersion,
+    recentDocumentIds: workspace.recentDocumentIds,
     toolMode: ui.toolMode,
     canvasTransform: ui.canvasTransform,
     hoveredElementId: ui.hoveredElementId,
@@ -274,6 +273,50 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     showAssistantPanel: ui.showAssistantPanel,
     rightSidebarTab: ui.rightSidebarTab,
     showDevPanel: ui.showDevPanel
+  };
+}
+
+function workspaceStateFromEditorState(state: EditorState): WorkspacePersistedState {
+  return {
+    workspaceVersion: state.workspaceVersion,
+    documents: state.documents,
+    tabOrder: state.tabOrder,
+    activeDocumentId: state.activeDocumentId,
+    recentDocumentIds: state.recentDocumentIds
+  };
+}
+
+function uiStateFromEditorState(state: EditorState): WorkspaceEphemeralState {
+  return {
+    toolMode: state.toolMode,
+    canvasTransform: state.canvasTransform,
+    hoveredElementId: state.hoveredElementId,
+    activeCanvasDragKind: state.activeCanvasDragKind,
+    activeSourceScrubSourceId: state.activeSourceScrubSourceId,
+    showGrid: state.showGrid,
+    showTransparencyGrid: state.showTransparencyGrid,
+    snapModes: state.snapModes,
+    showRulers: state.showRulers,
+    showGuides: state.showGuides,
+    showDocumentBounds: state.showDocumentBounds,
+    freehandSmoothingPx: state.freehandSmoothingPx,
+    bucketFillColor: state.bucketFillColor,
+    selectedAddShape: state.selectedAddShape,
+    selectedAddMatrixRows: state.selectedAddMatrixRows,
+    selectedAddMatrixColumns: state.selectedAddMatrixColumns,
+    creationStrokeColor: state.creationStrokeColor,
+    creationFillColor: state.creationFillColor,
+    fitToContentRequestToken: state.fitToContentRequestToken,
+    zoomRequestToken: state.zoomRequestToken,
+    zoomRequestDirection: state.zoomRequestDirection,
+    showSourcePanel: state.showSourcePanel,
+    showInspectorPanel: state.showInspectorPanel,
+    showObjectsPanel: state.showObjectsPanel,
+    showStylesPanel: state.showStylesPanel,
+    showFiguresPanel: state.showFiguresPanel,
+    showAssistantPanel: state.showAssistantPanel,
+    rightSidebarTab: state.rightSidebarTab,
+    showDevPanel: state.showDevPanel
   };
 }
 
@@ -342,7 +385,7 @@ function rememberRecentDocument(workspace: WorkspacePersistedState, documentId: 
 }
 
 function activeDocumentIdFromAction(state: EditorState, documentId?: string): string {
-  return documentId ?? state.workspace.activeDocumentId;
+  return documentId ?? state.activeDocumentId;
 }
 
 function mergeAssistantItem(items: AssistantItem[], nextItem: AssistantItem): AssistantItem[] {
@@ -382,9 +425,11 @@ export function makeInitialState(seed?: WorkspaceSeed): EditorState {
 }
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
-  let workspace = state.workspace;
-  let ui = state.ui;
-  const activeId = state.workspace.activeDocumentId;
+  const previousWorkspace = workspaceStateFromEditorState(state);
+  const previousUi = uiStateFromEditorState(state);
+  let workspace = previousWorkspace;
+  let ui = previousUi;
+  const activeId = state.activeDocumentId;
 
   const projectedActive = workspace.documents[activeId];
   if (
@@ -1221,7 +1266,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       break;
   }
 
-  if (workspace === state.workspace && ui === state.ui) {
+  if (workspace === previousWorkspace && ui === previousUi) {
     return state;
   }
   return projectState(workspace, ui);

@@ -153,9 +153,6 @@ export type WorkspaceEphemeralState = {
 };
 
 export type EditorState = {
-  workspace: WorkspacePersistedState;
-  ui: WorkspaceEphemeralState;
-
   // ── document slice ──────────────────────────────────────────────────────────
   source: string;
   sourceRevision: number;
@@ -188,6 +185,7 @@ export type EditorState = {
   tabOrder: string[];
   documents: Record<string, DocumentSession>;
   workspaceVersion: number;
+  recentDocumentIds: string[];
 
   // ── canvas slice ─────────────────────────────────────────────────────────────
   toolMode: ToolMode;

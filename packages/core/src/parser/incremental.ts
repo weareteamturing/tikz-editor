@@ -209,7 +209,7 @@ export function createIncrementalParseSession(): IncrementalParseSession {
         return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "active-figure-unresolved");
       }
 
-      const nextFigure = shiftSpansDeep(structuredClone(cached.figure), patches);
+      const nextFigure = shiftSpansDeep(cached.figure, patches);
       const changedSourceIdSet = new Set(changedSourceIds);
       const statementReplacementDiagnostics = new Map<string, Diagnostic[]>();
 
@@ -234,7 +234,7 @@ export function createIncrementalParseSession(): IncrementalParseSession {
           return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "statement-structure-changed");
         }
 
-        const rebasedStatement = shiftSpansDeep(structuredClone(replacement), nextSpan.from - SNIPPET_PREFIX.length);
+        const rebasedStatement = shiftSpansDeep(replacement, nextSpan.from - SNIPPET_PREFIX.length);
         if (previousStatement) {
           alignStatementIds(previousStatement, rebasedStatement);
         } else {
@@ -247,10 +247,10 @@ export function createIncrementalParseSession(): IncrementalParseSession {
           return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "statement-global-diagnostics");
         }
         const localDiagnostics = partition.localBySourceId.get(replacement.id) ?? [];
-        statementReplacementDiagnostics.set(
-          sourceId,
-          localDiagnostics.map((diagnostic) => shiftDiagnostic(diagnostic, nextSpan.from - SNIPPET_PREFIX.length))
-        );
+        for (const diagnostic of localDiagnostics) {
+          shiftDiagnosticInPlace(diagnostic, nextSpan.from - SNIPPET_PREFIX.length);
+        }
+        statementReplacementDiagnostics.set(sourceId, localDiagnostics);
       }
 
       nextFigure.span = nextActiveFigureSpan;
@@ -577,14 +577,14 @@ function partitionDiagnostics(
       }
     }
     if (!bestRef) {
-      global.push(structuredClone(diagnostic));
+      global.push(diagnostic);
       continue;
     }
     const existing = localBySourceId.get(bestRef.sourceId);
     if (existing) {
-      existing.push(structuredClone(diagnostic));
+      existing.push(diagnostic);
     } else {
-      localBySourceId.set(bestRef.sourceId, [structuredClone(diagnostic)]);
+      localBySourceId.set(bestRef.sourceId, [diagnostic]);
     }
   }
   return {
@@ -597,7 +597,7 @@ function shiftFigureInventory(
   figures: readonly TikzFigureInventoryItem[],
   patches: readonly SourcePatch[]
 ): TikzFigureInventoryItem[] {
-  return figures.map((figure) => shiftSpansDeep(structuredClone(figure), patches));
+  return figures.map((figure) => shiftSpansDeep(figure, patches));
 }
 
 function shiftDiagnosticPartition(
@@ -609,26 +609,29 @@ function shiftDiagnosticPartition(
   const localBySourceId = new Map<string, Diagnostic[]>();
   for (const [sourceId, diagnostics] of partition.localBySourceId) {
     if (changedSourceIds.has(sourceId)) {
-      localBySourceId.set(sourceId, structuredClone(replacements.get(sourceId) ?? []));
+      localBySourceId.set(sourceId, replacements.get(sourceId) ?? []);
       continue;
     }
-    localBySourceId.set(
-      sourceId,
-      diagnostics.map((diagnostic) => shiftDiagnosticThroughPatches(diagnostic, patches))
-    );
+    for (const diagnostic of diagnostics) {
+      shiftDiagnosticThroughPatchesInPlace(diagnostic, patches);
+    }
+    localBySourceId.set(sourceId, diagnostics);
+  }
+  for (const diagnostic of partition.global) {
+    shiftDiagnosticThroughPatchesInPlace(diagnostic, patches);
   }
   return {
     localBySourceId,
-    global: partition.global.map((diagnostic) => shiftDiagnosticThroughPatches(diagnostic, patches))
+    global: partition.global
   };
 }
 
 function collectDiagnostics(partition: ParseDiagnosticPartition): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   for (const localDiagnostics of partition.localBySourceId.values()) {
-    diagnostics.push(...localDiagnostics.map((diagnostic) => structuredClone(diagnostic)));
+    diagnostics.push(...localDiagnostics);
   }
-  diagnostics.push(...partition.global.map((diagnostic) => structuredClone(diagnostic)));
+  diagnostics.push(...partition.global);
   diagnostics.sort((left, right) => {
     if (left.span.from !== right.span.from) {
       return left.span.from - right.span.from;
@@ -639,7 +642,6 @@ function collectDiagnostics(partition: ParseDiagnosticPartition): Diagnostic[] {
 }
 
 function shiftSpansDeep<T>(value: T, patchesOrDelta: readonly SourcePatch[] | number): T {
-  const clone = structuredClone(value);
   const patches = typeof patchesOrDelta === "number" ? null : patchesOrDelta;
   const delta = typeof patchesOrDelta === "number" ? patchesOrDelta : 0;
   const visited = new WeakSet<object>();
@@ -672,22 +674,16 @@ function shiftSpansDeep<T>(value: T, patchesOrDelta: readonly SourcePatch[] | nu
       visit(child);
     }
   };
-  visit(clone);
-  return clone;
+  visit(value);
+  return value;
 }
 
-function shiftDiagnosticThroughPatches(diagnostic: Diagnostic, patches: readonly SourcePatch[]): Diagnostic {
-  return {
-    ...diagnostic,
-    span: shiftSpanThroughPatches(diagnostic.span, patches)
-  };
+function shiftDiagnosticThroughPatchesInPlace(diagnostic: Diagnostic, patches: readonly SourcePatch[]): void {
+  diagnostic.span = shiftSpanThroughPatches(diagnostic.span, patches);
 }
 
-function shiftDiagnostic(diagnostic: Diagnostic, delta: number): Diagnostic {
-  return {
-    ...diagnostic,
-    span: shiftSpan(diagnostic.span, delta)
-  };
+function shiftDiagnosticInPlace(diagnostic: Diagnostic, delta: number): void {
+  diagnostic.span = shiftSpan(diagnostic.span, delta);
 }
 
 function shiftSpan(span: Span, delta: number): Span {

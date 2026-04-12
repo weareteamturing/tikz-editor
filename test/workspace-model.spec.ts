@@ -8,7 +8,7 @@ describe("workspace model", () => {
     expect(state.documents[state.activeDocumentId]).toBeDefined();
     expect(state.source).toBe(state.documents[state.activeDocumentId]?.source);
     expect(state.workspaceVersion).toBe(3);
-    expect(state.workspace.recentDocumentIds).toEqual([state.activeDocumentId]);
+    expect(state.recentDocumentIds).toEqual([state.activeDocumentId]);
   });
 
   it("creates and switches documents", () => {
@@ -69,6 +69,6 @@ describe("workspace model", () => {
     });
     expect(next.tabOrder).toHaveLength(2);
     expect(next.documents[next.activeDocumentId]?.title).toBe("Circle Example");
-    expect(next.workspace.recentDocumentIds[0]).toBe(next.activeDocumentId);
+    expect(next.recentDocumentIds[0]).toBe(next.activeDocumentId);
   });
 });
