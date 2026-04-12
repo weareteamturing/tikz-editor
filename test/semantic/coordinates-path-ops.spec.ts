@@ -1273,6 +1273,32 @@ describe("semantic evaluator / coordinates and path ops", () => {
       expect(horizontal.length).toBe(3);
     });
 
+    it("applies statement-level step options to grid spacing", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[step=0.5] (0,3) grid (3,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const paths = elementsOfKind(result.scene.elements, "Path");
+      const vertical = paths.filter((path) => path.id.includes("scene-grid-x:"));
+      const horizontal = paths.filter((path) => path.id.includes("scene-grid-y:"));
+      expect(vertical.length).toBe(7);
+      expect(horizontal.length).toBe(7);
+    });
+
+    it("applies picture-level step options to grid spacing", () => {
+      const source = String.raw`\begin{tikzpicture}[step=0.5]
+    \draw (0,3) grid (3,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const paths = elementsOfKind(result.scene.elements, "Path");
+      const vertical = paths.filter((path) => path.id.includes("scene-grid-x:"));
+      const horizontal = paths.filter((path) => path.id.includes("scene-grid-y:"));
+      expect(vertical.length).toBe(7);
+      expect(horizontal.length).toBe(7);
+    });
+
     it("scales default grid spacing with transformed coordinate systems", () => {
       const source = String.raw`\begin{tikzpicture}[scale=0.2]
     \draw (0,0) grid (10,10);

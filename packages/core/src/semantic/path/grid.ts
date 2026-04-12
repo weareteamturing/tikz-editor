@@ -1,32 +1,42 @@
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
+import type { OptionListAst } from "../../options/types.js";
 import type { PathOptionItem } from "../../ast/types.js";
 import { applyMatrix, applyMatrixToVector } from "../transform.js";
 import type { Matrix2D, Point, ResolvedStyle, ScenePath } from "../types.js";
 import type { DiagnosticPushFn } from "./types.js";
-import type { SemanticContext } from "../context.js";
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
 import { coordinateInner, normalizeOptionValue, toRadians } from "./shared.js";
 import { DEFAULT_GRID_STEP } from "./constants.js";
 import type { StyleChainEntry } from "../style-chain.js";
 import { cloneStyleChain } from "../style-chain.js";
 import { expandPathMacroBindings } from "./macro-expansion.js";
+import type { MacroBinding } from "../../macros/index.js";
 
 export function extractGridSteps(
   item: PathOptionItem,
   pushDiagnostic: DiagnosticPushFn,
-  context: SemanticContext
+  macroBindings: ReadonlyMap<string, MacroBinding>,
+  transform: Matrix2D
 ): { stepX?: number; stepY?: number } | null {
-  const frame = context.stack[context.stack.length - 1];
+  return extractGridStepsFromOptionList(item.options, pushDiagnostic, macroBindings, transform);
+}
+
+export function extractGridStepsFromOptionList(
+  options: OptionListAst,
+  pushDiagnostic: DiagnosticPushFn,
+  macroBindings: ReadonlyMap<string, MacroBinding>,
+  transform: Matrix2D
+): { stepX?: number; stepY?: number } | null {
   let stepX: number | undefined;
   let stepY: number | undefined;
 
-  for (const entry of item.options.entries) {
+  for (const entry of options.entries) {
     if (entry.kind !== "kv") {
       continue;
     }
 
     if (entry.key === "step") {
-      const expandedValue = expandPathMacroBindings(entry.valueRaw, frame?.macroBindings);
+      const expandedValue = expandPathMacroBindings(entry.valueRaw, macroBindings);
       const pair = parseCoordinateLike(expandedValue);
       if (pair) {
         const parsedX = parseLength(pair.x, "cm");
@@ -35,12 +45,12 @@ export function extractGridSteps(
           pushDiagnostic("invalid-grid-step", "Grid `step` coordinate must provide positive lengths.", entry.span.from, entry.span.to);
           continue;
         }
-        stepX = resolveGridAxisStep(parsedX, "x", hasExplicitLengthUnit(pair.x), context);
-        stepY = resolveGridAxisStep(parsedY, "y", hasExplicitLengthUnit(pair.y), context);
+        stepX = resolveGridAxisStep(parsedX, "x", hasExplicitLengthUnit(pair.x), transform);
+        stepY = resolveGridAxisStep(parsedY, "y", hasExplicitLengthUnit(pair.y), transform);
         continue;
       }
 
-      const polar = parsePolarStep(expandPathMacroBindings(entry.valueRaw, frame?.macroBindings));
+      const polar = parsePolarStep(expandPathMacroBindings(entry.valueRaw, macroBindings));
       if (polar) {
         stepX = Math.abs(polar.x);
         stepY = Math.abs(polar.y);
@@ -48,7 +58,7 @@ export function extractGridSteps(
       }
 
       const scalar = parseLength(
-        expandPathMacroBindings(entry.valueRaw, frame?.macroBindings),
+        expandPathMacroBindings(entry.valueRaw, macroBindings),
         "cm"
       );
       if (scalar == null || scalar < 0) {
@@ -56,28 +66,57 @@ export function extractGridSteps(
         continue;
       }
       const hasUnit = hasExplicitLengthUnit(entry.valueRaw);
-      stepX = resolveGridAxisStep(scalar, "x", hasUnit, context);
-      stepY = resolveGridAxisStep(scalar, "y", hasUnit, context);
+      stepX = resolveGridAxisStep(scalar, "x", hasUnit, transform);
+      stepY = resolveGridAxisStep(scalar, "y", hasUnit, transform);
       continue;
     }
 
     if (entry.key === "xstep" || entry.key === "x step") {
-      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, frame?.macroBindings), "cm");
+      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings), "cm");
       if (parsed == null || parsed < 0) {
         pushDiagnostic("invalid-grid-step", "Grid `xstep` must be a positive length.", entry.span.from, entry.span.to);
         continue;
       }
-      stepX = resolveGridAxisStep(parsed, "x", hasExplicitLengthUnit(entry.valueRaw), context);
+      stepX = resolveGridAxisStep(parsed, "x", hasExplicitLengthUnit(entry.valueRaw), transform);
       continue;
     }
 
     if (entry.key === "ystep" || entry.key === "y step") {
-      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, frame?.macroBindings), "cm");
+      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings), "cm");
       if (parsed == null || parsed < 0) {
         pushDiagnostic("invalid-grid-step", "Grid `ystep` must be a positive length.", entry.span.from, entry.span.to);
         continue;
       }
-      stepY = resolveGridAxisStep(parsed, "y", hasExplicitLengthUnit(entry.valueRaw), context);
+      stepY = resolveGridAxisStep(parsed, "y", hasExplicitLengthUnit(entry.valueRaw), transform);
+    }
+  }
+
+  if (stepX == null && stepY == null) {
+    return null;
+  }
+
+  return { stepX, stepY };
+}
+
+export function extractGridStepsFromOptionLists(
+  optionLists: readonly OptionListAst[],
+  pushDiagnostic: DiagnosticPushFn,
+  macroBindings: ReadonlyMap<string, MacroBinding>,
+  transform: Matrix2D
+): { stepX?: number; stepY?: number } | null {
+  let stepX: number | undefined;
+  let stepY: number | undefined;
+
+  for (const options of optionLists) {
+    const parsed = extractGridStepsFromOptionList(options, pushDiagnostic, macroBindings, transform);
+    if (!parsed) {
+      continue;
+    }
+    if (parsed.stepX != null) {
+      stepX = parsed.stepX;
+    }
+    if (parsed.stepY != null) {
+      stepY = parsed.stepY;
     }
   }
 
@@ -116,17 +155,16 @@ function resolveGridAxisStep(
   step: number,
   axis: "x" | "y",
   hasExplicitUnit: boolean,
-  context: SemanticContext
+  transform: Matrix2D
 ): number {
   if (hasExplicitUnit) {
     return Math.abs(step);
   }
 
-  const frame = context.stack[context.stack.length - 1];
   const delta =
     axis === "x"
-      ? applyMatrixToVector(frame.transform, { x: step, y: 0 })
-      : applyMatrixToVector(frame.transform, { x: 0, y: step });
+      ? applyMatrixToVector(transform, { x: step, y: 0 })
+      : applyMatrixToVector(transform, { x: 0, y: step });
   const magnitude = Math.hypot(delta.x, delta.y);
   if (!Number.isFinite(magnitude) || magnitude <= 1e-9) {
     return Math.abs(step);

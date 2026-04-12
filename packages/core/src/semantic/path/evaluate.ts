@@ -46,7 +46,7 @@ import {
   makePath,
   makeRectangleElement
 } from "./elements.js";
-import { extractGridSteps, makeGridElements } from "./grid.js";
+import { extractGridSteps, extractGridStepsFromOptionLists, makeGridElements } from "./grid.js";
 import { parseCircleRadiusFromCoordinateRaw, parseCoordinateOperation, parseEllipseRadiiFromCoordinateRaw } from "./parsers.js";
 import { parseParabolaFromItems } from "./parabola.js";
 import { extractCircleShapeOptions, extractEllipseRadii, extractRoundedCorners } from "./shape-options.js";
@@ -705,7 +705,12 @@ export function evaluatePathStatement(
         }
 
         if (pendingGrid) {
-          const parsed = extractGridSteps(expandedItem, pushDiagnostic, context);
+          const parsed = extractGridSteps(
+            expandedItem,
+            pushDiagnostic,
+            treeFrameState.macroBindings,
+            treeFrameState.transform
+          );
           if (parsed) {
             if (parsed.stepX != null && parsed.stepX >= 0) {
               pendingGrid.stepX = parsed.stepX;
@@ -2121,10 +2126,16 @@ export function evaluatePathStatement(
         }
         activePath = flushDrawableActivePath(geometryElements, activePath);
         previousSegmentRoundedCorners = null;
+        const gridStepDefaults = extractGridStepsFromOptionLists(
+          statementStyleChain.flatMap((entry) => entry.rawOptions),
+          pushDiagnostic,
+          treeFrameState.macroBindings,
+          treeFrameState.transform
+        );
         pendingGrid = {
           from: effectiveGridStart,
-          stepX: resolveDefaultGridStep(frameTransform, "x"),
-          stepY: resolveDefaultGridStep(frameTransform, "y")
+          stepX: gridStepDefaults?.stepX ?? resolveDefaultGridStep(treeFrameState.transform, "x"),
+          stepY: gridStepDefaults?.stepY ?? resolveDefaultGridStep(treeFrameState.transform, "y")
         };
         lastPlacementSegment = null;
         continue;

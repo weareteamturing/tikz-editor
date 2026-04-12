@@ -434,6 +434,39 @@ describe("getInspectorDescriptor", () => {
     expect(ystep.value).toBeCloseTo(0.3, 6);
   });
 
+  it("reads inherited grid step options from the effective style chain", () => {
+    const source = String.raw`\begin{tikzpicture}[step=0.5]
+  \draw (0,0) grid (2,2);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const gridSection = descriptor.sections.find((section) => section.id === "grid");
+    expect(gridSection).toBeDefined();
+    if (!gridSection) {
+      throw new Error("Expected grid section");
+    }
+
+    const step = gridSection.properties.find((property) => property.id === "grid-step");
+    const xstep = gridSection.properties.find((property) => property.id === "grid-xstep");
+    const ystep = gridSection.properties.find((property) => property.id === "grid-ystep");
+    if (!step || step.kind !== "number" || !xstep || xstep.kind !== "number" || !ystep || ystep.kind !== "number") {
+      throw new Error("Expected grid number properties");
+    }
+
+    expect(step.value).toBeCloseTo(0.5, 6);
+    expect(xstep.value).toBeCloseTo(0.5, 6);
+    expect(ystep.value).toBeCloseTo(0.5, 6);
+  });
+
   it("hides grid controls when a path statement contains multiple grid operations", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) grid (1,1) (2,2) grid (3,3);

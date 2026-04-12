@@ -144,6 +144,7 @@ import {
   resolveNodeShapeGeometryParams,
   type SignalDirection
 } from "../semantic/nodes/shape-geometry.js";
+import type { StyleChainEntry } from "../semantic/style-chain.js";
 export { TIKZPICTURE_GLOBAL_TARGET_ID } from "./property-target.js";
 export type {
   ArrowTipPresetId,
@@ -2957,7 +2958,7 @@ export function getInspectorDescriptor(
       element,
       inlineTarget.targetId
     );
-    const gridInspectorState = resolveGridInspectorState(snapshot.source, element.sourceRef.sourceId, snapshot.parseOptions);
+    const gridInspectorState = resolveGridInspectorState(element, snapshot.source, snapshot.parseOptions);
     const pathMorphingPreset = resolvePathMorphingDecorationPreset(
       snapshot.source,
       inlineTarget.targetId,
@@ -4429,11 +4430,11 @@ function arrowPresetSideRaw(preset: Exclude<ArrowTipPresetId, "custom">, side: A
 }
 
 function resolveGridInspectorState(
+  element: SceneElement,
   source: string,
-  pathSourceId: string,
   parseOptions: EditParseOptions = {}
 ): { keywordId: string; step: number; xstep: number; ystep: number } | null {
-  const pathStatement = findPathStatementInSource(source, pathSourceId, parseOptions);
+  const pathStatement = findPathStatementInSource(source, element.sourceRef.sourceId, parseOptions);
   if (!pathStatement) {
     return null;
   }
@@ -4447,7 +4448,7 @@ function resolveGridInspectorState(
   if (!gridKeyword) {
     return null;
   }
-  const values = resolveGridStepValues(gridKeyword.options);
+  const values = resolveGridStepValuesFromStyleChainAndOptions(element.styleChain, gridKeyword.options);
   return {
     keywordId: gridKeyword.keyword.id,
     step: values.step,
@@ -4512,73 +4513,58 @@ function collectGridKeywords(
   return collected;
 }
 
-function resolveGridStepValues(
+function resolveGridStepValuesFromStyleChainAndOptions(
+  styleChain: readonly StyleChainEntry[],
   optionItem: Extract<PathItem, { kind: "PathOption" }> | null
 ): { step: number; xstep: number; ystep: number } {
-  if (!optionItem) {
-    return {
-      step: GRID_DEFAULT_STEP_CM,
-      xstep: GRID_DEFAULT_STEP_CM,
-      ystep: GRID_DEFAULT_STEP_CM
-    };
-  }
+  const optionLists = [
+    ...styleChain.flatMap((entry) => entry.rawOptions),
+    ...(optionItem ? [optionItem.options] : [])
+  ];
 
+  return resolveGridStepValuesFromOptionLists(optionLists);
+}
+
+function resolveGridStepValuesFromOptionLists(optionLists: readonly OptionListAst[]): { step: number; xstep: number; ystep: number } {
   let xstep = GRID_DEFAULT_STEP_CM;
   let ystep = GRID_DEFAULT_STEP_CM;
-  let sawXstep = false;
-  let sawYstep = false;
-  let stepCandidate: number | null = null;
 
-  for (const entry of optionItem.options.entries) {
-    if (entry.kind !== "kv") {
-      continue;
-    }
-
-    const key = normalizeOptionKey(entry.key);
-    if (key === "step") {
-      const parsed = parseGridStepValueCm(entry.valueRaw);
-      if (!parsed) {
+  for (const optionList of optionLists) {
+    for (const entry of optionList.entries) {
+      if (entry.kind !== "kv") {
         continue;
       }
-      xstep = parsed.x;
-      ystep = parsed.y;
-      sawXstep = true;
-      sawYstep = true;
-      stepCandidate = parsed.step;
-      continue;
-    }
 
-    if (key === "xstep" || key === "x step") {
-      const parsed = parseGridLengthCm(entry.valueRaw);
-      if (parsed != null) {
-        xstep = parsed;
-        sawXstep = true;
+      const key = normalizeOptionKey(entry.key);
+      if (key === "step") {
+        const parsed = parseGridStepValueCm(entry.valueRaw);
+        if (!parsed) {
+          continue;
+        }
+        xstep = parsed.x;
+        ystep = parsed.y;
+        continue;
       }
-      continue;
-    }
 
-    if (key === "ystep" || key === "y step") {
-      const parsed = parseGridLengthCm(entry.valueRaw);
-      if (parsed != null) {
-        ystep = parsed;
-        sawYstep = true;
+      if (key === "xstep" || key === "x step") {
+        const parsed = parseGridLengthCm(entry.valueRaw);
+        if (parsed != null) {
+          xstep = parsed;
+        }
+        continue;
+      }
+
+      if (key === "ystep" || key === "y step") {
+        const parsed = parseGridLengthCm(entry.valueRaw);
+        if (parsed != null) {
+          ystep = parsed;
+        }
       }
     }
-  }
-
-  if (!sawXstep) {
-    xstep = GRID_DEFAULT_STEP_CM;
-  }
-  if (!sawYstep) {
-    ystep = GRID_DEFAULT_STEP_CM;
-  }
-
-  if (stepCandidate == null && Math.abs(xstep - ystep) <= 1e-6) {
-    stepCandidate = xstep;
   }
 
   return {
-    step: stepCandidate ?? GRID_DEFAULT_STEP_CM,
+    step: Math.abs(xstep - ystep) <= 1e-6 ? xstep : GRID_DEFAULT_STEP_CM,
     xstep,
     ystep
   };
