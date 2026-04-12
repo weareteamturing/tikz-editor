@@ -147,6 +147,9 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
   const magnifierTop = magnifierVisible
     ? Math.max(0, Math.min(viewportSize.height - MAGNIFIER_DIAMETER_PX, magnifierState.y - magnifierRadius))
     : 0;
+  const textCaretBlinkSyncKey = textEditingSession
+    ? `${textEditingSession.sourceId}:${textEditingSession.selectionStart}:${textEditingSession.selectionEnd}:${textEditingSession.text.length}`
+    : null;
 
   return (
     <div className={css.panel}>
@@ -505,7 +508,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                     Number.isFinite(caret.rotationDeg) && caret.centerX != null && caret.centerY != null;
                   return (
                     <div
-                      key={`${textSelectionOverlay.sourceId}:${textSelectionOverlay.selectionStart}:${textSelectionOverlay.selectionEnd}:${caret.rotationDeg ?? ""}`}
+                      key={textCaretBlinkSyncKey ?? `${textSelectionOverlay.sourceId}:${textSelectionOverlay.selectionStart}:${textSelectionOverlay.selectionEnd}`}
                       className={[
                         css.textSelectionViewportCaret,
                         props.prefersNonBlinkingTextInsertionIndicator ? css.textCaretNoBlink : ""
@@ -562,7 +565,10 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                 />
                 {textEditCaretOverlay ? (
                   <div
-                    key={`${Math.round(textEditCaretOverlay.left * 4)}:${Math.round(textEditCaretOverlay.top * 4)}:${Math.round(textEditCaretOverlay.height * 4)}`}
+                    key={
+                      textCaretBlinkSyncKey ??
+                      `${Math.round(textEditCaretOverlay.left * 4)}:${Math.round(textEditCaretOverlay.top * 4)}:${Math.round(textEditCaretOverlay.height * 4)}`
+                    }
                     className={[
                       css.textEditViewportCaret,
                       props.prefersNonBlinkingTextInsertionIndicator ? css.textCaretNoBlink : ""
