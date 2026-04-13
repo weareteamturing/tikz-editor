@@ -520,11 +520,14 @@ function resolveForeachTemplateTargetFromParseResult(
   if (!remapped) {
     return null;
   }
+  const templateNodeTextSpan = resolvePathStatementNodeTextSpan(reparsedBody.parseResult.figure.body, parsed.localTargetId);
+  const remappedTemplateNodeTextSpan = templateNodeTextSpan ? reparsedBody.sourceMapper.mapSpan(templateNodeTextSpan) : null;
 
   return {
     ...remapped,
     id: targetId,
     kind: "foreach-template",
+    textSpan: remapped.textSpan ?? remappedTemplateNodeTextSpan ?? undefined,
     foreachLoopId: parsed.loopId,
     foreachLocalTargetId: parsed.localTargetId
   };
@@ -558,6 +561,22 @@ function resolveNestedForeachBody(
     bodyRaw: currentLoop.bodyRaw,
     bodySpan: currentBodySpan
   };
+}
+
+function resolvePathStatementNodeTextSpan(statements: readonly Statement[], statementId: string): Span | null {
+  for (const statement of statements) {
+    if (statement.kind === "Path" && statement.id === statementId) {
+      const nodeItem = statement.items.find((item): item is NodeItem => item.kind === "Node");
+      return nodeItem?.textSpan ?? null;
+    }
+    if (statement.kind === "Scope") {
+      const nested = resolvePathStatementNodeTextSpan(statement.body, statementId);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  return null;
 }
 
 function findTargetInStatements(statements: Statement[], source: string, elementId: string): PropertyTarget | null {

@@ -266,7 +266,7 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
       return;
     }
 
-    const target = resolveEditableTextTargetById(textEditingSession.sourceId);
+    const target = resolveEditableTextTargetById(textEditingSession.sourceId, textEditingSession.sceneTextId);
     if (!target) {
       setTextSelectionOverlay(null);
       return;
@@ -289,7 +289,7 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
       textEditingSession.selectionEnd !== boundedEnd
     ) {
       setTextEditingSession((current: any) =>
-        current && current.sourceId === target.sourceId
+        current && current.sourceId === target.sourceId && current.sceneTextId === target.sceneTextId
           ? {
               ...current,
               sceneTextId: target.sceneTextId,

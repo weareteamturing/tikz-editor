@@ -196,6 +196,61 @@ test("single-line node text enters canvas edit mode and closes when CodeMirror t
   await expect(page.getByTestId("canvas-text-selection-overlay")).toHaveCount(0);
 });
 
+test("foreach-expanded node text editing uses the template source text", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \foreach \y in {1,2,3} {
+    \node at (\y, 0) {\y};
+  }
+\end{tikzpicture}`);
+
+  const textRegion = page.locator('[data-hit-region-interaction-mode="text"]').first();
+  await expect(textRegion).toBeVisible();
+  await textRegion.click();
+
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeVisible();
+  await expect(textarea).toBeFocused();
+  await expect(textarea).toHaveValue(String.raw`\y`);
+
+  await textarea.fill(String.raw`\y units`);
+  await expect.poll(async () => await readStoreSource(page)).toContain(String.raw`{\y units}`);
+});
+
+test("foreach-expanded text caret and selection overlay stay on the clicked instance", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \foreach \y in {1,2,3} {
+    \node at (\y, 0) {\y+x};
+  }
+\end{tikzpicture}`);
+
+  const textRegions = page.locator('[data-hit-region-target-id="foreach:0"][data-hit-region-interaction-mode="text"]');
+  await expect(textRegions).toHaveCount(3);
+
+  const firstBox = await textRegions.nth(0).boundingBox();
+  const thirdBox = await textRegions.nth(2).boundingBox();
+  if (!firstBox || !thirdBox) {
+    throw new Error("Expected foreach text region bounds.");
+  }
+
+  await textRegions.nth(2).click();
+  await expect(page.getByTestId("canvas-text-edit-textarea")).toBeVisible();
+  await expect(page.getByTestId("canvas-text-edit-textarea")).toHaveValue(String.raw`\y+x`);
+
+  const caret = page.getByTestId("canvas-text-selection-caret");
+  await expect(caret).toBeVisible();
+  const caretBox = await caret.boundingBox();
+  if (!caretBox) {
+    throw new Error("Expected caret bounds.");
+  }
+  const caretCenterX = caretBox.x + caretBox.width / 2;
+  const firstCenterX = firstBox.x + firstBox.width / 2;
+  const thirdCenterX = thirdBox.x + thirdBox.width / 2;
+
+  expect(Math.abs(caretCenterX - thirdCenterX)).toBeLessThan(Math.abs(caretCenterX - firstCenterX));
+});
+
 test("rotated single-line node text enters canvas edit mode", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}

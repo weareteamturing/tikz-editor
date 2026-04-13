@@ -45,7 +45,11 @@ import type { Statement } from "tikz-editor/ast/types";
 import { PT_PER_CM } from "tikz-editor/edit/format";
 import { replaceSpan } from "tikz-editor/edit/patch";
 import { resolveEligibleExplicitPath } from "tikz-editor/edit/path-editing";
-import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
+import {
+  makeForeachTemplateTargetId,
+  resolvePropertyTarget,
+  resolvePropertyTargetFromParseResult
+} from "tikz-editor/edit/property-target";
 import {
   EditHandle,
   NodeAnchorTarget,
@@ -1389,6 +1393,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   const textSelectionDragRef = useRef<{
     pointerId: number;
     sourceId: string;
+    sceneTextId: string;
     anchorOffset: number;
     mode: TextSelectionDragMode;
     anchorLineRange: TextLineRange | null;
@@ -2129,7 +2134,30 @@ export const CanvasPanel = memo(function CanvasPanel({
       if (!sceneText) {
         return null;
       }
-      const sourceSpan = sceneText.matrixCell?.textSpan ?? sceneText.textSourceSpan ?? sceneText.sourceRef.sourceSpan;
+      let sourceSpan = sceneText.matrixCell?.textSpan ?? sceneText.textSourceSpan ?? sceneText.sourceRef.sourceSpan;
+      const foreachOrigin = sceneText.origin;
+      if (
+        snapshot.parseResult &&
+        foreachOrigin &&
+        foreachOrigin.foreachStack.length > 0 &&
+        foreachOrigin.foreachTemplateLocalTargetId &&
+        sceneText.sourceRef.sourceId.startsWith("foreach:")
+      ) {
+        const nestedLoopLocalIds = foreachOrigin.foreachStack.slice(1).map((frame) => frame.loopId);
+        const templateTargetId = makeForeachTemplateTargetId(
+          sceneText.sourceRef.sourceId,
+          foreachOrigin.foreachTemplateLocalTargetId,
+          nestedLoopLocalIds
+        );
+        const resolvedTemplate = resolvePropertyTargetFromParseResult(source, snapshot.parseResult, templateTargetId);
+        if (
+          resolvedTemplate.kind === "found" &&
+          resolvedTemplate.target.textSpan &&
+          resolvedTemplate.target.textSpan.to > resolvedTemplate.target.textSpan.from
+        ) {
+          sourceSpan = resolvedTemplate.target.textSpan;
+        }
+      }
       if (sourceSpan.to <= sourceSpan.from) {
         return null;
       }
@@ -2177,7 +2205,7 @@ export const CanvasPanel = memo(function CanvasPanel({
         }
       };
     },
-    [sceneTextByRegionKey, source]
+    [sceneTextByRegionKey, snapshot.parseResult, source]
   );
 
   const editableTextRegionKeys = useMemo(() => {
@@ -2197,14 +2225,24 @@ export const CanvasPanel = memo(function CanvasPanel({
   }, [hitRegions, resolveEditableTextTarget, toolMode]);
 
   const resolveEditableTextTargetById = useCallback(
-    (targetId: string): EditableTextTarget | null => {
+    (targetId: string, preferredSceneTextId?: string | null): EditableTextTarget | null => {
+      const candidates: EditableTextTarget[] = [];
       for (const region of rectHitRegionsForTargetId(hitRegions, targetId)) {
         const target = resolveEditableTextTarget(targetId, region);
         if (target) {
-          return target;
+          candidates.push(target);
         }
       }
-      return null;
+      if (candidates.length === 0) {
+        return null;
+      }
+      if (preferredSceneTextId) {
+        const preferred = candidates.find((candidate) => candidate.sceneTextId === preferredSceneTextId);
+        if (preferred) {
+          return preferred;
+        }
+      }
+      return candidates[0] ?? null;
     },
     [hitRegions, resolveEditableTextTarget]
   );
@@ -2372,6 +2410,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       textSelectionDragRef.current = {
         pointerId: event.pointerId,
         sourceId: target.sourceId,
+        sceneTextId: target.sceneTextId,
         anchorOffset: provisionalOffset,
         mode,
         anchorLineRange: provisionalLineRange
@@ -2417,6 +2456,7 @@ export const CanvasPanel = memo(function CanvasPanel({
           textSelectionDragRef.current = {
             pointerId: event.pointerId,
             sourceId: target.sourceId,
+            sceneTextId: target.sceneTextId,
             anchorOffset: resolvedOffset,
             mode,
             anchorLineRange: resolvedLineRange
@@ -2699,7 +2739,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       if (!drag || drag.pointerId !== event.pointerId) {
         return;
       }
-      const target = resolveEditableTextTargetById(drag.sourceId);
+      const target = resolveEditableTextTargetById(drag.sourceId, drag.sceneTextId);
       if (!target) {
         textSelectionDragRef.current = null;
         return;
@@ -2724,7 +2764,7 @@ export const CanvasPanel = memo(function CanvasPanel({
           focusLineRange
         );
         setTextEditingSession((current) =>
-          current && current.sourceId === target.sourceId
+          current && current.sourceId === target.sourceId && current.sceneTextId === target.sceneTextId
             ? {
                 ...current,
                 selectionStart: clamp(selection.start, 0, current.text.length),
