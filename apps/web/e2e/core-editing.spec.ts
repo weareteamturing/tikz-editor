@@ -140,6 +140,32 @@ test("clipped geometry only targets the visible clipped area on canvas", async (
   await expect.poll(async () => readSelectedSourceIds(page)).toEqual([]);
 });
 
+test("inline edge nodes are selectable independently from their parent path", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\draw[->] (0,0) -- node[above,draw] {$f$} (2,0);
+\end{tikzpicture}`);
+
+  await waitForHitRegions(page, 2);
+  const textRegions = page.locator('[data-hit-region-interaction-mode="text"]');
+  await expect.poll(async () => textRegions.count()).toBeGreaterThanOrEqual(1);
+
+  const labelTargetId = await textRegions.first().getAttribute("data-hit-region-target-id");
+  if (!labelTargetId) {
+    throw new Error("Missing inline edge-node text hit-region target id.");
+  }
+  expect(labelTargetId).not.toBe("path:0");
+
+  await clickHitRegionByTargetId(page, labelTargetId);
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual([labelTargetId]);
+
+  const disabledResizeHandles = page.locator(
+    `[data-handle-kind="resize-element"][data-source-id="${labelTargetId}"]`
+  );
+  await expect.poll(async () => disabledResizeHandles.count()).toBeGreaterThan(0);
+  await expect(disabledResizeHandles.first()).toHaveCSS("cursor", "not-allowed");
+});
+
 test("clearing source editor does not trigger maximum update depth crash", async ({ page }) => {
   await gotoApp(page);
 

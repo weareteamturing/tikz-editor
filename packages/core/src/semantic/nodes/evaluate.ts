@@ -473,9 +473,12 @@ export function evaluateNodeItem(
   const anchor =
     resolveAutoNodeAnchor(expandedNodeOptions, segment, effectiveBaseStyleChain) ??
     resolveNodeAnchor(expandedNodeOptions);
+  const shouldUseStatementSourceId =
+    item.adornment != null || statement.command === "node";
+  const nodeSourceId = shouldUseStatementSourceId ? statement.id : item.id;
   const nodeHandleSourceId = item.adornment
     ? makeNodeAdornmentTargetId(item.adornment.ownerNodeId, item.adornment.adornmentIndex, item.adornment.kind)
-    : statement.id;
+    : nodeSourceId;
   const target = resolveNodeTargetPoint(
     item,
     context,
@@ -575,7 +578,7 @@ export function evaluateNodeItem(
     if (!isBaseOrMid) {
       // Remove any implicit origin handle that resolveNodeTargetPoint created for this node
       const implicitIdx = context.editHandles.findIndex(
-        (h) => h.sourceRef.sourceId === statement.id && h.kind === "node-position"
+        (h) => h.sourceRef.sourceId === nodeHandleSourceId && h.kind === "node-position"
       );
       if (implicitIdx !== -1) {
         context.editHandles.splice(implicitIdx, 1);
@@ -586,10 +589,10 @@ export function evaluateNodeItem(
 
       const sourceText = context.source.slice(rp.span.from, rp.span.to);
       context.editHandles.push({
-        id: `handle:${statement.id}:node-position:${context.editHandles.length}`,
-        runtimeId: `handle:${statement.id}:node-position:${context.editHandles.length}`,
+        id: `handle:${nodeHandleSourceId}:node-position:${context.editHandles.length}`,
+        runtimeId: `handle:${nodeHandleSourceId}:node-position:${context.editHandles.length}`,
         sourceRef: {
-          sourceId: statement.id,
+          sourceId: nodeHandleSourceId,
           sourceSpan: rp.span,
           sourceFingerprint: context.sourceFingerprint
         },
@@ -632,7 +635,7 @@ export function evaluateNodeItem(
   }
 
   for (const name of scopedNames) {
-    registerNamedNodeAnchors(context, name, center, nodeShape, nodeLayout, expandedNodeOptions, nodeTransform, statement.id);
+    registerNamedNodeAnchors(context, name, center, nodeShape, nodeLayout, expandedNodeOptions, nodeTransform, nodeSourceId);
   }
   registerNodeSetMembership(scopedNames, setNames, context);
 
@@ -657,16 +660,16 @@ export function evaluateNodeItem(
     const nodeBoxStyle = applyNodeBoxPaintMode(nodeStyle, resolvedPaintMode);
     const calloutPointerOffset = resolveCalloutPointerOffset(shapeGeometry, context, center);
     if (nodeShape === "circle") {
-      pushNodeElement(makeCircleElement(statement.id, center, nodeLayout.visualRadius, nodeBoxStyle, item.span));
+      pushNodeElement(makeCircleElement(nodeSourceId, center, nodeLayout.visualRadius, nodeBoxStyle, item.span));
       markFeature("shape_circle", "supported");
       markFeature("svg_circle", "supported");
     } else if (nodeShape === "ellipse") {
-      pushNodeElement(makeNodeEllipseElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));
+      pushNodeElement(makeNodeEllipseElement(nodeSourceId, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));
       markFeature("shape_ellipse", "supported");
     } else if (nodeShape === "diamond") {
       pushNodeElement(
         makeNodeDiamondElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.visualWidth,
@@ -681,7 +684,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "trapezium") {
       pushNodeElement(
         makeNodeTrapeziumElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -702,7 +705,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "semicircle") {
       pushNodeElement(
         makeNodeSemicircleElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -719,7 +722,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "isosceles triangle") {
       pushNodeElement(
         makeNodeIsoscelesTriangleElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -738,7 +741,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "kite") {
       pushNodeElement(
         makeNodeKiteElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -757,7 +760,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "dart") {
       pushNodeElement(
         makeNodeDartElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -776,7 +779,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "circular sector") {
       pushNodeElement(
         makeNodeCircularSectorElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -794,7 +797,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "cylinder") {
       pushNodeElement(
         makeNodeCylinderElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -812,7 +815,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "regular polygon") {
       pushNodeElement(
         makeNodeRegularPolygonElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -830,7 +833,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "star") {
       pushNodeElement(
         makeNodeStarElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -851,7 +854,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "cloud") {
       pushNodeElement(
         makeNodeCloudElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -872,7 +875,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "starburst") {
       pushNodeElement(
         makeNodeStarburstElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -892,7 +895,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "signal") {
       pushNodeElement(
         makeNodeSignalElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -911,7 +914,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "tape") {
       pushNodeElement(
         makeNodeTapeElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -930,7 +933,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "rectangle callout") {
       pushNodeElement(
         makeNodeRectangleCalloutElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -950,7 +953,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "ellipse callout") {
       pushNodeElement(
         makeNodeEllipseCalloutElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -970,7 +973,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "cloud callout") {
       pushNodeElement(
         makeNodeCloudCalloutElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -997,7 +1000,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "single arrow") {
       pushNodeElement(
         makeNodeSingleArrowElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -1017,7 +1020,7 @@ export function evaluateNodeItem(
     } else if (nodeShape === "double arrow") {
       pushNodeElement(
         makeNodeDoubleArrowElement(
-          statement.id,
+          nodeSourceId,
           item.id,
           center,
           nodeLayout.naturalWidth,
@@ -1035,7 +1038,7 @@ export function evaluateNodeItem(
       markFeature("shape_double_arrow", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "rectangle") {
-      pushNodeElement(makeNodeBoxElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));
+      pushNodeElement(makeNodeBoxElement(nodeSourceId, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));
       markFeature("shape_rectangle", "supported");
       markFeature("svg_path", "supported");
     }
@@ -1045,7 +1048,7 @@ export function evaluateNodeItem(
   if (renderedNodeText.length > 0) {
     pushNodeElement(
       makeTextElement(
-        statement.id,
+        nodeSourceId,
         item.id,
         center,
         nodeTextStyle,
@@ -1068,7 +1071,7 @@ export function evaluateNodeItem(
   const renderedNodeElements = applyNodeDecorations(
     nodeElements,
     nodeLocalStyle.decoration,
-    `${statement.id}:${item.id}`,
+    `${nodeSourceId}:${item.id}`,
     context.mathRandom,
     markFeature,
     pushDiagnostic
