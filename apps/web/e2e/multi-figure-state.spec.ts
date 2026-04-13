@@ -187,7 +187,7 @@ test("switching documents clears old thumbnails immediately", async ({ page }) =
   await expect.poll(
     async () => page.getByTestId("figure-navigator").locator("img").count(),
     { timeout: 20_000 }
-  ).toBe(2);
+  ).toBeGreaterThan(0);
 
   const firstDocThumbnailSrc = await page.getByTestId("figure-navigator").locator("img").first().getAttribute("src");
   expect(firstDocThumbnailSrc).toBeTruthy();

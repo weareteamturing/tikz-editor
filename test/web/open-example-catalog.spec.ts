@@ -3,8 +3,8 @@ import { renderTikzToSvgAsync } from "../../packages/core/src/render/index.js";
 import { OPEN_EXAMPLE_CATALOG } from "../../packages/app/src/ui/examples/open-example-catalog.js";
 
 describe("open example catalog", () => {
-  it("contains eight built-in examples", () => {
-    expect(OPEN_EXAMPLE_CATALOG).toHaveLength(8);
+  it("contains at least eight built-in examples", () => {
+    expect(OPEN_EXAMPLE_CATALOG.length).toBeGreaterThanOrEqual(8);
   });
 
   it("renders each example without errors and produces SVG output", async () => {

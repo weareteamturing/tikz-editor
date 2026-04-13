@@ -473,8 +473,13 @@ export function evaluateNodeItem(
   const anchor =
     resolveAutoNodeAnchor(expandedNodeOptions, segment, effectiveBaseStyleChain) ??
     resolveNodeAnchor(expandedNodeOptions);
+  const statementHasTreeChildren = statement.items.some((candidate) => candidate.kind === "ChildOperation");
+  const isSyntheticTreeChildStatement = statement.id.includes(":tree-child:");
   const shouldUseStatementSourceId =
-    item.adornment != null || statement.command === "node";
+    item.adornment != null ||
+    statement.command === "node" ||
+    statementHasTreeChildren ||
+    isSyntheticTreeChildStatement;
   const nodeSourceId = shouldUseStatementSourceId ? statement.id : item.id;
   const nodeHandleSourceId = item.adornment
     ? makeNodeAdornmentTargetId(item.adornment.ownerNodeId, item.adornment.adornmentIndex, item.adornment.kind)
