@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   finalizePrefixWidthTable,
+  extendTeXControlWordPrefixEnd,
   findNearestPrefixIndexFromTable,
   readPrefixUnitsFromTable,
   scanTeXPrefixState,
   stabilizePrefixForMeasurement
 } from "../packages/core/src/text/prefix-width.js";
+import {
+  finalizePrefixWidthTable as finalizeMathPrefixWidthTable,
+  stabilizePrefixForMeasurement as stabilizeMathPrefixForMeasurement
+} from "../packages/core/src/text/knuth-plass/editor/mathPrefix.js";
 
 describe("prefix width helpers", () => {
   it("tracks \\[ ... \\] as math mode and stabilizes by closing \\]", () => {
@@ -48,5 +53,40 @@ describe("prefix width helpers", () => {
     const table = [0, 10, 22, 35, 50];
     expect(findNearestPrefixIndexFromTable(21, 4, 50, table)).toBe(2);
     expect(findNearestPrefixIndexFromTable(48, 4, 50, table)).toBe(4);
+  });
+
+  it("carries the last valid math width forward through invalid prefixes", () => {
+    const table = [0, 120, Number.NaN, Number.NaN, 320];
+    const finalized = finalizeMathPrefixWidthTable(table, 320);
+
+    expect(finalized[1]).toBe(120);
+    expect(finalized[2]).toBe(120);
+    expect(finalized[3]).toBe(120);
+    expect(finalized[4]).toBe(320);
+  });
+
+  it("extends prefixes that end inside a control word to the full command", () => {
+    const content = String.raw`A\cap B`;
+
+    expect(extendTeXControlWordPrefixEnd(content, 2)).toBe(5);
+    expect(extendTeXControlWordPrefixEnd(content, 3)).toBe(5);
+    expect(extendTeXControlWordPrefixEnd(content, 4)).toBe(5);
+    expect(extendTeXControlWordPrefixEnd(content, 5)).toBe(5);
+    expect(extendTeXControlWordPrefixEnd(content, 6)).toBe(6);
+  });
+
+  it("extends fraction prefixes that land inside the command name", () => {
+    const content = String.raw`x=\frac{n}{2}`;
+
+    expect(extendTeXControlWordPrefixEnd(content, 3)).toBe(7);
+    expect(extendTeXControlWordPrefixEnd(content, 4)).toBe(7);
+    expect(extendTeXControlWordPrefixEnd(content, 5)).toBe(7);
+    expect(extendTeXControlWordPrefixEnd(content, 6)).toBe(7);
+    expect(extendTeXControlWordPrefixEnd(content, 7)).toBe(7);
+    expect(extendTeXControlWordPrefixEnd(content, 8)).toBe(8);
+  });
+
+  it("leaves incomplete fraction math invalid so width can carry forward", () => {
+    expect(stabilizeMathPrefixForMeasurement(String.raw`$\frac{n`)).toBe(String.raw`$\frac{n}$`);
   });
 });

@@ -163,6 +163,46 @@ export function scanTeXPrefixState(text: string): TeXPrefixState {
   };
 }
 
+function extendControlSequenceEnd(content: string, backslashIndex: number): number {
+  let end = backslashIndex + 1;
+  if (end >= content.length) {
+    return end;
+  }
+
+  const nextChar = content.charAt(end);
+  if (/[A-Za-z]/.test(nextChar)) {
+    end += 1;
+    while (end < content.length && /[A-Za-z]/.test(content.charAt(end))) {
+      end += 1;
+    }
+    return end;
+  }
+
+  return Math.min(content.length, end + 1);
+}
+
+export function extendTeXControlWordPrefixEnd(content: string, prefixLength: number): number {
+  const normalizedEnd = clamp(Math.floor(prefixLength), 0, content.length);
+  if (normalizedEnd <= 0) {
+    return 0;
+  }
+
+  let scan = normalizedEnd - 1;
+  while (scan >= 0 && /[A-Za-z]/.test(content.charAt(scan))) {
+    scan -= 1;
+  }
+
+  if (scan >= 0 && content.charAt(scan) === "\\" && scan < normalizedEnd) {
+    return extendControlSequenceEnd(content, scan);
+  }
+
+  if (content.charAt(normalizedEnd - 1) === "\\") {
+    return extendControlSequenceEnd(content, normalizedEnd - 1);
+  }
+
+  return normalizedEnd;
+}
+
 export function hasDanglingMathScriptOperator(text: string): boolean {
   let index = text.length - 1;
   while (index >= 0 && /\s/.test(text.charAt(index))) {

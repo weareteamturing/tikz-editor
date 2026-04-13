@@ -1,4 +1,5 @@
 import type { MathDelimiterKind, MathSourceSpan } from './sourceParser.js';
+import { extendTeXControlWordPrefixEnd } from '../../prefix-width.js';
 
 const TRAILING_ESCAPE_DISCHARGE_SUFFIX = 'phantom{}';
 const MATH_MODE_NONE = 'none';
@@ -13,6 +14,11 @@ interface PrefixState {
   trailingEscape: boolean;
   unclosedLeftCount: number;
 }
+
+type MathJaxAdaptor = {
+  firstChild(node: unknown): unknown;
+  getAttribute(node: unknown, name: string): string | null;
+};
 
 export interface MathPrefixCache {
   getOrBuild(
@@ -174,12 +180,17 @@ export function stabilizePrefixForMeasurement(prefix: string): string {
   return stabilized;
 }
 
-function readViewBoxWidth(node: any): number {
+function readViewBoxWidth(node: any, adaptor: MathJaxAdaptor | null): number {
   if (!node) {
     return 0;
   }
 
-  const attr = typeof node.getAttribute === 'function' ? node.getAttribute('viewBox') : null;
+  const attr =
+    adaptor
+      ? adaptor.getAttribute(node, 'viewBox')
+      : typeof node.getAttribute === 'function'
+        ? node.getAttribute('viewBox')
+        : null;
   if (typeof attr === 'string' && attr.trim()) {
     const parts = attr
       .trim()
@@ -199,7 +210,11 @@ function readViewBoxWidth(node: any): number {
   }
 
   const widthAttr = Number(
-    typeof node.getAttribute === 'function' ? node.getAttribute('width') : NaN
+    adaptor
+      ? adaptor.getAttribute(node, 'width')
+      : typeof node.getAttribute === 'function'
+        ? node.getAttribute('width')
+        : NaN
   );
   if (Number.isFinite(widthAttr) && widthAttr > 0) {
     return widthAttr;
@@ -213,26 +228,46 @@ function readViewBoxWidth(node: any): number {
   return 0;
 }
 
-function extractRenderedWidth(rendered: any): number {
+function getMathJaxAdaptor(): MathJaxAdaptor | null {
+  const candidate = (globalThis as { MathJax?: { startup?: { adaptor?: unknown } } }).MathJax?.startup?.adaptor;
+  if (!candidate || typeof candidate !== 'object') {
+    return null;
+  }
+  const adaptor = candidate as Partial<MathJaxAdaptor>;
+  if (typeof adaptor.firstChild !== 'function' || typeof adaptor.getAttribute !== 'function') {
+    return null;
+  }
+  return adaptor as MathJaxAdaptor;
+}
+
+function extractRenderedWidth(rendered: any, adaptor: MathJaxAdaptor | null): number {
   if (!rendered) {
     return 0;
   }
 
-  if (typeof rendered.querySelector === 'function') {
-    const svg = rendered.querySelector('svg');
-    if (svg) {
-      return readViewBoxWidth(svg);
-    }
-  }
-
-  if (rendered.firstElementChild) {
-    const width = readViewBoxWidth(rendered.firstElementChild);
+  if (adaptor) {
+    const svg = adaptor.firstChild(rendered);
+    const width = readViewBoxWidth(svg, adaptor);
     if (width > 0) {
       return width;
     }
   }
 
-  return readViewBoxWidth(rendered);
+  if (typeof rendered.querySelector === 'function') {
+    const svg = rendered.querySelector('svg');
+    if (svg) {
+      return readViewBoxWidth(svg, null);
+    }
+  }
+
+  if (rendered.firstElementChild) {
+    const width = readViewBoxWidth(rendered.firstElementChild, null);
+    if (width > 0) {
+      return width;
+    }
+  }
+
+  return readViewBoxWidth(rendered, null);
 }
 
 type Tex2Svg = (tex: string, options?: { display?: boolean }) => any;
@@ -259,7 +294,7 @@ function getTex2Svg(outputJax: any): Tex2Svg | null {
 
 async function measureTexWidth(tex2svg: Tex2Svg, tex: string): Promise<number> {
   const rendered = await Promise.resolve(tex2svg(tex, { display: false }));
-  return extractRenderedWidth(rendered);
+  return extractRenderedWidth(rendered, getMathJaxAdaptor());
 }
 
 function stabilizeMathContentForMeasurement(prefix: string): string {
@@ -298,41 +333,10 @@ export function finalizePrefixWidthTable(table: number[], totalWidth: number): n
   table[0] = 0;
   table[lastIndex] = boundedTotal;
 
-  let index = 1;
-  while (index < lastIndex) {
-    if (Number.isFinite(table[index])) {
-      index += 1;
-      continue;
-    }
-
-    const gapStart = index - 1;
-    let gapEnd = index;
-    while (gapEnd <= lastIndex && !Number.isFinite(table[gapEnd])) {
-      gapEnd += 1;
-    }
-
-    const leftIndex = Math.max(0, gapStart);
-    const rightIndex = Math.min(lastIndex, gapEnd);
-    const leftValue = Number.isFinite(table[leftIndex]) ? Number(table[leftIndex]) : 0;
-    const rightValue = Number.isFinite(table[rightIndex])
-      ? Number(table[rightIndex])
-      : boundedTotal;
-    const span = Math.max(1, rightIndex - leftIndex);
-
-    for (let cursor = leftIndex + 1; cursor < rightIndex; cursor++) {
-      const t = (cursor - leftIndex) / span;
-      table[cursor] = leftValue + (rightValue - leftValue) * t;
-    }
-
-    index = rightIndex + 1;
-  }
-
   let previous = 0;
   for (let cursor = 1; cursor < lastIndex; cursor++) {
     const raw = table[cursor];
-    const normalized = Number.isFinite(raw)
-      ? Number(raw)
-      : boundedTotal * (cursor / Math.max(1, lastIndex));
+    const normalized = Number.isFinite(raw) ? Number(raw) : previous;
     const clamped = clamp(normalized, previous, boundedTotal);
     table[cursor] = clamped;
     previous = clamped;
@@ -415,11 +419,26 @@ async function buildMeasuredPrefixWidths(
 
   const content = span.content;
   const table = seedPrefixWidthTable(content.length, 0);
+  const measuredWidths = new Map<number, number>();
 
   for (let i = 1; i <= content.length; i++) {
-    const prefix = content.slice(0, i);
+    const extendedEnd = extendTeXControlWordPrefixEnd(content, i);
+    const cached = measuredWidths.get(extendedEnd);
+    if (cached !== undefined) {
+      table[i] = cached;
+      continue;
+    }
+
+    const prefix = content.slice(0, extendedEnd);
     const stabilized = stabilizeMathContentForMeasurement(prefix);
-    table[i] = await measureTexWidth(tex2svg, toInlineMathMeasurementTeX(stabilized));
+    let measured = Number.NaN;
+    try {
+      measured = await measureTexWidth(tex2svg, toInlineMathMeasurementTeX(stabilized));
+    } catch {
+      measured = Number.NaN;
+    }
+    measuredWidths.set(extendedEnd, measured);
+    table[i] = measured;
   }
 
   finalizePrefixWidthTable(table, table[content.length] ?? 0);
