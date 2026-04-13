@@ -189,7 +189,7 @@ export const OPEN_EXAMPLE_CATALOG: readonly TikzOpenExample[] = [
         (2) edge (3)
         (3) edge (4)
         (4) edge (1)
-        (1) edge[bend right=30] (3)
+        (1) edge (3)
         (3) edge[out=60,in=330,looseness=8] (3);
 \end{tikzpicture}`
   },
@@ -253,8 +253,8 @@ export const OPEN_EXAMPLE_CATALOG: readonly TikzOpenExample[] = [
   step/.style={draw,rounded corners=2pt,fill=blue!10,minimum width=2cm,minimum height=8mm,align=center},
   >=Stealth
 ]
-  \draw[gray!50] (-0.3,-0.8) rectangle (8.3,0.8);
-  \draw[gray!50] (-0.3,-2.6) rectangle (8.3,-1.0);
+  \draw[gray!50] (-0.3,-0.8) rectangle (8.7,0.8);
+  \draw[gray!50] (-0.3,-2.6) rectangle (8.7,-1.0);
   \node[anchor=east] at (-0.4,0)    {User};
   \node[anchor=east] at (-0.4,-1.8) {System};
 
