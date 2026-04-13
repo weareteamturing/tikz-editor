@@ -5,6 +5,7 @@ import {
   installKnuthPlassVisitor,
   setKnuthPlassOptionsOnOutputJax
 } from "./knuth-plass/index.js";
+import { preloadEnglishHyphenator } from "./knuth-plass/paragraph/hyphenate.js";
 import type { ParagraphLayoutReport } from "./knuth-plass/index.js";
 import type {
   NodeTextEngine,
@@ -180,12 +181,14 @@ export function getActiveMathJaxOutputJax(): unknown | null {
 }
 
 async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
+  const hyphenatorPreload = preloadEnglishHyphenator();
   const runtime = hasBrowserDomGlobals()
     ? await initializeBrowserRuntime(font)
     : hasWorkerRuntimeGlobals()
       ? await initializeWorkerRuntime()
       : await initializeNodeRuntime();
   await preloadMathJaxWarmupExpressions(runtime);
+  await hyphenatorPreload;
 
   const cache = new Map<string, CachedRenderEntry>();
   const exactSingleLineWidthCache = new Map<string, number>();

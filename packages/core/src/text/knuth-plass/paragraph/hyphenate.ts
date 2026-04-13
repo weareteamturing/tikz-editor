@@ -1,6 +1,4 @@
 import { englishDefaults } from '../languages/en.js';
-import { EN_US_EXCEPTIONS } from '../languages/data/hyph-en-us.exceptions.js';
-import { EN_US_PATTERNS } from '../languages/data/hyph-en-us.patterns.js';
 
 export interface Hyphenator {
   hyphenate(word: string): number[];
@@ -128,6 +126,27 @@ function applyMinima(
   );
 }
 
+let cachedTrie: TrieNode | null = null;
+let cachedExceptions: Map<string, number[]> | null = null;
+let preloadPromise: Promise<void> | null = null;
+const hyphenatorCache = new Map<string, EnglishHyphenator>();
+
+export function preloadEnglishHyphenator(): Promise<void> {
+  if (cachedTrie && cachedExceptions) {
+    return Promise.resolve();
+  }
+  if (!preloadPromise) {
+    preloadPromise = Promise.all([
+      import('../languages/data/hyph-en-us.patterns.js'),
+      import('../languages/data/hyph-en-us.exceptions.js'),
+    ]).then(([patternsModule, exceptionsModule]) => {
+      cachedTrie = buildPatternTrie(patternsModule.EN_US_PATTERNS);
+      cachedExceptions = buildExceptionMap(exceptionsModule.EN_US_EXCEPTIONS);
+    });
+  }
+  return preloadPromise;
+}
+
 export class EnglishHyphenator implements Hyphenator {
   private readonly trie: TrieNode;
   private readonly exceptions: Map<string, number[]>;
@@ -135,11 +154,11 @@ export class EnglishHyphenator implements Hyphenator {
   private readonly rightMin: number;
   private readonly cache = new Map<string, number[]>();
 
-  constructor(options: HyphenatorOptions = {}) {
+  constructor(trie: TrieNode, exceptions: Map<string, number[]>, options: HyphenatorOptions = {}) {
     this.leftMin = options.leftMin ?? englishDefaults.lefthyphenmin;
     this.rightMin = options.rightMin ?? englishDefaults.righthyphenmin;
-    this.trie = buildPatternTrie(EN_US_PATTERNS);
-    this.exceptions = buildExceptionMap(EN_US_EXCEPTIONS);
+    this.trie = trie;
+    this.exceptions = exceptions;
   }
 
   hyphenate(word: string): number[] {
@@ -208,7 +227,18 @@ export class EnglishHyphenator implements Hyphenator {
 export function createEnglishHyphenator(
   options: HyphenatorOptions = {}
 ): Hyphenator {
-  return new EnglishHyphenator(options);
+  if (!cachedTrie || !cachedExceptions) {
+    return new NoopHyphenator();
+  }
+  const leftMin = options.leftMin ?? englishDefaults.lefthyphenmin;
+  const rightMin = options.rightMin ?? englishDefaults.righthyphenmin;
+  const key = `${leftMin}:${rightMin}`;
+  let cached = hyphenatorCache.get(key);
+  if (!cached) {
+    cached = new EnglishHyphenator(cachedTrie, cachedExceptions, { leftMin, rightMin });
+    hyphenatorCache.set(key, cached);
+  }
+  return cached;
 }
 
 export class NoopHyphenator implements Hyphenator {
