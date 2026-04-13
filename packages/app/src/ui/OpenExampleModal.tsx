@@ -11,13 +11,9 @@ type OpenExampleModalProps = {
 
 export function OpenExampleModal({ examples, onClose, onSelectExample }: OpenExampleModalProps) {
   return (
-    <Modal onClose={onClose} className={css.dialog} labelledBy="open-example-title">
-        <div data-testid="open-example-modal">
+    <Modal onClose={onClose} className={css.dialog} labelledBy="open-example-title" dataTestId="open-example-modal">
         <div className={css.header}>
-          <div>
-            <h2 id="open-example-title" className={css.title}>Open Example</h2>
-            <p className={css.subtitle}>Pick a TikZ snippet to load into the editor.</p>
-          </div>
+          <h2 id="open-example-title" className={css.title}>Open Example</h2>
           <button type="button" className={css.closeBtn} onClick={onClose}>
             Close
           </button>
@@ -67,7 +63,6 @@ export function OpenExampleModal({ examples, onClose, onSelectExample }: OpenExa
               </button>
             );
           })}
-        </div>
         </div>
     </Modal>
   );

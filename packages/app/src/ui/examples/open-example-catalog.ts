@@ -8,121 +8,357 @@ export type TikzOpenExample = {
 
 export const OPEN_EXAMPLE_CATALOG: readonly TikzOpenExample[] = [
   {
-    id: "basic-paths-grid",
-    title: "Basic Paths and Grid",
-    description: "Mixed path operators with a visible construction grid.",
-    featureLabels: ["grid", "paths", "arrows"],
-    source: String.raw`\begin{tikzpicture}
-  \draw[help lines, step=1cm, gray!45] (-0.5,-0.5) grid (4.5,2.5);
-  \draw[thick, ->] (0,0) -- (1.5,1.5) -| (3,0.5) |- (4,2);
-  \draw[blue, line width=0.8pt] (0,2) -- (2,1) -- (4,2);
+    id: "axes",
+    title: "Coordinate Axes",
+    description: "Axes with two plotted functions.",
+    featureLabels: ["axes", "plot", "functions"],
+    source: String.raw`\begin{tikzpicture}[>=Stealth]
+  \draw[->] (-0.4,0) -- (4.8,0) node[right] {$x$};
+  \draw[->] (0,-0.4) -- (0,3.6) node[above] {$y$};
+
+  \foreach \x in {1,2,3,4} {
+    \draw (\x,-0.08) -- (\x,0.08) node[below=3pt] {\x};
+  }
+  \foreach \y in {1,2,3} {
+    \draw (-0.08,\y) -- (0.08,\y) node[left=3pt] {\y};
+  }
+
+  \draw[thick,blue,domain=0:4,samples=50,smooth]
+    plot (\x, {0.6*\x+0.3}) node[right] {$f$};
+  \draw[thick,red,domain=0:4,samples=80,smooth]
+    plot (\x, {1.6+1.2*sin(\x r)}) node[right] {$g$};
 \end{tikzpicture}`
   },
   {
-    id: "styled-nodes-flow",
-    title: "Styled Node Flow",
-    description: "Named nodes, shared styles, and directional edges.",
-    featureLabels: ["nodes", "styles", "edges"],
+    id: "flowchart",
+    title: "Flowchart",
+    description: "Labelled boxes connected by arrows.",
+    featureLabels: ["nodes", "arrows", "styles"],
     source: String.raw`\begin{tikzpicture}[
-  task/.style={draw,rounded corners=2pt,fill=blue!12,minimum width=2.2cm,minimum height=8mm,align=center},
+  box/.style={draw,rounded corners=2pt,fill=blue!10,minimum width=2.4cm,minimum height=9mm,align=center},
   >=Stealth
 ]
-  \node[task] (start) at (0,0) {Start};
-  \node[task] (parse) at (3,0) {Parse};
-  \node[task] (render) at (6,0) {Render};
-  \node[task,fill=green!15] (done) at (3,-1.8) {Done};
-  \draw[->,thick] (start) -- (parse);
-  \draw[->,thick] (parse) -- (render);
-  \draw[->,thick] (parse) -- (done);
+  \node[box] (start) at (0,0) {Start};
+  \node[box] (step)  at (0,-1.6) {Process};
+  \node[box] (check) at (0,-3.2) {Check};
+  \node[box,fill=green!15] (done) at (4,-3.2) {Done};
+
+  \draw[->] (start) -- (step);
+  \draw[->] (step)  -- (check);
+  \draw[->] (check) -- node[above] {ok} (done);
 \end{tikzpicture}`
   },
   {
-    id: "scope-transform",
-    title: "Scope Transform",
-    description: "A transformed scope with translation and rotation.",
-    featureLabels: ["scope", "transform", "rotation"],
-    source: String.raw`\begin{tikzpicture}
-  \draw[gray!60] (-2,-1.5) rectangle (2,1.5);
-  \begin{scope}[xshift=0.9cm,yshift=0.4cm,rotate=18]
-    \draw[thick,red] (-1.2,-0.8) rectangle (1.2,0.8);
-    \draw[thick,blue] (-1.2,-0.8) -- (1.2,0.8);
-    \draw[thick,blue] (-1.2,0.8) -- (1.2,-0.8);
-  \end{scope}
+    id: "graph",
+    title: "Graph",
+    description: "Vertices and edges with a couple of labels.",
+    featureLabels: ["nodes", "edges"],
+    source: String.raw`\begin{tikzpicture}[
+  vertex/.style={draw,circle,fill=white,inner sep=1.5pt,minimum size=6mm},
+  every edge/.style={draw,thick}
+]
+  \node[vertex] (a) at (90:1.6)  {$a$};
+  \node[vertex] (b) at (162:1.6) {$b$};
+  \node[vertex] (c) at (234:1.6) {$c$};
+  \node[vertex] (d) at (306:1.6) {$d$};
+  \node[vertex] (e) at (18:1.6)  {$e$};
+
+  \path (a) edge (b)
+        (b) edge (c)
+        (c) edge (d)
+        (d) edge (e)
+        (e) edge (a)
+        (b) edge node[above,sloped] {$w$} (e);
 \end{tikzpicture}`
   },
   {
-    id: "foreach-radial",
-    title: "Foreach Radial Pattern",
-    description: "Loop-generated radial spokes with concentric circles.",
-    featureLabels: ["foreach", "polar", "circles"],
-    source: String.raw`\begin{tikzpicture}
-  \foreach \angle in {0,30,60,90,120,150,180,210,240,270,300,330} {
-    \draw[blue!45] (0,0) -- (\angle:2.1cm);
-  }
-  \foreach \r in {0.7,1.4,2.1} {
-    \draw[gray!65] (0,0) circle [radius=\r cm];
-  }
-  \fill[red!70] (0,0) circle [radius=1.6pt];
-\end{tikzpicture}`
-  },
-  {
-    id: "matrix-of-nodes",
-    title: "Matrix of Nodes",
-    description: "A small matrix with connections across cells.",
-    featureLabels: ["matrix", "nodes", "arrows"],
-    source: String.raw`\begin{tikzpicture}
-  \matrix[
-    matrix of nodes,
-    ampersand replacement=\&,
-    nodes={draw,minimum width=12mm,minimum height=8mm,fill=orange!12},
-    row sep=4mm,
-    column sep=6mm
-  ] (m) {
-    A \& B \& C \\
-    D \& E \& F \\
-  };
-  \draw[->,thick] (m-1-1) -- (m-2-2);
-  \draw[->,thick] (m-1-3) -- (m-2-2);
-\end{tikzpicture}`
-  },
-  {
-    id: "tree-layout",
-    title: "Tree Layout",
-    description: "Child-based tree with layout keys and styled nodes.",
-    featureLabels: ["trees", "child", "layout"],
-    source: String.raw`\begin{tikzpicture}[grow=right,level distance=15mm,sibling distance=10mm]
-  \path
-    node[draw,rounded corners=2pt,fill=blue!10] {Root}
-    child { node[draw,fill=green!12] {Leaf A} }
-    child {
-      node[draw,fill=green!12] {Branch}
-      child { node[draw,fill=yellow!16] {Leaf B1} }
-      child { node[draw,fill=yellow!16] {Leaf B2} }
+    id: "tree",
+    title: "Tree",
+    description: "Hierarchical tree with styled nodes.",
+    featureLabels: ["trees", "child"],
+    source: String.raw`\begin{tikzpicture}[
+  level distance=13mm,
+  level 1/.style={sibling distance=28mm},
+  level 2/.style={sibling distance=14mm},
+  every node/.style={draw,rounded corners=2pt,fill=blue!8,minimum width=12mm,align=center}
+]
+  \node {Root}
+    child { node {Left}
+      child { node {L1} }
+      child { node {L2} }
+    }
+    child { node {Right}
+      child { node {R1} }
+      child { node {R2} }
     };
 \end{tikzpicture}`
   },
   {
-    id: "shape-sampler",
-    title: "Shape Sampler",
-    description: "Stable built-in node shapes in one compact preview.",
-    featureLabels: ["shapes", "nodes", "styles"],
-    source: String.raw`\begin{tikzpicture}[every node/.style={draw,minimum width=14mm,minimum height=8mm,align=center,fill=teal!8}]
-  \node[diamond] at (0,0) {Diamond};
-  \node[trapezium,trapezium left angle=70,trapezium right angle=110] at (3,0) {Trap};
-  \node[star,star points=6,star point ratio=1.7] at (0,-2.1) {Star};
-  \node[cloud,cloud puffs=10] at (3,-2.1) {Cloud};
+    id: "automaton",
+    title: "Finite-State Automaton",
+    description: "States, transitions, an initial arrow and an accepting state.",
+    featureLabels: ["nodes", "loops", "edges"],
+    source: String.raw`\begin{tikzpicture}[
+  state/.style={draw,circle,minimum size=10mm,inner sep=0pt},
+  accept/.style={state,double},
+  >=Stealth,
+  every edge/.style={draw,->,thick}
+]
+  \node[state] (q0) at (0,0) {$q_0$};
+  \node[state] (q1) at (2.4,0) {$q_1$};
+  \node[accept] (q2) at (4.8,0) {$q_2$};
+
+  \draw[->] (-1.1,0) -- (q0);
+
+  \path (q0) edge node[above] {$a$} (q1)
+        (q1) edge node[above] {$b$} (q2)
+        (q1) edge[bend left=30] node[below] {$a$} (q0)
+        (q2) edge[out=60,in=120,looseness=8] node[above] {$b$} (q2);
 \end{tikzpicture}`
   },
   {
-    id: "arc-and-cycle",
-    title: "Arc and Cycle",
-    description: "Arc segments combined with a cycle-filled sector.",
-    featureLabels: ["arc", "cycle", "fill"],
+    id: "commutative-diagram",
+    title: "Commutative Diagram",
+    description: "A 2x2 square of objects with labelled arrows.",
+    featureLabels: ["matrix", "arrows", "math"],
+    source: String.raw`\begin{tikzpicture}[>=Stealth]
+  \matrix (m) [matrix of math nodes, row sep=14mm, column sep=18mm] {
+    A & B \\
+    C & D \\
+  };
+  \draw[->] (m-1-1) -- node[above] {$f$} (m-1-2);
+  \draw[->] (m-1-1) -- node[left]  {$g$} (m-2-1);
+  \draw[->] (m-1-2) -- node[right] {$h$} (m-2-2);
+  \draw[->] (m-2-1) -- node[below] {$k$} (m-2-2);
+\end{tikzpicture}`
+  },
+  {
+    id: "geometry",
+    title: "Labelled Geometry",
+    description: "A triangle with labelled points and a side length.",
+    featureLabels: ["coordinates", "labels"],
     source: String.raw`\begin{tikzpicture}
-  \draw[fill=cyan!18,draw=cyan!60!black,thick]
-    (0,0) -- (2,0) arc[start angle=0,end angle=70,radius=2cm] -- cycle;
-  \draw[thick,->] (2.5,0) arc[start angle=0,end angle=220,radius=1.1cm];
-  \draw[gray!70] (-0.2,-0.2) rectangle (3.8,2.4);
+  \coordinate (A) at (0,0);
+  \coordinate (B) at (4,0);
+  \coordinate (C) at (1.3,2.2);
+
+  \draw[thick] (A) -- (B) -- (C) -- cycle;
+
+  \fill (A) circle (1.2pt);
+  \fill (B) circle (1.2pt);
+  \fill (C) circle (1.2pt);
+
+  \node[below left]  at (A) {$A$};
+  \node[below right] at (B) {$B$};
+  \node[above]       at (C) {$C$};
+  \node[below]       at (2,0) {$c$};
+\end{tikzpicture}`
+  },
+  {
+    id: "venn",
+    title: "Venn Diagram",
+    description: "Two overlapping sets with labels.",
+    featureLabels: ["circles", "fill", "labels"],
+    source: String.raw`\begin{tikzpicture}
+  \draw[fill=blue!20,fill opacity=0.5] (0,0) circle (1.4);
+  \draw[fill=red!20,fill opacity=0.5]  (1.6,0) circle (1.4);
+
+  \node at (-0.6,0)  {$A$};
+  \node at (2.2,0)   {$B$};
+  \node at (0.8,0)   {$A\cap B$};
+
+  \node[below] at (0.8,-1.6) {$A\cup B$};
+\end{tikzpicture}`
+  },
+  {
+    id: "digraph",
+    title: "Directed Graph",
+    description: "Nodes with directed edges and a self-loop.",
+    featureLabels: ["nodes", "arrows", "loop"],
+    source: String.raw`\begin{tikzpicture}[
+  vertex/.style={draw,circle,inner sep=1.5pt,minimum size=6mm},
+  >=Stealth,
+  every edge/.style={draw,->,thick}
+]
+  \node[vertex] (1) at (0,0)    {$1$};
+  \node[vertex] (2) at (2,0.8)  {$2$};
+  \node[vertex] (3) at (3.6,0)  {$3$};
+  \node[vertex] (4) at (2,-1)   {$4$};
+
+  \path (1) edge (2)
+        (2) edge (3)
+        (3) edge (4)
+        (4) edge (1)
+        (1) edge[bend right=30] (3)
+        (3) edge[out=60,in=330,looseness=8] (3);
+\end{tikzpicture}`
+  },
+  {
+    id: "flow-network",
+    title: "Flow Network",
+    description: "Source, two intermediate layers, and a sink with capacities.",
+    featureLabels: ["graph", "arrows", "labels"],
+    source: String.raw`\begin{tikzpicture}[
+  vertex/.style={draw,circle,fill=white,inner sep=1.5pt,minimum size=7mm},
+  >=Stealth,
+  every edge/.style={draw,->,thick}
+]
+  \node[vertex] (s)  at (0,0)     {$s$};
+  \node[vertex] (a1) at (2,1.2)   {$a$};
+  \node[vertex] (a2) at (2,-1.2)  {$b$};
+  \node[vertex] (b1) at (4.2,1.2) {$c$};
+  \node[vertex] (b2) at (4.2,-1.2){$d$};
+  \node[vertex] (t)  at (6.2,0)   {$t$};
+
+  \path (s)  edge node[above,sloped] {$10$} (a1)
+        (s)  edge node[below,sloped] {$8$}  (a2)
+        (a1) edge node[above] {$6$}         (b1)
+        (a1) edge node[above,sloped,pos=0.3] {$3$} (b2)
+        (a2) edge node[below] {$9$}         (b2)
+        (b1) edge node[above,sloped] {$7$}  (t)
+        (b2) edge node[below,sloped] {$5$}  (t);
+\end{tikzpicture}`
+  },
+  {
+    id: "bipartite",
+    title: "Bipartite Graph",
+    description: "Two columns of vertices connected across.",
+    featureLabels: ["graph", "edges"],
+    source: String.raw`\begin{tikzpicture}[
+  vertex/.style={draw,circle,fill=white,inner sep=1.5pt,minimum size=6mm},
+  every edge/.style={draw,thick}
+]
+  \foreach \i/\name in {1/x_1, 2/x_2, 3/x_3, 4/x_4} {
+    \node[vertex] (l\i) at (0,-\i) {$\name$};
+  }
+  \foreach \i/\name in {1/y_1, 2/y_2, 3/y_3} {
+    \node[vertex] (r\i) at (3,-\i-0.5) {$\name$};
+  }
+
+  \path (l1) edge (r1)
+        (l1) edge (r2)
+        (l2) edge (r1)
+        (l2) edge (r3)
+        (l3) edge (r2)
+        (l4) edge (r2)
+        (l4) edge (r3);
+\end{tikzpicture}`
+  },
+  {
+    id: "swimlane",
+    title: "Swimlane Diagram",
+    description: "Two horizontal lanes with steps and cross-lane arrows.",
+    featureLabels: ["nodes", "lanes", "arrows"],
+    source: String.raw`\begin{tikzpicture}[
+  step/.style={draw,rounded corners=2pt,fill=blue!10,minimum width=2cm,minimum height=8mm,align=center},
+  >=Stealth
+]
+  \draw[gray!50] (-0.3,-0.8) rectangle (8.3,0.8);
+  \draw[gray!50] (-0.3,-2.6) rectangle (8.3,-1.0);
+  \node[anchor=east] at (-0.4,0)    {User};
+  \node[anchor=east] at (-0.4,-1.8) {System};
+
+  \node[step] (u1) at (1,0)    {Request};
+  \node[step] (s1) at (3.5,-1.8) {Validate};
+  \node[step] (s2) at (6,-1.8)   {Process};
+  \node[step] (u2) at (7.5,0)    {Result};
+
+  \draw[->] (u1) -- (s1);
+  \draw[->] (s1) -- (s2);
+  \draw[->] (s2) -- (u2);
+\end{tikzpicture}`
+  },
+  {
+    id: "decision-tree",
+    title: "Decision Tree",
+    description: "Tree with yes/no edge labels and leaf outcomes.",
+    featureLabels: ["trees", "labels"],
+    source: String.raw`\begin{tikzpicture}[
+  decision/.style={draw,diamond,aspect=2,fill=yellow!20,inner sep=2pt,align=center},
+  outcome/.style={draw,rectangle,rounded corners=2pt,fill=green!15,minimum width=14mm,minimum height=7mm,align=center},
+  >=Stealth
+]
+  \node[decision] (q1) at (0,0)     {$x > 0$?};
+  \node[decision] (q2) at (-2.2,-2) {$y > 0$?};
+  \node[outcome]  (C)  at (2.2,-2)  {No action};
+  \node[outcome]  (A)  at (-3.4,-4) {Accept};
+  \node[outcome]  (B)  at (-1.0,-4) {Review};
+
+  \draw[->] (q1) -- node[above left=-2pt]  {yes} (q2);
+  \draw[->] (q1) -- node[above right=-2pt] {no}  (C);
+  \draw[->] (q2) -- node[above left=-2pt]  {yes} (A);
+  \draw[->] (q2) -- node[above right=-2pt] {no}  (B);
+\end{tikzpicture}`
+  },
+  {
+    id: "bar-chart",
+    title: "Bar Chart",
+    description: "Labelled bars with a baseline and value axis.",
+    featureLabels: ["rectangles", "axes", "labels"],
+    source: String.raw`\begin{tikzpicture}
+  \draw[->] (0,0) -- (0,3.3) node[above] {count};
+  \draw (0,0) -- (5.4,0);
+  \foreach \y in {1,2,3} {
+    \draw (-0.08,\y) -- (0.08,\y) node[left=3pt] {\y};
+  }
+
+  \foreach \i/\h/\name in {1/1.8/A, 2/2.6/B, 3/1.2/C, 4/2.9/D, 5/2.1/E} {
+    \draw[fill=blue!30] (\i-0.35,0) rectangle (\i+0.35,\h);
+    \node[below] at (\i,0) {\name};
+  }
+\end{tikzpicture}`
+  },
+  {
+    id: "shaded-region",
+    title: "Shaded Region",
+    description: "Area under a curve, shaded between two bounds.",
+    featureLabels: ["plot", "fill", "axes"],
+    source: String.raw`\begin{tikzpicture}[>=Stealth]
+  \draw[->] (-0.4,0) -- (4.8,0) node[right] {$x$};
+  \draw[->] (0,-0.4) -- (0,3.8) node[above] {$y$};
+
+  \foreach \y in {1,2,3} {
+    \draw (-0.08,\y) -- (0.08,\y) node[left=3pt] {\y};
+  }
+
+  \fill[blue!25] (0.8,0)
+    -- (0.8,2.28) -- (1.0,2.5)  -- (1.2,2.68) -- (1.4,2.82)
+    -- (1.6,2.92) -- (1.8,2.98) -- (2.0,3.0)  -- (2.2,2.98)
+    -- (2.4,2.92) -- (2.6,2.82) -- (2.8,2.68) -- (3.0,2.5)
+    -- (3.2,2.28) -- (3.2,0) -- cycle;
+
+  \draw[thick,blue,domain=0:4,samples=80,smooth]
+    plot (\x, {3 - 0.5*(\x-2)*(\x-2)}) node[above right] {$f$};
+
+  \draw (0.8,-0.08) -- (0.8,0.08) node[below=3pt] {$a$};
+  \draw (3.2,-0.08) -- (3.2,0.08) node[below=3pt] {$b$};
+\end{tikzpicture}`
+  },
+  {
+    id: "hasse",
+    title: "Hasse Diagram",
+    description: "Partial order drawn with bottom-up covering edges.",
+    featureLabels: ["poset", "nodes", "edges"],
+    source: String.raw`\begin{tikzpicture}[
+  vertex/.style={draw,rectangle,rounded corners=1pt,fill=white,inner sep=3pt,minimum height=6mm},
+  every edge/.style={draw,thick}
+]
+  \node[vertex] (0)   at (0,0)    {$\emptyset$};
+  \node[vertex] (a)   at (-2,1.3) {$\{a\}$};
+  \node[vertex] (b)   at (0,1.3)  {$\{b\}$};
+  \node[vertex] (c)   at (2,1.3)  {$\{c\}$};
+  \node[vertex] (ab)  at (-2,2.8) {$\{a,b\}$};
+  \node[vertex] (ac)  at (0,2.8)  {$\{a,c\}$};
+  \node[vertex] (bc)  at (2,2.8)  {$\{b,c\}$};
+  \node[vertex] (abc) at (0,4.2)  {$\{a,b,c\}$};
+
+  \path (0) edge (a) edge (b) edge (c)
+        (a) edge (ab) edge (ac)
+        (b) edge (ab) edge (bc)
+        (c) edge (ac) edge (bc)
+        (ab) edge (abc)
+        (ac) edge (abc)
+        (bc) edge (abc);
 \end{tikzpicture}`
   }
 ];
