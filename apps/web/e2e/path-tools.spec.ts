@@ -1025,6 +1025,31 @@ test("complex node shapes do not show dense path edit hint", async ({ page }) =>
   await expect(page.getByTestId("canvas-selection-hint")).toHaveCount(0);
 });
 
+test("tree node selections do not show dense path edit hint", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}[
+  level distance=13mm,
+  level 1/.style={sibling distance=28mm},
+  level 2/.style={sibling distance=14mm},
+  every node/.style={draw,rounded corners=2pt,fill=blue!8,minimum width=12mm,align=center}
+]
+  \node {Root}
+    child { node {Left}
+      child { node {L1} }
+      child { node {L2} }
+    }
+    child { node {Right}
+      child { node {R1} }
+      child { node {R2} }
+    };
+\end{tikzpicture}`);
+  await page.getByRole("button", { name: "Select" }).click();
+  await waitForHitRegions(page, 7);
+
+  await clickHitRegionByTargetId(page, "path:0");
+  await expect(page.getByTestId("canvas-selection-hint")).toHaveCount(0);
+});
+
 test("fit-to-content command is available when svg is rendered", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}

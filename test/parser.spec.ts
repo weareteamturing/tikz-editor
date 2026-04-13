@@ -83,6 +83,24 @@ describe("parseTikz", () => {
     }
   });
 
+  it("parses escaped braces inside node text math", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[vertex] (abc) at (0,3.9) {$\{a,b,c\}$};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body).toHaveLength(1);
+    expect(result.figure.body[0]?.kind).toBe("Path");
+    if (result.figure.body[0]?.kind === "Path") {
+      const node = result.figure.body[0].items.find((item) => item.kind === "Node");
+      expect(node?.kind).toBe("Node");
+      if (node?.kind === "Node") {
+        expect(node.text).toBe("$\\{a,b,c\\}$");
+      }
+    }
+  });
+
   it("keeps comments reachable in CST", () => {
     const source = loadFixture("comments.tex");
     const result = parseTikz(source);
@@ -1516,6 +1534,45 @@ describe("parseTikz", () => {
       expect(firstChild.body.some((item) => item.kind === "Node")).toBe(true);
       expect(firstChild.body.some((item) => item.kind === "ChildOperation")).toBe(true);
     }
+  });
+
+  it("maps child body node text spans back to original source offsets", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child { node {left} child { node {left-left} } }
+    child { node {right} };
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+    const statement = result.figure.body.find((entry) => entry.kind === "Path");
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path") {
+      return;
+    }
+
+    const firstChild = statement.items.find((item) => item.kind === "ChildOperation");
+    expect(firstChild?.kind).toBe("ChildOperation");
+    if (!firstChild || firstChild.kind !== "ChildOperation") {
+      return;
+    }
+
+    const firstChildRoot = firstChild.body.find((item) => item.kind === "Node");
+    expect(firstChildRoot?.kind).toBe("Node");
+    if (!firstChildRoot || firstChildRoot.kind !== "Node") {
+      return;
+    }
+    expect(source.slice(firstChildRoot.textSpan.from, firstChildRoot.textSpan.to)).toBe("left");
+
+    const nestedChild = firstChild.body.find((item) => item.kind === "ChildOperation");
+    expect(nestedChild?.kind).toBe("ChildOperation");
+    if (!nestedChild || nestedChild.kind !== "ChildOperation") {
+      return;
+    }
+    const nestedRoot = nestedChild.body.find((item) => item.kind === "Node");
+    expect(nestedRoot?.kind).toBe("Node");
+    if (!nestedRoot || nestedRoot.kind !== "Node") {
+      return;
+    }
+    expect(source.slice(nestedRoot.textSpan.from, nestedRoot.textSpan.to)).toBe("left-left");
   });
 
   it("parses child foreach clauses and keeps a foreach-free child template", () => {

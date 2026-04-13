@@ -61,6 +61,8 @@ ForeachHeaderToken {
   Coordinate |
   PathKeyword |
   FontSizeCmd |
+  EscapedBraceOpenCmd |
+  EscapedBraceCloseCmd |
   ControlSymbolCmd |
   CommandName |
   IdentifierLike |
@@ -341,6 +343,8 @@ MacroCommandDefaultArgPart {
   EscapedAmpersandCmd |
   EscapedPercentCmd |
   EscapedDollarCmd |
+  EscapedBraceOpenCmd |
+  EscapedBraceCloseCmd |
   EscapedSpaceCmd |
   EscapedParenOpenCmd |
   EscapedParenCloseCmd |
@@ -386,6 +390,8 @@ OptionPart {
   EscapedAmpersandCmd |
   EscapedPercentCmd |
   EscapedDollarCmd |
+  EscapedBraceOpenCmd |
+  EscapedBraceCloseCmd |
   EscapedSpaceCmd |
   EscapedParenOpenCmd |
   EscapedParenCloseCmd |
@@ -451,6 +457,8 @@ GroupPart {
   EscapedAmpersandCmd |
   EscapedPercentCmd |
   EscapedDollarCmd |
+  EscapedBraceOpenCmd |
+  EscapedBraceCloseCmd |
   EscapedSpaceCmd |
   EscapedParenOpenCmd |
   EscapedParenCloseCmd |
@@ -485,6 +493,8 @@ StylePayloadPart {
   EscapedAmpersandCmd |
   EscapedPercentCmd |
   EscapedDollarCmd |
+  EscapedBraceOpenCmd |
+  EscapedBraceCloseCmd |
   EscapedParenOpenCmd |
   EscapedParenCloseCmd |
   KnownCommand |
@@ -550,6 +560,8 @@ Coordinate {
   PathKeyword |
   EscapedPercentCmd |
   EscapedDollarCmd |
+  EscapedBraceOpenCmd |
+  EscapedBraceCloseCmd |
   EscapedParenOpenCmd |
   EscapedParenCloseCmd |
   KnownCommand |
@@ -686,9 +698,11 @@ StrayToken {
     EscapedAmpersandCmd,
     EscapedPercentCmd,
     EscapedDollarCmd,
-  EscapedSpaceCmd,
-  EscapedParenOpenCmd,
-  EscapedParenCloseCmd,
+    EscapedBraceOpenCmd,
+    EscapedBraceCloseCmd,
+    EscapedSpaceCmd,
+    EscapedParenOpenCmd,
+    EscapedParenCloseCmd,
     ControlSymbolCmd,
     AtKw,
     BendKw,
@@ -763,6 +777,8 @@ StrayToken {
   EscapedAmpersandCmd { "\\&" }
   EscapedPercentCmd { "\\%" }
   EscapedDollarCmd { "\\$" }
+  EscapedBraceOpenCmd { "\\{" }
+  EscapedBraceCloseCmd { "\\}" }
   EscapedSpaceCmd { "\\ " }
   EscapedParenOpenCmd { "\\(" }
   EscapedParenCloseCmd { "\\)" }

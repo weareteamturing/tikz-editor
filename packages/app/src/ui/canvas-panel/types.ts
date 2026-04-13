@@ -260,6 +260,12 @@ export type TextEditingSession = {
   renderSourceText: string;
   layoutKind: NodeTextLayoutKind;
   region: Extract<HitRegion, { shape: "rect" }>;
+  popupAnchorBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
 };
 
 export type NodeAnchorOverlayState = {
@@ -278,6 +284,12 @@ export type EditableTextTarget = {
   style: SceneText["style"];
   totalWidth: number;
   region: Extract<HitRegion, { shape: "rect" }>;
+  popupAnchorBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
 };
 
 export type SnapDebugLogInput = {

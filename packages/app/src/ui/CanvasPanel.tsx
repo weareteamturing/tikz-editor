@@ -1660,13 +1660,13 @@ export const CanvasPanel = memo(function CanvasPanel({
       (handle) => handle.sourceRef.sourceId === sourceId && handle.kind === "node-position"
     );
     if (isNodeSource) return null;
-    if (collapsedDensePathSourceIds.has(sourceId)) return "Double-click path to edit points.";
-    // dense paths that are expanded are also eligible for add-point hint
     const element = snapshot.scene?.elements.find((e) => e.sourceRef.sourceId === sourceId);
     if (!element || element.kind !== "Path") return null;
     const resolved = resolveEligibleExplicitPath(source, sourceId, editParseOptions);
     if (resolved.kind !== "eligible") return null;
     if (resolved.analysis.segments.length === 0) return null;
+    if (collapsedDensePathSourceIds.has(sourceId)) return "Double-click path to edit points.";
+    // dense paths that are expanded are also eligible for add-point hint
     return "Double-click path to add a point.";
   }, [warning, toolMode, collapsedDensePathSourceIds, selectedElementIds, densePathSourceIds, snapshot.editHandles, snapshot.scene, editParseOptions, source]);
 
@@ -2141,6 +2141,14 @@ export const CanvasPanel = memo(function CanvasPanel({
       if (!(Number.isFinite(textBlockWidth) && textBlockWidth > 0)) {
         return null;
       }
+      const popupAnchorWidth =
+        sceneText.nodeVisualWidth != null && Number.isFinite(sceneText.nodeVisualWidth) && sceneText.nodeVisualWidth > 0
+          ? sceneText.nodeVisualWidth
+          : (region.contentWidth ?? region.width);
+      const popupAnchorHeight =
+        sceneText.nodeVisualHeight != null && Number.isFinite(sceneText.nodeVisualHeight) && sceneText.nodeVisualHeight > 0
+          ? sceneText.nodeVisualHeight
+          : (region.contentHeight ?? region.height);
       return {
         sourceId: targetId,
         sceneTextId: sceneText.id,
@@ -2160,7 +2168,13 @@ export const CanvasPanel = memo(function CanvasPanel({
             : resolveFallbackTextLayoutKind(sourceSlice, sceneText.textHasFixedWidth, !!sceneText.matrixCell),
         style: sceneText.style,
         totalWidth: textBlockWidth,
-        region
+        region,
+        popupAnchorBox: {
+          x: region.cx - popupAnchorWidth / 2,
+          y: region.cy - popupAnchorHeight / 2,
+          width: popupAnchorWidth,
+          height: popupAnchorHeight
+        }
       };
     },
     [sceneTextByRegionKey, source]
@@ -2317,7 +2331,8 @@ export const CanvasPanel = memo(function CanvasPanel({
         paragraphId: target.paragraphId,
         renderSourceText: target.renderSourceText,
         layoutKind: target.layoutKind,
-        region: target.region
+        region: target.region,
+        popupAnchorBox: target.popupAnchorBox
       });
     },
     [source]
@@ -3668,11 +3683,12 @@ export const CanvasPanel = memo(function CanvasPanel({
     const popupChromeWidth = 14;
     const popupHeight = textEditPopupHeight ?? 0;
     const contentBox = resolveRectHitRegionContentBox(textEditingSession.region);
-    const sourceBounds = sourceBoundsSvg.get(textEditingSession.sourceId);
-    const anchorLeft = sourceBounds?.minX ?? contentBox.x;
-    const anchorRight = sourceBounds?.maxX ?? (contentBox.x + contentBox.width);
-    const anchorTop = sourceBounds?.minY ?? contentBox.y;
-    const anchorBottom = sourceBounds?.maxY ?? (contentBox.y + contentBox.height);
+    const popupAnchorBox = textEditingSession.popupAnchorBox;
+    const sourceBounds = popupAnchorBox ? undefined : sourceBoundsSvg.get(textEditingSession.sourceId);
+    const anchorLeft = popupAnchorBox?.x ?? sourceBounds?.minX ?? contentBox.x;
+    const anchorRight = popupAnchorBox ? popupAnchorBox.x + popupAnchorBox.width : (sourceBounds?.maxX ?? (contentBox.x + contentBox.width));
+    const anchorTop = popupAnchorBox?.y ?? sourceBounds?.minY ?? contentBox.y;
+    const anchorBottom = popupAnchorBox ? popupAnchorBox.y + popupAnchorBox.height : (sourceBounds?.maxY ?? (contentBox.y + contentBox.height));
     const leftEdge =
       canvasTransform.translateX + (anchorLeft - svgResult.viewBox.x) * canvasTransform.scale;
     const rightEdge =

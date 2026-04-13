@@ -29,7 +29,7 @@ import type {
   ToOperationItem
 } from "../../ast/types.js";
 import { parseForeachHeaderRaw, stripForeachCommandPrefix } from "../../foreach/header.js";
-import { parsePathItemsFromFragment } from "../../foreach/snippet-parse.js";
+import { parsePathItemsFromFragmentWithMapping } from "../../foreach/snippet-parse.js";
 import { parseCoordinate } from "../coordinates/parse.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import { findFirstChildByName, firstNamedChild } from "../../syntax/cursor.js";
@@ -63,7 +63,9 @@ export function mapChildOperationItem(
   const bodyNode = findFirstChildByName(node, "Group");
   const foreachClauses = mapChildForeachClauses(node, source, statementIndex, itemIndex);
   const bodyRaw = bodyNode ? source.slice(bodyNode.from, bodyNode.to) : "{}";
-  const parsedBody = bodyNode ? parsePathItemsFromFragment(bodyRaw) : { value: [] as PathItem[] };
+  const parsedBody = bodyNode
+    ? parsePathItemsFromFragmentWithMapping(bodyRaw, { from: bodyNode.from, to: bodyNode.to })
+    : { value: [] as PathItem[] };
   const templateRaw = buildChildTemplateRaw(node, source, foreachClauses);
 
   return {
