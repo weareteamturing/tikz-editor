@@ -839,7 +839,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
       let result: EditActionResult;
-      if (action.precomputedResult != null && action.precomputedSource === activeDoc.source) {
+      if (
+        action.precomputedResult != null &&
+        (action.precomputedSource == null || action.precomputedSource === activeDoc.source)
+      ) {
         result = action.precomputedResult;
       } else {
         result = applyEditAction(
