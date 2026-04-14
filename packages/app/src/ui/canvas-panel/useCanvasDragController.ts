@@ -14,6 +14,13 @@ import {
 } from "tikz-editor/edit/snapping";
 import type { EditHandle, NodeAnchorTarget, Point, SceneElement } from "tikz-editor/semantic/types";
 import { applyMatrix, applyMatrixToVector, inverseMatrix } from "tikz-editor/semantic/transform";
+import {
+  closestPointOnPlacementSegment,
+  pointAtPlacementSegment,
+  resolveDraggedPathAttachedNodeDirection,
+  resolvePathPositionPreset,
+  tangentAtPlacementSegment
+} from "tikz-editor/semantic/path/path-attached";
 import type { SvgViewBox } from "tikz-editor/svg/index";
 
 import {
@@ -95,6 +102,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
     setNodeAnchorOverlay,
     setDragTooltip,
     setWarning,
+    setPathAttachedNodePreview,
     selectedAddShape,
     creationStrokeColor,
     creationFillColor,
@@ -493,10 +501,10 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
         setNodeAnchorOverlay(null);
         setDragTooltip(null);
         if (drag.elementIds.length === 1) {
+          const rawWorld = world;
+          const dragStartWorld = drag.startWorld;
           const parsedTarget = parseEditableTargetId(drag.elementIds[0]!);
           if (parsedTarget.kind === "node-adornment") {
-            const rawWorld = world;
-            const dragStartWorld = drag.startWorld;
             let adornmentDrag = drag.adornmentDrag;
             if (!adornmentDrag) {
               const adornmentElements =
@@ -563,6 +571,141 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
               },
               drag.historyMergeKey
             );
+            return;
+          }
+          let pathAttachedNodeDrag = drag.pathAttachedNodeDrag;
+          if (!pathAttachedNodeDrag) {
+            const handle = snapshotEditHandles.find(
+              (candidate) =>
+                candidate.sourceRef.sourceId === drag.elementIds[0] &&
+                candidate.kind === "node-position" &&
+                candidate.pathAttachmentContext
+            );
+            const center = resolvePrimarySourceCenter(snapshotScene?.elements ?? [], drag.elementIds[0]!);
+            if (handle?.pathAttachmentContext && center) {
+              const initialAnchorPoint = pointAtPlacementSegment(
+                handle.pathAttachmentContext.segment,
+                handle.pathAttachmentContext.pos
+              );
+              pathAttachedNodeDrag = {
+                nodeId: drag.elementIds[0]!,
+                hostPathSourceId: handle.pathAttachmentContext.hostPathSourceId,
+                pointerOffsetFromCenter: {
+                  x: dragStartWorld.x - center.x,
+                  y: dragStartWorld.y - center.y
+                },
+                initialCenter: center,
+                initialAnchorPoint,
+                segment: handle.pathAttachmentContext.segment,
+                regime: handle.pathAttachmentContext.regime,
+                lastPreviewDelta: { x: 0, y: 0 }
+              };
+              drag.pathAttachedNodeDrag = pathAttachedNodeDrag;
+            }
+          }
+          if (pathAttachedNodeDrag) {
+            const desiredCenter = {
+              x: rawWorld.x - pathAttachedNodeDrag.pointerOffsetFromCenter.x,
+              y: rawWorld.y - pathAttachedNodeDrag.pointerOffsetFromCenter.y
+            };
+            const closest = closestPointOnPlacementSegment(pathAttachedNodeDrag.segment, desiredCenter);
+            const snapped = resolvePathPositionPreset(closest.t, pathAttachedNodeDrag.segment);
+            const targetPoint = pointAtPlacementSegment(pathAttachedNodeDrag.segment, snapped.snappedT);
+            const currentHandle = snapshotEditHandles.find(
+              (candidate) =>
+                candidate.sourceRef.sourceId === pathAttachedNodeDrag.nodeId &&
+                candidate.kind === "node-position" &&
+                candidate.pathAttachmentContext
+            );
+            const currentCenter =
+              resolvePrimarySourceCenter(snapshotScene?.elements ?? [], pathAttachedNodeDrag.nodeId) ??
+              pathAttachedNodeDrag.initialCenter;
+            const currentAnchorPoint =
+              currentHandle?.pathAttachmentContext
+                ? pointAtPlacementSegment(
+                    currentHandle.pathAttachmentContext.segment,
+                    currentHandle.pathAttachmentContext.pos
+                  )
+                : pathAttachedNodeDrag.initialAnchorPoint;
+            const anchorOffset = {
+              x: currentCenter.x - currentAnchorPoint.x,
+              y: currentCenter.y - currentAnchorPoint.y
+            };
+            const previewCenter = {
+              x: targetPoint.x + anchorOffset.x,
+              y: targetPoint.y + anchorOffset.y
+            };
+            const tangent = tangentAtPlacementSegment(pathAttachedNodeDrag.segment, snapped.snappedT);
+            const previewDelta = {
+              x: previewCenter.x - currentCenter.x,
+              y: previewCenter.y - currentCenter.y
+            };
+            const tangentLength = Math.hypot(tangent.x, tangent.y);
+            const tangentUnit =
+              tangentLength > 1e-6
+                ? { x: tangent.x / tangentLength, y: tangent.y / tangentLength }
+                : { x: 1, y: 0 };
+            const tangentialDelta =
+              previewDelta.x * tangentUnit.x + previewDelta.y * tangentUnit.y;
+            const normalPreviewDelta = {
+              x: previewDelta.x - tangentialDelta * tangentUnit.x,
+              y: previewDelta.y - tangentialDelta * tangentUnit.y
+            };
+            const previousPreviewDelta = pathAttachedNodeDrag.lastPreviewDelta;
+            if (
+              !previousPreviewDelta ||
+              Math.abs(previousPreviewDelta.x - normalPreviewDelta.x) > 1e-6 ||
+              Math.abs(previousPreviewDelta.y - normalPreviewDelta.y) > 1e-6
+            ) {
+              setPathAttachedNodePreview({
+                sourceId: pathAttachedNodeDrag.nodeId,
+                dx: normalPreviewDelta.x,
+                dy: normalPreviewDelta.y
+              });
+              pathAttachedNodeDrag.lastPreviewDelta = normalPreviewDelta;
+            }
+            const offset = {
+              x: desiredCenter.x - targetPoint.x,
+              y: desiredCenter.y - targetPoint.y
+            };
+            const cross = tangent.x * offset.y - tangent.y * offset.x;
+            const sideUpdate =
+              pathAttachedNodeDrag.regime.kind === "auto-side"
+                ? {
+                    kind: "auto-side" as const,
+                    side:
+                      Math.abs(cross) <= 1e-6
+                        ? pathAttachedNodeDrag.regime.side
+                        : cross >= 0
+                          ? "left"
+                          : "right"
+                  }
+                : {
+                    kind: "explicit-direction" as const,
+                    direction: resolveDraggedPathAttachedNodeDirection(
+                      targetPoint,
+                      desiredCenter,
+                      pathAttachedNodeDrag.regime
+                    )
+                  };
+            const placementKey = `${formatNumber(snapped.snappedT)}:${sideUpdate.kind}:${sideUpdate.kind === "auto-side" ? sideUpdate.side : sideUpdate.direction}`;
+            setSnapLines([]);
+            maybeTriggerSnapFeedback(Boolean(snapped.preset));
+            if (pathAttachedNodeDrag.lastAppliedPlacementKey === placementKey) {
+              return;
+            }
+            applyActionWithFeedback(
+              {
+                kind: "movePathAttachedNode",
+                nodeId: pathAttachedNodeDrag.nodeId,
+                hostPathSourceId: pathAttachedNodeDrag.hostPathSourceId,
+                pos: snapped.snappedT,
+                preserveRegime: true,
+                sideUpdate
+              },
+              drag.historyMergeKey
+            );
+            pathAttachedNodeDrag.lastAppliedPlacementKey = placementKey;
             return;
           }
         }
@@ -982,6 +1125,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
     setMarqueeDraft,
     setDragTooltip,
     setNodeAnchorOverlay,
+    setPathAttachedNodePreview,
     setDragState,
     setSnapLines,
     setBezierBendDraft,
@@ -1562,6 +1706,38 @@ function resolveAdornmentBodyDragBox(
     },
     width: Math.max(1, bounds.maxX - bounds.minX),
     height: Math.max(1, bounds.maxY - bounds.minY)
+  };
+}
+
+function resolvePrimarySourceCenter(
+  elements: readonly SceneElement[],
+  sourceId: string
+): Point | null {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (const element of elements) {
+    if (element.sourceRef.sourceId !== sourceId || element.adornment) {
+      continue;
+    }
+    const bounds = elementBoundsInWorld(element);
+    if (!bounds) {
+      continue;
+    }
+    minX = Math.min(minX, bounds.minX);
+    minY = Math.min(minY, bounds.minY);
+    maxX = Math.max(maxX, bounds.maxX);
+    maxY = Math.max(maxY, bounds.maxY);
+  }
+
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    return null;
+  }
+  return {
+    x: (minX + maxX) / 2,
+    y: (minY + maxY) / 2
   };
 }
 

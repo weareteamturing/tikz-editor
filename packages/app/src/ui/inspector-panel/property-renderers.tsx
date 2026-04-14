@@ -118,6 +118,9 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
       if (property.kind === "nodeFont") {
         return property.write.reason ?? capabilityReadOnlyReason;
       }
+      if (property.kind === "slider") {
+        return property.readOnlyReason ?? property.write.reason ?? capabilityReadOnlyReason;
+      }
       return property.write.reason ?? capabilityReadOnlyReason;
     })();
 
@@ -181,6 +184,52 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
       return (
         <div key={property.id} className={propertyClassName}>
           {renderSingleNumberField(property, false, provenance)}
+        </div>
+      );
+    }
+
+    if (property.kind === "slider") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      const datalistId = `slider-ticks-${property.id}`;
+      const readoutText = property.displayLabel ?? property.value.toFixed(2);
+      return (
+        <div key={property.id} className={propertyClassName}>
+          <div className={css.sliderHeaderRow}>
+            <div className={css.propertyLabel}>{property.label}</div>
+            <div className={`${css.sliderReadout} ${valueClassName}`}>{readoutText}</div>
+          </div>
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            <input
+              className={css.sliderInput}
+              type="range"
+              min={property.min}
+              max={property.max}
+              step={property.step}
+              value={property.value}
+              disabled={!writable}
+              list={property.ticks && property.ticks.length > 0 ? datalistId : undefined}
+              onInput={(event) => {
+                const next = Number(event.currentTarget.value);
+                if (!Number.isFinite(next)) return;
+                applySetProperty(property.write, String(next), { recordInHistory: false });
+              }}
+              onChange={(event) => {
+                const next = Number(event.currentTarget.value);
+                if (!Number.isFinite(next)) return;
+                applySetProperty(property.write, String(next));
+              }}
+            />,
+            true
+          )}
+          {property.ticks && property.ticks.length > 0 ? (
+            <datalist id={datalistId}>
+              {property.ticks.map((tick) => (
+                <option key={tick.value} value={tick.value} label={tick.label} />
+              ))}
+            </datalist>
+          ) : null}
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
       );
     }

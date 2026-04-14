@@ -41,8 +41,6 @@ export type UseCanvasSelectionDerivedStateArgs = {
 };
 
 const SIDE_RESIZE_HANDLE_MIN_DIMENSION_PX = 96;
-const PATH_ATTACHED_NODE_DIRECT_MANIPULATION_BLOCK_REASON =
-  "Path-attached nodes cannot be moved directly.";
 
 export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedStateArgs) {
   const {
@@ -144,11 +142,8 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     for (const sourceId of fitNodeSourceIds) {
       reasons.set(sourceId, FIT_DIRECT_MANIPULATION_BLOCK_REASON);
     }
-    for (const sourceId of pathAttachedNodeSourceIds) {
-      reasons.set(sourceId, PATH_ATTACHED_NODE_DIRECT_MANIPULATION_BLOCK_REASON);
-    }
     return reasons;
-  }, [fitNodeSourceIds, pathAttachedNodeSourceIds]);
+  }, [fitNodeSourceIds]);
   const adornmentTargetIds = useMemo(() => {
     const ids = new Set<string>();
     for (const element of snapshot.scene?.elements ?? []) {
@@ -243,9 +238,6 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     for (const fitId of fitNodeSourceIds) {
       ids.delete(fitId);
     }
-    for (const nodeId of pathAttachedNodeSourceIds) {
-      ids.delete(nodeId);
-    }
     for (const matrixCellId of matrixCellSourceIds) {
       ids.delete(matrixCellId);
     }
@@ -263,6 +255,9 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     }
     for (const targetId of adornmentTargetIds) {
       ids.add(targetId);
+    }
+    for (const nodeId of pathAttachedNodeSourceIds) {
+      ids.add(nodeId);
     }
     return ids;
   }, [adornmentTargetIds, dragCapability.draggableSourceIds, fitNodeSourceIds, matrixCellSourceIds, matrixSourceIds, movableScopeSourceIds, pathAttachedNodeSourceIds, treeChildSourceIds, treeRootSourceIds]);

@@ -112,6 +112,9 @@ const INSPECTOR_CHECKS: Record<InspectorProperty["kind"], readonly CapabilityChe
   number: [
     { feature: "options_structured", layers: ["edit"], label: "transform option editing" }
   ],
+  slider: [
+    { feature: "options_structured", layers: ["edit"], label: "slider option editing" }
+  ],
   length: [
     { feature: "options_structured", layers: ["edit"], label: "length option editing" }
   ],

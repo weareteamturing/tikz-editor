@@ -3,6 +3,7 @@ import type { EditHandle, Point } from "../packages/core/src/semantic/types.js";
 import type { NodeTextEngine } from "../packages/core/src/text/types.js";
 import { identityMatrix } from "../packages/core/src/semantic/transform.js";
 import { applyEditAction } from "../packages/core/src/edit/actions.js";
+import { resolveDraggedPathAttachedNodeDirection } from "../packages/core/src/edit/actions/path-attached-node-actions.js";
 import { PT_PER_CM } from "../packages/core/src/edit/format.js";
 import { TIKZPICTURE_GLOBAL_TARGET_ID } from "../packages/core/src/edit/property-target.js";
 import { computeSourceFingerprint } from "../packages/core/src/utils/source-fingerprint.js";
@@ -3883,6 +3884,132 @@ describe("applyEditAction – adornment placement", () => {
       throw new Error("Expected second pin rewrite to succeed");
     }
     expect(secondRewrite.newSource).not.toContain("every pin");
+  });
+});
+
+describe("applyEditAction – path-attached nodes", () => {
+  it("rewrites dragged path-attached nodes to named position presets", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node[pos=0.24,above] {A};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const statement = parsed.figure.body[0];
+    if (!statement || statement.kind !== "Path") throw new Error("Expected path statement");
+    const node = statement.items.find((item) => item.kind === "Node");
+    if (!node || node.kind !== "Node") throw new Error("Expected node item");
+
+    const result = applyEditAction(source, [], {
+      kind: "movePathAttachedNode",
+      nodeId: node.id,
+      hostPathSourceId: statement.id,
+      pos: 0.26,
+      preserveRegime: true,
+      sideUpdate: { kind: "explicit-direction", direction: "above" }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+
+    expect(result.newSource).toContain("node[above, near start] {A}");
+    expect(result.newSource).not.toContain("pos=");
+    expect(result.changedSourceIds).toEqual([statement.id]);
+  });
+
+  it("omits midway when a dragged path-attached node lands on the default position", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node[pos=0.49,above] {A};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const statement = parsed.figure.body[0];
+    if (!statement || statement.kind !== "Path") throw new Error("Expected path statement");
+    const node = statement.items.find((item) => item.kind === "Node");
+    if (!node || node.kind !== "Node") throw new Error("Expected node item");
+
+    const result = applyEditAction(source, [], {
+      kind: "movePathAttachedNode",
+      nodeId: node.id,
+      hostPathSourceId: statement.id,
+      pos: 0.5,
+      preserveRegime: true,
+      sideUpdate: { kind: "explicit-direction", direction: "above" }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+
+    expect(result.newSource).toContain("node[above] {A}");
+    expect(result.newSource).not.toContain("midway");
+    expect(result.newSource).not.toContain("pos=");
+  });
+
+  it("keeps auto regime and rewrites side via swap only", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node[auto] {A};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const statement = parsed.figure.body[0];
+    if (!statement || statement.kind !== "Path") throw new Error("Expected path statement");
+    const node = statement.items.find((item) => item.kind === "Node");
+    if (!node || node.kind !== "Node") throw new Error("Expected node item");
+
+    const result = applyEditAction(source, [], {
+      kind: "movePathAttachedNode",
+      nodeId: node.id,
+      hostPathSourceId: statement.id,
+      pos: 0.75,
+      preserveRegime: true,
+      sideUpdate: { kind: "auto-side", side: "right" }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+
+    expect(result.newSource).toContain("node[auto, near end, swap] {A}");
+    expect(result.newSource).not.toContain("above");
+    expect(result.newSource).not.toContain("below");
+  });
+
+  it("supports inspector writes for path-attached side and sloped", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node[above] {A};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const statement = parsed.figure.body[0];
+    if (!statement || statement.kind !== "Path") throw new Error("Expected path statement");
+    const node = statement.items.find((item) => item.kind === "Node");
+    if (!node || node.kind !== "Node") throw new Error("Expected node item");
+
+    const sideResult = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: node.id,
+      level: "command",
+      key: "__path_attached_node_side__",
+      value: "below"
+    });
+    expect(sideResult.kind).toBe("success");
+    if (sideResult.kind !== "success") return;
+    expect(sideResult.newSource).toContain("node[below] {A}");
+
+    const slopedResult = applyEditAction(sideResult.newSource, [], {
+      kind: "setProperty",
+      elementId: node.id,
+      level: "command",
+      key: "sloped",
+      value: "true"
+    });
+    expect(slopedResult.kind).toBe("success");
+    if (slopedResult.kind !== "success") return;
+    expect(slopedResult.newSource).toContain("node[below, sloped] {A}");
+  });
+
+  it("preserves the current explicit vertical side when drag jitter stays near-axis", () => {
+    const direction = resolveDraggedPathAttachedNodeDirection(
+      { x: 20, y: 0 },
+      { x: 10, y: -0.5 },
+      { kind: "explicit-direction", direction: "above", family: "cardinal-diagonal" }
+    );
+
+    expect(direction).toBe("above");
   });
 });
 

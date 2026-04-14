@@ -55,6 +55,7 @@ export type UseCanvasDragControllerParams = {
   setNodeAnchorOverlay: (overlay: NodeAnchorOverlayState | null) => void;
   setDragTooltip: (tooltip: DragTooltipState | null) => void;
   setWarning: (warning: string | null) => void;
+  setPathAttachedNodePreview: (preview: { sourceId: string; dx: number; dy: number } | null) => void;
   selectedAddShape: string;
   creationStrokeColor: string;
   creationFillColor: string;

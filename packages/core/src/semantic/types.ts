@@ -3,6 +3,7 @@ import type { OptionListAst } from "../options/types.js";
 import type { NodeTextEngine, NodeTextRenderInfo } from "../text/types.js";
 import type { MacroOriginFrame } from "../macros/index.js";
 import type { StyleChainEntry } from "./style-chain.js";
+import type { PlacementSegment } from "./path/types.js";
 
 export const SHADOW_INHERIT_STROKE = "__tikz-shadow-inherit-stroke__";
 export const SHADOW_INHERIT_FILL = "__tikz-shadow-inherit-fill__";
@@ -106,6 +107,29 @@ export type SceneAdornment = {
   ownerGeometry?: AdornmentOwnerGeometry;
 };
 
+export type PathAttachedNodePlacementRegime =
+  | {
+      kind: "explicit-direction";
+      direction: string;
+      family: "cardinal-diagonal" | "base" | "mid";
+    }
+  | {
+      kind: "auto-side";
+      side: "left" | "right";
+      swap: boolean;
+      autoExplicit: boolean;
+      swapExplicit: boolean;
+    };
+
+export type ScenePathAttachment = {
+  hostPathSourceId: string;
+  nodeSourceId: string;
+  segment: PlacementSegment;
+  pos: number;
+  regime: PathAttachedNodePlacementRegime;
+  sloped: boolean;
+};
+
 export type SceneElement = ScenePath | SceneCircle | SceneEllipse | SceneText;
 
 export type SourceRef = {
@@ -160,6 +184,7 @@ export type ScenePath = {
   matrixCell?: MatrixCellInfo;
   treeChild?: TreeChildInfo;
   adornment?: SceneAdornment;
+  pathAttachment?: ScenePathAttachment;
   origin?: SceneElementOrigin;
   shapeHint?: ScenePathShapeHint | null;
   undecoratedCommands?: ScenePathCommand[];
@@ -178,6 +203,7 @@ export type SceneCircle = {
   matrixCell?: MatrixCellInfo;
   treeChild?: TreeChildInfo;
   adornment?: SceneAdornment;
+  pathAttachment?: ScenePathAttachment;
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
@@ -195,6 +221,7 @@ export type SceneEllipse = {
   matrixCell?: MatrixCellInfo;
   treeChild?: TreeChildInfo;
   adornment?: SceneAdornment;
+  pathAttachment?: ScenePathAttachment;
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
@@ -214,6 +241,7 @@ export type SceneText = {
   matrixCell?: MatrixCellInfo;
   treeChild?: TreeChildInfo;
   adornment?: SceneAdornment;
+  pathAttachment?: ScenePathAttachment;
   textSourceSpan?: Span;
   textHasFixedWidth?: boolean;
   origin?: SceneElementOrigin;
@@ -452,6 +480,14 @@ export type EditHandleInsertion = {
   kind: "node-inline-at";
 };
 
+export type EditHandlePathAttachmentContext = {
+  hostPathSourceId: string;
+  segment: PlacementSegment;
+  pos: number;
+  regime: PathAttachedNodePlacementRegime;
+  sloped: boolean;
+};
+
 export type EditHandle = {
   id: string;
   runtimeId: string;
@@ -466,6 +502,7 @@ export type EditHandle = {
   relativeBaseWorld?: Point;
   rewriteMode: "direct" | "delta" | "positioning" | "unsupported";
   rewriteTargetHandleId?: string;
+  pathAttachmentContext?: EditHandlePathAttachmentContext;
   curveEdit?: CurveEditHandleData;
   insertion?: EditHandleInsertion;
   positioningContext?: {

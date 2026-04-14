@@ -99,6 +99,11 @@ import {
   PIN_EDGE_DRAW_PROPERTY_KEY,
   PIN_EDGE_LINE_WIDTH_PROPERTY_KEY
 } from "./adornment-keys.js";
+import {
+  PATH_ATTACHED_NODE_POSITION_VALUE_KEY,
+  PATH_ATTACHED_NODE_SIDE_KEY
+} from "./path-attached-node-keys.js";
+import { PATH_POSITION_PRESETS, resolvePathPositionPreset } from "../semantic/path/path-attached.js";
 import type {
   ArrowTipPresetId,
   ArrowTipPresetOption,
@@ -449,6 +454,19 @@ export type InspectorProperty =
       write: SetPropertyWriteTarget;
       note?: string;
       minimumDimensionsContext?: NodeMinimumDimensionsMutationContext;
+      readOnlyReason?: string;
+    }
+  | {
+      kind: "slider";
+      id: string;
+      label: string;
+      value: number;
+      min: number;
+      max: number;
+      step: number;
+      ticks?: ReadonlyArray<{ value: number; label?: string }>;
+      displayLabel?: string;
+      write: SetPropertyWriteTarget;
       readOnlyReason?: string;
     }
   | {
@@ -2287,6 +2305,49 @@ export function getInspectorDescriptor(
     inlineTarget.targetKind === "node-item" || inlineTarget.targetKind === "matrix-cell" || inlineTarget.targetKind === "tree-child"
       ? resolveNodeInspectorState(snapshot.source, inlineTarget.targetId, element.style, element.kind, snapshot.parseOptions, resolveTarget)
       : null;
+  const pathAttachedNodeInspectorState =
+    inlineTarget.targetKind === "node-item" && inlineTarget.targetId && element.pathAttachment
+      ? (() => {
+          const snapped = resolvePathPositionPreset(element.pathAttachment.pos, element.pathAttachment.segment, {
+            normalizedThreshold: 0.02,
+            worldThresholdPt: 8
+          });
+          const regime = element.pathAttachment.regime;
+          return {
+            positionPreset: snapped.preset ?? "custom",
+            customPosition: element.pathAttachment.pos,
+            sideLabel: regime.kind === "auto-side" ? "Preferred side" : "Side",
+            sideValue: regime.kind === "auto-side" ? regime.side : regime.direction,
+            sideOptions:
+              regime.kind === "auto-side"
+                ? [
+                    { value: "left", label: "Left" },
+                    { value: "right", label: "Right" }
+                  ]
+                : regime.family === "base"
+                  ? [
+                      { value: "base left", label: "Base left" },
+                      { value: "base right", label: "Base right" }
+                    ]
+                  : regime.family === "mid"
+                    ? [
+                        { value: "mid left", label: "Mid left" },
+                        { value: "mid right", label: "Mid right" }
+                      ]
+                    : [
+                        { value: "above", label: "Above" },
+                        { value: "below", label: "Below" },
+                        { value: "left", label: "Left" },
+                        { value: "right", label: "Right" },
+                        { value: "above left", label: "Above left" },
+                        { value: "above right", label: "Above right" },
+                        { value: "below left", label: "Below left" },
+                        { value: "below right", label: "Below right" }
+                      ],
+            sloped: element.pathAttachment.sloped
+          };
+        })()
+      : null;
 
   if (inlineTarget.targetKind === "node-adornment" && inlineTarget.targetId) {
     const adornmentState = resolveAdornmentInspectorState(
@@ -2637,6 +2698,50 @@ export function getInspectorDescriptor(
           syntaxValue: textColorSyntax,
           options: colorOptionsForValue(textColor),
           write: makeSetPropertyWriteTarget(inlineTarget, "text")
+        }
+      ]
+    });
+  }
+  if (pathAttachedNodeInspectorState) {
+    const positionTicks = PATH_POSITION_PRESETS.map((preset) => ({ value: preset.t, label: preset.label }));
+    const matchedPreset = PATH_POSITION_PRESETS.find(
+      (preset) => preset.key === pathAttachedNodeInspectorState.positionPreset
+    );
+    const positionDisplayLabel = matchedPreset
+      ? matchedPreset.label
+      : pathAttachedNodeInspectorState.customPosition.toFixed(2);
+    sections.splice(2, 0, {
+      id: "path-attached-node",
+      title: "Attachment",
+      sourceLevel: "command",
+      properties: [
+        {
+          kind: "slider",
+          id: "path-attached-node-position",
+          label: "Position",
+          value: pathAttachedNodeInspectorState.customPosition,
+          min: 0,
+          max: 1,
+          step: 0.01,
+          ticks: positionTicks,
+          displayLabel: positionDisplayLabel,
+          write: makeSetPropertyWriteTarget(inlineTarget, PATH_ATTACHED_NODE_POSITION_VALUE_KEY)
+        },
+        {
+          kind: "enum",
+          id: "path-attached-node-side",
+          label: pathAttachedNodeInspectorState.sideLabel,
+          value: pathAttachedNodeInspectorState.sideValue,
+          options: pathAttachedNodeInspectorState.sideOptions,
+          write: makeSetPropertyWriteTarget(inlineTarget, PATH_ATTACHED_NODE_SIDE_KEY)
+        },
+        {
+          kind: "boolean",
+          id: "path-attached-node-sloped",
+          label: "Sloped",
+          value: pathAttachedNodeInspectorState.sloped,
+          clearKeys: ["sloped"],
+          write: makeSetPropertyWriteTarget(inlineTarget, "sloped")
         }
       ]
     });

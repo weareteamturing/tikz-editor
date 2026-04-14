@@ -20,8 +20,13 @@ import {
   targetAnchorForDirection,
   type PositioningDirection
 } from "../path/node-positioning.js";
+import {
+  resolvePathAttachedNodeRegime,
+  resolvePathAttachedNodeSloped,
+  resolvePathPositionFraction
+} from "../path/path-attached.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "../path/types.js";
-import type { Matrix2D, Point, ResolvedStyle, SceneAdornment, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
+import type { Matrix2D, Point, ResolvedStyle, SceneAdornment, SceneElement, ScenePath, ScenePathAttachment, ScenePathCommand } from "../types.js";
 import { cloneCustomStyleRegistry, walkOptionEntriesWithCustomStyles } from "../style/custom-styles.js";
 import { expandOptionListMacros } from "../style/macro-options.js";
 import { resolveContextDelta } from "../style/resolve.js";
@@ -633,6 +638,55 @@ export function evaluateNodeItem(
     }
   }
 
+  const pathAttachmentMetadata: ScenePathAttachment | null =
+    !item.adornment &&
+    segment &&
+    !resolvedPositioning.relativePlacement &&
+    !item.atRaw &&
+    !expandedNodeOptions?.entries.some((entry) => entry.kind === "kv" && entry.key === "at")
+      ? (() => {
+          const regime = resolvePathAttachedNodeRegime(expandedNodeOptions, effectiveBaseStyleChain);
+          if (!regime) {
+            return null;
+          }
+          const pos = resolvePathPositionFraction(expandedNodeOptions) ?? 0.5;
+          return {
+            hostPathSourceId: statement.id,
+            nodeSourceId: nodeSourceId,
+            segment,
+            pos,
+            regime,
+            sloped: resolvePathAttachedNodeSloped(expandedNodeOptions, effectiveBaseStyleChain)
+          } satisfies ScenePathAttachment;
+        })()
+      : null;
+
+  if (pathAttachmentMetadata) {
+    const sourceText = context.source.slice(item.span.from, item.span.to);
+    context.editHandles.push({
+      id: `handle:${nodeHandleSourceId}:node-position:${context.editHandles.length}`,
+      runtimeId: `handle:${nodeHandleSourceId}:node-position:${context.editHandles.length}`,
+      sourceRef: {
+        sourceId: nodeHandleSourceId,
+        sourceSpan: item.optionsSpan ?? item.span,
+        sourceFingerprint: context.sourceFingerprint
+      },
+      kind: "node-position",
+      world: center,
+      transform: frame?.transform ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
+      sourceText,
+      coordinateForm: "cartesian",
+      rewriteMode: "positioning",
+      pathAttachmentContext: {
+        hostPathSourceId: pathAttachmentMetadata.hostPathSourceId,
+        segment: pathAttachmentMetadata.segment,
+        pos: pathAttachmentMetadata.pos,
+        regime: pathAttachmentMetadata.regime,
+        sloped: pathAttachmentMetadata.sloped
+      }
+    });
+  }
+
   const setNames = collectSetNames(expandedNodeOptions);
   let scopedNames = collectScopedNodeNames(forcedName ?? item.name, item.aliases, context);
   if (scopedNames.length === 0 && setNames.length > 0) {
@@ -1082,9 +1136,10 @@ export function evaluateNodeItem(
     pushDiagnostic
   );
   const adornmentMetadata = item.adornment;
-  const editableNodeElements = adornmentMetadata
-    ? renderedNodeElements.map((element) => attachAdornmentMetadata(element, adornmentMetadata, center))
-    : renderedNodeElements;
+  const editableNodeElements = renderedNodeElements.map((element) => {
+    const withAdornment = adornmentMetadata ? attachAdornmentMetadata(element, adornmentMetadata, center) : element;
+    return pathAttachmentMetadata ? attachPathAttachmentMetadata(withAdornment, pathAttachmentMetadata) : withAdornment;
+  });
   const layer = resolveNodeLayer(expandedNodeOptions, context);
   if (layer === "behind") {
     return { behindElements: editableNodeElements, frontElements: [] };
@@ -1118,6 +1173,16 @@ function attachAdornmentMetadata(
   return {
     ...element,
     adornment: metadata
+  };
+}
+
+function attachPathAttachmentMetadata(
+  element: SceneElement,
+  pathAttachment: ScenePathAttachment
+): SceneElement {
+  return {
+    ...element,
+    pathAttachment
   };
 }
 

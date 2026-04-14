@@ -26,6 +26,7 @@ import {
   type EditAction,
   type ResizeRole
 } from "tikz-editor/edit/actions";
+import { formatNumber } from "tikz-editor/edit/format";
 import { createMathJaxNodeTextEngine, getActiveMathJaxOutputJax } from "tikz-editor/text/mathjax-engine";
 import {
   getKnuthPlassCaretFromPoint,
@@ -1025,6 +1026,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   const [textSelectionOverlay, setTextSelectionOverlay] = useState<TextSelectionOverlay | null>(null);
   const [textEditingSession, setTextEditingSession] = useState<TextEditingSession | null>(null);
   const [pendingAdornmentTextEditTargetId, setPendingAdornmentTextEditTargetId] = useState<string | null>(null);
+  const [pathAttachedNodePreview, setPathAttachedNodePreview] = useState<{ sourceId: string; dx: number; dy: number } | null>(null);
   const [dragPatchMode, setDragPatchMode] = useState<"partial" | "full">("partial");
   const [dragAffectedSourceIds, setDragAffectedSourceIds] = useState<string[] | null>(null);
   const [contextMenuState, setContextMenuState] = useState<CanvasContextMenuState | null>(null);
@@ -1374,6 +1376,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   const snapDebugDragRef = useRef<SnapDebugOverlayDragState | null>(null);
   const textEngineRef = useRef<NodeTextEngine | null>(null);
   const svgLayerHostRef = useRef<HTMLDivElement | null>(null);
+  const appliedPathAttachedNodePreviewRef = useRef<Array<{ element: SVGElement; transform: string | null }>>([]);
   const textEditTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const textEditPopupRef = useRef<HTMLDivElement | null>(null);
   const [textEditPopupHeight, setTextEditPopupHeight] = useState<number | null>(null);
@@ -1398,6 +1401,38 @@ export const CanvasPanel = memo(function CanvasPanel({
     mode: TextSelectionDragMode;
     anchorLineRange: TextLineRange | null;
   } | null>(null);
+
+  useEffect(() => {
+    for (const entry of appliedPathAttachedNodePreviewRef.current) {
+      if (entry.transform == null) {
+        entry.element.removeAttribute("transform");
+      } else {
+        entry.element.setAttribute("transform", entry.transform);
+      }
+    }
+    appliedPathAttachedNodePreviewRef.current = [];
+
+    if (!pathAttachedNodePreview) {
+      return;
+    }
+    const host = svgLayerHostRef.current;
+    if (!host) {
+      return;
+    }
+    const selector = `[data-source-id='${pathAttachedNodePreview.sourceId.replace(/'/g, "\\'")}']`;
+    const elements = Array.from(host.querySelectorAll<SVGElement>(selector));
+    if (elements.length === 0) {
+      return;
+    }
+    appliedPathAttachedNodePreviewRef.current = elements.map((element) => {
+      const transform = element.getAttribute("transform");
+      const previewTransform =
+        `translate(${formatNumber(pathAttachedNodePreview.dx)} ${formatNumber(pathAttachedNodePreview.dy)})` +
+        (transform ? ` ${transform}` : "");
+      element.setAttribute("transform", previewTransform);
+      return { element, transform };
+    });
+  }, [pathAttachedNodePreview, snapshot.source]);
   const textSelectionRequestIdRef = useRef(0);
   const pendingTouchViewportRef = useRef<PendingTouchViewport | null>(null);
   const viewportStateByFigureKeyRef = useRef(new Map<string, FigureViewportState>());
@@ -1959,6 +1994,7 @@ export const CanvasPanel = memo(function CanvasPanel({
             type: "APPLY_EDIT_ACTION",
             action,
             historyMergeKey,
+            precomputedSource: source,
             precomputedResult: result
           });
         }
@@ -2739,6 +2775,10 @@ export const CanvasPanel = memo(function CanvasPanel({
       if (!drag || drag.pointerId !== event.pointerId) {
         return;
       }
+      if (event.pointerType === "mouse" && event.buttons === 0) {
+        textSelectionDragRef.current = null;
+        return;
+      }
       const target = resolveEditableTextTargetById(drag.sourceId, drag.sceneTextId);
       if (!target) {
         textSelectionDragRef.current = null;
@@ -3389,6 +3429,21 @@ export const CanvasPanel = memo(function CanvasPanel({
     if (!activeCanvasDragKind || dragPatchMode === "full") {
       return;
     }
+    if (
+      activeCanvasDragKind === "element" &&
+      [...selectedElementIds].some((sourceId) =>
+        snapshot.editHandles.some(
+          (handle) =>
+            handle.sourceRef.sourceId === sourceId &&
+            handle.kind === "node-position" &&
+            handle.pathAttachmentContext != null
+        )
+      )
+    ) {
+      setDragPatchMode("full");
+      setDragAffectedSourceIds(null);
+      return;
+    }
     const dependencies = snapshot.semanticResult?.dependencies;
     if (!dependencies) {
       return;
@@ -3416,8 +3471,11 @@ export const CanvasPanel = memo(function CanvasPanel({
       return;
     }
     const affectedSourceIds = mergeSourceIdLists(
-      invalidation.affectedSourceIds,
-      matrixDescendantSourceIds
+      mergeSourceIdLists(
+        invalidation.affectedSourceIds,
+        matrixDescendantSourceIds
+      ),
+      [...selectedElementIds]
     );
     setDragAffectedSourceIds(affectedSourceIds.length > 0 ? affectedSourceIds : null);
   }, [
@@ -3425,6 +3483,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     dragPatchMode,
     lastEditChangeToken,
     lastEditChangedSourceIds,
+    selectedElementIds,
     snapshot.scene,
     snapshot.semanticResult
   ]);
@@ -3626,6 +3685,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     setNodeAnchorOverlay,
     setDragTooltip,
     setWarning,
+    setPathAttachedNodePreview,
     selectedAddShape,
     creationStrokeColor,
     creationFillColor,
@@ -3656,6 +3716,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     setDragTooltip,
     setMarqueeDraft,
     setNodeAnchorOverlay,
+    setPathAttachedNodePreview,
     setPathSegmentDraft,
     setPendingBezier,
     setSnapLines,
@@ -3675,6 +3736,12 @@ export const CanvasPanel = memo(function CanvasPanel({
   useCanvasDragController(dragControllerConfig);
 
   useEffect(() => () => setActiveCanvasDragKind(null), [setActiveCanvasDragKind]);
+
+  useEffect(() => {
+    if (activeCanvasDragKind == null) {
+      setPathAttachedNodePreview(null);
+    }
+  }, [activeCanvasDragKind]);
 
   const svgDiffHints = useMemo<SvgDiffHints | undefined>(() => {
     if (!activeCanvasDragKind || dragPatchMode !== "partial") {

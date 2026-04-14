@@ -244,6 +244,7 @@ export type EditorAction =
       };
       /** False for transient UI previews that should not affect undo/redo history. */
       recordInHistory?: boolean;
+      precomputedSource?: string;
       precomputedResult?: Extract<EditActionResult, { kind: "success" | "partial" }>;
     }
   | {

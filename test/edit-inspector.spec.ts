@@ -27,6 +27,33 @@ import { resolvePropertyTarget } from "../packages/core/src/edit/property-target
 import { buildMultiInspectorModel } from "../packages/app/src/ui/inspector-panel/panel-helpers.js";
 
 describe("getInspectorDescriptor", () => {
+  it("returns attachment-specific controls for path-attached nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node[above] {A};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.sourceRef.sourceId.startsWith("node:")
+    );
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected a path-attached node text element");
+    }
+
+    const descriptor = getInspectorDescriptor(text, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const attachmentSection = descriptor.sections.find((section) => section.id === "path-attached-node");
+    expect(attachmentSection).toBeDefined();
+    if (!attachmentSection) {
+      throw new Error("Expected attachment inspector section");
+    }
+    expect(attachmentSection.properties.some((property) => property.id === "path-attached-node-position")).toBe(true);
+    expect(attachmentSection.properties.some((property) => property.id === "path-attached-node-side")).toBe(true);
+    expect(attachmentSection.properties.some((property) => property.id === "path-attached-node-sloped")).toBe(true);
+  });
+
   it("returns adornment-specific sections for pins", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[draw,pin={[pin edge={blue,dashed,line width=1pt}]above:$q_0$}] at (0,0) {A};

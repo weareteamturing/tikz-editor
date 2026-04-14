@@ -434,6 +434,12 @@ export function App() {
   useEffect(() => {
     const scheduler = createSingleFlightScheduler<ComputeRequest, ComputeResponse>({
       run: (request) => computeSnapshot(request),
+      onStart: (request) => {
+        if ((request.kind ?? "render") === "prewarm") {
+          return;
+        }
+        dispatch({ type: "COMPUTE_REQUESTED", requestId: request.id, documentId: request.documentId });
+      },
       onSuccess: (_request, response) => {
         if ((_request.kind ?? "render") === "prewarm") {
           return;
@@ -478,10 +484,8 @@ export function App() {
       return;
     }
     setMathJaxFont(mathJaxFont);
-    const requestId = crypto.randomUUID();
-    dispatch({ type: "COMPUTE_REQUESTED", requestId, documentId: activeDocumentId });
     scheduler.schedule({
-      id: requestId,
+      id: crypto.randomUUID(),
       documentId: activeDocumentId,
       kind: "render",
       source,
@@ -498,10 +502,8 @@ export function App() {
       return;
     }
     setMathJaxFont(mathJaxFont);
-    const requestId = crypto.randomUUID();
-    dispatch({ type: "COMPUTE_REQUESTED", requestId, documentId: activeDocumentId });
     scheduler.schedule({
-      id: requestId,
+      id: crypto.randomUUID(),
       documentId: activeDocumentId,
       kind: "render",
       source,

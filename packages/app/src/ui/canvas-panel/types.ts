@@ -91,6 +91,17 @@ export type DragState =
           halfHeight: number;
         };
       };
+      pathAttachedNodeDrag?: {
+        nodeId: string;
+        hostPathSourceId: string;
+        pointerOffsetFromCenter: Point;
+        initialCenter: Point;
+        initialAnchorPoint: Point;
+        segment: NonNullable<EditHandle["pathAttachmentContext"]>["segment"];
+        regime: NonNullable<EditHandle["pathAttachmentContext"]>["regime"];
+        lastPreviewDelta?: Point;
+        lastAppliedPlacementKey?: string;
+      };
       snapContext: SnapContext | null;
       initialSelection: SelectionGeometry | null;
       selectionAnchorRatio: { x: number; y: number } | null;

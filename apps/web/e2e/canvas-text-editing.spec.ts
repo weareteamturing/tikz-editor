@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
   clickTextHitRegionByTargetId,
+  dragHitRegionByTargetIdAndMode,
   gotoApp,
   readSelectedSourceIds,
   readStoreSource,
@@ -781,6 +782,82 @@ test("filled nodes still enter text edit mode from the text region and remain dr
   await page.mouse.up();
   await expect.poll(async () => await readStoreSource(page)).not.toBe(initialSource);
   await expect.poll(async () => await readStoreSource(page)).toContain("{Hello World}");
+});
+
+test("path-attached node text can still be edited on click and dragged along its edge", async ({ page }) => {
+  await gotoApp(page);
+  const initialSource = String.raw`\begin{tikzpicture}
+  \draw[->] (0,0) -- node[above] {ok} (3,0);
+\end{tikzpicture}`;
+  await setSource(page, initialSource);
+
+  await waitForHitRegions(page, 2);
+  const textRegions = page.locator('[data-hit-region-interaction-mode="text"]');
+  await expect.poll(async () => textRegions.count()).toBeGreaterThanOrEqual(1);
+
+  const labelTargetId = await textRegions.first().getAttribute("data-hit-region-target-id");
+  if (!labelTargetId) {
+    throw new Error("Missing path-attached node text hit-region target id.");
+  }
+
+  await clickTextHitRegionByTargetId(page, labelTargetId);
+  await expect(page.getByTestId("canvas-text-edit-textarea")).toHaveValue("ok");
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("canvas-text-edit-popup")).toHaveCount(0);
+
+  await dragHitRegionByTargetIdAndMode(page, labelTargetId, "text", -100, 0);
+
+  await expect(page.getByTestId("canvas-text-edit-popup")).toHaveCount(0);
+  await expect.poll(async () => await readSelectedSourceIds(page)).toEqual([labelTargetId]);
+  await expect.poll(async () => await readStoreSource(page)).not.toBe(initialSource);
+  await expect.poll(async () => await readStoreSource(page)).toMatch(/node\[[^\]]*(at start|very near start|near start|pos=)[^\]]*\]\s*\{ok\}/);
+  await expect.poll(async () => await readStoreSource(page)).toMatch(/node\[[^\]]*(above|below|left|right)[^\]]*\]\s*\{ok\}/);
+  await expect.poll(async () => await readStoreSource(page)).not.toContain("auto");
+});
+
+test("path-attached node drag updates the rendered label before mouseup", async ({ page }) => {
+  await gotoApp(page);
+  const initialSource = String.raw`\begin{tikzpicture}
+  \draw[->] (0,0) -- node[above,fill=yellow!20] {ok} (3,0);
+\end{tikzpicture}`;
+  await setSource(page, initialSource);
+
+  await waitForHitRegions(page, 2);
+  const textRegions = page.locator('[data-hit-region-interaction-mode="text"]');
+  await expect.poll(async () => textRegions.count()).toBeGreaterThanOrEqual(1);
+
+  const labelTargetId = await textRegions.first().getAttribute("data-hit-region-target-id");
+  if (!labelTargetId) {
+    throw new Error("Missing path-attached node text hit-region target id.");
+  }
+
+  const textRegion = page.locator(
+    `[data-hit-region-target-id='${labelTargetId}'][data-hit-region-interaction-mode='text']`
+  ).first();
+  const renderedLabel = page.locator(`[data-source-id='${labelTargetId}']`).first();
+  await expect(renderedLabel).toBeVisible();
+  const initialBox = await textRegion.boundingBox();
+  const initialRenderedBox = await renderedLabel.boundingBox();
+  if (!initialBox || !initialRenderedBox) {
+    throw new Error("Missing path-attached node drag bounds.");
+  }
+
+  const startX = initialBox.x + initialBox.width / 2;
+  const startY = initialBox.y + initialBox.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX - 100, startY, { steps: 12 });
+
+  await expect.poll(async () => await readStoreSource(page)).not.toBe(initialSource);
+  await expect.poll(async () => {
+    const box = await renderedLabel.boundingBox();
+    return box?.x ?? Number.NaN;
+  }).toBeLessThan(initialRenderedBox.x - 20);
+  await expect(page.locator("text=/fallback \\(parser statement-parse-error\\)/")).toHaveCount(0);
+
+  await page.mouse.up();
+  await expect.poll(async () => await readSelectedSourceIds(page)).toEqual([labelTargetId]);
 });
 
 test("clicking rendered wrapped text updates the textarea selection", async ({ page }) => {

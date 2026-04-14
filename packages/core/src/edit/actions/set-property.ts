@@ -7,6 +7,7 @@ import { replaceSpan } from "../patch.js";
 import type { Span } from "../../ast/types.js";
 import type { SourcePatch } from "../types.js";
 import { applyAdornmentSetProperty } from "./adornment-set-property.js";
+import { applyPathAttachedNodeInspectorAction } from "./path-attached-node-actions.js";
 import type { EditParseOptions } from "../parse-options.js";
 
 type EditActionResultLike =
@@ -48,6 +49,11 @@ export function applySetPropertyAction(
 
   if (resolved.target.kind === "node-adornment") {
     return applyAdornmentSetProperty(source, resolved.target, action as any);
+  }
+
+  const pathAttachedNodeResult = applyPathAttachedNodeInspectorAction(source, action, parseOptions);
+  if (pathAttachedNodeResult) {
+    return pathAttachedNodeResult;
   }
 
   if (resolved.target.kind === "tree-child") {

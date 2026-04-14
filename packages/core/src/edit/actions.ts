@@ -55,6 +55,7 @@ import {
   type PathPointKind
 } from "./path-editing.js";
 import { applyAdornmentSetProperty } from "./actions/adornment-set-property.js";
+import { applyMovePathAttachedNodeAction, type MovePathAttachedNodeAction } from "./actions/path-attached-node-actions.js";
 import {
   applyAddNodeAdornmentAction,
   applyDuplicateAdornmentAction,
@@ -149,6 +150,7 @@ export type EditAction =
   | { kind: "duplicateElements"; elementIds: string[]; delta?: Point }
   | { kind: "duplicateAdornment"; targetId: string }
   | { kind: "moveAdornment"; targetId: string; ownerPoint: Point; newWorld: Point; angleRaw?: string; distancePt?: number }
+  | MovePathAttachedNodeAction
   | { kind: "addNodeAdornment"; nodeId: string; adornmentKind: "label" | "pin"; angle: string; text: string }
   | { kind: "reorderElements"; elementIds: string[]; direction: ReorderDirection }
   | { kind: "groupElements"; elementIds: string[] }
@@ -271,6 +273,8 @@ export function applyEditAction(
         return applyDuplicateAdornment(source, action.targetId, parseOptions);
       case "moveAdornment":
         return applyMoveAdornmentAction(source, action, parseOptions);
+      case "movePathAttachedNode":
+        return applyMovePathAttachedNodeAction(source, action, parseOptions);
       case "addNodeAdornment":
         return applyAddNodeAdornmentAction(source, action, parseOptions);
       case "reorderElements":
@@ -691,6 +695,8 @@ function inferChangedSourceIds(
       return normalizeElementIds([action.targetId]);
     case "moveAdornment":
       return normalizeElementIds([action.targetId]);
+    case "movePathAttachedNode":
+      return normalizeElementIds([action.nodeId, action.hostPathSourceId]);
     case "addNodeAdornment":
       return normalizeElementIds([action.nodeId]);
     case "reorderElements":

@@ -1,4 +1,5 @@
 import { applyEditAction } from "tikz-editor/edit/actions";
+import type { EditActionResult } from "tikz-editor/edit/actions";
 import type {
   CanvasTransform,
   DocumentFileRef,
@@ -626,7 +627,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "SNAPSHOT_READY": {
       const documentId = activeDocumentIdFromAction(state, action.documentId);
       workspace = updateDocument(workspace, documentId, (doc) => {
-        if (action.requestId !== doc.pendingRequestId) {
+        const isCurrentPendingRequest = action.requestId === doc.pendingRequestId;
+        const canApplyIntermediateDragSnapshot =
+          !isCurrentPendingRequest &&
+          ui.activeCanvasDragKind != null &&
+          action.snapshot.source !== doc.snapshot.source;
+        if (!isCurrentPendingRequest && !canApplyIntermediateDragSnapshot) {
           return doc;
         }
         const previousFigureCount = doc.snapshot.figures.length;
@@ -651,7 +657,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           snapshot: action.snapshot,
           activeFigureId: nextActiveFigureId,
           hasInitializedFigureSelection,
-          pendingRequestId: null,
+          pendingRequestId: isCurrentPendingRequest ? null : doc.pendingRequestId,
           activeHandleId:
             doc.activeHandleId && action.snapshot.editHandles.some((handle) => handle.id === doc.activeHandleId)
               ? doc.activeHandleId
@@ -832,9 +838,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (activeDoc.assistantLockReason) {
         return state;
       }
-      const result =
-        action.precomputedResult ??
-        applyEditAction(
+      let result: EditActionResult;
+      if (action.precomputedResult != null && action.precomputedSource === activeDoc.source) {
+        result = action.precomputedResult;
+      } else {
+        result = applyEditAction(
           activeDoc.source,
           activeDoc.snapshot.editHandles,
           action.action,
@@ -848,6 +856,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
             }
           }
         );
+      }
 
       if (result.kind !== "success" && result.kind !== "partial") {
         const message =
@@ -859,6 +868,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
 
       const actionWarning = result.kind === "partial" ? result.reason : null;
+      const incrementalChangedSourceIds =
+        action.action.kind === "movePathAttachedNode"
+          ? null
+          : (result.changedSourceIds ?? null);
+      const incrementalPatches =
+        action.action.kind === "movePathAttachedNode"
+          ? null
+          : result.patches;
 
       if (result.newSource === activeDoc.source) {
         if (actionWarning) {
@@ -868,8 +885,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
 
-      const nextSelection = result.selectedSourceIds
-        ? new Set(result.selectedSourceIds)
+      const nextSelection: ReadonlySet<string> = result.selectedSourceIds
+        ? new Set<string>(result.selectedSourceIds)
         : activeDoc.selectedElementIds;
       const nextFocusedScopeId =
         result.selectedSourceIds && result.selectedSourceIds.length === 0 &&
@@ -885,9 +902,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           ...doc,
           source: result.newSource,
           sourceRevision: doc.sourceRevision + 1,
-          lastEditChangedSourceIds: result.changedSourceIds ?? null,
+          lastEditChangedSourceIds: incrementalChangedSourceIds,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
-          lastEditPatches: result.patches,
+          lastEditPatches: incrementalPatches,
           lastEditWarningMessage: actionWarning,
           lastEditWarningToken:
             actionWarning != null || doc.lastEditWarningMessage != null
@@ -939,9 +956,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           ...doc,
           source: result.newSource,
           sourceRevision: doc.sourceRevision + 1,
-          lastEditChangedSourceIds: result.changedSourceIds ?? null,
+          lastEditChangedSourceIds: incrementalChangedSourceIds,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
-          lastEditPatches: result.patches,
+          lastEditPatches: incrementalPatches,
           lastEditWarningMessage: actionWarning,
           lastEditWarningToken:
             actionWarning != null || doc.lastEditWarningMessage != null
@@ -971,9 +988,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...doc,
         source: result.newSource,
         sourceRevision: doc.sourceRevision + 1,
-        lastEditChangedSourceIds: result.changedSourceIds ?? null,
+        lastEditChangedSourceIds: incrementalChangedSourceIds,
         lastEditChangeToken: doc.lastEditChangeToken + 1,
-        lastEditPatches: result.patches,
+        lastEditPatches: incrementalPatches,
         lastEditWarningMessage: actionWarning,
         lastEditWarningToken:
           actionWarning != null || doc.lastEditWarningMessage != null

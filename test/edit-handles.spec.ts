@@ -214,6 +214,29 @@ describe("edit handles", () => {
     expect(h.world.y).toBeCloseTo(cm(3));
   });
 
+  it("emits drag metadata for a path-attached node on a line", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) -- (2,0) node[above] {A};
+\end{tikzpicture}`;
+    const result = evaluate(source);
+
+    const handle = result.editHandles.find((candidate) => candidate.kind === "node-position" && candidate.pathAttachmentContext);
+    expect(handle).toBeDefined();
+    expect(handle?.pathAttachmentContext?.segment.kind).toBe("line");
+    expect(handle?.pathAttachmentContext?.regime.kind).toBe("explicit-direction");
+    if (handle?.pathAttachmentContext?.regime.kind === "explicit-direction") {
+      expect(handle.pathAttachmentContext.regime.direction).toBe("above");
+    }
+
+    const text = result.scene.elements.find(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> =>
+        element.kind === "Text" && element.text === "A"
+    );
+    expect(text?.pathAttachment?.segment.kind).toBe("line");
+    expect(text?.pathAttachment?.pos).toBeCloseTo(0.5, 6);
+    expect(text?.position.y ?? Number.NEGATIVE_INFINITY).toBeGreaterThan(0);
+  });
+
   it("positioning: node with right=1cm of emits positioning handle", () => {
     const source = String.raw`\begin{tikzpicture}
 \node (A) at (0,0) {A};

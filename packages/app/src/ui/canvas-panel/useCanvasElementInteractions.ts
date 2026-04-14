@@ -12,6 +12,7 @@ import {
   resolveScopeAwarePointerDownTarget,
   resolveScopeAwarePointerUpDrillTarget
 } from "./scope-overlay";
+import type { EditableTextTarget } from "./types";
 
 export type UseCanvasElementInteractionsArgs = {
   [key: string]: any;
@@ -58,6 +59,17 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     selectedScopeId: string;
     hitSourceId: string;
     dragIds: string[];
+    moved: boolean;
+    dragStarted: boolean;
+  } | null>(null);
+  const pendingTextInteractionRef = useRef<{
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    targetId: string;
+    textTarget: EditableTextTarget;
+    dragIds: string[];
+    wasSelectedOnPointerDown: boolean;
     moved: boolean;
     dragStarted: boolean;
   } | null>(null);
@@ -247,15 +259,85 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       setSnapLines([]);
     }
 
+    function onTextPointerMove(event: PointerEvent) {
+      const pending = pendingTextInteractionRef.current;
+      if (!pending || pending.pointerId !== event.pointerId || pending.dragStarted) {
+        return;
+      }
+      const dx = event.clientX - pending.startClientX;
+      const dy = event.clientY - pending.startClientY;
+      if ((dx * dx) + (dy * dy) <= 16) {
+        return;
+      }
+      pending.moved = true;
+      if (!svgResult) {
+        return;
+      }
+      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      if (!world) {
+        return;
+      }
+      if (!pending.wasSelectedOnPointerDown) {
+        dispatch({ type: "SELECT", id: pending.targetId, additive: false });
+        dispatch({
+          type: "SET_FOCUSED_SCOPE",
+          scopeId: resolveFocusedScopeIdForSelection(pending.targetId, scopeOverlay)
+        });
+      }
+      setTextEditingSession(null);
+      startElementDrag(event.pointerId, world, pending.dragIds);
+      pending.dragStarted = true;
+    }
+
+    function onTextPointerUp(event: PointerEvent) {
+      const pending = pendingTextInteractionRef.current;
+      if (!pending || pending.pointerId !== event.pointerId) {
+        return;
+      }
+      pendingTextInteractionRef.current = null;
+      if (pending.moved) {
+        return;
+      }
+      dispatch({ type: "SELECT", id: pending.targetId, additive: false });
+      dispatch({
+        type: "SET_FOCUSED_SCOPE",
+        scopeId: resolveFocusedScopeIdForSelection(pending.targetId, scopeOverlay)
+      });
+      beginCanvasTextInteraction(
+        {
+          shiftKey: false,
+          ctrlKey: false,
+          metaKey: false,
+          button: 0,
+          detail: 1,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          pointerId: event.pointerId,
+          currentTarget: {
+            setPointerCapture() {
+              // No-op for deferred text activation outside the original React event.
+            }
+          }
+        } as unknown as ReactPointerEvent<SVGElement>,
+        pending.textTarget
+      );
+    }
+
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);
+    window.addEventListener("pointermove", onTextPointerMove);
+    window.addEventListener("pointerup", onTextPointerUp);
+    window.addEventListener("pointercancel", onTextPointerUp);
     return () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerUp);
+      window.removeEventListener("pointermove", onTextPointerMove);
+      window.removeEventListener("pointerup", onTextPointerUp);
+      window.removeEventListener("pointercancel", onTextPointerUp);
     };
-  }, [dispatch, interactionSvgRef, scopeOverlay, selectedElementIds, setSnapLines, startElementDrag, svgResult]);
+  }, [beginCanvasTextInteraction, dispatch, interactionSvgRef, scopeOverlay, selectedElementIds, setSnapLines, setTextEditingSession, startElementDrag, svgResult]);
 
   const onElementPointerDown = useCallback(
     (event: ReactPointerEvent<SVGElement>, targetId: string, region?: any) => {
@@ -309,12 +391,37 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
 
       const textTarget = resolvedTargetId === targetId ? resolveEditableTextTarget(targetId, region) : null;
       if (!additiveSelection && textTarget) {
-        dispatch({ type: "SELECT", id: targetId, additive: false });
-        dispatch({
-          type: "SET_FOCUSED_SCOPE",
-          scopeId: resolveFocusedScopeIdForSelection(targetId, scopeOverlay)
-        });
-        beginCanvasTextInteraction(event, textTarget);
+        const draggedIds = alreadySelected && selectedElementIds.size > 0 ? [...selectedElementIds] : [resolvedTargetId];
+        const supportsDeferredTextDrag = snapshot.editHandles.some(
+          (handle: EditHandle) =>
+            handle.sourceRef.sourceId === resolvedTargetId &&
+            handle.kind === "node-position" &&
+            handle.pathAttachmentContext != null
+        );
+        if (
+          supportsDeferredTextDrag &&
+          event.pointerType !== "touch" &&
+          draggedIds.every((id) => draggableSourceIds.has(id))
+        ) {
+          pendingTextInteractionRef.current = {
+            pointerId: event.pointerId,
+            startClientX: event.clientX,
+            startClientY: event.clientY,
+            targetId: resolvedTargetId,
+            textTarget,
+            dragIds: draggedIds,
+            wasSelectedOnPointerDown: alreadySelected,
+            moved: false,
+            dragStarted: false
+          };
+        } else {
+          dispatch({ type: "SELECT", id: targetId, additive: false });
+          dispatch({
+            type: "SET_FOCUSED_SCOPE",
+            scopeId: resolveFocusedScopeIdForSelection(targetId, scopeOverlay)
+          });
+          beginCanvasTextInteraction(event, textTarget);
+        }
         return;
       }
 
@@ -403,6 +510,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       setTextEditingSession,
       startElementDrag,
       scopeOverlay,
+      snapshot.editHandles,
       svgResult,
       toolMode,
       viewportRef
