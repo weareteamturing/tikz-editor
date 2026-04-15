@@ -498,6 +498,56 @@ test("transient MathJax syntax errors keep canvas edit mode active", async ({ pa
   await expect.poll(async () => await readStoreSource(page)).toContain("{$x$}");
 });
 
+test("node text edit recovers to original source after } then Backspace around invalid state", async ({ page }) => {
+  await gotoApp(page);
+  const originalSource = String.raw`\begin{tikzpicture}
+  \node at (0,0) {$x$};
+\end{tikzpicture}`;
+  await setSource(page, originalSource);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeVisible();
+  await expect(textarea).toBeFocused();
+  await expect(textarea).toHaveValue("$x$");
+
+  let clickedBetweenXAndDollar = false;
+  for (const localRatioX of [0.55, 0.65, 0.75, 0.85]) {
+    const point = await readMathJaxLocalClientPoint(page, {
+      sourceId: "path:0",
+      localRatioX,
+      localRatioY: 0.5
+    });
+    await page.mouse.click(point.x, point.y);
+    const selection = await readTextareaSelection(page);
+    if (selection.start === 2 && selection.end === 2) {
+      clickedBetweenXAndDollar = true;
+      break;
+    }
+  }
+  expect(clickedBetweenXAndDollar).toBe(true);
+
+  await textarea.press("}");
+  await expect(textarea).toHaveValue("$x}$");
+  await expect
+    .poll(async () => await readTextareaSelection(page))
+    .toEqual({ start: 3, end: 3 });
+  await expect
+    .poll(async () => await readStoreSource(page))
+    .toEqual(String.raw`\begin{tikzpicture}
+  \node at (0,0) {$x}$};
+\end{tikzpicture}`);
+
+  await page.waitForTimeout(120);
+  await expect
+    .poll(async () => await readTextareaSelection(page))
+    .toEqual({ start: 3, end: 3 });
+  await textarea.press("Backspace");
+  await expect
+    .poll(async () => await readStoreSource(page))
+    .toEqual(originalSource);
+});
+
 test("fallback-rendered invalid MathJax text still enters canvas edit mode", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}

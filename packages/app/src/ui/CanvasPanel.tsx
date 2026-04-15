@@ -43,7 +43,7 @@ import {
   type SnapLine
 } from "tikz-editor/edit/snapping";
 import type { NodeTextEngine, NodeTextLayoutKind } from "tikz-editor/text/types";
-import type { Statement } from "tikz-editor/ast/types";
+import type { Span, Statement } from "tikz-editor/ast/types";
 import { PT_PER_CM } from "tikz-editor/edit/format";
 import { replaceSpan } from "tikz-editor/edit/patch";
 import { resolveEligibleExplicitPath } from "tikz-editor/edit/path-editing";
@@ -793,6 +793,40 @@ function resolveFallbackTextLayoutKind(text: string, hasFixedWidth: boolean | un
   return "single-line";
 }
 
+function resolveCurrentTextSpan(source: string, expectedText: string, previousSpan: Span): Span {
+  if (source.slice(previousSpan.from, previousSpan.to) === expectedText) {
+    return previousSpan;
+  }
+  if (expectedText.length === 0) {
+    return { from: previousSpan.from, to: previousSpan.from };
+  }
+  let bestStart = -1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  let searchFrom = 0;
+  while (searchFrom <= source.length - expectedText.length) {
+    const matchAt = source.indexOf(expectedText, searchFrom);
+    if (matchAt < 0) {
+      break;
+    }
+    const distance = Math.abs(matchAt - previousSpan.from);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestStart = matchAt;
+      if (distance === 0) {
+        break;
+      }
+    }
+    searchFrom = matchAt + 1;
+  }
+  if (bestStart < 0) {
+    return previousSpan;
+  }
+  return {
+    from: bestStart,
+    to: bestStart + expectedText.length
+  };
+}
+
 function expandSvgViewBox(
   viewBox: SvgViewBox,
   viewportSize: { width: number; height: number },
@@ -1087,6 +1121,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   }, [platform.accessibility]);
   const pendingNativeContextMenuTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textEditingSessionRef = useRef<TextEditingSession | null>(null);
+  const textEditSelectionStabilizeRef = useRef<{ start: number; end: number; expiresAtMs: number } | null>(null);
   useLayoutEffect(() => {
     textEditingSessionRef.current = textEditingSession;
   }, [textEditingSession]);
@@ -2528,9 +2563,18 @@ export const CanvasPanel = memo(function CanvasPanel({
       if (!current) {
         return;
       }
+      // Cancel any in-flight click/drag caret resolution so stale async results
+      // cannot overwrite the selection immediately after a text input update.
+      textSelectionRequestIdRef.current += 1;
       const boundedStart = clamp(Math.floor(nextSelectionStart), 0, nextText.length);
       const boundedEnd = clamp(Math.floor(nextSelectionEnd), 0, nextText.length);
-      const updated = replaceSpan(current.workingSource, current.sourceSpan, nextText);
+      textEditSelectionStabilizeRef.current = {
+        start: boundedStart,
+        end: boundedEnd,
+        expiresAtMs: Date.now() + 250
+      };
+      const currentSpan = resolveCurrentTextSpan(current.workingSource, current.text, current.sourceSpan);
+      const updated = replaceSpan(current.workingSource, currentSpan, nextText);
       dispatch({
         type: "APPLY_EDIT_ACTION",
         action: {
@@ -2544,7 +2588,7 @@ export const CanvasPanel = memo(function CanvasPanel({
           newSource: updated.source,
           patches: [
             {
-              oldSpan: current.sourceSpan,
+              oldSpan: currentSpan,
               newSpan: updated.changedSpan,
               replacement: nextText
             }
@@ -2565,10 +2609,24 @@ export const CanvasPanel = memo(function CanvasPanel({
 
   const handleTextEditTextareaChange = useCallback(
     (event: ReactChangeEvent<HTMLTextAreaElement>) => {
+      const nextText = event.currentTarget.value;
+      let nextSelectionStart = event.currentTarget.selectionStart ?? 0;
+      let nextSelectionEnd = event.currentTarget.selectionEnd ?? 0;
+      const current = textEditingSessionRef.current;
+      if (current) {
+        const previousSelectionCollapsed = current.selectionStart === current.selectionEnd;
+        const nextSelectionCollapsed = nextSelectionStart === nextSelectionEnd;
+        const lengthDelta = nextText.length - current.text.length;
+        if (lengthDelta > 0 && previousSelectionCollapsed && nextSelectionCollapsed) {
+          const advancedCaret = clamp(current.selectionStart + lengthDelta, 0, nextText.length);
+          nextSelectionStart = advancedCaret;
+          nextSelectionEnd = advancedCaret;
+        }
+      }
       applyTextEditingUpdate(
-        event.currentTarget.value,
-        event.currentTarget.selectionStart ?? 0,
-        event.currentTarget.selectionEnd ?? 0
+        nextText,
+        nextSelectionStart,
+        nextSelectionEnd
       );
     },
     [applyTextEditingUpdate]
@@ -2578,11 +2636,23 @@ export const CanvasPanel = memo(function CanvasPanel({
     const textarea = event.currentTarget;
     setTextEditingSession((current) =>
       current
-        ? {
-            ...current,
-            selectionStart: clamp(textarea.selectionStart ?? 0, 0, current.text.length),
-            selectionEnd: clamp(textarea.selectionEnd ?? 0, 0, current.text.length)
-          }
+        ? (() => {
+            const nextStart = clamp(textarea.selectionStart ?? 0, 0, current.text.length);
+            const nextEnd = clamp(textarea.selectionEnd ?? 0, 0, current.text.length);
+            const stabilization = textEditSelectionStabilizeRef.current;
+            if (
+              stabilization &&
+              Date.now() < stabilization.expiresAtMs &&
+              (nextStart !== stabilization.start || nextEnd !== stabilization.end)
+            ) {
+              return current;
+            }
+            return {
+              ...current,
+              selectionStart: nextStart,
+              selectionEnd: nextEnd
+            };
+          })()
         : current
     );
   }, []);
@@ -2667,6 +2737,14 @@ export const CanvasPanel = memo(function CanvasPanel({
         }
         const nextStart = clamp(textarea.selectionStart ?? 0, 0, current.text.length);
         const nextEnd = clamp(textarea.selectionEnd ?? 0, 0, current.text.length);
+        const stabilization = textEditSelectionStabilizeRef.current;
+        if (
+          stabilization &&
+          Date.now() < stabilization.expiresAtMs &&
+          (nextStart !== stabilization.start || nextEnd !== stabilization.end)
+        ) {
+          return current;
+        }
         if (current.selectionStart === nextStart && current.selectionEnd === nextEnd) {
           return current;
         }
@@ -2683,12 +2761,10 @@ export const CanvasPanel = memo(function CanvasPanel({
       }
     };
     textarea.addEventListener("select", syncSelectionFromTextarea);
-    textarea.addEventListener("keyup", syncSelectionFromTextarea);
     textarea.addEventListener("mouseup", syncSelectionFromTextarea);
     document.addEventListener("selectionchange", handleDocumentSelectionChange);
     return () => {
       textarea.removeEventListener("select", syncSelectionFromTextarea);
-      textarea.removeEventListener("keyup", syncSelectionFromTextarea);
       textarea.removeEventListener("mouseup", syncSelectionFromTextarea);
       document.removeEventListener("selectionchange", handleDocumentSelectionChange);
     };

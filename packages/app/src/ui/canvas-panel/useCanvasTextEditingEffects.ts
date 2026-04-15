@@ -275,8 +275,8 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
       return;
     }
 
-    const boundedStart = clamp(textEditingSession.selectionStart, 0, target.text.length);
-    const boundedEnd = clamp(textEditingSession.selectionEnd, 0, target.text.length);
+    const boundedStart = clamp(textEditingSession.selectionStart, 0, textEditingSession.text.length);
+    const boundedEnd = clamp(textEditingSession.selectionEnd, 0, textEditingSession.text.length);
     if (
       textEditingSession.sourceSpan.from !== target.sourceSpan.from ||
       textEditingSession.sourceSpan.to !== target.sourceSpan.to ||
@@ -290,17 +290,21 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
     ) {
       setTextEditingSession((current: any) =>
         current && current.sourceId === target.sourceId && current.sceneTextId === target.sceneTextId
-          ? {
-              ...current,
-              sceneTextId: target.sceneTextId,
-              sourceSpan: target.sourceSpan,
-              selectionStart: boundedStart,
-              selectionEnd: boundedEnd,
-              paragraphId: target.paragraphId,
-              renderSourceText: target.renderSourceText,
-              layoutKind: target.layoutKind,
-              region: target.region
-            }
+          ? (() => {
+              const nextSelectionStart = clamp(current.selectionStart, 0, current.text.length);
+              const nextSelectionEnd = clamp(current.selectionEnd, 0, current.text.length);
+              return {
+                ...current,
+                sceneTextId: target.sceneTextId,
+                sourceSpan: target.sourceSpan,
+                selectionStart: nextSelectionStart,
+                selectionEnd: nextSelectionEnd,
+                paragraphId: target.paragraphId,
+                renderSourceText: target.renderSourceText,
+                layoutKind: target.layoutKind,
+                region: target.region
+              };
+            })()
           : current
       );
     }
@@ -341,82 +345,89 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
         });
       };
 
-      if (!target.paragraphId || !outputJax || !containerElement) {
-        setRegionFallbackOverlay();
-        return;
-      }
+      try {
+        if (!target.paragraphId || !outputJax || !containerElement) {
+          setRegionFallbackOverlay();
+          return;
+        }
 
-      if (renderStart === renderEnd) {
-        const point = await getKnuthPlassPointFromOffset(outputJax, {
+        if (renderStart === renderEnd) {
+          const point = await getKnuthPlassPointFromOffset(outputJax, {
+            paragraphId: target.paragraphId,
+            sourceText: target.renderSourceText,
+            containerElement,
+            offset: renderStart
+          });
+          if (requestRef.cancelled) {
+            return;
+          }
+          if (!point.ok || point.clientX == null || point.clientY == null) {
+            setRegionFallbackOverlay();
+            return;
+          }
+          const height =
+            (await estimateCaretHeight(
+              outputJax,
+              target.paragraphId,
+              target.renderSourceText,
+              containerElement,
+              point.offset ?? renderStart
+            )) ?? Math.max(1, target.region.height);
+          if (requestRef.cancelled) {
+            return;
+          }
+          setTextSelectionOverlay({
+            sourceId: target.sourceId,
+            selectionStart: boundedStart,
+            selectionEnd: boundedEnd,
+            caret: {
+              left: point.clientX - viewportRect.left,
+              top: point.clientY - viewportRect.top - height / 2,
+              height,
+              centerX: point.clientX - viewportRect.left,
+              centerY: point.clientY - viewportRect.top,
+              rotationDeg: Number.isFinite(point.rotationDeg) ? point.rotationDeg : undefined
+            },
+            rects: []
+          });
+          return;
+        }
+
+        const rects = await getKnuthPlassSelectionRects(outputJax, {
           paragraphId: target.paragraphId,
           sourceText: target.renderSourceText,
           containerElement,
-          offset: renderStart
+          startOffset: renderStart,
+          endOffset: renderEnd
         });
         if (requestRef.cancelled) {
           return;
         }
-        if (!point.ok || point.clientX == null || point.clientY == null) {
+        if (!rects.ok || rects.rects.length === 0) {
           setRegionFallbackOverlay();
-          return;
-        }
-        const height =
-          (await estimateCaretHeight(
-            outputJax,
-            target.paragraphId,
-            target.renderSourceText,
-            containerElement,
-            point.offset ?? renderStart
-          )) ?? Math.max(1, target.region.height);
-        if (requestRef.cancelled) {
           return;
         }
         setTextSelectionOverlay({
           sourceId: target.sourceId,
           selectionStart: boundedStart,
           selectionEnd: boundedEnd,
-          caret: {
-            left: point.clientX - viewportRect.left,
-            top: point.clientY - viewportRect.top - height / 2,
-            height,
-            centerX: point.clientX - viewportRect.left,
-            centerY: point.clientY - viewportRect.top,
-            rotationDeg: Number.isFinite(point.rotationDeg) ? point.rotationDeg : undefined
-          },
-          rects: []
+          caret: null,
+          rects: rects.rects.map((rect) => ({
+            left: rect.left - viewportRect.left,
+            top: rect.top - viewportRect.top,
+            width: rect.width,
+            height: rect.height,
+            centerX: rect.centerX - viewportRect.left,
+            centerY: rect.centerY - viewportRect.top,
+            rotationDeg: rect.rotationDeg
+          }))
         });
-        return;
-      }
-
-      const rects = await getKnuthPlassSelectionRects(outputJax, {
-        paragraphId: target.paragraphId,
-        sourceText: target.renderSourceText,
-        containerElement,
-        startOffset: renderStart,
-        endOffset: renderEnd
-      });
-      if (requestRef.cancelled) {
-        return;
-      }
-      if (!rects.ok || rects.rects.length === 0) {
+      } catch {
+        if (requestRef.cancelled) {
+          return;
+        }
         setRegionFallbackOverlay();
-        return;
       }
-      setTextSelectionOverlay({
-        sourceId: target.sourceId,
-        selectionStart: boundedStart,
-        selectionEnd: boundedEnd,
-        caret: null,
-        rects: rects.rects.map((rect) => ({
-          left: rect.left - viewportRect.left,
-          top: rect.top - viewportRect.top,
-          width: rect.width,
-          height: rect.height,
-          centerX: rect.centerX - viewportRect.left,
-          centerY: rect.centerY - viewportRect.top,
-          rotationDeg: rect.rotationDeg
-        }))
-      });
     })();
 
     return () => {
