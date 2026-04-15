@@ -63,18 +63,34 @@ export function applyAnchorOverlayState(
   activeKey: string | null,
   radius = 2.7
 ): void {
-  target.style.display = visible ? "inline" : "none";
-  const circles = target.querySelectorAll<SVGCircleElement>("circle[data-anchor-key]");
+  const nextDisplay = visible ? "inline" : "none";
+  if (target.style.display !== nextDisplay) {
+    target.style.display = nextDisplay;
+  }
+
+  let circles = ANCHOR_CIRCLE_CACHE.get(target);
+  if (!circles) {
+    circles = Array.from(target.querySelectorAll<SVGCircleElement>("circle[data-anchor-key]"));
+    ANCHOR_CIRCLE_CACHE.set(target, circles);
+  }
   circles.forEach((circle, index) => {
     const anchor = anchors[index];
     if (!anchor) {
       return;
     }
     const active = visible && anchor.key === activeKey;
-    circle.setAttribute("r", String(active ? radius * 1.1 : radius * 0.85));
-    circle.setAttribute("fill", active ? ACTIVE_FILL : ANCHOR_FILL);
-    circle.setAttribute("stroke", active ? ACTIVE_STROKE : ANCHOR_STROKE);
+    setSvgAttrIfNeeded(circle, "r", String(active ? radius * 1.1 : radius * 0.85));
+    setSvgAttrIfNeeded(circle, "fill", active ? ACTIVE_FILL : ANCHOR_FILL);
+    setSvgAttrIfNeeded(circle, "stroke", active ? ACTIVE_STROKE : ANCHOR_STROKE);
   });
+}
+
+const ANCHOR_CIRCLE_CACHE = new WeakMap<SVGGElement, SVGCircleElement[]>();
+
+function setSvgAttrIfNeeded(element: SVGElement, name: string, next: string): void {
+  if (element.getAttribute(name) !== next) {
+    element.setAttribute(name, next);
+  }
 }
 
 export const AnchorOverlay = memo(forwardRef<SVGGElement, AnchorOverlayProps>(function AnchorOverlay({

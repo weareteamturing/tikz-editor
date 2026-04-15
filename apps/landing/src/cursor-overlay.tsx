@@ -217,10 +217,20 @@ export function applyCursorOverlayFrame(target: SVGGElement, frame: CursorOverla
   const def = CURSOR_DEFS[frame.cursor] ?? CURSOR_DEFS.pointer;
   const offsetX = (def.offsetX ?? 0) * scale;
   const offsetY = (def.offsetY ?? 0) * scale;
+  const transform = `translate(${frame.x + offsetX} ${frame.y + offsetY}) scale(${scale})`;
+  const opacity = frame.visible ? "1" : "0";
 
-  target.setAttribute("transform", `translate(${frame.x + offsetX} ${frame.y + offsetY}) scale(${scale})`);
-  target.style.opacity = frame.visible ? "1" : "0";
+  const previous = LAST_CURSOR_DOM_FRAME.get(target);
+  if (!previous || previous.transform !== transform) {
+    target.setAttribute("transform", transform);
+  }
+  if (!previous || previous.opacity !== opacity) {
+    target.style.opacity = opacity;
+  }
+  LAST_CURSOR_DOM_FRAME.set(target, { transform, opacity });
 }
+
+const LAST_CURSOR_DOM_FRAME = new WeakMap<SVGGElement, { transform: string; opacity: string }>();
 
 export const CursorOverlay = memo(forwardRef<SVGGElement, CursorOverlayProps>(function CursorOverlay(
   { x, y, visible, pressed, cursor, scale = 1 }: CursorOverlayProps,

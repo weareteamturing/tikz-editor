@@ -54,7 +54,7 @@ function escapeHtml(text: string): string {
 }
 
 export function renderSourcePreview(target: HTMLElement, lines: readonly SourceLine[]): void {
-  target.innerHTML = lines
+  const html = lines
     .map((line) => {
       const tokens = line
         .map((token) => `<span class="sourceToken sourceToken--${token.kind}">${escapeHtml(token.text)}</span>`)
@@ -62,7 +62,17 @@ export function renderSourcePreview(target: HTMLElement, lines: readonly SourceL
       return `<span class="sourceLine">${tokens}</span>`;
     })
     .join("");
+
+  const previous = LAST_RENDERED_SOURCE_HTML.get(target);
+  if (previous === html) {
+    return;
+  }
+
+  LAST_RENDERED_SOURCE_HTML.set(target, html);
+  target.innerHTML = html;
 }
+
+const LAST_RENDERED_SOURCE_HTML = new WeakMap<HTMLElement, string>();
 
 export const SourcePreview = forwardRef<HTMLElement, SourcePreviewProps>(function SourcePreview(
   { lines, managedImperatively = false },

@@ -41,13 +41,18 @@ export function createCursorScript(
     },
     setFrame(frame, position) {
       timeline.call(() => {
-        Object.assign(state, frame);
+        if (!assignCursorPatchIfChanged(state, frame)) {
+          return;
+        }
         commitFrame();
       }, undefined, position);
       return api;
     },
     setStyle(cursor, position) {
       timeline.call(() => {
+        if (state.cursor === cursor) {
+          return;
+        }
         state.cursor = cursor;
         commitFrame();
       }, undefined, position);
@@ -55,6 +60,9 @@ export function createCursorScript(
     },
     setPressed(pressed, position) {
       timeline.call(() => {
+        if (state.pressed === pressed) {
+          return;
+        }
         state.pressed = pressed;
         commitFrame();
       }, undefined, position);
@@ -62,6 +70,9 @@ export function createCursorScript(
     },
     setVisible(visible, position) {
       timeline.call(() => {
+        if (state.visible === visible) {
+          return;
+        }
         state.visible = visible;
         commitFrame();
       }, undefined, position);
@@ -69,4 +80,29 @@ export function createCursorScript(
     }
   };
   return api;
+}
+
+function assignCursorPatchIfChanged(target: CursorFrame, patch: Partial<CursorFrame>): boolean {
+  let changed = false;
+  if (patch.x !== undefined && target.x !== patch.x) {
+    target.x = patch.x;
+    changed = true;
+  }
+  if (patch.y !== undefined && target.y !== patch.y) {
+    target.y = patch.y;
+    changed = true;
+  }
+  if (patch.visible !== undefined && target.visible !== patch.visible) {
+    target.visible = patch.visible;
+    changed = true;
+  }
+  if (patch.pressed !== undefined && target.pressed !== patch.pressed) {
+    target.pressed = patch.pressed;
+    changed = true;
+  }
+  if (patch.cursor !== undefined && target.cursor !== patch.cursor) {
+    target.cursor = patch.cursor;
+    changed = true;
+  }
+  return changed;
 }
