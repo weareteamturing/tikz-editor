@@ -9,6 +9,17 @@ import { createCursorPathScript } from "../animation/cursor-path";
 import { point } from "../animation/points";
 import { mountRenderedScene } from "../animation/rendered-scene";
 import { setSvgAttrs } from "../animation/svg-actors";
+import {
+  formatTikzNumber,
+  sourceComment,
+  sourceKeyword,
+  sourceLine,
+  sourcePunctuation,
+  SourcePreview,
+  sourceNumber,
+  sourceText,
+  type SourceLine
+} from "../source-preview";
 
 type SceneRefs = {
   contentGroup: SVGGElement | null;
@@ -30,6 +41,14 @@ type EditHandleOverlayRefs = {
   handles: SVGRectElement[];
 };
 
+type AddRectSourceState = {
+  visible: boolean;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+};
+
 const HANDLE_HALF_SIZE = 1.1;
 const HANDLE_STROKE_WIDTH = 0.26;
 const SELECTION_STROKE_WIDTH = 0.24;
@@ -49,8 +68,17 @@ export function AddRectCard() {
     cursor: CURSOR_FOR_DRAG.toolCreate
   });
   const [cursorFrame, setCursorFrame] = useState<CursorFrame>({ ...cursorStateRef.current });
+  const [, bumpSourceVersion] = useState(0);
+  const sourceStateRef = useRef<AddRectSourceState>({
+    visible: false,
+    x0: 0,
+    y0: 0,
+    x1: 0,
+    y1: 0
+  });
 
   const commitCursor = (): void => setCursorFrame({ ...cursorStateRef.current });
+  const commitSource = (): void => bumpSourceVersion((version) => version + 1);
   const idleAbove = point(addRectInitial.bounds.x - 6, addRectInitial.bounds.y - 18);
   const createStart = point(addRectInitial.bounds.x, addRectInitial.bounds.y);
   const createEnd = point(addRectInitial.bounds.x + addRectInitial.bounds.width, addRectInitial.bounds.y + addRectInitial.bounds.height);
@@ -90,17 +118,48 @@ export function AddRectCard() {
     const resizeState: RectBounds = { ...initialBounds };
     const resetState: RectBounds = { ...collapsedBounds };
 
-    const updateBodyAndOverlay = (bounds: RectBounds, overlayVisible: boolean): void => {
+    const updateSourceRect = (bounds: RectBounds, phase: "create" | "resize" | "reset"): void => {
+      if (phase === "reset") {
+        sourceStateRef.current.visible = false;
+        sourceStateRef.current.x0 = 0;
+        sourceStateRef.current.y0 = 0;
+        sourceStateRef.current.x1 = 0;
+        sourceStateRef.current.y1 = 0;
+        commitSource();
+        return;
+      }
+
+      sourceStateRef.current.visible = true;
+      sourceStateRef.current.x0 = 0;
+      sourceStateRef.current.y0 = 0;
+      if (phase === "create") {
+        const widthProgress = Math.max(0, Math.min(1, bounds.width / initialBounds.width));
+        const heightProgress = Math.max(0, Math.min(1, bounds.height / initialBounds.height));
+        sourceStateRef.current.x1 = widthProgress * 2;
+        sourceStateRef.current.y1 = heightProgress * 1;
+      } else {
+        const widthProgress = Math.max(
+          0,
+          Math.min(1, (bounds.width - initialBounds.width) / (resizedBounds.width - initialBounds.width))
+        );
+        sourceStateRef.current.x1 = 2 + widthProgress * 1;
+        sourceStateRef.current.y1 = 1;
+      }
+      commitSource();
+    };
+
+    const updateBodyAndOverlay = (bounds: RectBounds, overlayVisible: boolean, phase: "create" | "resize" | "reset"): void => {
       setSvgAttrs(bodyRect, { d: rectPathD(bounds) });
       applyEditHandleOverlayBounds(overlayRefs, bounds);
       handlesGroup.style.display = overlayVisible ? "inline" : "none";
       handlesGroup.style.opacity = overlayVisible ? "1" : "0";
       handlesGroup.style.visibility = overlayVisible ? "visible" : "hidden";
       bodyRect.style.opacity = bounds.width > 0.01 && bounds.height > 0.01 ? "1" : "0";
+      updateSourceRect(bounds, phase);
     };
 
     const ctx = gsap.context(() => {
-      updateBodyAndOverlay(createState, false);
+      updateBodyAndOverlay(createState, false, "reset");
       gsap.set(contentGroup, { opacity: 0 });
       gsap.set(handlesGroup, { opacity: 0, display: "none", visibility: "hidden" });
       Object.assign(cursorStateRef.current, {
@@ -136,12 +195,12 @@ export function AddRectCard() {
       tl.to(contentGroup, { opacity: 1, duration: 0.05, ease: "none" }, "createDrag");
       cursorPath.moveTo("createEnd", 0.82, "createDrag", "power1.inOut");
       tweenRectBounds(tl, createState, collapsedBounds, initialBounds, 0.82, "createDrag", "power1.inOut", (bounds) =>
-        updateBodyAndOverlay(bounds, false)
+        updateBodyAndOverlay(bounds, false, "create")
       );
 
       tl.add("createRelease", "createDrag+=0.82");
       tl.call(() => {
-        updateBodyAndOverlay(resizeState, true);
+        updateBodyAndOverlay(resizeState, true, "resize");
       }, undefined, "createRelease");
       cursor.setStyle("pointer", "createRelease");
 
@@ -156,7 +215,7 @@ export function AddRectCard() {
       tl.add("resizeDrag", "resizePress+=0.16");
       cursorPath.moveTo("resizeEnd", 0.74, "resizeDrag", "power1.inOut");
       tweenRectBounds(tl, resizeState, initialBounds, resizedBounds, 0.74, "resizeDrag", "power1.inOut", (bounds) =>
-        updateBodyAndOverlay(bounds, true)
+        updateBodyAndOverlay(bounds, true, "resize")
       );
 
       tl.add("resizeRelease", "resizeDrag+=0.74");
@@ -164,12 +223,15 @@ export function AddRectCard() {
       cursor.setStyle("pointer", "resizeRelease");
 
       tl.add("reset", "resizeRelease+=0.26");
-      tl.to(handlesGroup, { opacity: 0, duration: 0.08, ease: "none" }, "reset");
+      tl.to(handlesGroup, { opacity: 0, duration: 0.08, ease: "none" }, "reset+=0.34");
       tl.set(handlesGroup, { display: "none", visibility: "hidden" }, "reset+=0.08");
-      tl.to(contentGroup, { opacity: 0, duration: 0.08, ease: "none" }, "reset");
+      tl.to(contentGroup, { opacity: 0, duration: 0.08, ease: "none" }, "reset+=0.6");
       tl.call(() => {
-        updateBodyAndOverlay(resetState, false);
+        updateBodyAndOverlay(resizeState, false, "resize");
       }, undefined, "reset");
+      tl.call(() => {
+        updateBodyAndOverlay(resetState, false, "reset");
+      }, undefined, "reset+=0.6");
       cursorPath.moveTo("idleAbove", 0.42, "reset", "power1.inOut");
       cursor.setStyle(CURSOR_FOR_DRAG.toolCreate, "reset+=0.32");
       cursor.setPressed(false, "reset");
@@ -213,8 +275,35 @@ export function AddRectCard() {
           scale={0.35}
         />
       </svg>
+      <SourcePreview lines={buildAddRectSourceLines(sourceStateRef.current)} />
     </article>
   );
+}
+
+function buildAddRectSourceLines(state: AddRectSourceState): SourceLine[] {
+  if (!state.visible) {
+    return [
+      sourceLine(sourceComment("% drag to create a rectangle"))
+    ];
+  }
+
+  return [
+    sourceLine(
+      sourceKeyword("\\path"),
+      sourceText("[draw, fill=white] "),
+      sourcePunctuation("("),
+      sourceNumber("0"),
+      sourcePunctuation(", "),
+      sourceNumber("0"),
+      sourcePunctuation(") "),
+      sourceKeyword("rectangle"),
+      sourceText(" ("),
+      sourceNumber(formatTikzNumber(state.x1)),
+      sourcePunctuation(", "),
+      sourceNumber(formatTikzNumber(state.y1)),
+      sourcePunctuation(");")
+    )
+  ];
 }
 
 function queryEditHandleOverlayRefs(handlesGroup: SVGGElement): EditHandleOverlayRefs | null {

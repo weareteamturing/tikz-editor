@@ -16,9 +16,29 @@ import {
   selectionAlignInitial,
   type SelectionAlignCardState
 } from "../generated/feature-svgs";
+import {
+  formatTikzNumber,
+  sourceComment,
+  sourceKeyword,
+  sourceLine,
+  sourcePunctuation,
+  SourcePreview,
+  sourceNumber,
+  sourceString,
+  sourceText,
+  type SourceLine
+} from "../source-preview";
 
 type NodeState = SelectionAlignCardState["leftNodes"][number];
 type Rect = { x: number; y: number; width: number; height: number };
+type SelectionAlignSourceState = {
+  leftNodes: NodeState[];
+  rightNodes: NodeState[];
+  marquee: Rect | null;
+  leftAligned: boolean;
+  rightAligned: boolean;
+  leftTargetX: number;
+};
 
 const BUTTON = {
   width: 14,
@@ -77,17 +97,31 @@ export function SelectionAlignCard() {
   const [marqueeVisible, setMarqueeVisible] = useState(false);
   const [alignPressed, setAlignPressed] = useState(false);
   const [toolbarVisible, setToolbarVisible] = useState(false);
-
-  const commitCursor = (): void => setCursorFrame({ ...cursorStateRef.current });
+  const [, bumpSourceVersion] = useState(0);
 
   const leftInitial = selectionAlignInitial.leftNodes;
   const rightInitial = selectionAlignInitial.rightNodes;
+  const sourceStateRef = useRef<SelectionAlignSourceState>({
+    leftNodes: leftInitial.map(cloneNode),
+    rightNodes: rightInitial.map(cloneNode),
+    marquee: null,
+    leftAligned: false,
+    rightAligned: false,
+    leftTargetX: 0,
+  });
+
+  const commitCursor = (): void => setCursorFrame({ ...cursorStateRef.current });
+  const commitSource = (): void => bumpSourceVersion((version) => version + 1);
 
   const leftFinal = useMemo(() => centerAlign(leftInitial), [leftInitial]);
   const rightFinal = useMemo(() => centerAlign(rightInitial), [rightInitial]);
 
   const leftBounds = useMemo(() => unionBounds(leftInitial), [leftInitial]);
   const rightBounds = useMemo(() => unionBounds(rightInitial), [rightInitial]);
+  const leftTargetX = useMemo(
+    () => average(leftInitial.map((node) => node.center.x / 25)),
+    [leftInitial]
+  );
 
   const allBounds = useMemo(() => unionBounds([...leftInitial, ...rightInitial]), [leftInitial, rightInitial]);
 
@@ -182,6 +216,11 @@ export function SelectionAlignCard() {
       updateGroup(rightStates, rightInitial, rightNodePaths, rightLabels, rightOverlayRefs.current, rightSelectedRef.current);
       updateEdges();
       updateMarquee();
+    sourceStateRef.current.leftNodes = leftStates.map(cloneNode);
+    sourceStateRef.current.rightNodes = rightStates.map(cloneNode);
+    sourceStateRef.current.marquee = marqueeVisibleRef.current ? { ...marqueeState } : null;
+    sourceStateRef.current.leftTargetX = leftTargetX;
+    commitSource();
     };
 
     const marqueeState: Rect = { x: 0, y: 0, width: 0.001, height: 0.001 };
@@ -201,6 +240,11 @@ export function SelectionAlignCard() {
       marqueeState.y = 0;
       marqueeState.width = 0.001;
       marqueeState.height = 0.001;
+      sourceStateRef.current.marquee = null;
+      sourceStateRef.current.leftAligned = false;
+      sourceStateRef.current.rightAligned = false;
+      sourceStateRef.current.leftTargetX = leftTargetX;
+      commitSource();
       leftStates.forEach((state, index) => {
         Object.assign(state.bounds, leftInitial[index]!.bounds);
         Object.assign(state.center, leftInitial[index]!.center);
@@ -231,6 +275,7 @@ export function SelectionAlignCard() {
         setSelected: (v: boolean) => void;
         showLeftAfter: boolean;
         showRightAfter: boolean;
+        sourceAlignSide: "left" | "right";
       }
     ): string => {
       const marqueeTarget = padBounds(options.selectionBounds, MARQUEE_PAD);
@@ -268,6 +313,8 @@ export function SelectionAlignCard() {
         marqueeVisibleRef.current = true;
         setMarqueeVisible(true);
         updateMarquee();
+        sourceStateRef.current.marquee = { ...marqueeTarget };
+        commitSource();
       }, undefined, press);
 
       tl.to(
@@ -294,6 +341,7 @@ export function SelectionAlignCard() {
         marqueeVisibleRef.current = false;
         setMarqueeVisible(false);
         updateAll();
+        commitCursor();
       }, undefined, `${release}+=0.04`);
 
       tl.add(btnMove, `${release}+=0.3`);
@@ -317,7 +365,13 @@ export function SelectionAlignCard() {
           Object.assign(state.center, final.center);
           Object.assign(state.labelPos, final.labelPos);
         });
+        if (options.sourceAlignSide === "left") {
+          sourceStateRef.current.leftAligned = true;
+        } else {
+          sourceStateRef.current.rightAligned = true;
+        }
         updateAll();
+        commitCursor();
       }, undefined, `${btnPress}+=0.08`);
 
       tl.to({}, { duration: 0.14, ease: "none" }, `${btnPress}+=0.24`);
@@ -341,6 +395,7 @@ export function SelectionAlignCard() {
         toolbarVisibleRef.current = false;
         setToolbarVisible(false);
         updateAll();
+        commitCursor();
       }, undefined, end);
 
       return end;
@@ -373,7 +428,8 @@ export function SelectionAlignCard() {
         selectedRef: leftSelectedRef,
         setSelected: setLeftSelected,
         showLeftAfter: false,
-        showRightAfter: false
+        showRightAfter: false,
+        sourceAlignSide: "left"
       });
 
       const afterRight = runPhase(tl, cursor, "right", {
@@ -383,7 +439,8 @@ export function SelectionAlignCard() {
         selectedRef: rightSelectedRef,
         setSelected: setRightSelected,
         showLeftAfter: true,
-        showRightAfter: false
+        showRightAfter: false,
+        sourceAlignSide: "right"
       });
       // Position the right phase after the left phase finishes.
       // (runPhase already appends sequentially via bare labels.)
@@ -470,8 +527,62 @@ export function SelectionAlignCard() {
           scale={0.35}
         />
       </svg>
+      <SourcePreview lines={buildSelectionAlignSourceLines(sourceStateRef.current)} />
     </article>
   );
+}
+
+function buildSelectionAlignSourceLines(state: SelectionAlignSourceState): SourceLine[] {
+  const leftLabels = ["Start", "Mid", "Bottom"];
+  const rightLabels = ["End", "End", "End"];
+  const lines: SourceLine[] = [sourceLine(sourceComment("% align selection demo"))];
+  const rowYs = [1, 0, -1.3];
+  const leftPositions = state.leftNodes.map((node, index) => ({
+    x: state.leftAligned ? state.leftTargetX : node.center.x / 25,
+    y: rowYs[index] ?? rowYs[rowYs.length - 1]!
+  }));
+  const rightPositions = state.rightNodes.map((node, index) => ({
+    x: state.rightAligned ? 1.9 : node.center.x / 25,
+    y: rowYs[index] ?? rowYs[rowYs.length - 1]!
+  }));
+
+  leftLabels.forEach((labelText, index) => {
+    const pos = leftPositions[index] ?? leftPositions[leftPositions.length - 1]!;
+    lines.push(
+      sourceLine(
+        sourceKeyword("\\node"),
+        sourceText("[draw, fill=blue!10] "),
+        sourcePunctuation("("),
+        sourceText(`l${index + 1}`),
+        sourcePunctuation(") at ("),
+        sourceNumber(formatTikzNumber(pos.x)),
+        sourcePunctuation(", "),
+        sourceNumber(formatTikzNumber(pos.y)),
+        sourcePunctuation(") "),
+        sourceString(`{${labelText}};`)
+      )
+    );
+  });
+
+  rightLabels.forEach((labelText, index) => {
+    const pos = rightPositions[index] ?? rightPositions[rightPositions.length - 1]!;
+    lines.push(
+      sourceLine(
+        sourceKeyword("\\node"),
+        sourceText("[draw, fill=green!10] "),
+        sourcePunctuation("("),
+        sourceText(`r${index + 1}`),
+        sourcePunctuation(") at ("),
+        sourceNumber(formatTikzNumber(pos.x)),
+        sourcePunctuation(", "),
+        sourceNumber(formatTikzNumber(pos.y)),
+        sourcePunctuation(") "),
+        sourceString(`{${labelText}};`)
+      )
+    );
+  });
+
+  return lines;
 }
 
 function ToolbarButton({
@@ -528,6 +639,13 @@ function rectPathD(bounds: Rect): string {
   const x1 = bounds.x + bounds.width;
   const y1 = bounds.y + bounds.height;
   return `M ${x0} ${y0} L ${x1} ${y0} L ${x1} ${y1} L ${x0} ${y1} Z`;
+}
+
+function average(values: readonly number[]): number {
+  if (values.length === 0) {
+    return 0;
+  }
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function unionBounds(nodes: readonly NodeState[]): Rect {

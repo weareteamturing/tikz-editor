@@ -7,6 +7,17 @@ import { nodeMoveCommonViewBox, nodeMoveInitial, nodeMoveMoved } from "../genera
 import { createCursorPathScript } from "../animation/cursor-path";
 import { offsetPoint, point } from "../animation/points";
 import { setSvgAttrs, toSvgAttrs, toTranslate } from "../animation/svg-actors";
+import {
+  formatTikzNumber,
+  sourceKeyword,
+  sourceLine,
+  sourcePunctuation,
+  SourcePreview,
+  sourceString,
+  sourceNumber,
+  sourceText,
+  type SourceLine
+} from "../source-preview";
 
 type SceneRefs = {
   contentGroup: SVGGElement | null;
@@ -19,6 +30,15 @@ type NodeSceneElements = {
   edgeLine: SVGPathElement;
   edgeTip: SVGPathElement;
 };
+
+type NodeMoveSourceState = {
+  s: { x: number; y: number };
+  t: { x: number; y: number };
+};
+
+const SOURCE_S_START = { x: 0, y: 0 };
+const SOURCE_S_END = { x: 2, y: 1 };
+const SOURCE_T = { x: 3, y: 1 };
 
 function queryNodeSceneElements(contentGroup: SVGGElement): NodeSceneElements | null {
   const sCircle = contentGroup.querySelector('circle[data-source-id="path:1"]') as SVGCircleElement | null;
@@ -47,16 +67,25 @@ function tweenNodeFrame(
   duration: number,
   position: gsap.Position,
   ease = "power1.inOut"
+  ,
+  onUpdate?: () => void
 ): void {
   toSvgAttrs(tl, elements.sCircle, { cx: frame.sCenter.x, cy: frame.sCenter.y }, duration, position, ease);
   toSvgAttrs(tl, elements.sLabel, { x: frame.sLabelPos.x, y: frame.sLabelPos.y }, duration, position, ease);
   toSvgAttrs(tl, elements.edgeLine, { d: frame.edge.lineD }, duration, position, ease);
   toSvgAttrs(tl, elements.edgeTip, { d: frame.edge.tipD }, duration, position, ease);
+  if (onUpdate) {
+    tl.to({}, { duration, ease, onUpdate }, position);
+  }
 }
 
 export function NodeMoveCard() {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<SceneRefs>({ contentGroup: null, handlesGroup: null });
+  const sourceStateRef = useRef<NodeMoveSourceState>({
+    s: { ...SOURCE_S_START },
+    t: { ...SOURCE_T }
+  });
   const cursorStateRef = useRef<CursorFrame>({
     x: nodeMoveInitial.sCenter.x,
     y: nodeMoveInitial.sCenter.y,
@@ -65,8 +94,10 @@ export function NodeMoveCard() {
     cursor: "pointer"
   });
   const [cursorFrame, setCursorFrame] = useState<CursorFrame>({ ...cursorStateRef.current });
+  const [, bumpSourceVersion] = useState(0);
 
   const commitCursor = (): void => setCursorFrame({ ...cursorStateRef.current });
+  const commitSource = (): void => bumpSourceVersion((version) => version + 1);
 
   useLayoutEffect(() => {
     if (!rootRef.current) {
@@ -82,6 +113,9 @@ export function NodeMoveCard() {
     // Mount once so React re-renders (from cursor state updates) do not
     // overwrite animated SVG attributes.
     contentGroup.innerHTML = nodeMoveInitial.innerSvg;
+    sourceStateRef.current.s = { ...SOURCE_S_START };
+    sourceStateRef.current.t = { ...SOURCE_T };
+    commitSource();
 
     const elements = queryNodeSceneElements(contentGroup);
     if (!elements) {
@@ -114,7 +148,14 @@ export function NodeMoveCard() {
       });
       commitCursor();
 
-      const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.9 });
+  const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.9 });
+      tl.eventCallback("onRepeat", () => {
+        sourceStateRef.current.s.x = SOURCE_S_START.x;
+        sourceStateRef.current.s.y = SOURCE_S_START.y;
+        sourceStateRef.current.t.x = SOURCE_T.x;
+        sourceStateRef.current.t.y = SOURCE_T.y;
+        commitSource();
+      });
       const cursor = createCursorScript(tl, cursorStateRef.current, commitCursor);
       const cursorPath = createCursorPathScript(cursor, waypoints);
 
@@ -133,6 +174,13 @@ export function NodeMoveCard() {
 
       tweenNodeFrame(tl, elements, nodeMoveMoved, 1, "dragForwardStart", "power1.inOut");
       toTranslate(tl, handlesGroup, dx, dy, 1, "dragForwardStart", "power1.inOut");
+      tl.to(sourceStateRef.current.s, {
+        x: SOURCE_S_END.x,
+        y: SOURCE_S_END.y,
+        duration: 1,
+        ease: "power1.inOut",
+        onUpdate: commitSource
+      }, "dragForwardStart");
 
       tl.add("dragForwardEnd", "dragForwardStart+=1");
       cursor.setPressed(false, "dragForwardEnd-=0.14");
@@ -146,6 +194,13 @@ export function NodeMoveCard() {
       cursorPath.moveTo("initialHover", 0.75, "dragBackStart", "power1.inOut");
       tweenNodeFrame(tl, elements, nodeMoveInitial, 0.75, "dragBackStart", "power1.inOut");
       toTranslate(tl, handlesGroup, 0, 0, 0.75, "dragBackStart", "power1.inOut");
+      tl.to(sourceStateRef.current.s, {
+        x: SOURCE_S_START.x,
+        y: SOURCE_S_START.y,
+        duration: 0.75,
+        ease: "power1.inOut",
+        onUpdate: commitSource
+      }, "dragBackStart");
 
       tl.add("dragBackEnd", "dragBackStart+=0.75");
       cursor.setPressed(false, "dragBackEnd-=0.14");
@@ -160,6 +215,11 @@ export function NodeMoveCard() {
       tl.to(handlesGroup, { autoAlpha: 0, duration: 0.08, ease: "none" }, "deselectClick+=0.03");
 
       // Return to the exact initial position to keep a seamless loop.
+      tl.call(() => {
+        sourceStateRef.current.s.x = SOURCE_S_START.x;
+        sourceStateRef.current.s.y = SOURCE_S_START.y;
+        commitSource();
+      }, undefined, "deselectClick");
       cursorPath.moveTo("initialBeside", 0.4, "deselectClick+=0.32");
       cursor.setStyle("pointer", "deselectClick+=0.3");
       cursor.setFrame({ pressed: false }, "deselectClick+=0.3");
@@ -208,6 +268,42 @@ export function NodeMoveCard() {
           scale={0.35}
         />
       </svg>
+      <SourcePreview lines={buildNodeMoveSourceLines(sourceStateRef.current)} />
     </article>
   );
+}
+
+function buildNodeMoveSourceLines(state: NodeMoveSourceState): SourceLine[] {
+  return [
+    sourceLine(
+      sourceKeyword("\\node"),
+      sourceText("[draw, circle] "),
+      sourcePunctuation("(s)"),
+      sourceText(" at ("),
+      sourceNumber(formatTikzNumber(state.s.x)),
+      sourcePunctuation(", "),
+      sourceNumber(formatTikzNumber(state.s.y)),
+      sourceText(") "),
+      sourceString("{$s$};")
+    ),
+    sourceLine(
+      sourceKeyword("\\node"),
+      sourceText("[draw, circle] "),
+      sourcePunctuation("(t)"),
+      sourceText(" at ("),
+      sourceNumber(formatTikzNumber(state.t.x)),
+      sourcePunctuation(", "),
+      sourceNumber(formatTikzNumber(state.t.y)),
+      sourceText(") "),
+      sourceString("{$t$};")
+    ),
+    sourceLine(
+      sourceKeyword("\\draw"),
+      sourceText("[->] "),
+      sourcePunctuation("(s)"),
+      sourceText(" -- "),
+      sourcePunctuation("(t)"),
+      sourcePunctuation(";")
+    )
+  ];
 }

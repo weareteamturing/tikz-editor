@@ -9,6 +9,17 @@ import { createCursorPathScript } from "../animation/cursor-path";
 import { offsetPoint, point, rotatePointAround } from "../animation/points";
 import { mountRenderedScene, queryRenderedElement } from "../animation/rendered-scene";
 import { toSvgRotation } from "../animation/svg-actors";
+import {
+  formatTikzNumber,
+  sourceKeyword,
+  sourceLine,
+  sourcePunctuation,
+  SourcePreview,
+  sourceNumber,
+  sourceString,
+  sourceText,
+  type SourceLine
+} from "../source-preview";
 
 type SceneRefs = {
   contentGroup: SVGGElement | null;
@@ -21,6 +32,7 @@ export function RotateNodeCard() {
     contentGroup: null,
     handlesGroup: null
   });
+  const sourceStateRef = useRef({ rotation: 0 });
   const cursorStateRef = useRef<CursorFrame>({
     x: rotateNodeInitial.center.x - rotateNodeInitial.bounds.width / 2 - 28,
     y: rotateNodeInitial.center.y + rotateNodeInitial.bounds.height / 2 + 2,
@@ -29,8 +41,10 @@ export function RotateNodeCard() {
     cursor: "pointer"
   });
   const [cursorFrame, setCursorFrame] = useState<CursorFrame>({ ...cursorStateRef.current });
+  const [, bumpSourceVersion] = useState(0);
 
   const commitCursor = (): void => setCursorFrame({ ...cursorStateRef.current });
+  const commitSource = (): void => bumpSourceVersion((version) => version + 1);
 
   useLayoutEffect(() => {
     if (!rootRef.current) {
@@ -67,6 +81,8 @@ export function RotateNodeCard() {
         rotation: 0,
         svgOrigin
       });
+      sourceStateRef.current.rotation = 0;
+      commitSource();
 
       Object.assign(cursorStateRef.current, {
         x: initialBeside.x,
@@ -94,6 +110,12 @@ export function RotateNodeCard() {
       cursor.setPressed(false, "grabHandle+=0.12");
 
       tl.add("rotateForward", "grabHandle+=0.16");
+      tl.to(sourceStateRef.current, {
+        rotation: 28,
+        duration: 0.84,
+        ease: "power2.inOut",
+        onUpdate: commitSource
+      }, "rotateForward");
       cursorPath.moveTo("handleDragEnd", 0.84, "rotateForward", "power2.inOut");
       toSvgRotation(tl, bodyPath, 28, svgOrigin, 0.84, "rotateForward", "power2.inOut");
       toSvgRotation(tl, labelSvg, 28, svgOrigin, 0.84, "rotateForward", "power2.inOut");
@@ -103,6 +125,12 @@ export function RotateNodeCard() {
       cursor.setPressed(false, "release");
 
       tl.add("rotateBack", "release+=0.34");
+      tl.to(sourceStateRef.current, {
+        rotation: 0,
+        duration: 0.72,
+        ease: "power2.inOut",
+        onUpdate: commitSource
+      }, "rotateBack");
       cursorPath.moveTo("handleStart", 0.72, "rotateBack", "power2.inOut");
       toSvgRotation(tl, bodyPath, 0, svgOrigin, 0.72, "rotateBack", "power2.inOut");
       toSvgRotation(tl, labelSvg, 0, svgOrigin, 0.72, "rotateBack", "power2.inOut");
@@ -157,6 +185,25 @@ export function RotateNodeCard() {
           scale={0.35}
         />
       </svg>
+      <SourcePreview lines={buildRotateNodeSourceLines(sourceStateRef.current.rotation)} />
     </article>
   );
+}
+
+function buildRotateNodeSourceLines(rotation: number): SourceLine[] {
+  return [
+    sourceLine(
+      sourceKeyword("\\node"),
+      sourceText("[draw, rotate="),
+      sourceNumber(formatTikzNumber(rotation)),
+      sourceText("] "),
+      sourcePunctuation("(n)"),
+      sourceText(" at ("),
+      sourceNumber("0"),
+      sourceText(", "),
+      sourceNumber("0"),
+      sourceText(") "),
+      sourceString("{$e = mc^2$};")
+    )
+  ];
 }

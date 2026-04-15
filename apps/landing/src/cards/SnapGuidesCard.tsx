@@ -8,12 +8,27 @@ import { SnapGuidesOverlay, type SnapGuideLine } from "../animation/snap-guides"
 import { mountRenderedScene, queryRenderedElement } from "../animation/rendered-scene";
 import { setSvgAttrs } from "../animation/svg-actors";
 import { snapGuidesCommonViewBox, snapGuidesFinal, snapGuidesInitial } from "../generated/feature-svgs";
+import {
+  formatTikzNumber,
+  sourceKeyword,
+  sourceLine,
+  sourcePunctuation,
+  SourcePreview,
+  sourceNumber,
+  sourceString,
+  sourceText,
+  type SourceLine
+} from "../source-preview";
 
 type RectNode = {
   sourceId: string;
   bounds: { x: number; y: number; width: number; height: number };
   center: { x: number; y: number };
   labelPos: { x: number; y: number };
+};
+
+type SnapGuidesSourceState = {
+  d: { x: number; y: number };
 };
 
 const SNAP_STROKE_WIDTH = 0.9;
@@ -37,8 +52,13 @@ export function SnapGuidesCard() {
   });
   const [cursorFrame, setCursorFrame] = useState<CursorFrame>({ ...cursorStateRef.current });
   const [snapLines, setSnapLines] = useState<SnapGuideLine[]>([]);
+  const sourceStateRef = useRef<SnapGuidesSourceState>({
+    d: { x: 0, y: 0 }
+  });
+  const [, bumpSourceVersion] = useState(0);
 
   const commitCursor = (): void => setCursorFrame({ ...cursorStateRef.current });
+  const commitSource = (): void => bumpSourceVersion((version) => version + 1);
 
   useLayoutEffect(() => {
     if (!rootRef.current || !sceneRef.current) {
@@ -84,7 +104,20 @@ export function SnapGuidesCard() {
       y: finalCenter.y + cursorGrabOffsetY
     };
 
+    const updateSourceD = (): void => {
+      const travelDx = finalCenter.x - initialCenter.x;
+      const travelDy = finalCenter.y - initialCenter.y;
+      const currentDx = moveState.center.x - initialCenter.x;
+      const currentDy = moveState.center.y - initialCenter.y;
+      const denom = travelDx * travelDx + travelDy * travelDy || 1;
+      const progress = Math.max(0, Math.min(1, (currentDx * travelDx + currentDy * travelDy) / denom));
+      sourceStateRef.current.d.x = progress * 2;
+      sourceStateRef.current.d.y = progress * 1;
+      commitSource();
+    };
+
     const updateMoving = (showSnapLines: boolean): void => {
+      updateSourceD();
       setSvgAttrs(movingNode, {
         d: rectPathD(moveState.bounds)
       });
@@ -212,8 +245,58 @@ export function SnapGuidesCard() {
           scale={0.35}
         />
       </svg>
+      <SourcePreview lines={buildSnapGuidesSourceLines(sourceStateRef.current)} />
     </article>
   );
+}
+
+function buildSnapGuidesSourceLines(state: SnapGuidesSourceState): SourceLine[] {
+  return [
+    sourceLine(
+      sourceKeyword("\\node"),
+      sourceText("[draw] "),
+      sourcePunctuation("(A)"),
+      sourceText(" at ("),
+      sourceNumber("-2"),
+      sourcePunctuation(", "),
+      sourceNumber("-1"),
+      sourcePunctuation(") "),
+      sourceString("{A};")
+    ),
+    sourceLine(
+      sourceKeyword("\\node"),
+      sourceText("[draw] "),
+      sourcePunctuation("(B)"),
+      sourceText(" at ("),
+      sourceNumber("2"),
+      sourcePunctuation(", "),
+      sourceNumber("-1"),
+      sourcePunctuation(") "),
+      sourceString("{B};")
+    ),
+    sourceLine(
+      sourceKeyword("\\node"),
+      sourceText("[draw] "),
+      sourcePunctuation("(C)"),
+      sourceText(" at ("),
+      sourceNumber("-2"),
+      sourcePunctuation(", "),
+      sourceNumber("1"),
+      sourcePunctuation(") "),
+      sourceString("{C};")
+    ),
+    sourceLine(
+      sourceKeyword("\\node"),
+      sourceText("[draw] "),
+      sourcePunctuation("(D)"),
+      sourceText(" at ("),
+      sourceNumber(formatTikzNumber(state.d.x)),
+      sourcePunctuation(", "),
+      sourceNumber(formatTikzNumber(state.d.y)),
+      sourcePunctuation(") "),
+      sourceString("{D};")
+    )
+  ];
 }
 
 function queryNode(root: ParentNode, node: RectNode): SVGPathElement | null {

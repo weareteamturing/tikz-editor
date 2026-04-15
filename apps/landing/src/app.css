@@ -45,6 +45,8 @@ h1 {
 .featureCard {
   border: 1px solid var(--border);
   background: var(--bg-pane);
+  display: flex;
+  flex-direction: column;
 }
 
 .featureCardTitle {
@@ -60,6 +62,64 @@ h1 {
   height: auto;
   display: block;
   background: #f0f0f0;
+}
+
+.sourcePreview {
+  margin: 0;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-header) 82%, white) 0%, var(--bg-pane) 100%);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  overflow: auto;
+  white-space: pre;
+  tab-size: 2;
+  -moz-tab-size: 2;
+}
+
+.sourcePreviewCode {
+  display: block;
+}
+
+.sourceLine {
+  display: block;
+}
+
+.sourceToken {
+  white-space: pre;
+}
+
+.sourceToken--keyword {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.sourceToken--typeName {
+  color: #0f766e;
+  font-weight: 600;
+}
+
+.sourceToken--string {
+  color: #9a3412;
+}
+
+.sourceToken--number {
+  color: #15803d;
+}
+
+.sourceToken--comment {
+  color: #6b7280;
+  font-style: italic;
+}
+
+.sourceToken--punctuation {
+  color: #78716c;
+}
+
+.sourceToken--meta {
+  color: #7c3aed;
 }
 
 .fakeToolbarRow {

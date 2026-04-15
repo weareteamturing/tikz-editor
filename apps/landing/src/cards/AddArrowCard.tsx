@@ -10,11 +10,25 @@ import { point } from "../animation/points";
 import { mountRenderedScene } from "../animation/rendered-scene";
 import { toSvgAttrs } from "../animation/svg-actors";
 import type { AnchorDot, RectBounds } from "../animation/anchor-overlay";
+import {
+  sourceKeyword,
+  sourceLine,
+  sourcePunctuation,
+  sourceNumber,
+  sourceString,
+  sourceText,
+  SourcePreview,
+  type SourceLine
+} from "../source-preview";
 
 type SceneRefs = {
   contentGroup: SVGGElement | null;
   previewLine: SVGLineElement | null;
   tipPath: SVGPathElement | null;
+};
+
+type AddArrowSourceState = {
+  arrowVisible: boolean;
 };
 
 const NODE_REVEAL_RADIUS = 10.5;
@@ -27,6 +41,9 @@ export function AddArrowCard() {
     previewLine: null,
     tipPath: null
   });
+  const sourceStateRef = useRef<AddArrowSourceState>({
+    arrowVisible: false
+  });
   const cursorStateRef = useRef<CursorFrame>({
     x: addArrowInitial.s.center.x,
     y: addArrowInitial.s.bounds.y - 18,
@@ -35,8 +52,10 @@ export function AddArrowCard() {
     cursor: CURSOR_FOR_DRAG.toolCreate
   });
   const [cursorFrame, setCursorFrame] = useState<CursorFrame>({ ...cursorStateRef.current });
+  const [, bumpSourceVersion] = useState(0);
 
   const commitCursor = (): void => setCursorFrame({ ...cursorStateRef.current });
+  const commitSource = (): void => bumpSourceVersion((version) => version + 1);
   const cursorPoint = point(cursorFrame.x, cursorFrame.y);
   const toolActive = cursorFrame.cursor === CURSOR_FOR_DRAG.toolCreate;
   const hoveredNode = toolActive
@@ -67,6 +86,8 @@ export function AddArrowCard() {
         attr: { x1: sEast.x, y1: sEast.y, x2: sEast.x, y2: sEast.y }
       });
       gsap.set(tipPath, { attr: { d: addArrowFinal.edge?.tipD ?? "" } });
+      sourceStateRef.current.arrowVisible = false;
+      commitSource();
 
       Object.assign(cursorStateRef.current, {
         x: initialAbove.x,
@@ -108,6 +129,10 @@ export function AddArrowCard() {
       cursor.setPressed(true, "targetClick");
       cursor.setPressed(false, "targetClick+=0.12");
       tl.to(tipPath, { autoAlpha: 1, duration: 0.08, ease: "none" }, "targetClick+=0.02");
+      tl.call(() => {
+        sourceStateRef.current.arrowVisible = true;
+        commitSource();
+      }, undefined, "targetClick");
 
       tl.add("deactivateTool", "targetClick+=0.22");
       cursor.setStyle("pointer", "deactivateTool");
@@ -116,6 +141,10 @@ export function AddArrowCard() {
       tl.add("reset", "deactivateTool+=0.26");
       cursorPath.moveTo("initialAbove", 0.44, "reset", "power1.inOut");
       cursor.setPressed(false, "reset");
+      tl.call(() => {
+        sourceStateRef.current.arrowVisible = false;
+        commitSource();
+      }, undefined, 0);
     }, rootRef);
 
     return () => ctx.revert();
@@ -179,8 +208,56 @@ export function AddArrowCard() {
           scale={0.35}
         />
       </svg>
+      <SourcePreview lines={buildAddArrowSourceLines(sourceStateRef.current)} />
     </article>
   );
+}
+
+function buildAddArrowSourceLines(state: AddArrowSourceState): SourceLine[] {
+  const sX = "0";
+  const sY = "0";
+  const tX = "3";
+  const tY = "0";
+
+  const lines = [
+    sourceLine(
+      sourceKeyword("\\node"),
+      sourceText("[draw, fill=blue!10] "),
+      sourcePunctuation("(s)"),
+      sourceText(" at ("),
+      sourceNumber(sX),
+      sourcePunctuation(", "),
+      sourceNumber(sY),
+      sourceText(") "),
+      sourceString("{Start};")
+    ),
+    sourceLine(
+      sourceKeyword("\\node"),
+      sourceText("[draw, fill=green!10] "),
+      sourcePunctuation("(t)"),
+      sourceText(" at ("),
+      sourceNumber(tX),
+      sourcePunctuation(", "),
+      sourceNumber(tY),
+      sourceText(") "),
+      sourceString("{End};")
+    )
+  ];
+
+  if (state.arrowVisible) {
+    lines.push(
+      sourceLine(
+        sourceKeyword("\\draw"),
+        sourceText("[->] "),
+        sourcePunctuation("(s.east)"),
+        sourceText(" -- "),
+        sourcePunctuation("(t.west)"),
+        sourcePunctuation(";")
+      )
+    );
+  }
+
+  return lines;
 }
 
 function buildAnchorDots(bounds: RectBounds, cursor: { x: number; y: number } | null): AnchorDot[] {
