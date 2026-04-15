@@ -17,6 +17,16 @@ const DECORATION_FEATURE_TO_LIBRARY: Record<string, string> = {
 };
 
 const SHAPE_FEATURE_TO_LIBRARY: Record<string, string> = {
+  shape_rounded_rectangle: "shapes.misc",
+  shape_chamfered_rectangle: "shapes.misc",
+  shape_cross_out: "shapes.misc",
+  shape_strike_out: "shapes.misc",
+  shape_magnifying_glass: "shapes.symbols",
+  shape_circle_split: "shapes.multipart",
+  shape_circle_solidus: "shapes.multipart",
+  shape_ellipse_split: "shapes.multipart",
+  shape_diamond_split: "shapes.multipart",
+  shape_rectangle_split: "shapes.multipart",
   shape_diamond: "shapes.geometric",
   shape_trapezium: "shapes.geometric",
   shape_semicircle: "shapes.geometric",

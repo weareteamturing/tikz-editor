@@ -6,17 +6,20 @@ import type { StyleChainEntry } from "../style-chain.js";
 import { cloneStyleChain } from "../style-chain.js";
 import {
   makeCircularSector,
+  makeChamferedRectanglePolygon,
   makeCloudCallout,
   makeCloud,
   makeCylinder,
   makeDoubleArrow,
   makeDartPolygon,
   makeDiamondPolygon,
+  makeMagnifyingGlassHandle,
   makeEllipseCallout,
   makeIsoscelesTrianglePolygon,
   makeKitePolygon,
   makeRectangleCallout,
   makeRegularPolygon,
+  makeRoundedRectanglePolygon,
   makeSemicircle,
   makeSignal,
   makeSingleArrow,
@@ -268,6 +271,94 @@ export function makeNodeDiamondElement(
     y: center.y + point.y
   }));
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
+}
+
+export function makeNodeRoundedRectangleElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  width: number,
+  height: number,
+  arcLength: number,
+  westArc: "convex" | "concave" | "none",
+  eastArc: "convex" | "concave" | "none",
+  style: ResolvedStyle,
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
+): ScenePath {
+  const corners = makeRoundedRectanglePolygon(width, height, arcLength, westArc, eastArc).map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
+}
+
+export function makeNodeChamferedRectangleElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  width: number,
+  height: number,
+  chamferX: number,
+  chamferY: number,
+  chamferAngle: number,
+  cornersRaw: string,
+  style: ResolvedStyle,
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
+): ScenePath {
+  const corners = makeChamferedRectanglePolygon(width, height, chamferX, chamferY, chamferAngle, cornersRaw).map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
+}
+
+export function makeNodeLineElement(
+  sourceId: string,
+  itemId: string,
+  from: Point,
+  to: Point,
+  style: ResolvedStyle,
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
+): ScenePath {
+  return {
+    kind: "Path",
+    id: `scene-node-line:${sourceId}:${itemId}`,
+    runtimeId: `scene-node-line:${sourceId}:${itemId}`,
+    sourceRef: { sourceId, sourceSpan: span, sourceFingerprint: "" },
+    style: { ...style },
+    styleChain: cloneStyleChain(styleChain),
+    clipChain: [],
+    commands: [
+      { kind: "M", to: from },
+      { kind: "L", to }
+    ]
+  };
+}
+
+export function makeNodeMagnifyingHandleElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  radius: number,
+  angleDegrees: number,
+  aspect: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
+): ScenePath {
+  const handle = makeMagnifyingGlassHandle(radius, angleDegrees, aspect);
+  return makeNodeLineElement(
+    sourceId,
+    itemId,
+    { x: center.x + handle.from.x, y: center.y + handle.from.y },
+    { x: center.x + handle.to.x, y: center.y + handle.to.y },
+    style,
+    span,
+    styleChain
+  );
 }
 
 export function makeNodeTrapeziumElement(

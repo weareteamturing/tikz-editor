@@ -524,15 +524,24 @@ function attachCodeExampleLatexContext(snippets, sourceCode) {
       return snippet;
     }
 
-    const latexPreamble = context.preamble.trim();
+    const preambleParts = collectPreamblesBeforeSnippet(codeExampleContexts, snippet.span.from);
+    const currentPreamble = context.preamble.trim();
+    if (currentPreamble.length > 0) {
+      preambleParts.push(currentPreamble);
+    }
+    const latexPreamble = dedupePreservingOrder(preambleParts).join("\n");
     const prependParts = [];
+    const setupCode = collectSetupCodeBeforeSnippet(sourceCode, codeExampleContexts, snippet.span.from);
+    if (setupCode.length > 0) {
+      prependParts.push(setupCode);
+    }
     const latexPre = context.pre.trim();
     if (latexPre.length > 0) {
       prependParts.push(latexPre);
     }
-    const setupFromBody = extractTikzsetSetupBeforeSnippet(sourceCode, context.bodyStart, snippet.span.from);
-    if (setupFromBody.length > 0) {
-      prependParts.push(setupFromBody);
+    const contextPrelude = sourceCode.slice(context.bodyStart, snippet.span.from).trim();
+    if (contextPrelude.length > 0) {
+      prependParts.push(contextPrelude);
     }
     const latexPrepend = prependParts.join("\n");
 
@@ -546,6 +555,47 @@ function attachCodeExampleLatexContext(snippets, sourceCode) {
       latexPrepend: latexPrepend.length > 0 ? latexPrepend : null
     };
   });
+}
+
+function collectPreamblesBeforeSnippet(contexts, snippetStart) {
+  const preambles = [];
+  for (const context of contexts) {
+    if (context.to > snippetStart) {
+      continue;
+    }
+    const preamble = context.preamble.trim();
+    if (preamble.length > 0) {
+      preambles.push(preamble);
+    }
+  }
+  return preambles;
+}
+
+function dedupePreservingOrder(values) {
+  const seen = new Set();
+  const result = [];
+  for (const value of values) {
+    if (seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+}
+
+function collectSetupCodeBeforeSnippet(sourceCode, contexts, snippetStart) {
+  const setupBlocks = [];
+  for (const context of contexts) {
+    if (!context.setupCode || context.to > snippetStart) {
+      continue;
+    }
+    const body = sourceCode.slice(context.bodyStart, context.bodyEnd).trim();
+    if (body.length > 0) {
+      setupBlocks.push(body);
+    }
+  }
+  return setupBlocks.join("\n");
 }
 
 function extractCodeExampleContexts(source) {
@@ -584,8 +634,10 @@ function extractCodeExampleContexts(source) {
       from: begin,
       to: end,
       bodyStart: searchCursor,
+      bodyEnd: endStart,
       pre: parsedOptions.pre ?? "",
-      preamble: parsedOptions.preamble ?? ""
+      preamble: parsedOptions.preamble ?? "",
+      setupCode: Object.prototype.hasOwnProperty.call(parsedOptions, "setup code")
     });
     cursor = end;
   }

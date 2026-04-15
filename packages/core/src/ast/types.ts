@@ -5,7 +5,17 @@ export type Span = { from: number; to: number };
 export type AdornmentOwnerGeometry = {
   shape:
     | "rectangle"
+    | "rounded rectangle"
+    | "chamfered rectangle"
+    | "cross out"
+    | "strike out"
     | "circle"
+    | "magnifying glass"
+    | "circle split"
+    | "circle solidus"
+    | "ellipse split"
+    | "diamond split"
+    | "rectangle split"
     | "ellipse"
     | "diamond"
     | "trapezium"

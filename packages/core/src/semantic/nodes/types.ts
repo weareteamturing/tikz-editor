@@ -2,7 +2,17 @@ import type { NodeTextRenderInfo } from "../../text/types.js";
 
 export type NodeShape =
   | "rectangle"
+  | "rounded rectangle"
+  | "chamfered rectangle"
+  | "cross out"
+  | "strike out"
   | "circle"
+  | "magnifying glass"
+  | "circle split"
+  | "circle solidus"
+  | "ellipse split"
+  | "diamond split"
+  | "rectangle split"
   | "ellipse"
   | "diamond"
   | "trapezium"

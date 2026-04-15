@@ -8,6 +8,7 @@ import type { Matrix2D, Point } from "../types.js";
 import { applyMatrix, identityMatrix } from "../transform.js";
 import {
   makeCircularSector,
+  makeChamferedRectanglePolygon,
   makeCloud,
   makeCylinder,
   makeDoubleArrow,
@@ -19,6 +20,7 @@ import {
   makeKitePolygon,
   makeRectangleCallout,
   makeRegularPolygon,
+  makeRoundedRectanglePolygon,
   makeSemicircle,
   makeSignal,
   makeSingleArrow,
@@ -31,6 +33,7 @@ import {
   resolveCalloutPointerOffset,
   resolveNodeShapeGeometryParams
 } from "./shape-geometry.js";
+import { resolveRectangleSplitHorizontal, resolveRectangleSplitParts } from "./multipart.js";
 import type { NodeLayout, NodeShape } from "./types.js";
 
 export function placeNodeCenter(
@@ -67,6 +70,17 @@ export function nodeAnchorOffset(
 
   if (shape === "coordinate") {
     return { x: 0, y: 0 };
+  }
+
+  if (shape === "magnifying glass" || shape === "circle split" || shape === "circle solidus") {
+    const base = nodeAnchorOffset("circle", layout, anchor, options);
+    if (anchor === "upper") {
+      return { x: 0, y: layout.anchorRadius * 0.5 };
+    }
+    if (anchor === "lower") {
+      return { x: 0, y: -layout.anchorRadius * 0.5 };
+    }
+    return base;
   }
 
   if (shape === "circle") {
@@ -157,9 +171,31 @@ export function nodeAnchorOffset(
     }
   }
 
+  if (shape === "ellipse split") {
+    const base = nodeAnchorOffset("ellipse", layout, anchor, options);
+    if (anchor === "upper") {
+      return { x: 0, y: layout.anchorHalfHeight * 0.5 };
+    }
+    if (anchor === "lower") {
+      return { x: 0, y: -layout.anchorHalfHeight * 0.5 };
+    }
+    return base;
+  }
+
   if (shape === "diamond") {
     const polygon = makeDiamondPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight, shapeGeometry.diamondAspect);
     return polygonShapeAnchorOffset(anchor, polygon, layout.baseLineY, layout.midLineY);
+  }
+
+  if (shape === "diamond split") {
+    const base = nodeAnchorOffset("diamond", layout, anchor, options);
+    if (anchor === "upper") {
+      return { x: 0, y: layout.anchorHalfHeight * 0.5 };
+    }
+    if (anchor === "lower") {
+      return { x: 0, y: -layout.anchorHalfHeight * 0.5 };
+    }
+    return base;
   }
 
   if (shape === "trapezium") {
@@ -441,6 +477,23 @@ export function nodeAnchorOffset(
     return polygonShapeAnchorOffset(anchor, cylinder.polygon, layout.baseLineY, layout.midLineY);
   }
 
+  if (shape === "rectangle split") {
+    const parts = Math.max(1, resolveRectangleSplitParts(options));
+    const horizontal = resolveRectangleSplitHorizontal(options);
+    const indexed = resolveRectangleSplitIndexedAnchor(anchor, parts);
+    if (indexed != null) {
+      return horizontal
+        ? { x: -layout.anchorHalfWidth + ((indexed - 0.5) * 2 * layout.anchorHalfWidth) / parts, y: 0 }
+        : { x: 0, y: layout.anchorHalfHeight - ((indexed - 0.5) * 2 * layout.anchorHalfHeight) / parts };
+    }
+    const split = resolveRectangleSplitDividerAnchor(anchor, parts);
+    if (split != null) {
+      return horizontal
+        ? { x: -layout.anchorHalfWidth + (split * 2 * layout.anchorHalfWidth) / parts, y: 0 }
+        : { x: 0, y: layout.anchorHalfHeight - (split * 2 * layout.anchorHalfHeight) / parts };
+    }
+  }
+
   const hw = layout.anchorHalfWidth;
   const hh = layout.anchorHalfHeight;
   switch (anchor) {
@@ -627,6 +680,42 @@ function resolveAnchorPolygon(
       shapeGeometry.doubleArrowHeadIndentPt,
       shapeGeometry.shapeBorderRotate
     ).polygon;
+  }
+  if (shape === "cross out" || shape === "strike out" || shape === "rectangle split") {
+    return [
+      { x: -layout.anchorHalfWidth, y: layout.anchorHalfHeight },
+      { x: layout.anchorHalfWidth, y: layout.anchorHalfHeight },
+      { x: layout.anchorHalfWidth, y: -layout.anchorHalfHeight },
+      { x: -layout.anchorHalfWidth, y: -layout.anchorHalfHeight }
+    ];
+  }
+  if (shape === "magnifying glass" || shape === "circle split" || shape === "circle solidus") {
+    return makeEllipseAnchorPolygon(layout.anchorRadius, layout.anchorRadius);
+  }
+  if (shape === "ellipse split") {
+    return makeEllipseAnchorPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight);
+  }
+  if (shape === "diamond split") {
+    return makeDiamondPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight, shapeGeometry.diamondAspect);
+  }
+  if (shape === "rounded rectangle") {
+    return makeRoundedRectanglePolygon(
+      layout.anchorHalfWidth * 2,
+      layout.anchorHalfHeight * 2,
+      shapeGeometry.roundedRectangleArcLength,
+      shapeGeometry.roundedRectangleWestArc,
+      shapeGeometry.roundedRectangleEastArc
+    );
+  }
+  if (shape === "chamfered rectangle") {
+    return makeChamferedRectanglePolygon(
+      layout.anchorHalfWidth * 2,
+      layout.anchorHalfHeight * 2,
+      shapeGeometry.chamferedRectangleXSepPt,
+      shapeGeometry.chamferedRectangleYSepPt,
+      shapeGeometry.chamferedRectangleAngle,
+      shapeGeometry.chamferedRectangleCorners
+    );
   }
   return undefined;
 }
@@ -1259,6 +1348,38 @@ export function registerNamedNodeAnchors(
     offsets["after head 2"] = nodeAnchorOffset(shape, layout, "after head 2", options);
   }
 
+  if (shape === "circle split" || shape === "circle solidus" || shape === "ellipse split" || shape === "diamond split") {
+    offsets.upper = nodeAnchorOffset(shape, layout, "upper", options);
+    offsets.lower = nodeAnchorOffset(shape, layout, "lower", options);
+  }
+
+  if (shape === "rectangle split") {
+    const parts = Math.max(1, resolveRectangleSplitParts(options));
+    for (let index = 1; index <= parts; index += 1) {
+      offsets[String(index)] = nodeAnchorOffset(shape, layout, String(index), options);
+      const alias = RECTANGLE_SPLIT_CARDINALS[index - 1];
+      if (alias) {
+        offsets[alias] = nodeAnchorOffset(shape, layout, alias, options);
+      }
+      const ordinal = RECTANGLE_SPLIT_ORDINALS[index - 1];
+      if (ordinal) {
+        offsets[ordinal] = nodeAnchorOffset(shape, layout, ordinal, options);
+      }
+    }
+    for (let index = 1; index < parts; index += 1) {
+      offsets[`split ${index}`] = nodeAnchorOffset(shape, layout, `split ${index}`, options);
+      offsets[`${index} split`] = nodeAnchorOffset(shape, layout, `${index} split`, options);
+      const alias = RECTANGLE_SPLIT_CARDINALS[index - 1];
+      if (alias) {
+        offsets[`${alias} split`] = nodeAnchorOffset(shape, layout, `${alias} split`, options);
+      }
+      const ordinal = RECTANGLE_SPLIT_ORDINALS[index - 1];
+      if (ordinal) {
+        offsets[`${ordinal} split`] = nodeAnchorOffset(shape, layout, `${ordinal} split`, options);
+      }
+    }
+  }
+
   for (const [anchor, offset] of Object.entries(offsets)) {
     const transformedOffset = applyMatrix(nodeTransform, offset);
     const point = {
@@ -1270,4 +1391,90 @@ export function registerNamedNodeAnchors(
     }
     writeNamedCoordinate(context, `${name}.${anchor}`, point, producerSourceId);
   }
+}
+
+const RECTANGLE_SPLIT_CARDINALS = [
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "eleven",
+  "twelve",
+  "thirteen",
+  "fourteen",
+  "fifteen",
+  "sixteen",
+  "seventeen",
+  "eighteen",
+  "nineteen",
+  "twenty"
+] as const;
+
+const RECTANGLE_SPLIT_ORDINALS = [
+  "first",
+  "second",
+  "third",
+  "fourth",
+  "fifth",
+  "sixth",
+  "seventh",
+  "eighth",
+  "ninth",
+  "tenth",
+  "eleventh",
+  "twelfth",
+  "thirteenth",
+  "fourteenth",
+  "fifteenth",
+  "sixteenth",
+  "seventeenth",
+  "eighteenth",
+  "nineteenth",
+  "twentieth"
+] as const;
+
+function resolveRectangleSplitIndexedAnchor(anchor: string, parts: number): number | null {
+  const normalized = anchor.trim().toLowerCase();
+  const digit = normalized.match(/^(?:part\s+)?(\d{1,2})$/u);
+  if (digit) {
+    const index = Number.parseInt(digit[1] ?? "", 10);
+    return Number.isFinite(index) && index >= 1 && index <= parts ? index : null;
+  }
+  const cardinalIndex = RECTANGLE_SPLIT_CARDINALS.findIndex((value) => value === normalized);
+  if (cardinalIndex >= 0 && cardinalIndex + 1 <= parts) {
+    return cardinalIndex + 1;
+  }
+  const ordinalIndex = RECTANGLE_SPLIT_ORDINALS.findIndex((value) => value === normalized);
+  if (ordinalIndex >= 0 && ordinalIndex + 1 <= parts) {
+    return ordinalIndex + 1;
+  }
+  return null;
+}
+
+function resolveRectangleSplitDividerAnchor(anchor: string, parts: number): number | null {
+  const normalized = anchor.trim().toLowerCase();
+  const digit = normalized.match(/^(?:split\s+(\d{1,2})|(\d{1,2})\s+split)$/u);
+  if (digit) {
+    const raw = digit[1] ?? digit[2] ?? "";
+    const index = Number.parseInt(raw, 10);
+    return Number.isFinite(index) && index >= 1 && index < parts ? index : null;
+  }
+  const cardinal = normalized.match(/^([a-z]+)\s+split$/u);
+  if (cardinal) {
+    const cardinalIndex = RECTANGLE_SPLIT_CARDINALS.findIndex((value) => value === cardinal[1]);
+    if (cardinalIndex >= 0 && cardinalIndex + 1 < parts) {
+      return cardinalIndex + 1;
+    }
+    const ordinalIndex = RECTANGLE_SPLIT_ORDINALS.findIndex((value) => value === cardinal[1]);
+    if (ordinalIndex >= 0 && ordinalIndex + 1 < parts) {
+      return ordinalIndex + 1;
+    }
+  }
+  return null;
 }

@@ -61,12 +61,17 @@ describe("semantic evaluator / required tikz libraries", () => {
   \node[draw, cloud] at (2,0) {};
   \node[draw, rectangle callout] at (4,0) {};
   \node[draw, single arrow] at (6,0) {};
+  \node[draw, rounded rectangle] at (8,0) {};
+  \node[draw, magnifying glass] at (10,0) {};
+  \node[draw, rectangle split, rectangle split parts=3] at (12,0) {A\nodepart{two}B\nodepart{three}C};
 \end{tikzpicture}`);
 
     expect(result.scene.requiredTikzLibraries).toEqual([
       "shapes.arrows",
       "shapes.callouts",
       "shapes.geometric",
+      "shapes.misc",
+      "shapes.multipart",
       "shapes.symbols"
     ]);
   });

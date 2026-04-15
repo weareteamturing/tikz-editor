@@ -11,7 +11,7 @@ import {
   type SemanticContext
 } from "../context.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
-import { parseQuantityExpression } from "../coords/parse-length.js";
+import { parseLength, parseQuantityExpression } from "../coords/parse-length.js";
 import { applyDecorationToPath } from "../decorations/index.js";
 import { appendCircleSubpath, appendEllipseSubpath } from "../path/elements.js";
 import {
@@ -30,6 +30,7 @@ import type { Matrix2D, Point, ResolvedStyle, SceneAdornment, SceneElement, Scen
 import { cloneCustomStyleRegistry, walkOptionEntriesWithCustomStyles } from "../style/custom-styles.js";
 import { expandOptionListMacros } from "../style/macro-options.js";
 import { resolveContextDelta } from "../style/resolve.js";
+import { normalizeColor } from "../style/colors.js";
 import { makeNodeAdornmentTargetId } from "../path/label-quotes.js";
 import {
   cloneResolvedStyle,
@@ -45,13 +46,17 @@ import {
   makeCircleElement,
   makeNodeBoxElement,
   makeNodeCircularSectorElement,
+  makeNodeChamferedRectangleElement,
   makeNodeCloudCalloutElement,
   makeNodeCloudElement,
+  makeNodeLineElement,
+  makeNodeMagnifyingHandleElement,
   makeNodeCylinderElement,
   makeNodeDartElement,
   makeNodeDiamondElement,
   makeNodeEllipseCalloutElement,
   makeNodeEllipseElement,
+  makeNodeRoundedRectangleElement,
   makeNodeIsoscelesTriangleElement,
   makeNodeKiteElement,
   makeNodeRectangleCalloutElement,
@@ -80,10 +85,19 @@ import {
   withDefaultNodePosition
 } from "./options.js";
 import { resolveCalloutPointerOffset, resolveNodeShapeGeometryParams } from "./shape-geometry.js";
+import {
+  isMultipartShape,
+  parseNodeParts,
+  resolveRectangleSplitIgnoreEmptyParts,
+  resolveRectangleSplitHorizontal,
+  resolveRectangleSplitPartTexts,
+  resolveRectangleSplitParts
+} from "./multipart.js";
 import type { NodeShape } from "./types.js";
 import { resolveNodeTargetPoint } from "./placement.js";
 import { normalizeEscapedTextSpaces, normalizeNodeTextFontSize } from "./normalize-text.js";
 import { normalizeOptionValue } from "./utils.js";
+import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 import { applyMatrixToVector, identityMatrix, multiplyMatrix, rotationMatrix } from "../transform.js";
 import type { PgfRandom } from "../pgfmath/rng.js";
 
@@ -421,6 +435,12 @@ export function evaluateNodeItem(
     expandedNodeOptions = expandNodePlacementOptions(effectiveNodeOptions, context);
     expandedNodeLocalOptions = expandNodePlacementOptions(effectiveNodeLocalOptions, context);
   }
+  const expandedEveryTextNodePartOptions = mergeOptionLists(
+    expandProvenanceOptionLayers(frame.everyTextNodePartStyles, frame, context.macroTraceCollector ?? undefined).map(
+      (layer) => layer.options
+    )
+  );
+  const rectangleSplitOptions = mergeOptionLists([expandedEveryTextNodePartOptions, expandedNodeOptions]);
 
   const nodeDecorationBaseStyle: ResolvedStyle = {
     ...style,
@@ -510,7 +530,34 @@ export function evaluateNodeItem(
     trace: context.macroTraceCollector ?? undefined
   });
   const resolvedNodeText = normalizeEscapedTextSpaces(resolveTextColorAliases(expandedNodeText, context, statement.id));
-  const normalizedNodeText = normalizeNodeTextFontSize(resolvedNodeText, nodeStyle.fontSize);
+  const rawNodeParts = isMultipartShape(nodeShape) ? parseNodeParts(resolvedNodeText) : [{ name: "text", text: resolvedNodeText }];
+  const mainNodeText = rawNodeParts.find((part) => part.name === "text")?.text ?? "";
+  const normalizedNodeText = normalizeNodeTextFontSize(mainNodeText, nodeStyle.fontSize);
+  let layoutNodeText = normalizedNodeText.text;
+  if (nodeShape === "circle split" || nodeShape === "ellipse split" || nodeShape === "diamond split") {
+    const lower = rawNodeParts.find((part) => part.name === "lower") ?? rawNodeParts.find((part) => part.name !== "text");
+    if (lower && lower.text.length > 0) {
+      const normalizedLower = normalizeNodeTextFontSize(lower.text, nodeStyle.fontSize);
+      layoutNodeText = `${normalizedNodeText.text}\\\\${normalizedLower.text}`;
+    }
+  } else if (nodeShape === "circle solidus") {
+    const lower = rawNodeParts.find((part) => part.name === "lower") ?? rawNodeParts.find((part) => part.name !== "text");
+    if (lower && lower.text.length > 0) {
+      const normalizedLower = normalizeNodeTextFontSize(lower.text, nodeStyle.fontSize);
+      layoutNodeText = `${normalizedNodeText.text}\\\\${normalizedLower.text}`;
+    } else {
+      layoutNodeText = normalizedNodeText.text;
+    }
+  } else if (nodeShape === "rectangle split") {
+    const partCount = Math.max(1, resolveRectangleSplitParts(rectangleSplitOptions));
+    const horizontal = resolveRectangleSplitHorizontal(rectangleSplitOptions);
+    const ignoreEmpty = resolveRectangleSplitIgnoreEmptyParts(rectangleSplitOptions);
+    const partTextsBase = resolveRectangleSplitPartTexts(rawNodeParts, partCount);
+    const partTexts = (ignoreEmpty ? partTextsBase.filter((partText) => partText.length > 0) : partTextsBase).map(
+      (partText) => normalizeNodeTextFontSize(partText, nodeStyle.fontSize).text
+    );
+    layoutNodeText = partTexts.join(horizontal ? " " : "\\\\");
+  }
   const nodeTextStyle = normalizedNodeText.fontSizePt === nodeStyle.fontSize
     ? nodeStyle
     : { ...nodeStyle, fontSize: normalizedNodeText.fontSizePt };
@@ -553,14 +600,39 @@ export function evaluateNodeItem(
   }
 
   const baseNodeLayout = resolveNodeLayout(
-    normalizedNodeText.text,
+    layoutNodeText,
     expandedNodeOptions,
     nodeTextStyle,
     1,
     context.textEngine,
     placementOptions.textMode ?? "text"
   );
-  const nodeLayout = adjustNodeLayoutForShape(baseNodeLayout, nodeShape);
+  const adjustedNodeLayout = adjustNodeLayoutForShape(baseNodeLayout, nodeShape);
+  const rectangleSplitLayout =
+    nodeShape === "rectangle split"
+      ? resolveRectangleSplitLayoutGeometry({
+          rawNodeParts,
+          options: rectangleSplitOptions,
+          style: nodeTextStyle,
+          textMode: placementOptions.textMode ?? "text",
+          context,
+          baseLayout: adjustedNodeLayout
+        })
+      : null;
+  const nodeLayout = rectangleSplitLayout
+    ? {
+        ...adjustedNodeLayout,
+        visualWidth: rectangleSplitLayout.width,
+        visualHeight: rectangleSplitLayout.height,
+        visualRadius: Math.max(rectangleSplitLayout.width, rectangleSplitLayout.height) / 2,
+        anchorHalfWidth: rectangleSplitLayout.width / 2 + adjustedNodeLayout.outerXSep,
+        anchorHalfHeight: rectangleSplitLayout.height / 2 + adjustedNodeLayout.outerYSep,
+        anchorRadius: Math.max(
+          rectangleSplitLayout.width / 2 + adjustedNodeLayout.outerXSep,
+          rectangleSplitLayout.height / 2 + adjustedNodeLayout.outerYSep
+        )
+      }
+    : adjustedNodeLayout;
   const shapeGeometry = resolveNodeShapeGeometryParams(expandedNodeOptions, () => context.mathRandom.nextRaw());
   const slopedRotation = resolveSlopedNodeRotation(expandedNodeOptions, segment, effectiveBaseStyleChain);
   const inheritedNodeTransform: Matrix2D = frame.transformShape
@@ -717,8 +789,276 @@ export function evaluateNodeItem(
   };
   if (resolvedPaintMode.draw || resolvedPaintMode.fill || nodeStyle.shadowLayers.length > 0) {
     const nodeBoxStyle = applyNodeBoxPaintMode(nodeStyle, resolvedPaintMode);
+    const nodeDividerStyle: ResolvedStyle = {
+      ...nodeBoxStyle,
+      fill: null,
+      fillPattern: null,
+      doubleStroke: false,
+      doubleDistance: 0
+    };
     const calloutPointerOffset = resolveCalloutPointerOffset(shapeGeometry, context, center);
-    if (nodeShape === "circle") {
+    if (nodeShape === "rounded rectangle") {
+      pushNodeElement(
+        makeNodeRoundedRectangleElement(
+          nodeSourceId,
+          item.id,
+          center,
+          nodeLayout.visualWidth,
+          nodeLayout.visualHeight,
+          shapeGeometry.roundedRectangleArcLength,
+          shapeGeometry.roundedRectangleWestArc,
+          shapeGeometry.roundedRectangleEastArc,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_rounded_rectangle", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "chamfered rectangle") {
+      pushNodeElement(
+        makeNodeChamferedRectangleElement(
+          nodeSourceId,
+          item.id,
+          center,
+          nodeLayout.visualWidth,
+          nodeLayout.visualHeight,
+          shapeGeometry.chamferedRectangleXSepPt,
+          shapeGeometry.chamferedRectangleYSepPt,
+          shapeGeometry.chamferedRectangleAngle,
+          shapeGeometry.chamferedRectangleCorners,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_chamfered_rectangle", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "cross out") {
+      const halfWidth = nodeLayout.visualWidth / 2;
+      const halfHeight = nodeLayout.visualHeight / 2;
+      pushNodeElement(
+        makeNodeLineElement(
+          nodeSourceId,
+          `${item.id}:cross-a`,
+          { x: center.x - halfWidth, y: center.y - halfHeight },
+          { x: center.x + halfWidth, y: center.y + halfHeight },
+          nodeDividerStyle,
+          item.span
+        )
+      );
+      pushNodeElement(
+        makeNodeLineElement(
+          nodeSourceId,
+          `${item.id}:cross-b`,
+          { x: center.x - halfWidth, y: center.y + halfHeight },
+          { x: center.x + halfWidth, y: center.y - halfHeight },
+          nodeDividerStyle,
+          item.span
+        )
+      );
+      markFeature("shape_cross_out", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "strike out") {
+      const halfWidth = nodeLayout.visualWidth / 2;
+      const halfHeight = nodeLayout.visualHeight / 2;
+      pushNodeElement(
+        makeNodeLineElement(
+          nodeSourceId,
+          `${item.id}:strike`,
+          { x: center.x - halfWidth, y: center.y - halfHeight },
+          { x: center.x + halfWidth, y: center.y + halfHeight },
+          nodeDividerStyle,
+          item.span
+        )
+      );
+      markFeature("shape_strike_out", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "magnifying glass") {
+      pushNodeElement(makeCircleElement(nodeSourceId, center, nodeLayout.visualRadius, nodeBoxStyle, item.span));
+      pushNodeElement(
+        makeNodeMagnifyingHandleElement(
+          nodeSourceId,
+          `${item.id}:handle`,
+          center,
+          nodeLayout.visualRadius,
+          shapeGeometry.magnifyingGlassHandleAngle,
+          shapeGeometry.magnifyingGlassHandleAspect,
+          { ...nodeBoxStyle, fill: null },
+          item.span
+        )
+      );
+      markFeature("shape_magnifying_glass", "supported");
+      markFeature("svg_circle", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "circle split" || nodeShape === "circle solidus") {
+      pushNodeElement(makeCircleElement(nodeSourceId, center, nodeLayout.visualRadius, nodeBoxStyle, item.span));
+      const r = nodeLayout.visualRadius;
+      if (nodeShape === "circle split") {
+        pushNodeElement(
+          makeNodeLineElement(
+            nodeSourceId,
+            `${item.id}:split`,
+            { x: center.x - r, y: center.y },
+            { x: center.x + r, y: center.y },
+            nodeDividerStyle,
+            item.span
+          )
+        );
+        markFeature("shape_circle_split", "supported");
+      } else {
+        pushNodeElement(
+          makeNodeLineElement(
+            nodeSourceId,
+            `${item.id}:solidus`,
+            { x: center.x - r * 0.437, y: center.y - r * 0.437 },
+            { x: center.x + r * 0.437, y: center.y + r * 0.437 },
+            nodeDividerStyle,
+            item.span
+          )
+        );
+        markFeature("shape_circle_solidus", "supported");
+      }
+      markFeature("svg_circle", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "ellipse split") {
+      pushNodeElement(makeNodeEllipseElement(nodeSourceId, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));
+      pushNodeElement(
+          makeNodeLineElement(
+            nodeSourceId,
+            `${item.id}:split`,
+            { x: center.x - nodeLayout.visualWidth / 2, y: center.y },
+            { x: center.x + nodeLayout.visualWidth / 2, y: center.y },
+            nodeDividerStyle,
+            item.span
+          )
+        );
+      markFeature("shape_ellipse_split", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "diamond split") {
+      pushNodeElement(
+        makeNodeDiamondElement(
+          nodeSourceId,
+          item.id,
+          center,
+          nodeLayout.visualWidth,
+          nodeLayout.visualHeight,
+          shapeGeometry.diamondAspect,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      pushNodeElement(
+          makeNodeLineElement(
+            nodeSourceId,
+            `${item.id}:split`,
+            { x: center.x - nodeLayout.visualWidth / 2, y: center.y },
+            { x: center.x + nodeLayout.visualWidth / 2, y: center.y },
+            nodeDividerStyle,
+            item.span
+          )
+        );
+      markFeature("shape_diamond_split", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "rectangle split") {
+      const parts = Math.max(1, resolveRectangleSplitParts(rectangleSplitOptions));
+      const horizontal = resolveRectangleSplitHorizontal(rectangleSplitOptions);
+      const splitLayout = rectangleSplitLayout ?? resolveRectangleSplitLayoutGeometry({
+        rawNodeParts,
+        options: rectangleSplitOptions,
+        style: nodeTextStyle,
+        textMode: placementOptions.textMode ?? "text",
+        context,
+        baseLayout: nodeLayout
+      });
+      const effectiveSplitWidth = splitLayout.width;
+      const effectiveSplitHeight = splitLayout.height;
+      const useCustomFill = resolveRectangleSplitUseCustomFill(expandedNodeOptions);
+      const drawSplits = resolveRectangleSplitDrawSplits(expandedNodeOptions);
+      const partFills = resolveRectangleSplitPartFills(expandedNodeOptions, context, statement.id, nodeTextStyle.textColor ?? "#000000");
+      const segments = splitLayout.segments.map((segment) => ({
+        ...segment,
+        center: { x: center.x + segment.center.x, y: center.y + segment.center.y },
+        minX: center.x + segment.minX,
+        maxX: center.x + segment.maxX,
+        minY: center.y + segment.minY,
+        maxY: center.y + segment.maxY
+      }));
+      if (useCustomFill && partFills.length > 0) {
+        for (let index = 0; index < segments.length; index += 1) {
+          const segment = segments[index]!;
+          const fill = partFills[Math.min(index, partFills.length - 1)] ?? null;
+          if (!fill || fill === "none") {
+            continue;
+          }
+          pushNodeElement(
+            makeNodeBoxElement(
+              nodeSourceId,
+              `${item.id}:part-fill-${index + 1}`,
+              segment.center,
+              segment.width,
+              segment.height,
+              {
+                ...nodeBoxStyle,
+                stroke: null,
+                drawExplicit: false,
+                fill,
+                fillPattern: null,
+                doubleStroke: false,
+                doubleDistance: 0
+              },
+              item.span
+            )
+          );
+        }
+        pushNodeElement(
+          makeNodeBoxElement(
+            nodeSourceId,
+            `${item.id}:border`,
+            center,
+            effectiveSplitWidth,
+            effectiveSplitHeight,
+            { ...nodeDividerStyle, fill: null, fillPattern: null, drawExplicit: true },
+            item.span
+          )
+        );
+      } else {
+        pushNodeElement(makeNodeBoxElement(nodeSourceId, item.id, center, effectiveSplitWidth, effectiveSplitHeight, nodeBoxStyle, item.span));
+      }
+      if (parts > 1) {
+        for (let index = 1; index < segments.length; index += 1) {
+          if (drawSplits) {
+            const previous = segments[index - 1]!;
+            const current = segments[index]!;
+            if (horizontal) {
+              const x = (previous.maxX + current.minX) / 2;
+              pushNodeElement(
+                makeNodeLineElement(
+                  nodeSourceId,
+                  `${item.id}:split-${index}`,
+                  { x, y: center.y - effectiveSplitHeight / 2 },
+                  { x, y: center.y + effectiveSplitHeight / 2 },
+                  nodeDividerStyle,
+                  item.span
+                )
+              );
+            } else {
+              const y = (previous.minY + current.maxY) / 2;
+              pushNodeElement(
+                makeNodeLineElement(
+                  nodeSourceId,
+                  `${item.id}:split-${index}`,
+                  { x: center.x - effectiveSplitWidth / 2, y },
+                  { x: center.x + effectiveSplitWidth / 2, y },
+                  nodeDividerStyle,
+                  item.span
+                )
+              );
+            }
+          }
+        }
+      }
+      markFeature("shape_rectangle_split", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "circle") {
       pushNodeElement(makeCircleElement(nodeSourceId, center, nodeLayout.visualRadius, nodeBoxStyle, item.span));
       markFeature("shape_circle", "supported");
       markFeature("svg_circle", "supported");
@@ -1104,7 +1444,9 @@ export function evaluateNodeItem(
   }
 
   const renderedNodeText = nodeLayout.textLines.join("\n");
-  if (renderedNodeText.length > 0) {
+  const hasMultipartSecondaryParts =
+    isMultipartShape(nodeShape) && rawNodeParts.some((part) => part.name !== "text" && part.text.length > 0);
+  if (renderedNodeText.length > 0 && !hasMultipartSecondaryParts) {
     pushNodeElement(
       makeTextElement(
         nodeSourceId,
@@ -1125,6 +1467,200 @@ export function evaluateNodeItem(
       )
     );
     markFeature("svg_text", "supported");
+  }
+
+  if (isMultipartShape(nodeShape)) {
+    const parts = rawNodeParts.filter((part) => part.name !== "text" && part.text.length > 0);
+    if (parts.length > 0) {
+      if (nodeShape === "circle split" || nodeShape === "ellipse split" || nodeShape === "diamond split") {
+        const splitTextStyle: ResolvedStyle =
+          nodeShape === "circle split"
+            ? {
+                ...nodeTextStyle,
+                fontSize: nodeTextStyle.fontSize * 0.9
+              }
+            : nodeTextStyle;
+        if (mainNodeText.length > 0) {
+          const upperLayout = resolveNodeLayout(
+            mainNodeText,
+            expandedNodeOptions,
+            splitTextStyle,
+            1,
+            context.textEngine,
+            placementOptions.textMode ?? "text"
+          );
+          pushNodeElement(
+            makeTextElement(
+              nodeSourceId,
+              `${item.id}:upper`,
+              {
+                x: center.x,
+                y: center.y + resolveCircleSplitTextOffset(nodeLayout.visualHeight, upperLayout.textBlockHeight)
+              },
+              splitTextStyle,
+              item.span,
+              mainNodeText,
+              upperLayout.textBlockWidth,
+              upperLayout.textBlockHeight,
+              nodeLayout.visualWidth,
+              nodeLayout.visualHeight,
+              upperLayout.textRenderInfo,
+              undefined,
+              undefined,
+              item.textSpan,
+              hasTextWidthOption(expandedNodeOptions)
+            )
+          );
+        }
+        const lower = parts.find((part) => part.name === "lower") ?? parts[0];
+        if (lower) {
+          const lowerLayout = resolveNodeLayout(
+            lower.text,
+            expandedNodeOptions,
+            splitTextStyle,
+            1,
+            context.textEngine,
+            placementOptions.textMode ?? "text"
+          );
+          pushNodeElement(
+            makeTextElement(
+              nodeSourceId,
+              `${item.id}:lower`,
+              {
+                x: center.x,
+                y: center.y - resolveCircleSplitTextOffset(nodeLayout.visualHeight, lowerLayout.textBlockHeight)
+              },
+              splitTextStyle,
+              item.span,
+              lower.text,
+              lowerLayout.textBlockWidth,
+              lowerLayout.textBlockHeight,
+              nodeLayout.visualWidth,
+              nodeLayout.visualHeight,
+              lowerLayout.textRenderInfo,
+              undefined,
+              undefined,
+              item.textSpan,
+              hasTextWidthOption(expandedNodeOptions)
+            )
+          );
+        }
+      } else if (nodeShape === "circle solidus") {
+        const solidusTextStyle: ResolvedStyle = {
+          ...nodeTextStyle,
+          fontSize: nodeTextStyle.fontSize * 0.52
+        };
+        if (mainNodeText.length > 0) {
+          const upperLayout = resolveNodeLayout(
+            mainNodeText,
+            expandedNodeOptions,
+            solidusTextStyle,
+            1,
+            context.textEngine,
+            placementOptions.textMode ?? "text"
+          );
+          pushNodeElement(
+            makeTextElement(
+              nodeSourceId,
+              `${item.id}:upper`,
+              {
+                x: center.x - nodeLayout.visualWidth * 0.22,
+                y: center.y + nodeLayout.visualHeight * 0.22
+              },
+              solidusTextStyle,
+              item.span,
+              mainNodeText,
+              upperLayout.textBlockWidth,
+              upperLayout.textBlockHeight,
+              nodeLayout.visualWidth,
+              nodeLayout.visualHeight,
+              upperLayout.textRenderInfo,
+              undefined,
+              undefined,
+              item.textSpan,
+              hasTextWidthOption(expandedNodeOptions)
+            )
+          );
+        }
+        const lower = parts.find((part) => part.name === "lower") ?? parts[0];
+        if (lower) {
+          const lowerLayout = resolveNodeLayout(
+            lower.text,
+            expandedNodeOptions,
+            solidusTextStyle,
+            1,
+            context.textEngine,
+            placementOptions.textMode ?? "text"
+          );
+          pushNodeElement(
+            makeTextElement(
+              nodeSourceId,
+              `${item.id}:lower`,
+              {
+                x: center.x + nodeLayout.visualWidth * 0.22,
+                y: center.y - nodeLayout.visualHeight * 0.22
+              },
+              solidusTextStyle,
+              item.span,
+              lower.text,
+              lowerLayout.textBlockWidth,
+              lowerLayout.textBlockHeight,
+              nodeLayout.visualWidth,
+              nodeLayout.visualHeight,
+              lowerLayout.textRenderInfo,
+              undefined,
+              undefined,
+              item.textSpan,
+              hasTextWidthOption(expandedNodeOptions)
+            )
+          );
+        }
+      } else if (nodeShape === "rectangle split") {
+        const splitLayout = rectangleSplitLayout ?? resolveRectangleSplitLayoutGeometry({
+          rawNodeParts,
+          options: rectangleSplitOptions,
+          style: nodeTextStyle,
+          textMode: placementOptions.textMode ?? "text",
+          context,
+          baseLayout: nodeLayout
+        });
+        const effectiveSplitWidth = splitLayout.width;
+        const effectiveSplitHeight = splitLayout.height;
+        for (let index = 0; index < splitLayout.parts.length; index += 1) {
+          const part = splitLayout.parts[index]!;
+          const partText = part.text;
+          if (partText.length === 0) {
+            continue;
+          }
+          const partLayout = part.layout;
+          const position = resolveRectangleSplitPartTextPosition({
+            splitLayout,
+            index,
+            center
+          });
+          pushNodeElement(
+            makeTextElement(
+              nodeSourceId,
+              `${item.id}:part-${index + 1}`,
+              position,
+              splitLayout.textStyle,
+              item.span,
+              partText,
+              partLayout.textBlockWidth,
+              partLayout.textBlockHeight,
+              effectiveSplitWidth,
+              effectiveSplitHeight,
+              partLayout.textRenderInfo,
+              undefined,
+              undefined,
+              item.textSpan,
+              hasTextWidthOption(expandedNodeOptions)
+            )
+          );
+        }
+      }
+      markFeature("svg_text", "supported");
+    }
   }
 
   const renderedNodeElements = applyNodeDecorations(
@@ -2414,6 +2950,464 @@ function splitTopLevelCommas(raw: string): string[] {
   }
   parts.push(raw.slice(start));
   return parts;
+}
+
+type RectangleSplitSegment = {
+  center: Point;
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  width: number;
+  height: number;
+};
+
+type RectangleSplitPartLayout = {
+  text: string;
+  layout: ReturnType<typeof resolveNodeLayout>;
+  metricWidth: number;
+  metricHeight: number;
+};
+
+type RectangleSplitPartAlign = "left" | "right" | "center" | "top" | "bottom" | "base";
+
+type RectangleSplitLayoutGeometry = {
+  horizontal: boolean;
+  width: number;
+  height: number;
+  textStyle: ResolvedStyle;
+  parts: RectangleSplitPartLayout[];
+  segments: RectangleSplitSegment[];
+  partAlignments: RectangleSplitPartAlign[];
+};
+
+function mergeOptionLists(lists: Array<OptionListAst | undefined>): OptionListAst | undefined {
+  const present = lists.filter((entry): entry is OptionListAst => Boolean(entry));
+  if (present.length === 0) {
+    return undefined;
+  }
+  const spanFrom = present.reduce((min, list) => Math.min(min, list.span.from), Number.POSITIVE_INFINITY);
+  const spanTo = present.reduce((max, list) => Math.max(max, list.span.to), 0);
+  return {
+    span: {
+      from: Number.isFinite(spanFrom) ? spanFrom : 0,
+      to: spanTo
+    },
+    raw: present.map((list) => list.raw).join(", "),
+    entries: present.flatMap((list) => list.entries)
+  };
+}
+
+function resolveCircleSplitTextOffset(totalHeight: number, textHeight: number): number {
+  const heightFactor = textHeight > totalHeight * 0.42 ? 0.33 : 0.31;
+  return totalHeight * heightFactor;
+}
+
+function resolveRectangleSplitLayoutGeometry(params: {
+  rawNodeParts: ReturnType<typeof parseNodeParts>;
+  options: OptionListAst | undefined;
+  style: ResolvedStyle;
+  textMode: "text" | "math";
+  context: SemanticContext;
+  baseLayout: ReturnType<typeof resolveNodeLayout>;
+}): RectangleSplitLayoutGeometry {
+  const textStyle = resolveRectangleSplitPartTextStyle(params.style, params.options);
+  const partCount = Math.max(1, resolveRectangleSplitParts(params.options));
+  const horizontal = resolveRectangleSplitHorizontal(params.options);
+  const ignoreEmpty = resolveRectangleSplitIgnoreEmptyParts(params.options);
+  const partTextsBase = resolveRectangleSplitPartTexts(params.rawNodeParts, partCount);
+  const partTexts = ignoreEmpty ? partTextsBase.filter((partText) => partText.length > 0) : partTextsBase;
+  const innerSeps = resolveRectangleSplitInnerSeps(params.options);
+  const emptyPart = resolveRectangleSplitEmptyPartMetrics(params.options);
+  const parts = partTexts.map((text) => {
+    const layout = resolveNodeLayout(text, params.options, textStyle, 1, params.context.textEngine, params.textMode);
+    const isEmpty = text.trim().length === 0;
+    const metricWidth = isEmpty ? emptyPart.width + innerSeps.x * 2 : layout.naturalWidth;
+    const metricHeight = isEmpty ? emptyPart.height + emptyPart.depth + innerSeps.y * 2 : layout.naturalHeight;
+    return { text, layout, metricWidth, metricHeight };
+  });
+
+  const metrics = parts.map((part) => Math.max(1e-3, horizontal ? part.metricWidth : part.metricHeight));
+  const sumMetric = metrics.reduce((sum, metric) => sum + metric, 0);
+  const maxWidth = parts.reduce((max, part) => Math.max(max, part.metricWidth), 0);
+  const maxHeight = parts.reduce((max, part) => Math.max(max, part.metricHeight), 0);
+  const rawWidth = horizontal ? sumMetric : maxWidth;
+  const rawHeight = horizontal ? maxHeight : sumMetric;
+  const width = Math.max(params.baseLayout.minimumWidth, rawWidth, 1e-3);
+  const height = Math.max(params.baseLayout.minimumHeight, rawHeight, 1e-3);
+  const partAlignments = resolveRectangleSplitPartAlignments(params.options, horizontal, parts.length);
+
+  const segments = computeRectangleSplitSegments({
+    center: { x: 0, y: 0 },
+    width,
+    height,
+    horizontal,
+    metrics
+  });
+
+  return {
+    horizontal,
+    width,
+    height,
+    textStyle,
+    parts,
+    segments,
+    partAlignments
+  };
+}
+
+function resolveRectangleSplitPartAlignments(
+  options: OptionListAst | undefined,
+  horizontal: boolean,
+  partCount: number
+): RectangleSplitPartAlign[] {
+  const defaultAlign: RectangleSplitPartAlign = "center";
+  if (!options || partCount <= 0) {
+    return new Array(Math.max(0, partCount)).fill(defaultAlign);
+  }
+
+  let list: RectangleSplitPartAlign[] | null = null;
+  for (const entry of options.entries) {
+    if (entry.kind !== "kv" || entry.key !== "rectangle split part align") {
+      continue;
+    }
+    const rawItems = splitTopLevelCommas(stripWrappingBraces(entry.valueRaw));
+    const parsed: RectangleSplitPartAlign[] = [];
+    for (const rawItem of rawItems) {
+      const normalized = normalizeOptionValue(rawItem).trim().toLowerCase();
+      if (horizontal) {
+        if (normalized === "top" || normalized === "bottom" || normalized === "center" || normalized === "base") {
+          parsed.push(normalized);
+        }
+      } else if (normalized === "left" || normalized === "right" || normalized === "center") {
+        parsed.push(normalized);
+      }
+    }
+    list = parsed.length > 0 ? parsed : [defaultAlign];
+  }
+
+  if (!list || list.length === 0) {
+    return new Array(partCount).fill(defaultAlign);
+  }
+
+  const alignments: RectangleSplitPartAlign[] = [];
+  for (let index = 0; index < partCount; index += 1) {
+    alignments.push(list[Math.min(index, list.length - 1)] ?? defaultAlign);
+  }
+  return alignments;
+}
+
+function resolveRectangleSplitPartTextPosition(params: {
+  splitLayout: RectangleSplitLayoutGeometry;
+  index: number;
+  center: Point;
+}): Point {
+  const segment = params.splitLayout.segments[params.index];
+  const part = params.splitLayout.parts[params.index];
+  if (!segment || !part) {
+    return params.center;
+  }
+  const partAlign = params.splitLayout.partAlignments[params.index] ?? "center";
+  const halfMetricWidth = part.metricWidth / 2;
+  const halfMetricHeight = part.metricHeight / 2;
+  let x = segment.center.x;
+  let y = segment.center.y;
+
+  if (params.splitLayout.horizontal) {
+    if (partAlign === "top") {
+      y = segment.maxY - halfMetricHeight;
+    } else if (partAlign === "bottom") {
+      y = segment.minY + halfMetricHeight;
+    } else if (partAlign === "base") {
+      const baseY = resolveRectangleSplitSharedBaseline(params.splitLayout);
+      const minCenterY = segment.minY + halfMetricHeight;
+      const maxCenterY = segment.maxY - halfMetricHeight;
+      y = clamp(baseY - part.layout.baseLineY, minCenterY, maxCenterY);
+    }
+  } else {
+    if (partAlign === "left") {
+      x = segment.minX + halfMetricWidth;
+    } else if (partAlign === "right") {
+      x = segment.maxX - halfMetricWidth;
+    }
+  }
+
+  return {
+    x: params.center.x + x,
+    y: params.center.y + y
+  };
+}
+
+function resolveRectangleSplitSharedBaseline(splitLayout: RectangleSplitLayoutGeometry): number {
+  let lower = Number.NEGATIVE_INFINITY;
+  let upper = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < splitLayout.parts.length; index += 1) {
+    const segment = splitLayout.segments[index];
+    const part = splitLayout.parts[index];
+    if (!segment || !part) {
+      continue;
+    }
+    const halfMetricHeight = part.metricHeight / 2;
+    const minCenterY = segment.minY + halfMetricHeight;
+    const maxCenterY = segment.maxY - halfMetricHeight;
+    const baselineMin = minCenterY + part.layout.baseLineY;
+    const baselineMax = maxCenterY + part.layout.baseLineY;
+    lower = Math.max(lower, baselineMin);
+    upper = Math.min(upper, baselineMax);
+  }
+  if (!Number.isFinite(lower) || !Number.isFinite(upper)) {
+    return 0;
+  }
+  if (lower <= upper) {
+    return (lower + upper) / 2;
+  }
+  return lower;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function resolveRectangleSplitPartTextStyle(baseStyle: ResolvedStyle, options: OptionListAst | undefined): ResolvedStyle {
+  const align = resolveEveryTextNodePartAlign(options);
+  if (align == null) {
+    return baseStyle;
+  }
+  return {
+    ...baseStyle,
+    textAlign: align
+  };
+}
+
+function resolveEveryTextNodePartAlign(options: OptionListAst | undefined): ResolvedStyle["textAlign"] | null {
+  if (!options) {
+    return null;
+  }
+  let align: ResolvedStyle["textAlign"] | null = null;
+  for (const entry of options.entries) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    if (entry.key !== "every text node part/.style" && entry.key !== "every text node part/.append style") {
+      continue;
+    }
+    const parsed = parseOptionListRaw(`[${stripWrappingBraces(entry.valueRaw)}]`, entry.span.from);
+    for (const styleEntry of parsed.entries) {
+      if (styleEntry.kind !== "kv" || styleEntry.key !== "align") {
+        continue;
+      }
+      const normalized = normalizeOptionValue(styleEntry.valueRaw).trim().toLowerCase();
+      if (
+        normalized === "left" ||
+        normalized === "flush left" ||
+        normalized === "right" ||
+        normalized === "flush right" ||
+        normalized === "center" ||
+        normalized === "flush center" ||
+        normalized === "justify" ||
+        normalized === "none"
+      ) {
+        align = normalized;
+      }
+    }
+  }
+  return align;
+}
+
+function resolveRectangleSplitInnerSeps(options: OptionListAst | undefined): { x: number; y: number } {
+  const defaultInner = parseLength(".3333em", "pt") ?? 3.333;
+  let x = defaultInner;
+  let y = defaultInner;
+  if (!options) {
+    return { x, y };
+  }
+  for (const entry of options.entries) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    if (entry.key === "inner sep") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        x = parsed;
+        y = parsed;
+      }
+      continue;
+    }
+    if (entry.key === "inner xsep") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        x = parsed;
+      }
+      continue;
+    }
+    if (entry.key === "inner ysep") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        y = parsed;
+      }
+    }
+  }
+  return { x, y };
+}
+
+function resolveRectangleSplitEmptyPartMetrics(options: OptionListAst | undefined): {
+  width: number;
+  height: number;
+  depth: number;
+} {
+  let width = parseLength("1ex", "pt") ?? 4.3;
+  let height = parseLength("1ex", "pt") ?? 4.3;
+  let depth = parseLength("0ex", "pt") ?? 0;
+  if (!options) {
+    return { width, height, depth };
+  }
+  for (const entry of options.entries) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    if (entry.key === "rectangle split empty part width") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        width = Math.max(0, parsed);
+      }
+      continue;
+    }
+    if (entry.key === "rectangle split empty part height") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        height = Math.max(0, parsed);
+      }
+      continue;
+    }
+    if (entry.key === "rectangle split empty part depth") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        depth = Math.max(0, parsed);
+      }
+    }
+  }
+  return { width, height, depth };
+}
+
+function computeRectangleSplitSegments(params: {
+  center: Point;
+  width: number;
+  height: number;
+  horizontal: boolean;
+  metrics: number[];
+}): RectangleSplitSegment[] {
+  const count = Math.max(1, params.metrics.length);
+  const values = params.metrics.length === count ? params.metrics : new Array(count).fill(1);
+  const metricSum = values.reduce((sum, value) => sum + Math.max(1e-3, value), 0);
+  const safeSum = metricSum > 1e-6 ? metricSum : count;
+  const segments: RectangleSplitSegment[] = [];
+
+  if (params.horizontal) {
+    const left = params.center.x - params.width / 2;
+    let cursor = left;
+    for (let index = 0; index < count; index += 1) {
+      const span = (params.width * Math.max(1e-3, values[index] ?? 1)) / safeSum;
+      const minX = cursor;
+      const maxX = index === count - 1 ? left + params.width : cursor + span;
+      segments.push({
+        center: { x: (minX + maxX) / 2, y: params.center.y },
+        minX,
+        maxX,
+        minY: params.center.y - params.height / 2,
+        maxY: params.center.y + params.height / 2,
+        width: Math.max(0, maxX - minX),
+        height: params.height
+      });
+      cursor = maxX;
+    }
+    return segments;
+  }
+
+  const top = params.center.y + params.height / 2;
+  let cursor = top;
+  for (let index = 0; index < count; index += 1) {
+    const span = (params.height * Math.max(1e-3, values[index] ?? 1)) / safeSum;
+    const maxY = cursor;
+    const minY = index === count - 1 ? top - params.height : cursor - span;
+    segments.push({
+      center: { x: params.center.x, y: (minY + maxY) / 2 },
+      minX: params.center.x - params.width / 2,
+      maxX: params.center.x + params.width / 2,
+      minY,
+      maxY,
+      width: params.width,
+      height: Math.max(0, maxY - minY)
+    });
+    cursor = minY;
+  }
+  return segments;
+}
+
+function resolveRectangleSplitUseCustomFill(options: OptionListAst | undefined): boolean {
+  if (!options) {
+    return true;
+  }
+  let value = true;
+  for (const entry of options.entries) {
+    if (entry.kind !== "kv" || entry.key !== "rectangle split use custom fill") {
+      continue;
+    }
+    const parsed = parseBooleanishNormalized(normalizeOptionValue(entry.valueRaw));
+    if (parsed != null) {
+      value = parsed;
+    }
+  }
+  return value;
+}
+
+function resolveRectangleSplitDrawSplits(options: OptionListAst | undefined): boolean {
+  if (!options) {
+    return true;
+  }
+  let value = true;
+  for (const entry of options.entries) {
+    if (entry.kind !== "kv" || entry.key !== "rectangle split draw splits") {
+      continue;
+    }
+    const parsed = parseBooleanishNormalized(normalizeOptionValue(entry.valueRaw));
+    if (parsed != null) {
+      value = parsed;
+    }
+  }
+  return value;
+}
+
+function resolveRectangleSplitPartFills(
+  options: OptionListAst | undefined,
+  context: SemanticContext,
+  consumerStatementId: string,
+  currentColor: string
+): string[] {
+  if (!options) {
+    return [];
+  }
+  const fills: string[] = [];
+  for (const entry of options.entries) {
+    if (entry.kind !== "kv" || entry.key !== "rectangle split part fill") {
+      continue;
+    }
+    const rawList = splitTopLevelCommas(stripWrappingBraces(entry.valueRaw));
+    fills.length = 0;
+    for (const raw of rawList) {
+      const normalized = normalizeOptionValue(raw).trim();
+      if (normalized.length === 0) {
+        continue;
+      }
+      const color = normalizeColor(normalized, {
+        currentColor,
+        resolveAlias: (name) => resolveContextColorAliasValue(context, name, consumerStatementId)
+      });
+      if (color && color !== "none") {
+        fills.push(color);
+      }
+    }
+  }
+  return fills;
 }
 
 function makeGeneratedSetMemberName(item: NodeItem): string {

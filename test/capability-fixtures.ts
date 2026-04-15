@@ -73,8 +73,38 @@ export const capabilityFixtures: Record<string, string> = {
   rectangle_shape: String.raw`\begin{tikzpicture}
   \draw (0,0) rectangle (2,1);
 \end{tikzpicture}`,
+  rounded_rectangle_shape: String.raw`\begin{tikzpicture}
+  \node[rounded rectangle,draw] at (0,0) {R};
+\end{tikzpicture}`,
+  chamfered_rectangle_shape: String.raw`\begin{tikzpicture}
+  \node[chamfered rectangle,draw] at (0,0) {C};
+\end{tikzpicture}`,
+  cross_out_shape: String.raw`\begin{tikzpicture}
+  \node[cross out,draw] at (0,0) {X};
+\end{tikzpicture}`,
+  strike_out_shape: String.raw`\begin{tikzpicture}
+  \node[strike out,draw] at (0,0) {S};
+\end{tikzpicture}`,
   circle_shape: String.raw`\begin{tikzpicture}
   \draw (0,0) circle [radius=1cm];
+\end{tikzpicture}`,
+  magnifying_glass_shape: String.raw`\begin{tikzpicture}
+  \node[magnifying glass,draw] at (0,0) {M};
+\end{tikzpicture}`,
+  circle_split_shape: String.raw`\begin{tikzpicture}
+  \node[circle split,draw] at (0,0) {A\nodepart{lower}B};
+\end{tikzpicture}`,
+  circle_solidus_shape: String.raw`\begin{tikzpicture}
+  \node[circle solidus,draw] at (0,0) {A\nodepart{lower}B};
+\end{tikzpicture}`,
+  ellipse_split_shape: String.raw`\begin{tikzpicture}
+  \node[ellipse split,draw] at (0,0) {A\nodepart{lower}B};
+\end{tikzpicture}`,
+  diamond_split_shape: String.raw`\begin{tikzpicture}
+  \node[diamond split,draw] at (0,0) {A\nodepart{lower}B};
+\end{tikzpicture}`,
+  rectangle_split_shape: String.raw`\begin{tikzpicture}
+  \node[rectangle split,rectangle split parts=3,draw] at (0,0) {A\nodepart{two}B\nodepart{three}C};
 \end{tikzpicture}`,
   ellipse_shape: String.raw`\begin{tikzpicture}
   \draw (0,0) ellipse [x radius=1cm,y radius=0.5cm];

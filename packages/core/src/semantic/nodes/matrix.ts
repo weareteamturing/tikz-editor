@@ -16,6 +16,7 @@ import {
   makeCircleElement,
   makeNodeBoxElement,
   makeNodeCircularSectorElement,
+  makeNodeChamferedRectangleElement,
   makeNodeCloudCalloutElement,
   makeNodeCloudElement,
   makeNodeCylinderElement,
@@ -23,6 +24,9 @@ import {
   makeNodeDiamondElement,
   makeNodeEllipseCalloutElement,
   makeNodeEllipseElement,
+  makeNodeLineElement,
+  makeNodeMagnifyingHandleElement,
+  makeNodeRoundedRectangleElement,
   makeNodeIsoscelesTriangleElement,
   makeNodeKiteElement,
   makeNodeRectangleCalloutElement,
@@ -46,6 +50,7 @@ import {
   resolveNodeStyle
 } from "./options.js";
 import { resolveCalloutPointerOffset, resolveNodeShapeGeometryParams } from "./shape-geometry.js";
+import { resolveRectangleSplitHorizontal, resolveRectangleSplitParts } from "./multipart.js";
 import type { NodeLayout, NodeShape } from "./types.js";
 
 type MatrixSpacingSpec = {
@@ -155,6 +160,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
   const cellGrid: Array<Array<ResolvedMatrixCell | null>> = Array.from({ length: rowCount }, () => Array.from({ length: colCount }, () => null));
   const colWidths = new Array(colCount).fill(0);
   const rowHeights = new Array(rowCount).fill(0);
+  const matrixEveryNodeOptions = collectMatrixEveryNodeOptions(params.effectiveNodeOptions);
 
   for (let row = 0; row < rowCount; row += 1) {
     const rawRow = parsed.rows[row] ?? { cells: [] as MatrixParsedCell[], columnGapOverrides: [] };
@@ -168,7 +174,9 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         continue;
       }
 
-      const combinedCellOptions = stripMatrixSpecificOptions(mergeOptionLists([params.matrixMode.nodesOption, parsedCell.options]));
+      const combinedCellOptions = stripMatrixSpecificOptions(
+        mergeOptionLists([matrixEveryNodeOptions, params.matrixMode.nodesOption, parsedCell.options])
+      );
       const cellOptionScale = resolveNodeOptionScale(combinedCellOptions, params.style, params.context);
       const cellTransformScale = params.inheritedTransformScale * cellOptionScale;
       const cellStyle = resolveNodeStyle(combinedCellOptions, params.style, params.context, cellTransformScale);
@@ -258,8 +266,235 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
   const matrixBoxPaintMode = resolveNodeBoxPaintMode(params.effectiveNodeLocalOptions);
   if (matrixBoxPaintMode.draw || matrixBoxPaintMode.fill || params.nodeStyle.shadowLayers.length > 0) {
     const matrixBoxStyle = applyNodeBoxPaintMode(params.nodeStyle, matrixBoxPaintMode);
+    const matrixDividerStyle: ResolvedStyle = {
+      ...matrixBoxStyle,
+      fill: null,
+      fillPattern: null,
+      doubleStroke: false,
+      doubleDistance: 0
+    };
     const calloutPointerOffset = resolveCalloutPointerOffset(shapeGeometry, params.context, matrixCenter);
-    if (params.nodeShape === "circle") {
+    if (params.nodeShape === "rounded rectangle") {
+      pushMatrixNodeElement(
+        makeNodeRoundedRectangleElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.visualWidth,
+          matrixLayout.visualHeight,
+          shapeGeometry.roundedRectangleArcLength,
+          shapeGeometry.roundedRectangleWestArc,
+          shapeGeometry.roundedRectangleEastArc,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_rounded_rectangle", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "chamfered rectangle") {
+      pushMatrixNodeElement(
+        makeNodeChamferedRectangleElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.visualWidth,
+          matrixLayout.visualHeight,
+          shapeGeometry.chamferedRectangleXSepPt,
+          shapeGeometry.chamferedRectangleYSepPt,
+          shapeGeometry.chamferedRectangleAngle,
+          shapeGeometry.chamferedRectangleCorners,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_chamfered_rectangle", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "cross out") {
+      const halfWidth = matrixLayout.visualWidth / 2;
+      const halfHeight = matrixLayout.visualHeight / 2;
+      pushMatrixNodeElement(
+        makeNodeLineElement(
+          params.statement.id,
+          `${params.item.id}:cross-a`,
+          { x: matrixCenter.x - halfWidth, y: matrixCenter.y - halfHeight },
+          { x: matrixCenter.x + halfWidth, y: matrixCenter.y + halfHeight },
+          matrixDividerStyle,
+          params.item.span
+        )
+      );
+      pushMatrixNodeElement(
+        makeNodeLineElement(
+          params.statement.id,
+          `${params.item.id}:cross-b`,
+          { x: matrixCenter.x - halfWidth, y: matrixCenter.y + halfHeight },
+          { x: matrixCenter.x + halfWidth, y: matrixCenter.y - halfHeight },
+          matrixDividerStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_cross_out", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "strike out") {
+      const halfWidth = matrixLayout.visualWidth / 2;
+      const halfHeight = matrixLayout.visualHeight / 2;
+      pushMatrixNodeElement(
+        makeNodeLineElement(
+          params.statement.id,
+          `${params.item.id}:strike`,
+          { x: matrixCenter.x - halfWidth, y: matrixCenter.y - halfHeight },
+          { x: matrixCenter.x + halfWidth, y: matrixCenter.y + halfHeight },
+          matrixDividerStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_strike_out", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "magnifying glass") {
+      pushMatrixNodeElement(
+        makeCircleElement(params.statement.id, matrixCenter, matrixLayout.visualRadius, matrixBoxStyle, params.item.span)
+      );
+      pushMatrixNodeElement(
+        makeNodeMagnifyingHandleElement(
+          params.statement.id,
+          `${params.item.id}:handle`,
+          matrixCenter,
+          matrixLayout.visualRadius,
+          shapeGeometry.magnifyingGlassHandleAngle,
+          shapeGeometry.magnifyingGlassHandleAspect,
+          { ...matrixBoxStyle, fill: null },
+          params.item.span
+        )
+      );
+      params.markFeature("shape_magnifying_glass", "supported");
+      params.markFeature("svg_circle", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "circle split" || params.nodeShape === "circle solidus") {
+      pushMatrixNodeElement(
+        makeCircleElement(params.statement.id, matrixCenter, matrixLayout.visualRadius, matrixBoxStyle, params.item.span)
+      );
+      const radius = matrixLayout.visualRadius;
+      if (params.nodeShape === "circle split") {
+        pushMatrixNodeElement(
+          makeNodeLineElement(
+            params.statement.id,
+            `${params.item.id}:split`,
+            { x: matrixCenter.x - radius, y: matrixCenter.y },
+            { x: matrixCenter.x + radius, y: matrixCenter.y },
+            matrixDividerStyle,
+            params.item.span
+          )
+        );
+        params.markFeature("shape_circle_split", "supported");
+      } else {
+        pushMatrixNodeElement(
+          makeNodeLineElement(
+            params.statement.id,
+            `${params.item.id}:solidus`,
+            { x: matrixCenter.x - radius * 0.52, y: matrixCenter.y - radius * 0.52 },
+            { x: matrixCenter.x + radius * 0.52, y: matrixCenter.y + radius * 0.52 },
+            matrixDividerStyle,
+            params.item.span
+          )
+        );
+        params.markFeature("shape_circle_solidus", "supported");
+      }
+      params.markFeature("svg_circle", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "ellipse split") {
+      pushMatrixNodeElement(
+        makeNodeEllipseElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.visualWidth,
+          matrixLayout.visualHeight,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      pushMatrixNodeElement(
+        makeNodeLineElement(
+          params.statement.id,
+          `${params.item.id}:split`,
+          { x: matrixCenter.x - matrixLayout.visualWidth / 2, y: matrixCenter.y },
+          { x: matrixCenter.x + matrixLayout.visualWidth / 2, y: matrixCenter.y },
+          matrixDividerStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_ellipse_split", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "diamond split") {
+      pushMatrixNodeElement(
+        makeNodeDiamondElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.visualWidth,
+          matrixLayout.visualHeight,
+          shapeGeometry.diamondAspect,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      pushMatrixNodeElement(
+        makeNodeLineElement(
+          params.statement.id,
+          `${params.item.id}:split`,
+          { x: matrixCenter.x - matrixLayout.visualWidth / 2, y: matrixCenter.y },
+          { x: matrixCenter.x + matrixLayout.visualWidth / 2, y: matrixCenter.y },
+          matrixDividerStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_diamond_split", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "rectangle split") {
+      pushMatrixNodeElement(
+        makeNodeBoxElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.visualWidth,
+          matrixLayout.visualHeight,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      const dividerCount = Math.max(1, resolveRectangleSplitParts(params.effectiveNodeOptions));
+      const horizontal = resolveRectangleSplitHorizontal(params.effectiveNodeOptions);
+      if (dividerCount > 1) {
+        for (let index = 1; index < dividerCount; index += 1) {
+          if (horizontal) {
+            const x = matrixCenter.x - matrixLayout.visualWidth / 2 + (matrixLayout.visualWidth * index) / dividerCount;
+            pushMatrixNodeElement(
+              makeNodeLineElement(
+                params.statement.id,
+                `${params.item.id}:split-${index}`,
+                { x, y: matrixCenter.y - matrixLayout.visualHeight / 2 },
+                { x, y: matrixCenter.y + matrixLayout.visualHeight / 2 },
+                matrixDividerStyle,
+                params.item.span
+              )
+            );
+          } else {
+            const y = matrixCenter.y + matrixLayout.visualHeight / 2 - (matrixLayout.visualHeight * index) / dividerCount;
+            pushMatrixNodeElement(
+              makeNodeLineElement(
+                params.statement.id,
+                `${params.item.id}:split-${index}`,
+                { x: matrixCenter.x - matrixLayout.visualWidth / 2, y },
+                { x: matrixCenter.x + matrixLayout.visualWidth / 2, y },
+                matrixDividerStyle,
+                params.item.span
+              )
+            );
+          }
+        }
+      }
+      params.markFeature("shape_rectangle_split", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "circle") {
       pushMatrixNodeElement(makeCircleElement(params.statement.id, matrixCenter, matrixLayout.visualRadius, matrixBoxStyle, params.item.span));
       params.markFeature("shape_circle", "supported");
       params.markFeature("svg_circle", "supported");
@@ -1288,6 +1523,26 @@ function stripMatrixSpecificOptions(options: OptionListAst | undefined): OptionL
     ...options,
     entries: filteredEntries
   };
+}
+
+function collectMatrixEveryNodeOptions(options: OptionListAst | undefined): OptionListAst | undefined {
+  if (!options) {
+    return undefined;
+  }
+  const lists: OptionListAst[] = [];
+  for (const entry of options.entries) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    if (entry.key !== "every node/.style" && entry.key !== "every node/.append style") {
+      continue;
+    }
+    const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+    if (parsed) {
+      lists.push(parsed);
+    }
+  }
+  return mergeOptionLists(lists);
 }
 
 function mergeOptionLists(lists: Array<OptionListAst | undefined>): OptionListAst | undefined {

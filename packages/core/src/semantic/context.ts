@@ -59,7 +59,17 @@ export type NodeQuotesMode = "label" | "pin";
 export type NamedNodeGeometry = {
   shape:
     | "rectangle"
+    | "rounded rectangle"
+    | "chamfered rectangle"
+    | "cross out"
+    | "strike out"
     | "circle"
+    | "magnifying glass"
+    | "circle split"
+    | "circle solidus"
+    | "ellipse split"
+    | "diamond split"
+    | "rectangle split"
     | "ellipse"
     | "diamond"
     | "trapezium"
@@ -122,6 +132,7 @@ export type SemanticContextFrame = {
   pinEdgeRaw: string | null;
   transformShape: boolean;
   everyNodeStyles: ProvenanceOptionList[];
+  everyTextNodePartStyles: ProvenanceOptionList[];
   everyFitStyles: ProvenanceOptionList[];
   everyRectangleNodeStyles: ProvenanceOptionList[];
   everyCircleNodeStyles: ProvenanceOptionList[];
@@ -293,6 +304,7 @@ export function createSemanticContext(
         pinEdgeRaw: null,
         transformShape: false,
         everyNodeStyles: [],
+        everyTextNodePartStyles: [],
         everyFitStyles: [],
         everyRectangleNodeStyles: [],
         everyCircleNodeStyles: [],

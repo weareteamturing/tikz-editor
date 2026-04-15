@@ -153,12 +153,82 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "partial",
     fixtures: ["rectangle_shape"]
   },
+  shape_rounded_rectangle: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["rounded_rectangle_shape"]
+  },
+  shape_chamfered_rectangle: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["chamfered_rectangle_shape"]
+  },
+  shape_cross_out: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["cross_out_shape"]
+  },
+  shape_strike_out: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["strike_out_shape"]
+  },
   shape_circle: {
     parser: "stable",
     semantic: "stable",
     svg: "stable",
     edit: "partial",
     fixtures: ["circle_shape"]
+  },
+  shape_magnifying_glass: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["magnifying_glass_shape"]
+  },
+  shape_circle_split: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["circle_split_shape"]
+  },
+  shape_circle_solidus: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["circle_solidus_shape"]
+  },
+  shape_ellipse_split: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["ellipse_split_shape"]
+  },
+  shape_diamond_split: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["diamond_split_shape"]
+  },
+  shape_rectangle_split: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["rectangle_split_shape"]
   },
   shape_ellipse: {
     parser: "stable",

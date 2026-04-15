@@ -218,6 +218,7 @@ export function createSemanticEvaluationRun(
       pinEdgeRaw: rootMeta.pinEdgeRaw,
       transformShape: rootMeta.transformShape,
       everyNodeStyles: rootMeta.everyNodeStyles,
+      everyTextNodePartStyles: rootMeta.everyTextNodePartStyles,
       everyFitStyles: rootMeta.everyFitStyles,
       everyRectangleNodeStyles: rootMeta.everyRectangleNodeStyles,
       everyCircleNodeStyles: rootMeta.everyCircleNodeStyles,
@@ -767,6 +768,7 @@ function evaluateStatement(
       pinEdgeRaw: frameMeta.pinEdgeRaw,
       transformShape: frameMeta.transformShape,
       everyNodeStyles: frameMeta.everyNodeStyles,
+      everyTextNodePartStyles: frameMeta.everyTextNodePartStyles,
       everyFitStyles: frameMeta.everyFitStyles,
       everyRectangleNodeStyles: frameMeta.everyRectangleNodeStyles,
       everyCircleNodeStyles: frameMeta.everyCircleNodeStyles,
@@ -948,6 +950,7 @@ function evaluateStatement(
       pinEdgeRaw: frameMeta.pinEdgeRaw,
       transformShape: frameMeta.transformShape,
       everyNodeStyles: frameMeta.everyNodeStyles,
+      everyTextNodePartStyles: frameMeta.everyTextNodePartStyles,
       everyFitStyles: frameMeta.everyFitStyles,
       everyRectangleNodeStyles: frameMeta.everyRectangleNodeStyles,
       everyCircleNodeStyles: frameMeta.everyCircleNodeStyles,
@@ -1465,6 +1468,7 @@ function applyOptionListsToCurrentFrame(
   frame.pinEdgeRaw = frameMeta.pinEdgeRaw;
   frame.transformShape = frameMeta.transformShape;
   frame.everyNodeStyles = frameMeta.everyNodeStyles;
+  frame.everyTextNodePartStyles = frameMeta.everyTextNodePartStyles;
   frame.everyFitStyles = frameMeta.everyFitStyles;
   frame.everyRectangleNodeStyles = frameMeta.everyRectangleNodeStyles;
   frame.everyCircleNodeStyles = frameMeta.everyCircleNodeStyles;
@@ -2491,6 +2495,7 @@ function cloneForeachStack(stack: ExpansionForeachOriginFrame[]): ExpansionForea
 
 type FrameStyleBuckets = {
   everyNodeStyles: ProvenanceOptionList[];
+  everyTextNodePartStyles: ProvenanceOptionList[];
   everyFitStyles: ProvenanceOptionList[];
   everyRectangleNodeStyles: ProvenanceOptionList[];
   everyCircleNodeStyles: ProvenanceOptionList[];
@@ -2514,6 +2519,7 @@ type FrameStyleBuckets = {
 
 const FRAME_STYLE_BUCKET_BY_STYLE_KEY: Record<string, keyof FrameStyleBuckets> = {
   "every node/.style": "everyNodeStyles",
+  "every text node part/.style": "everyTextNodePartStyles",
   "every fit/.style": "everyFitStyles",
   "every rectangle node/.style": "everyRectangleNodeStyles",
   "every circle node/.style": "everyCircleNodeStyles",
@@ -2537,6 +2543,7 @@ const FRAME_STYLE_BUCKET_BY_STYLE_KEY: Record<string, keyof FrameStyleBuckets> =
 
 const FRAME_STYLE_BUCKET_BY_APPEND_KEY: Record<string, keyof FrameStyleBuckets> = {
   "every node/.append style": "everyNodeStyles",
+  "every text node part/.append style": "everyTextNodePartStyles",
   "every fit/.append style": "everyFitStyles",
   "every rectangle node/.append style": "everyRectangleNodeStyles",
   "every circle node/.append style": "everyCircleNodeStyles",
@@ -2560,6 +2567,7 @@ const FRAME_STYLE_BUCKET_BY_APPEND_KEY: Record<string, keyof FrameStyleBuckets> 
 
 const LEGACY_TIKZSTYLE_BUCKET_BY_NAME: Record<string, keyof FrameStyleBuckets> = {
   "every node": "everyNodeStyles",
+  "every text node part": "everyTextNodePartStyles",
   "every fit": "everyFitStyles",
   "every rectangle node": "everyRectangleNodeStyles",
   "every circle node": "everyCircleNodeStyles",
@@ -2699,6 +2707,7 @@ export function resolveFrameMeta(
 
   const styleBuckets: FrameStyleBuckets = {
     everyNodeStyles: [...base.everyNodeStyles],
+    everyTextNodePartStyles: [...base.everyTextNodePartStyles],
     everyFitStyles: [...base.everyFitStyles],
     everyRectangleNodeStyles: [...base.everyRectangleNodeStyles],
     everyCircleNodeStyles: [...base.everyCircleNodeStyles],

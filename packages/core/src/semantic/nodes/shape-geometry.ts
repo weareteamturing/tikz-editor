@@ -54,6 +54,15 @@ export type ShapeGeometryParams = {
   starPointRatio: number;
   starPointHeightPt: number;
   starUsesPointRatio: boolean;
+  magnifyingGlassHandleAngle: number;
+  magnifyingGlassHandleAspect: number;
+  roundedRectangleArcLength: number;
+  roundedRectangleWestArc: RoundedRectangleArcType;
+  roundedRectangleEastArc: RoundedRectangleArcType;
+  chamferedRectangleAngle: number;
+  chamferedRectangleXSepPt: number;
+  chamferedRectangleYSepPt: number;
+  chamferedRectangleCorners: string;
 };
 
 export type TrapeziumSizingInput = {
@@ -72,6 +81,7 @@ export type CircularSizingInput = {
 
 export type SignalDirection = "north" | "south" | "east" | "west";
 export type TapeBendStyle = "in and out" | "out and in" | "none";
+export type RoundedRectangleArcType = "convex" | "concave" | "none";
 
 export type SemicircleGeometry = {
   center: Point;
@@ -206,6 +216,13 @@ const DEFAULT_REGULAR_POLYGON_SIDES = 5;
 const DEFAULT_STAR_POINTS = 5;
 const DEFAULT_STAR_RATIO = 1.5;
 const DEFAULT_STAR_POINT_HEIGHT_PT = parseLength(".5cm", "pt") ?? 14.2264;
+const DEFAULT_MAGNIFYING_GLASS_HANDLE_ANGLE = -45;
+const DEFAULT_MAGNIFYING_GLASS_HANDLE_ASPECT = 1.5;
+const DEFAULT_ROUNDED_RECTANGLE_ARC_LENGTH = 180;
+const DEFAULT_ROUNDED_RECTANGLE_ARC: RoundedRectangleArcType = "convex";
+const DEFAULT_CHAMFERED_RECTANGLE_ANGLE = 45;
+const DEFAULT_CHAMFERED_RECTANGLE_SEP_PT = parseLength(".666ex", "pt") ?? 3.333;
+const DEFAULT_CHAMFERED_RECTANGLE_CORNERS = "chamfer all";
 const EPSILON = 1e-9;
 
 export function resolveNodeShapeGeometryParams(
@@ -258,6 +275,15 @@ export function resolveNodeShapeGeometryParams(
   let starPointRatio = DEFAULT_STAR_RATIO;
   let starPointHeightPt = DEFAULT_STAR_POINT_HEIGHT_PT;
   let starUsesPointRatio = true;
+  let magnifyingGlassHandleAngle = DEFAULT_MAGNIFYING_GLASS_HANDLE_ANGLE;
+  let magnifyingGlassHandleAspect = DEFAULT_MAGNIFYING_GLASS_HANDLE_ASPECT;
+  let roundedRectangleArcLength = DEFAULT_ROUNDED_RECTANGLE_ARC_LENGTH;
+  let roundedRectangleWestArc: RoundedRectangleArcType = DEFAULT_ROUNDED_RECTANGLE_ARC;
+  let roundedRectangleEastArc: RoundedRectangleArcType = DEFAULT_ROUNDED_RECTANGLE_ARC;
+  let chamferedRectangleAngle = DEFAULT_CHAMFERED_RECTANGLE_ANGLE;
+  let chamferedRectangleXSepPt = DEFAULT_CHAMFERED_RECTANGLE_SEP_PT;
+  let chamferedRectangleYSepPt = DEFAULT_CHAMFERED_RECTANGLE_SEP_PT;
+  let chamferedRectangleCorners = DEFAULT_CHAMFERED_RECTANGLE_CORNERS;
 
   if (!options) {
     return {
@@ -306,7 +332,16 @@ export function resolveNodeShapeGeometryParams(
       starPoints,
       starPointRatio,
       starPointHeightPt,
-      starUsesPointRatio
+      starUsesPointRatio,
+      magnifyingGlassHandleAngle,
+      magnifyingGlassHandleAspect,
+      roundedRectangleArcLength,
+      roundedRectangleWestArc,
+      roundedRectangleEastArc,
+      chamferedRectangleAngle,
+      chamferedRectangleXSepPt,
+      chamferedRectangleYSepPt,
+      chamferedRectangleCorners
     };
   }
 
@@ -690,6 +725,82 @@ export function resolveNodeShapeGeometryParams(
         starPointHeightPt = Math.max(0, parsedLength);
         starUsesPointRatio = false;
       }
+      continue;
+    }
+
+    if (entry.key === "magnifying glass handle angle") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null) {
+        magnifyingGlassHandleAngle = parsed;
+      }
+      continue;
+    }
+
+    if (entry.key === "magnifying glass handle aspect") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null && parsed > 0) {
+        magnifyingGlassHandleAspect = parsed;
+      }
+      continue;
+    }
+
+    if (entry.key === "rounded rectangle arc length") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null) {
+        roundedRectangleArcLength = Math.max(0, Math.min(180, Math.abs(parsed)));
+      }
+      continue;
+    }
+
+    if (entry.key === "rounded rectangle west arc" || entry.key === "rounded rectangle left arc") {
+      roundedRectangleWestArc = parseRoundedRectangleArcType(entry.valueRaw);
+      continue;
+    }
+
+    if (entry.key === "rounded rectangle east arc" || entry.key === "rounded rectangle right arc") {
+      roundedRectangleEastArc = parseRoundedRectangleArcType(entry.valueRaw);
+      continue;
+    }
+
+    if (entry.key === "chamfered rectangle angle") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null) {
+        chamferedRectangleAngle = Math.max(1, Math.min(89, Math.abs(parsed)));
+      }
+      continue;
+    }
+
+    if (entry.key === "chamfered rectangle xsep") {
+      const parsedLength = parseLength(entry.valueRaw, "pt");
+      if (parsedLength != null && Number.isFinite(parsedLength)) {
+        chamferedRectangleXSepPt = Math.max(0, parsedLength);
+      }
+      continue;
+    }
+
+    if (entry.key === "chamfered rectangle ysep") {
+      const parsedLength = parseLength(entry.valueRaw, "pt");
+      if (parsedLength != null && Number.isFinite(parsedLength)) {
+        chamferedRectangleYSepPt = Math.max(0, parsedLength);
+      }
+      continue;
+    }
+
+    if (entry.key === "chamfered rectangle sep") {
+      const parsedLength = parseLength(entry.valueRaw, "pt");
+      if (parsedLength != null && Number.isFinite(parsedLength)) {
+        const sep = Math.max(0, parsedLength);
+        chamferedRectangleXSepPt = sep;
+        chamferedRectangleYSepPt = sep;
+      }
+      continue;
+    }
+
+    if (entry.key === "chamfered rectangle corners") {
+      const normalized = normalizeOptionValue(entry.valueRaw).toLowerCase().trim();
+      if (normalized.length > 0) {
+        chamferedRectangleCorners = normalized;
+      }
     }
   }
 
@@ -739,8 +850,123 @@ export function resolveNodeShapeGeometryParams(
     starPoints,
     starPointRatio,
     starPointHeightPt,
-    starUsesPointRatio
+    starUsesPointRatio,
+    magnifyingGlassHandleAngle,
+    magnifyingGlassHandleAspect,
+    roundedRectangleArcLength,
+    roundedRectangleWestArc,
+    roundedRectangleEastArc,
+    chamferedRectangleAngle,
+    chamferedRectangleXSepPt,
+    chamferedRectangleYSepPt,
+    chamferedRectangleCorners
   };
+}
+
+export function makeRoundedRectanglePolygon(
+  width: number,
+  height: number,
+  arcLength: number,
+  westArc: RoundedRectangleArcType,
+  eastArc: RoundedRectangleArcType
+): Point[] {
+  const halfWidth = Math.max(EPSILON, width / 2);
+  const halfHeight = Math.max(EPSILON, height / 2);
+  const arcFactor = Math.max(0, Math.min(1, Math.abs(arcLength) / 180));
+  const bulgeX = Math.min(halfWidth, halfHeight) * arcFactor;
+  const points: Point[] = [];
+
+  const westJoinX = westArc === "none" ? -halfWidth : -halfWidth + bulgeX;
+  const eastJoinX = eastArc === "none" ? halfWidth : halfWidth - bulgeX;
+  points.push({ x: westJoinX, y: halfHeight });
+  points.push({ x: eastJoinX, y: halfHeight });
+
+  if (eastArc !== "none" && bulgeX > EPSILON) {
+    const eastDir = eastArc === "concave" ? -1 : 1;
+    const eastCenterX = halfWidth - bulgeX;
+    const steps = Math.max(6, Math.round(24 * arcFactor));
+    for (let index = 1; index <= steps; index += 1) {
+      const t = index / steps;
+      const theta = Math.PI / 2 - t * Math.PI;
+      points.push({
+        x: eastCenterX + eastDir * bulgeX * Math.cos(theta),
+        y: halfHeight * Math.sin(theta)
+      });
+    }
+  } else {
+    points.push({ x: halfWidth, y: -halfHeight });
+  }
+
+  points.push({ x: westJoinX, y: -halfHeight });
+
+  if (westArc !== "none" && bulgeX > EPSILON) {
+    const westDir = westArc === "concave" ? 1 : -1;
+    const westCenterX = -halfWidth + bulgeX;
+    const steps = Math.max(6, Math.round(24 * arcFactor));
+    for (let index = 1; index <= steps; index += 1) {
+      const t = index / steps;
+      const theta = -Math.PI / 2 + t * Math.PI;
+      points.push({
+        x: westCenterX + westDir * bulgeX * Math.cos(theta),
+        y: halfHeight * Math.sin(theta)
+      });
+    }
+  } else {
+    points.push({ x: -halfWidth, y: halfHeight });
+  }
+
+  return points;
+}
+
+export function makeChamferedRectanglePolygon(
+  width: number,
+  height: number,
+  chamferX: number,
+  chamferY: number,
+  chamferAngle: number,
+  cornersRaw: string
+): Point[] {
+  const halfWidth = Math.max(EPSILON, width / 2);
+  const halfHeight = Math.max(EPSILON, height / 2);
+  const cy = Math.max(0, Math.min(halfHeight * 0.8, chamferY));
+  const angleRad = toRadians(Math.max(1, Math.min(89, Math.abs(chamferAngle))));
+  const usesUnifiedChamfer = Math.abs(chamferX - chamferY) < 1e-6;
+  const base = Math.min(halfWidth, halfHeight) * 0.55;
+  const angleRatio = Math.max(0.2, Math.min(5, 45 / Math.max(1, Math.abs(chamferAngle))));
+  const cxFromAngle = usesUnifiedChamfer ? base * angleRatio : cy / Math.tan(angleRad);
+  const cyFromAngle = usesUnifiedChamfer ? base / angleRatio : cy;
+  const cxRaw = usesUnifiedChamfer ? cxFromAngle : chamferX;
+  const cyRaw = usesUnifiedChamfer ? cyFromAngle : chamferY;
+  const cx = Math.max(0, Math.min(halfWidth * 0.8, cxRaw));
+  const cyEffective = Math.max(0, Math.min(halfHeight * 0.8, cyRaw));
+  const corners = parseChamferedCorners(cornersRaw);
+
+  const nw = corners.has("north west");
+  const ne = corners.has("north east");
+  const se = corners.has("south east");
+  const sw = corners.has("south west");
+
+  return [
+    { x: -halfWidth + (nw ? cx : 0), y: halfHeight },
+    { x: halfWidth - (ne ? cx : 0), y: halfHeight },
+    { x: halfWidth, y: halfHeight - (ne ? cyEffective : 0) },
+    { x: halfWidth, y: -halfHeight + (se ? cyEffective : 0) },
+    { x: halfWidth - (se ? cx : 0), y: -halfHeight },
+    { x: -halfWidth + (sw ? cx : 0), y: -halfHeight },
+    { x: -halfWidth, y: -halfHeight + (sw ? cyEffective : 0) },
+    { x: -halfWidth, y: halfHeight - (nw ? cyEffective : 0) }
+  ];
+}
+
+export function makeMagnifyingGlassHandle(
+  radius: number,
+  angleDegrees: number,
+  aspect: number
+): { from: Point; to: Point } {
+  const safeAspect = Math.max(0.1, aspect);
+  const from = pointPolar(angleDegrees, radius);
+  const to = pointPolar(angleDegrees, radius * (1 + safeAspect));
+  return { from, to };
 }
 
 export function makeDiamondPolygon(halfWidth: number, halfHeight: number, aspect: number): Point[] {
@@ -1700,6 +1926,36 @@ function parseTapeBendStyle(raw: string, fallback: TapeBendStyle): TapeBendStyle
     return "none";
   }
   return fallback;
+}
+
+function parseRoundedRectangleArcType(raw: string): RoundedRectangleArcType {
+  const normalized = normalizeOptionValue(raw).toLowerCase().trim();
+  if (normalized === "concave") {
+    return "concave";
+  }
+  if (normalized === "none" || normalized === "false" || normalized === "off") {
+    return "none";
+  }
+  return "convex";
+}
+
+function parseChamferedCorners(raw: string): Set<"north west" | "north east" | "south east" | "south west"> {
+  const normalized = normalizeOptionValue(raw).toLowerCase().replace(/[{}]/gu, " ");
+  const tokens = normalized.split(/[,]/u).map((token) => token.trim()).filter((token) => token.length > 0);
+  const corners = new Set<"north west" | "north east" | "south east" | "south west">();
+  if (tokens.length === 0 || tokens.includes("chamfer all")) {
+    corners.add("north west");
+    corners.add("north east");
+    corners.add("south east");
+    corners.add("south west");
+    return corners;
+  }
+  for (const token of tokens) {
+    if (token === "north west" || token === "north east" || token === "south east" || token === "south west") {
+      corners.add(token);
+    }
+  }
+  return corners;
 }
 
 function parseCalloutCoordinateVector(raw: string): Point | null {

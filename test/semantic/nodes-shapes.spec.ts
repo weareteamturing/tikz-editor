@@ -260,6 +260,29 @@ describe("semantic evaluator / nodes and shapes", () => {
       expect(seenSpans.size).toBe(4);
     });
 
+    it("draws matrix container using new shape handlers", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \matrix[
+      matrix of nodes,
+      draw,
+      rounded rectangle,
+      rounded rectangle west arc=concave,
+      rounded rectangle east arc=convex
+    ] {
+      A & B\\
+    };
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const matrixBox = result.scene.elements.find(
+        (element) => element.kind === "Path" && element.id.startsWith("scene-node-box:")
+      );
+      expect(matrixBox?.kind).toBe("Path");
+      if (matrixBox?.kind === "Path") {
+        expect(matrixBox.commands.length).toBeGreaterThan(4);
+      }
+    });
+
     it("parses reversed/sep arrow options and reverses multi-tip start specifications", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw[-{Stealth[reversed,sep=2pt,length=5mm]}] (0,0) -- (2,0);
@@ -880,6 +903,81 @@ describe("semantic evaluator / nodes and shapes", () => {
         expect(ellipse.style.stroke).not.toBeNull();
         expect(ellipse.style.fill).toBeNull();
       }
+    });
+
+    it("supports misc and symbols shape geometry for rounded/chamfered/cross/strike/magnifying nodes", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \node[draw,rounded rectangle,name=rr] at (0,0) {RR};
+    \node[draw,chamfered rectangle,chamfered rectangle corners={north west,south east},name=cr] at (3,0) {CR};
+    \node[draw,cross out,name=xo] at (6,0) {XO};
+    \node[draw,strike out,name=so] at (9,0) {SO};
+    \node[draw,magnifying glass,magnifying glass handle angle=-35,magnifying glass handle aspect=1.8,name=mg] at (12,0) {MG};
+    \draw (rr.east) -- +(6pt,0);
+    \draw (cr.west) -- +(-6pt,0);
+    \draw (xo.north) -- +(0,6pt);
+    \draw (so.south) -- +(0,-6pt);
+    \draw (mg.east) -- +(6pt,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
+      const lineElements = result.scene.elements.filter(
+        (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+          element.kind === "Path" && element.id.startsWith("scene-node-line:")
+      );
+      const circles = result.scene.elements.filter((element) => element.kind === "Circle");
+      expect(lineElements.length).toBeGreaterThanOrEqual(4);
+      expect(circles.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("supports multipart split shapes with nodepart text and split anchors", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \node[draw,circle split,name=cs] at (0,0) {Top\nodepart{lower}Bottom};
+    \node[draw,ellipse split,name=es] at (3,0) {Top\nodepart{lower}Bottom};
+    \node[draw,diamond split,name=ds] at (6,0) {Top\nodepart{lower}Bottom};
+    \node[draw,circle solidus,name=ss] at (9,0) {Top\nodepart{lower}Bottom};
+    \node[draw,rectangle split,rectangle split parts=3,name=rs] at (12,0) {One\nodepart{two}Two\nodepart{three}Three};
+    \draw (cs.lower) -- +(0,-6pt);
+    \draw (es.lower) -- +(0,-6pt);
+    \draw (ds.lower) -- +(0,-6pt);
+    \draw (ss.lower) -- +(0,-6pt);
+    \draw (rs.2) -- +(0,-6pt);
+    \draw (rs.second split) -- +(0,-6pt);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
+      const textElements = result.scene.elements.filter((element) => element.kind === "Text");
+      expect(textElements.some((element) => element.kind === "Text" && element.text.includes("Bottom"))).toBe(true);
+      expect(textElements.some((element) => element.kind === "Text" && element.text.includes("Three"))).toBe(true);
+    });
+
+    it("supports vertical rectangle split dividers and part anchors", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \node[
+      draw,
+      rectangle split,
+      rectangle split parts=4,
+      rectangle split horizontal,
+      name=rs
+    ] at (0,0) {A\nodepart{two}B\nodepart{three}C\nodepart{four}D};
+    \draw (rs.3) -- +(0,6pt);
+    \draw (rs.3 split) -- +(0,-6pt);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
+      const splitLines = result.scene.elements.filter(
+        (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+          element.kind === "Path" && element.id.includes(":split-")
+      );
+      expect(splitLines.length).toBeGreaterThanOrEqual(3);
+      const verticalLine = splitLines.find((path) => {
+        const move = path.commands[0];
+        const line = path.commands[1];
+        return move?.kind === "M" && line?.kind === "L" && Math.abs(line.to.x - move.to.x) < 0.01;
+      });
+      expect(verticalLine).toBeDefined();
     });
 
     it("supports diamond-shaped nodes with aspect control and named anchors", () => {

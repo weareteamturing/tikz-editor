@@ -301,6 +301,18 @@ function resolveShapeStyleLists(
   if (shape === "rectangle") {
     return params.everyRectangleNodeStyles;
   }
+  if (shape === "rounded rectangle" || shape === "chamfered rectangle" || shape === "cross out" || shape === "strike out" || shape === "rectangle split") {
+    return params.everyRectangleNodeStyles;
+  }
+  if (shape === "magnifying glass" || shape === "circle split" || shape === "circle solidus") {
+    return params.everyCircleNodeStyles;
+  }
+  if (shape === "ellipse split") {
+    return params.everyCircleNodeStyles;
+  }
+  if (shape === "diamond split") {
+    return params.everyDiamondNodeStyles;
+  }
   if (shape === "diamond") {
     return params.everyDiamondNodeStyles;
   }
@@ -439,7 +451,17 @@ export function resolveNodeShape(options: PathOptionItem["options"] | undefined)
       if (
         entry.key === "circle" ||
         entry.key === "rectangle" ||
+        entry.key === "rounded rectangle" ||
+        entry.key === "chamfered rectangle" ||
+        entry.key === "cross out" ||
+        entry.key === "strike out" ||
         entry.key === "ellipse" ||
+        entry.key === "magnifying glass" ||
+        entry.key === "circle split" ||
+        entry.key === "circle solidus" ||
+        entry.key === "ellipse split" ||
+        entry.key === "diamond split" ||
+        entry.key === "rectangle split" ||
         entry.key === "diamond" ||
         entry.key === "trapezium" ||
         entry.key === "semicircle" ||
@@ -470,7 +492,17 @@ export function resolveNodeShape(options: PathOptionItem["options"] | undefined)
       if (
         normalized === "circle" ||
         normalized === "rectangle" ||
+        normalized === "rounded rectangle" ||
+        normalized === "chamfered rectangle" ||
+        normalized === "cross out" ||
+        normalized === "strike out" ||
         normalized === "ellipse" ||
+        normalized === "magnifying glass" ||
+        normalized === "circle split" ||
+        normalized === "circle solidus" ||
+        normalized === "ellipse split" ||
+        normalized === "diamond split" ||
+        normalized === "rectangle split" ||
         normalized === "diamond" ||
         normalized === "trapezium" ||
         normalized === "semicircle" ||
