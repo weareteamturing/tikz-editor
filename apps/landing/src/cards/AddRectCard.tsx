@@ -1,0 +1,318 @@
+import { useLayoutEffect, useRef, useState } from "react";
+import gsap from "gsap";
+import { CursorOverlay } from "../cursor-overlay";
+import { CURSOR_FOR_DRAG, CURSOR_FOR_HANDLE_ROLE } from "../cursor-conventions";
+import { createCursorScript, type CursorFrame } from "../cursor-script";
+import { addRectCommonViewBox, addRectInitial, addRectResized } from "../generated/feature-svgs";
+import { buildRectHandleCenters, renderEditHandlesForBounds } from "../edit-handles";
+import { createCursorPathScript } from "../animation/cursor-path";
+import { point } from "../animation/points";
+import { mountRenderedScene } from "../animation/rendered-scene";
+import { setSvgAttrs } from "../animation/svg-actors";
+
+type SceneRefs = {
+  contentGroup: SVGGElement | null;
+  handlesGroup: SVGGElement | null;
+};
+
+type RectBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type EditHandleOverlayRefs = {
+  selectionRect: SVGRectElement;
+  rotateStem: SVGLineElement;
+  rotateCircle: SVGCircleElement;
+  rotateGlyph: SVGGElement;
+  handles: SVGRectElement[];
+};
+
+const HANDLE_HALF_SIZE = 1.1;
+const HANDLE_STROKE_WIDTH = 0.26;
+const SELECTION_STROKE_WIDTH = 0.24;
+const ROTATE_HANDLE_GAP = 5.2;
+
+export function AddRectCard() {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const sceneRef = useRef<SceneRefs>({
+    contentGroup: null,
+    handlesGroup: null
+  });
+  const cursorStateRef = useRef<CursorFrame>({
+    x: addRectInitial.bounds.x - 6,
+    y: addRectInitial.bounds.y - 18,
+    visible: true,
+    pressed: false,
+    cursor: CURSOR_FOR_DRAG.toolCreate
+  });
+  const [cursorFrame, setCursorFrame] = useState<CursorFrame>({ ...cursorStateRef.current });
+
+  const commitCursor = (): void => setCursorFrame({ ...cursorStateRef.current });
+  const idleAbove = point(addRectInitial.bounds.x - 6, addRectInitial.bounds.y - 18);
+  const createStart = point(addRectInitial.bounds.x, addRectInitial.bounds.y);
+  const createEnd = point(addRectInitial.bounds.x + addRectInitial.bounds.width, addRectInitial.bounds.y + addRectInitial.bounds.height);
+  const resizeHover = point(addRectInitial.bounds.x + addRectInitial.bounds.width, addRectInitial.bounds.y + addRectInitial.bounds.height / 2);
+  const resizeEnd = point(addRectResized.bounds.x + addRectResized.bounds.width, addRectResized.bounds.y + addRectResized.bounds.height / 2);
+  const collapsedBounds = {
+    x: createStart.x,
+    y: createStart.y,
+    width: 0.001,
+    height: 0.001
+  };
+  const initialBounds = addRectInitial.bounds;
+  const resizedBounds = addRectResized.bounds;
+
+  useLayoutEffect(() => {
+    if (!rootRef.current) {
+      return;
+    }
+
+    const { contentGroup, handlesGroup } = sceneRef.current;
+    if (!contentGroup || !handlesGroup) {
+      return;
+    }
+
+    mountRenderedScene(contentGroup, addRectInitial.innerSvg);
+    const bodyRect = contentGroup.querySelector('path[data-source-id="path:1"]') as SVGPathElement | null;
+    if (!bodyRect) {
+      return;
+    }
+
+    const overlayRefs = queryEditHandleOverlayRefs(handlesGroup);
+    if (!overlayRefs) {
+      return;
+    }
+
+    const createState: RectBounds = { ...collapsedBounds };
+    const resizeState: RectBounds = { ...initialBounds };
+    const resetState: RectBounds = { ...collapsedBounds };
+
+    const updateBodyAndOverlay = (bounds: RectBounds, overlayVisible: boolean): void => {
+      setSvgAttrs(bodyRect, { d: rectPathD(bounds) });
+      applyEditHandleOverlayBounds(overlayRefs, bounds);
+      handlesGroup.style.display = overlayVisible ? "inline" : "none";
+      handlesGroup.style.opacity = overlayVisible ? "1" : "0";
+      handlesGroup.style.visibility = overlayVisible ? "visible" : "hidden";
+      bodyRect.style.opacity = bounds.width > 0.01 && bounds.height > 0.01 ? "1" : "0";
+    };
+
+    const ctx = gsap.context(() => {
+      updateBodyAndOverlay(createState, false);
+      gsap.set(contentGroup, { opacity: 0 });
+      gsap.set(handlesGroup, { opacity: 0, display: "none", visibility: "hidden" });
+      Object.assign(cursorStateRef.current, {
+        x: idleAbove.x,
+        y: idleAbove.y,
+        visible: true,
+        pressed: false,
+        cursor: CURSOR_FOR_DRAG.toolCreate
+      });
+      commitCursor();
+
+      const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.9 });
+      const cursor = createCursorScript(tl, cursorStateRef.current, commitCursor);
+      const cursorPath = createCursorPathScript(cursor, {
+        idleAbove,
+        createStart,
+        createEnd,
+        resizeHover,
+        resizeEnd
+      });
+
+      cursor.setStyle(CURSOR_FOR_DRAG.toolCreate, 0);
+      tl.to({}, { duration: 0.26, ease: "none" }, 0);
+
+      tl.add("createHover");
+      cursorPath.moveTo("createStart", 0.44, "createHover");
+
+      tl.add("createPress", "createHover+=0.46");
+      cursor.setPressed(true, "createPress");
+      cursor.setPressed(false, "createPress+=0.12");
+
+      tl.add("createDrag", "createPress+=0.16");
+      tl.to(contentGroup, { opacity: 1, duration: 0.05, ease: "none" }, "createDrag");
+      cursorPath.moveTo("createEnd", 0.82, "createDrag", "power1.inOut");
+      tweenRectBounds(tl, createState, collapsedBounds, initialBounds, 0.82, "createDrag", "power1.inOut", (bounds) =>
+        updateBodyAndOverlay(bounds, false)
+      );
+
+      tl.add("createRelease", "createDrag+=0.82");
+      tl.call(() => {
+        updateBodyAndOverlay(resizeState, true);
+      }, undefined, "createRelease");
+      cursor.setStyle("pointer", "createRelease");
+
+      tl.add("resizeHoverMove", "createRelease+=0.2");
+      cursorPath.moveTo("resizeHover", 0.5, "resizeHoverMove", "power1.inOut");
+      cursor.setStyle(CURSOR_FOR_HANDLE_ROLE.right, "resizeHoverMove+=0.5");
+
+      tl.add("resizePress", "resizeHoverMove+=0.54");
+      cursor.setPressed(true, "resizePress");
+      cursor.setPressed(false, "resizePress+=0.12");
+
+      tl.add("resizeDrag", "resizePress+=0.16");
+      cursorPath.moveTo("resizeEnd", 0.74, "resizeDrag", "power1.inOut");
+      tweenRectBounds(tl, resizeState, initialBounds, resizedBounds, 0.74, "resizeDrag", "power1.inOut", (bounds) =>
+        updateBodyAndOverlay(bounds, true)
+      );
+
+      tl.add("resizeRelease", "resizeDrag+=0.74");
+      cursor.setPressed(false, "resizeRelease");
+      cursor.setStyle("pointer", "resizeRelease");
+
+      tl.add("reset", "resizeRelease+=0.26");
+      tl.to(handlesGroup, { opacity: 0, duration: 0.08, ease: "none" }, "reset");
+      tl.set(handlesGroup, { display: "none", visibility: "hidden" }, "reset+=0.08");
+      tl.to(contentGroup, { opacity: 0, duration: 0.08, ease: "none" }, "reset");
+      tl.call(() => {
+        updateBodyAndOverlay(resetState, false);
+      }, undefined, "reset");
+      cursorPath.moveTo("idleAbove", 0.42, "reset", "power1.inOut");
+      cursor.setStyle(CURSOR_FOR_DRAG.toolCreate, "reset+=0.32");
+      cursor.setPressed(false, "reset");
+    }, rootRef);
+
+    return () => ctx.revert();
+  }, [addRectCommonViewBox, addRectInitial.bounds.width, addRectInitial.bounds.height, addRectInitial.bounds.x, addRectInitial.bounds.y, addRectResized.bounds.height, addRectResized.bounds.width, addRectResized.bounds.x, addRectResized.bounds.y]);
+
+  return (
+    <article className="featureCard" ref={rootRef}>
+      <div className="featureCardTitle">Rectangle draw and resize follows the handle</div>
+      <svg className="featureScene" viewBox={addRectCommonViewBox} role="img" aria-label="Rectangle draw demo">
+        <g
+          ref={(el) => {
+            sceneRef.current.contentGroup = el;
+          }}
+          style={{ opacity: 0 }}
+        />
+
+        <g
+          ref={(el) => {
+            sceneRef.current.handlesGroup = el;
+          }}
+          style={{ opacity: 0, display: "none", visibility: "hidden" }}
+        >
+          {renderEditHandlesForBounds({
+            bounds: initialBounds,
+            handleHalfSize: HANDLE_HALF_SIZE,
+            handleStrokeWidth: HANDLE_STROKE_WIDTH,
+            selectionStrokeWidth: SELECTION_STROKE_WIDTH,
+            rotateHandleGap: ROTATE_HANDLE_GAP
+          })}
+        </g>
+
+        <CursorOverlay
+          x={cursorFrame.x}
+          y={cursorFrame.y}
+          visible={cursorFrame.visible}
+          pressed={cursorFrame.pressed}
+          cursor={cursorFrame.cursor}
+          scale={0.35}
+        />
+      </svg>
+    </article>
+  );
+}
+
+function queryEditHandleOverlayRefs(handlesGroup: SVGGElement): EditHandleOverlayRefs | null {
+  const selectionRect = handlesGroup.querySelector("rect.selectionRect") as SVGRectElement | null;
+  const rotateStem = handlesGroup.querySelector("line.rotateHandleStem") as SVGLineElement | null;
+  const rotateCircle = handlesGroup.querySelector("circle.rotateHandleCircle") as SVGCircleElement | null;
+  const rotateGlyph = handlesGroup.querySelector("g.rotateHandleGlyph") as SVGGElement | null;
+  const handles = Array.from(handlesGroup.querySelectorAll("rect.handle")).filter(
+    (element): element is SVGRectElement => element instanceof SVGRectElement
+  );
+
+  if (!selectionRect || !rotateStem || !rotateCircle || !rotateGlyph || handles.length !== 8) {
+    return null;
+  }
+
+  return {
+    selectionRect,
+    rotateStem,
+    rotateCircle,
+    rotateGlyph,
+    handles
+  };
+}
+
+function applyEditHandleOverlayBounds(refs: EditHandleOverlayRefs, bounds: RectBounds): void {
+  setSvgAttrs(refs.selectionRect, {
+    x: bounds.x,
+    y: bounds.y,
+    width: Math.max(0.001, bounds.width),
+    height: Math.max(0.001, bounds.height)
+  });
+
+  const centers = buildRectHandleCenters(bounds);
+  refs.handles.forEach((handle, index) => {
+    const center = centers[index];
+    if (!center) {
+      return;
+    }
+    setSvgAttrs(handle, {
+      x: center.x - HANDLE_HALF_SIZE,
+      y: center.y - HANDLE_HALF_SIZE,
+      width: HANDLE_HALF_SIZE * 2,
+      height: HANDLE_HALF_SIZE * 2
+    });
+  });
+
+  const rotateAnchorX = bounds.x + bounds.width / 2;
+  const rotateAnchorY = bounds.y;
+  const rotateY = rotateAnchorY - ROTATE_HANDLE_GAP;
+  const rotateRadius = HANDLE_HALF_SIZE * 1.3;
+  const glyphScale = (rotateRadius * 1.4) / 16;
+
+  setSvgAttrs(refs.rotateStem, {
+    x1: rotateAnchorX,
+    y1: rotateAnchorY,
+    x2: rotateAnchorX,
+    y2: rotateY
+  });
+  setSvgAttrs(refs.rotateCircle, {
+    cx: rotateAnchorX,
+    cy: rotateY,
+    r: rotateRadius
+  });
+  setSvgAttrs(refs.rotateGlyph, {
+    transform: `translate(${rotateAnchorX} ${rotateY}) scale(${glyphScale}) translate(-8 -8)`
+  });
+}
+
+function tweenRectBounds(
+  tl: gsap.core.Timeline,
+  state: RectBounds,
+  from: RectBounds,
+  to: RectBounds,
+  duration: number,
+  position: gsap.Position,
+  ease: string,
+  onUpdate: (bounds: RectBounds) => void
+): void {
+  Object.assign(state, from);
+  tl.to(
+    state,
+    {
+      x: to.x,
+      y: to.y,
+      width: to.width,
+      height: to.height,
+      duration,
+      ease,
+      onUpdate: () => onUpdate(state)
+    },
+    position
+  );
+}
+
+function rectPathD(bounds: RectBounds): string {
+  const x0 = bounds.x;
+  const y0 = bounds.y;
+  const x1 = bounds.x + bounds.width;
+  const y1 = bounds.y + bounds.height;
+  return `M ${x0} ${y0} L ${x1} ${y0} L ${x1} ${y1} L ${x0} ${y1} Z`;
+}

@@ -13,6 +13,6 @@
       "tikz-editor/*": ["./packages/core/src/*"]
     }
   },
-  "include": ["test", "scripts", "packages/core/src", "packages/app/src", "apps/web/src"],
+  "include": ["test", "scripts", "packages/core/src", "packages/app/src", "apps/web/src", "apps/landing/src"],
   "exclude": ["node_modules", "packages/core/dist", "apps/web/dist"]
 }
