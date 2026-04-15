@@ -1,15 +1,16 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { CursorOverlay } from "../cursor-overlay";
+import { applyCursorOverlayFrame, CursorOverlay } from "../cursor-overlay";
 import { CURSOR_FOR_DRAG } from "../cursor-conventions";
 import { createCursorScript, type CursorFrame } from "../cursor-script";
 import { addArrowFinal, addArrowInitial, addArrowCommonViewBox } from "../generated/feature-svgs";
-import { AnchorOverlay, buildRectAnchorDots } from "../animation/anchor-overlay";
+import { AnchorOverlay, applyAnchorOverlayState, buildRectAnchorDots } from "../animation/anchor-overlay";
 import { createCursorPathScript } from "../animation/cursor-path";
 import { point } from "../animation/points";
 import { mountRenderedScene } from "../animation/rendered-scene";
 import { toSvgAttrs } from "../animation/svg-actors";
 import type { AnchorDot, RectBounds } from "../animation/anchor-overlay";
+import { useDemoPlayback } from "../use-demo-playback";
 import {
   sourceKeyword,
   sourceLine,
@@ -18,6 +19,7 @@ import {
   sourceString,
   sourceText,
   SourcePreview,
+  renderSourcePreview,
   type SourceLine
 } from "../source-preview";
 
@@ -36,6 +38,11 @@ const ANCHOR_SNAP_RADIUS = 4.2;
 
 export function AddArrowCard() {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const playbackEnabled = useDemoPlayback(rootRef);
+  const cursorOverlayRef = useRef<SVGGElement | null>(null);
+  const sourcePreviewRef = useRef<HTMLElement | null>(null);
+  const sAnchorOverlayRef = useRef<SVGGElement | null>(null);
+  const tAnchorOverlayRef = useRef<SVGGElement | null>(null);
   const sceneRef = useRef<SceneRefs>({
     contentGroup: null,
     previewLine: null,
@@ -52,17 +59,47 @@ export function AddArrowCard() {
     cursor: CURSOR_FOR_DRAG.toolCreate
   });
   const [cursorFrame, setCursorFrame] = useState<CursorFrame>({ ...cursorStateRef.current });
-  const [, bumpSourceVersion] = useState(0);
+  const sAnchors = buildRectAnchorDots(addArrowInitial.s.bounds);
+  const tAnchors = buildRectAnchorDots(addArrowInitial.t.bounds);
 
-  const commitCursor = (): void => setCursorFrame({ ...cursorStateRef.current });
-  const commitSource = (): void => bumpSourceVersion((version) => version + 1);
-  const cursorPoint = point(cursorFrame.x, cursorFrame.y);
-  const toolActive = cursorFrame.cursor === CURSOR_FOR_DRAG.toolCreate;
-  const hoveredNode = toolActive
-    ? resolveHoveredRectNode(cursorPoint, addArrowInitial.s.bounds, addArrowInitial.t.bounds)
-    : null;
-  const sAnchors = buildAnchorDots(addArrowInitial.s.bounds, hoveredNode === "s" ? cursorPoint : null);
-  const tAnchors = buildAnchorDots(addArrowInitial.t.bounds, hoveredNode === "t" ? cursorPoint : null);
+  const commitAnchorOverlays = (): void => {
+    const cursorPoint = point(cursorStateRef.current.x, cursorStateRef.current.y);
+    const toolActive = cursorStateRef.current.cursor === CURSOR_FOR_DRAG.toolCreate;
+    const hoveredNode = toolActive
+      ? resolveHoveredRectNode(cursorPoint, addArrowInitial.s.bounds, addArrowInitial.t.bounds)
+      : null;
+    if (sAnchorOverlayRef.current) {
+      applyAnchorOverlayState(
+        sAnchorOverlayRef.current,
+        sAnchors,
+        hoveredNode === "s",
+        hoveredNode === "s" ? resolveSnappedRectAnchor(addArrowInitial.s.bounds, cursorPoint) : null
+      );
+    }
+    if (tAnchorOverlayRef.current) {
+      applyAnchorOverlayState(
+        tAnchorOverlayRef.current,
+        tAnchors,
+        hoveredNode === "t",
+        hoveredNode === "t" ? resolveSnappedRectAnchor(addArrowInitial.t.bounds, cursorPoint) : null
+      );
+    }
+  };
+  const commitCursorPosition = (): void => {
+    if (cursorOverlayRef.current) {
+      applyCursorOverlayFrame(cursorOverlayRef.current, cursorStateRef.current, 0.35);
+    }
+    commitAnchorOverlays();
+  };
+  const commitCursorFrame = (): void => {
+    commitCursorPosition();
+    setCursorFrame({ ...cursorStateRef.current });
+  };
+  const commitSource = (): void => {
+    if (sourcePreviewRef.current) {
+      renderSourcePreview(sourcePreviewRef.current, buildAddArrowSourceLines(sourceStateRef.current));
+    }
+  };
 
   useLayoutEffect(() => {
     if (!rootRef.current) {
@@ -80,26 +117,32 @@ export function AddArrowCard() {
     const tWest = point(addArrowInitial.t.bounds.x, addArrowInitial.t.center.y);
     const initialAbove = point(addArrowInitial.s.center.x, addArrowInitial.s.bounds.y - 18);
 
+    gsap.set([previewLine, tipPath], { autoAlpha: 0 });
+    gsap.set(previewLine, {
+      attr: { x1: sEast.x, y1: sEast.y, x2: sEast.x, y2: sEast.y }
+    });
+    gsap.set(tipPath, { attr: { d: addArrowFinal.edge?.tipD ?? "" } });
+    sourceStateRef.current.arrowVisible = false;
+    commitSource();
+    Object.assign(cursorStateRef.current, {
+      x: initialAbove.x,
+      y: initialAbove.y,
+      visible: true,
+      pressed: false,
+      cursor: CURSOR_FOR_DRAG.toolCreate
+    });
+    commitCursorFrame();
+
+    if (!playbackEnabled) {
+      return;
+    }
+
     const ctx = gsap.context(() => {
-      gsap.set([previewLine, tipPath], { autoAlpha: 0 });
-      gsap.set(previewLine, {
-        attr: { x1: sEast.x, y1: sEast.y, x2: sEast.x, y2: sEast.y }
-      });
-      gsap.set(tipPath, { attr: { d: addArrowFinal.edge?.tipD ?? "" } });
-      sourceStateRef.current.arrowVisible = false;
-      commitSource();
-
-      Object.assign(cursorStateRef.current, {
-        x: initialAbove.x,
-        y: initialAbove.y,
-        visible: true,
-        pressed: false,
-        cursor: CURSOR_FOR_DRAG.toolCreate
-      });
-      commitCursor();
-
       const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.85 });
-      const cursor = createCursorScript(tl, cursorStateRef.current, commitCursor);
+      const cursor = createCursorScript(tl, cursorStateRef.current, {
+        onPositionChange: commitCursorPosition,
+        onFrameChange: commitCursorFrame
+      });
       const cursorPath = createCursorPathScript(cursor, {
         initialAbove,
         sourceAnchor: sEast,
@@ -148,7 +191,7 @@ export function AddArrowCard() {
     }, rootRef);
 
     return () => ctx.revert();
-  }, []);
+  }, [playbackEnabled]);
 
   return (
     <article className="featureCard" ref={rootRef}>
@@ -163,13 +206,13 @@ export function AddArrowCard() {
         <g
           pointerEvents="none"
         >
-          <AnchorOverlay anchors={sAnchors} visible={hoveredNode === "s"} />
+          <AnchorOverlay ref={sAnchorOverlayRef} anchors={sAnchors} visible={false} />
         </g>
 
         <g
           pointerEvents="none"
         >
-          <AnchorOverlay anchors={tAnchors} visible={hoveredNode === "t"} />
+          <AnchorOverlay ref={tAnchorOverlayRef} anchors={tAnchors} visible={false} />
         </g>
 
         <line
@@ -200,6 +243,7 @@ export function AddArrowCard() {
         />
 
         <CursorOverlay
+          ref={cursorOverlayRef}
           x={cursorFrame.x}
           y={cursorFrame.y}
           visible={cursorFrame.visible}
@@ -208,7 +252,11 @@ export function AddArrowCard() {
           scale={0.35}
         />
       </svg>
-      <SourcePreview lines={buildAddArrowSourceLines(sourceStateRef.current)} />
+      <SourcePreview
+        ref={sourcePreviewRef}
+        lines={buildAddArrowSourceLines(sourceStateRef.current)}
+        managedImperatively
+      />
     </article>
   );
 }

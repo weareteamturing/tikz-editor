@@ -1,11 +1,11 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { CursorOverlay } from "../cursor-overlay";
+import { applyCursorOverlayFrame, CursorOverlay } from "../cursor-overlay";
 import { CURSOR_FOR_DRAG } from "../cursor-conventions";
 import { createCursorScript, type CursorFrame } from "../cursor-script";
 import { createCursorPathScript } from "../animation/cursor-path";
 import { SnapGuidesOverlay, type SnapGuideLine } from "../animation/snap-guides";
-import { mountRenderedScene, queryRenderedElement } from "../animation/rendered-scene";
+import { mountRenderedScene, queryRenderedElement, wrapRenderedElements } from "../animation/rendered-scene";
 import { setSvgAttrs } from "../animation/svg-actors";
 import { snapGuidesCommonViewBox, snapGuidesFinal, snapGuidesInitial } from "../generated/feature-svgs";
 import {
@@ -14,11 +14,13 @@ import {
   sourceLine,
   sourcePunctuation,
   SourcePreview,
+  renderSourcePreview,
   sourceNumber,
   sourceString,
   sourceText,
   type SourceLine
 } from "../source-preview";
+import { useDemoPlayback } from "../use-demo-playback";
 
 type RectNode = {
   sourceId: string;
@@ -42,6 +44,9 @@ const SNAP_IDLE_START = {
 
 export function SnapGuidesCard() {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const playbackEnabled = useDemoPlayback(rootRef);
+  const cursorOverlayRef = useRef<SVGGElement | null>(null);
+  const sourcePreviewRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<SVGGElement | null>(null);
   const cursorStateRef = useRef<CursorFrame>({
     x: SNAP_IDLE_START.x,
@@ -55,10 +60,20 @@ export function SnapGuidesCard() {
   const sourceStateRef = useRef<SnapGuidesSourceState>({
     d: { x: 0, y: 0 }
   });
-  const [, bumpSourceVersion] = useState(0);
-
-  const commitCursor = (): void => setCursorFrame({ ...cursorStateRef.current });
-  const commitSource = (): void => bumpSourceVersion((version) => version + 1);
+  const commitCursorPosition = (): void => {
+    if (cursorOverlayRef.current) {
+      applyCursorOverlayFrame(cursorOverlayRef.current, cursorStateRef.current, 0.35);
+    }
+  };
+  const commitCursorFrame = (): void => {
+    commitCursorPosition();
+    setCursorFrame({ ...cursorStateRef.current });
+  };
+  const commitSource = (): void => {
+    if (sourcePreviewRef.current) {
+      renderSourcePreview(sourcePreviewRef.current, buildSnapGuidesSourceLines(sourceStateRef.current));
+    }
+  };
 
   useLayoutEffect(() => {
     if (!rootRef.current || !sceneRef.current) {
@@ -70,6 +85,10 @@ export function SnapGuidesCard() {
     const movingNode = queryNode(sceneRef.current, snapGuidesInitial.movingNode);
     const movingLabel = queryLabel(sceneRef.current, snapGuidesInitial.movingNode);
     if (!movingNode || !movingLabel) {
+      return;
+    }
+    const movingGroup = wrapRenderedElements([movingNode, movingLabel], "animatedNodeGroup");
+    if (!movingGroup) {
       return;
     }
 
@@ -118,12 +137,9 @@ export function SnapGuidesCard() {
 
     const updateMoving = (showSnapLines: boolean): void => {
       updateSourceD();
-      setSvgAttrs(movingNode, {
-        d: rectPathD(moveState.bounds)
-      });
-      setSvgAttrs(movingLabel, {
-        x: moveState.labelPos.x,
-        y: moveState.labelPos.y
+      gsap.set(movingGroup, {
+        x: moveState.bounds.x - snapGuidesInitial.movingNode.bounds.x,
+        y: moveState.bounds.y - snapGuidesInitial.movingNode.bounds.y
       });
 
       const nextLines: SnapGuideLine[] = [];
@@ -150,6 +166,20 @@ export function SnapGuidesCard() {
       setSnapLines(nextLines);
     };
 
+    updateMoving(false);
+    Object.assign(cursorStateRef.current, {
+      x: SNAP_IDLE_START.x,
+      y: SNAP_IDLE_START.y,
+      visible: true,
+      pressed: false,
+      cursor: "pointer"
+    });
+    commitCursorFrame();
+
+    if (!playbackEnabled) {
+      return;
+    }
+
     const ctx = gsap.context(() => {
       Object.assign(cursorStateRef.current, {
         x: SNAP_IDLE_START.x,
@@ -158,11 +188,14 @@ export function SnapGuidesCard() {
         pressed: false,
         cursor: "pointer"
       });
-      commitCursor();
+      commitCursorFrame();
       setSnapLines([]);
 
       const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.8 });
-      const cursor = createCursorScript(tl, cursorStateRef.current, commitCursor);
+      const cursor = createCursorScript(tl, cursorStateRef.current, {
+        onPositionChange: commitCursorPosition,
+        onFrameChange: commitCursorFrame
+      });
       const hoverHold = 0.18;
       const cursorPath = createCursorPathScript(cursor, {
         idleAbove: SNAP_IDLE_START,
@@ -226,9 +259,8 @@ export function SnapGuidesCard() {
       cursor.setStyle("pointer", "reset+=0.3");
     }, rootRef);
 
-    updateMoving(false);
     return () => ctx.revert();
-  }, []);
+  }, [playbackEnabled]);
 
   return (
     <article className="featureCard" ref={rootRef}>
@@ -237,6 +269,7 @@ export function SnapGuidesCard() {
         <g ref={sceneRef} />
         <SnapGuidesOverlay lines={snapLines} strokeWidth={SNAP_STROKE_WIDTH} crossSize={SNAP_CROSS_SIZE} />
         <CursorOverlay
+          ref={cursorOverlayRef}
           x={cursorFrame.x}
           y={cursorFrame.y}
           visible={cursorFrame.visible}
@@ -245,7 +278,11 @@ export function SnapGuidesCard() {
           scale={0.35}
         />
       </svg>
-      <SourcePreview lines={buildSnapGuidesSourceLines(sourceStateRef.current)} />
+      <SourcePreview
+        ref={sourcePreviewRef}
+        lines={buildSnapGuidesSourceLines(sourceStateRef.current)}
+        managedImperatively
+      />
     </article>
   );
 }

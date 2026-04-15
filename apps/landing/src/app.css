@@ -47,6 +47,9 @@ h1 {
   background: var(--bg-pane);
   display: flex;
   flex-direction: column;
+  contain: layout paint;
+  content-visibility: auto;
+  contain-intrinsic-size: 360px;
 }
 
 .featureCardTitle {
@@ -62,6 +65,7 @@ h1 {
   height: auto;
   display: block;
   background: #f0f0f0;
+  contain: layout paint;
 }
 
 .sourcePreview {

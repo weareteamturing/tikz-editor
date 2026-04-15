@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import type { ReactNode } from "react";
 
 export type SourceTokenKind =
@@ -19,6 +20,7 @@ export type SourceLine = readonly SourceToken[];
 
 export type SourcePreviewProps = {
   lines: readonly SourceLine[];
+  managedImperatively?: boolean;
 };
 
 export function sourceLine(...tokens: SourceToken[]): SourceLine {
@@ -44,11 +46,32 @@ export function formatTikzNumber(value: number): string {
   return Object.is(rounded, -0) ? "0" : text;
 }
 
-export function SourcePreview({ lines }: SourcePreviewProps): ReactNode {
+function escapeHtml(text: string): string {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+export function renderSourcePreview(target: HTMLElement, lines: readonly SourceLine[]): void {
+  target.innerHTML = lines
+    .map((line) => {
+      const tokens = line
+        .map((token) => `<span class="sourceToken sourceToken--${token.kind}">${escapeHtml(token.text)}</span>`)
+        .join("");
+      return `<span class="sourceLine">${tokens}</span>`;
+    })
+    .join("");
+}
+
+export const SourcePreview = forwardRef<HTMLElement, SourcePreviewProps>(function SourcePreview(
+  { lines, managedImperatively = false },
+  ref
+): ReactNode {
   return (
     <pre className="sourcePreview" aria-label="TikZ source preview">
-      <code className="sourcePreviewCode">
-        {lines.map((line, lineIndex) => (
+      <code className="sourcePreviewCode" ref={ref}>
+        {managedImperatively ? null : lines.map((line, lineIndex) => (
           <span className="sourceLine" key={lineIndex}>
             {line.map((token, tokenIndex) => (
               <span className={`sourceToken sourceToken--${token.kind}`} key={`${lineIndex}-${tokenIndex}`}>
@@ -60,4 +83,4 @@ export function SourcePreview({ lines }: SourcePreviewProps): ReactNode {
       </code>
     </pre>
   );
-}
+});

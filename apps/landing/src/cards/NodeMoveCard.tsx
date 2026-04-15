@@ -1,23 +1,26 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { CursorOverlay } from "../cursor-overlay";
+import { applyCursorOverlayFrame, CursorOverlay } from "../cursor-overlay";
 import { createCursorScript, type CursorFrame } from "../cursor-script";
 import { renderEditHandlesForBounds } from "../edit-handles";
 import { nodeMoveCommonViewBox, nodeMoveInitial, nodeMoveMoved } from "../generated/feature-svgs";
 import { createCursorPathScript } from "../animation/cursor-path";
 import { offsetPoint, point } from "../animation/points";
 import { setSvgAttrs, toSvgAttrs, toTranslate } from "../animation/svg-actors";
+import { wrapRenderedElements } from "../animation/rendered-scene";
 import {
   formatTikzNumber,
   sourceKeyword,
   sourceLine,
   sourcePunctuation,
   SourcePreview,
+  renderSourcePreview,
   sourceString,
   sourceNumber,
   sourceText,
   type SourceLine
 } from "../source-preview";
+import { useDemoPlayback } from "../use-demo-playback";
 
 type SceneRefs = {
   contentGroup: SVGGElement | null;
@@ -25,8 +28,7 @@ type SceneRefs = {
 };
 
 type NodeSceneElements = {
-  sCircle: SVGCircleElement;
-  sLabel: SVGSVGElement;
+  sNodeGroup: SVGGElement;
   edgeLine: SVGPathElement;
   edgeTip: SVGPathElement;
 };
@@ -50,12 +52,19 @@ function queryNodeSceneElements(contentGroup: SVGGElement): NodeSceneElements | 
     return null;
   }
 
-  return { sCircle, sLabel, edgeLine, edgeTip };
+  const sNodeGroup = wrapRenderedElements([sCircle, sLabel], "animatedNodeGroup");
+  if (!sNodeGroup) {
+    return null;
+  }
+
+  return { sNodeGroup, edgeLine, edgeTip };
 }
 
 function setNodeFrame(elements: NodeSceneElements, frame: typeof nodeMoveInitial): void {
-  setSvgAttrs(elements.sCircle, { cx: frame.sCenter.x, cy: frame.sCenter.y });
-  setSvgAttrs(elements.sLabel, { x: frame.sLabelPos.x, y: frame.sLabelPos.y });
+  gsap.set(elements.sNodeGroup, {
+    x: frame.sCenter.x - nodeMoveInitial.sCenter.x,
+    y: frame.sCenter.y - nodeMoveInitial.sCenter.y
+  });
   setSvgAttrs(elements.edgeLine, { d: frame.edge.lineD });
   setSvgAttrs(elements.edgeTip, { d: frame.edge.tipD });
 }
@@ -70,8 +79,15 @@ function tweenNodeFrame(
   ,
   onUpdate?: () => void
 ): void {
-  toSvgAttrs(tl, elements.sCircle, { cx: frame.sCenter.x, cy: frame.sCenter.y }, duration, position, ease);
-  toSvgAttrs(tl, elements.sLabel, { x: frame.sLabelPos.x, y: frame.sLabelPos.y }, duration, position, ease);
+  toTranslate(
+    tl,
+    elements.sNodeGroup,
+    frame.sCenter.x - nodeMoveInitial.sCenter.x,
+    frame.sCenter.y - nodeMoveInitial.sCenter.y,
+    duration,
+    position,
+    ease
+  );
   toSvgAttrs(tl, elements.edgeLine, { d: frame.edge.lineD }, duration, position, ease);
   toSvgAttrs(tl, elements.edgeTip, { d: frame.edge.tipD }, duration, position, ease);
   if (onUpdate) {
@@ -81,6 +97,9 @@ function tweenNodeFrame(
 
 export function NodeMoveCard() {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const playbackEnabled = useDemoPlayback(rootRef);
+  const cursorOverlayRef = useRef<SVGGElement | null>(null);
+  const sourcePreviewRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<SceneRefs>({ contentGroup: null, handlesGroup: null });
   const sourceStateRef = useRef<NodeMoveSourceState>({
     s: { ...SOURCE_S_START },
@@ -94,10 +113,21 @@ export function NodeMoveCard() {
     cursor: "pointer"
   });
   const [cursorFrame, setCursorFrame] = useState<CursorFrame>({ ...cursorStateRef.current });
-  const [, bumpSourceVersion] = useState(0);
 
-  const commitCursor = (): void => setCursorFrame({ ...cursorStateRef.current });
-  const commitSource = (): void => bumpSourceVersion((version) => version + 1);
+  const commitCursorPosition = (): void => {
+    if (cursorOverlayRef.current) {
+      applyCursorOverlayFrame(cursorOverlayRef.current, cursorStateRef.current, 0.35);
+    }
+  };
+  const commitCursorFrame = (): void => {
+    commitCursorPosition();
+    setCursorFrame({ ...cursorStateRef.current });
+  };
+  const commitSource = (): void => {
+    if (sourcePreviewRef.current) {
+      renderSourcePreview(sourcePreviewRef.current, buildNodeMoveSourceLines(sourceStateRef.current));
+    }
+  };
 
   useLayoutEffect(() => {
     if (!rootRef.current) {
@@ -135,20 +165,23 @@ export function NodeMoveCard() {
       deselectOutside: offsetPoint(initialCenter, -nodeMoveInitial.sRadius - 24, -6)
     };
 
+    setNodeFrame(elements, nodeMoveInitial);
+    gsap.set(handlesGroup, { x: 0, y: 0, autoAlpha: 0 });
+    Object.assign(cursorStateRef.current, {
+      x: waypoints.initialBeside.x,
+      y: waypoints.initialBeside.y,
+      visible: true,
+      pressed: false,
+      cursor: "pointer"
+    });
+    commitCursorFrame();
+
+    if (!playbackEnabled) {
+      return;
+    }
+
     const ctx = gsap.context(() => {
-      setNodeFrame(elements, nodeMoveInitial);
-      gsap.set(handlesGroup, { x: 0, y: 0, autoAlpha: 0 });
-
-      Object.assign(cursorStateRef.current, {
-        x: waypoints.initialBeside.x,
-        y: waypoints.initialBeside.y,
-        visible: true,
-        pressed: false,
-        cursor: "pointer"
-      });
-      commitCursor();
-
-  const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.9 });
+      const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.9 });
       tl.eventCallback("onRepeat", () => {
         sourceStateRef.current.s.x = SOURCE_S_START.x;
         sourceStateRef.current.s.y = SOURCE_S_START.y;
@@ -156,7 +189,10 @@ export function NodeMoveCard() {
         sourceStateRef.current.t.y = SOURCE_T.y;
         commitSource();
       });
-      const cursor = createCursorScript(tl, cursorStateRef.current, commitCursor);
+      const cursor = createCursorScript(tl, cursorStateRef.current, {
+        onPositionChange: commitCursorPosition,
+        onFrameChange: commitCursorFrame
+      });
       const cursorPath = createCursorPathScript(cursor, waypoints);
 
       tl.add("hoverStart");
@@ -226,7 +262,7 @@ export function NodeMoveCard() {
     }, rootRef);
 
     return () => ctx.revert();
-  }, []);
+  }, [playbackEnabled]);
 
   const initialBounds = {
     x: nodeMoveInitial.sCenter.x - nodeMoveInitial.sRadius,
@@ -260,6 +296,7 @@ export function NodeMoveCard() {
         </g>
 
         <CursorOverlay
+          ref={cursorOverlayRef}
           x={cursorFrame.x}
           y={cursorFrame.y}
           visible={cursorFrame.visible}
@@ -268,7 +305,11 @@ export function NodeMoveCard() {
           scale={0.35}
         />
       </svg>
-      <SourcePreview lines={buildNodeMoveSourceLines(sourceStateRef.current)} />
+      <SourcePreview
+        ref={sourcePreviewRef}
+        lines={buildNodeMoveSourceLines(sourceStateRef.current)}
+        managedImperatively
+      />
     </article>
   );
 }

@@ -6,9 +6,9 @@ import {
   RiAlignItemLeftLine,
   RiAlignItemRightLine
 } from "@remixicon/react";
-import { CursorOverlay } from "../cursor-overlay";
+import { applyCursorOverlayFrame, CursorOverlay } from "../cursor-overlay";
 import { createCursorScript, type CursorFrame, type CursorScript } from "../cursor-script";
-import { mountRenderedScene, queryRenderedElement } from "../animation/rendered-scene";
+import { mountRenderedScene, queryRenderedElement, wrapRenderedElements } from "../animation/rendered-scene";
 import { setSvgAttrs } from "../animation/svg-actors";
 import { renderEditHandlesForBounds } from "../edit-handles";
 import {
@@ -23,11 +23,13 @@ import {
   sourceLine,
   sourcePunctuation,
   SourcePreview,
+  renderSourcePreview,
   sourceNumber,
   sourceString,
   sourceText,
   type SourceLine
 } from "../source-preview";
+import { useDemoPlayback } from "../use-demo-playback";
 
 type NodeState = SelectionAlignCardState["leftNodes"][number];
 type Rect = { x: number; y: number; width: number; height: number };
@@ -75,6 +77,9 @@ function padBounds(bounds: Rect, pad: number): Rect {
 
 export function SelectionAlignCard() {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const playbackEnabled = useDemoPlayback(rootRef);
+  const cursorOverlayRef = useRef<SVGGElement | null>(null);
+  const sourcePreviewRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<SVGGElement | null>(null);
   const marqueeRef = useRef<SVGRectElement | null>(null);
   const leftOverlayRefs = useRef<Array<SVGGElement | null>>([]);
@@ -97,7 +102,6 @@ export function SelectionAlignCard() {
   const [marqueeVisible, setMarqueeVisible] = useState(false);
   const [alignPressed, setAlignPressed] = useState(false);
   const [toolbarVisible, setToolbarVisible] = useState(false);
-  const [, bumpSourceVersion] = useState(0);
 
   const leftInitial = selectionAlignInitial.leftNodes;
   const rightInitial = selectionAlignInitial.rightNodes;
@@ -110,8 +114,20 @@ export function SelectionAlignCard() {
     leftTargetX: 0,
   });
 
-  const commitCursor = (): void => setCursorFrame({ ...cursorStateRef.current });
-  const commitSource = (): void => bumpSourceVersion((version) => version + 1);
+  const commitCursorPosition = (): void => {
+    if (cursorOverlayRef.current) {
+      applyCursorOverlayFrame(cursorOverlayRef.current, cursorStateRef.current, 0.35);
+    }
+  };
+  const commitCursorFrame = (): void => {
+    commitCursorPosition();
+    setCursorFrame({ ...cursorStateRef.current });
+  };
+  const commitSource = (): void => {
+    if (sourcePreviewRef.current) {
+      renderSourcePreview(sourcePreviewRef.current, buildSelectionAlignSourceLines(sourceStateRef.current));
+    }
+  };
 
   const leftFinal = useMemo(() => centerAlign(leftInitial), [leftInitial]);
   const rightFinal = useMemo(() => centerAlign(rightInitial), [rightInitial]);
@@ -146,6 +162,12 @@ export function SelectionAlignCard() {
     const leftLabels = leftInitial.map((node) => queryNodeLabel(sceneRef.current!, node));
     const rightNodePaths = rightInitial.map((node) => queryNodePath(sceneRef.current!, node));
     const rightLabels = rightInitial.map((node) => queryNodeLabel(sceneRef.current!, node));
+    const leftNodeGroups = leftNodePaths.map((path, index) =>
+      path && leftLabels[index] ? wrapRenderedElements([path, leftLabels[index]!], "animatedNodeGroup") : null
+    );
+    const rightNodeGroups = rightNodePaths.map((path, index) =>
+      path && rightLabels[index] ? wrapRenderedElements([path, rightLabels[index]!], "animatedNodeGroup") : null
+    );
     const edgePaths = Array.from(
       sceneRef.current.querySelectorAll('path[data-source-id][fill="none"][stroke="black"]:not([data-arrow-tip-kind])')
     ) as SVGPathElement[];
@@ -153,8 +175,10 @@ export function SelectionAlignCard() {
     if (
       leftNodePaths.some((el) => !el) ||
       leftLabels.some((el) => !el) ||
+      leftNodeGroups.some((el) => !el) ||
       rightNodePaths.some((el) => !el) ||
       rightLabels.some((el) => !el) ||
+      rightNodeGroups.some((el) => !el) ||
       edgePaths.length < leftInitial.length * rightInitial.length
     ) {
       return;
@@ -178,18 +202,20 @@ export function SelectionAlignCard() {
     const updateGroup = (
       states: NodeState[],
       initials: readonly NodeState[],
-      paths: (SVGPathElement | null)[],
-      labels: (SVGSVGElement | null)[],
+      nodeGroups: (SVGGElement | null)[],
       overlays: Array<SVGGElement | null>,
       visible: boolean
     ): void => {
       states.forEach((state, index) => {
-        const path = paths[index];
-        const label = labels[index];
-        if (path) setSvgAttrs(path, { d: rectPathD(state.bounds) });
-        if (label) setSvgAttrs(label, { x: state.labelPos.x, y: state.labelPos.y });
+        const nodeGroup = nodeGroups[index];
         const group = overlays[index];
         const initial = initials[index];
+        if (nodeGroup && initial) {
+          gsap.set(nodeGroup, {
+            x: state.bounds.x - initial.bounds.x,
+            y: state.bounds.y - initial.bounds.y
+          });
+        }
         if (group && initial) {
           group.style.display = visible ? "inline" : "none";
           setSvgAttrs(group, {
@@ -212,8 +238,8 @@ export function SelectionAlignCard() {
     };
 
     const updateAll = (): void => {
-      updateGroup(leftStates, leftInitial, leftNodePaths, leftLabels, leftOverlayRefs.current, leftSelectedRef.current);
-      updateGroup(rightStates, rightInitial, rightNodePaths, rightLabels, rightOverlayRefs.current, rightSelectedRef.current);
+      updateGroup(leftStates, leftInitial, leftNodeGroups, leftOverlayRefs.current, leftSelectedRef.current);
+      updateGroup(rightStates, rightInitial, rightNodeGroups, rightOverlayRefs.current, rightSelectedRef.current);
       updateEdges();
       updateMarquee();
     sourceStateRef.current.leftNodes = leftStates.map(cloneNode);
@@ -341,7 +367,7 @@ export function SelectionAlignCard() {
         marqueeVisibleRef.current = false;
         setMarqueeVisible(false);
         updateAll();
-        commitCursor();
+        commitCursorFrame();
       }, undefined, `${release}+=0.04`);
 
       tl.add(btnMove, `${release}+=0.3`);
@@ -371,7 +397,7 @@ export function SelectionAlignCard() {
           sourceStateRef.current.rightAligned = true;
         }
         updateAll();
-        commitCursor();
+        commitCursorFrame();
       }, undefined, `${btnPress}+=0.08`);
 
       tl.to({}, { duration: 0.14, ease: "none" }, `${btnPress}+=0.24`);
@@ -395,11 +421,28 @@ export function SelectionAlignCard() {
         toolbarVisibleRef.current = false;
         setToolbarVisible(false);
         updateAll();
-        commitCursor();
+        commitCursorFrame();
       }, undefined, end);
 
       return end;
     };
+
+    if (!playbackEnabled) {
+      const startPos = {
+        x: padBounds(leftBounds, MARQUEE_PAD).x - CURSOR_OVERSHOOT - 4,
+        y: padBounds(leftBounds, MARQUEE_PAD).y - CURSOR_OVERSHOOT - 3
+      };
+      Object.assign(cursorStateRef.current, {
+        x: startPos.x,
+        y: startPos.y,
+        visible: true,
+        pressed: false,
+        cursor: "pointer"
+      });
+      commitCursorFrame();
+      resetAll();
+      return;
+    }
 
     const ctx = gsap.context(() => {
       const startPos = {
@@ -413,11 +456,14 @@ export function SelectionAlignCard() {
         pressed: false,
         cursor: "pointer"
       });
-      commitCursor();
+      commitCursorFrame();
       resetAll();
 
       const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.9 });
-      const cursor = createCursorScript(tl, cursorStateRef.current, commitCursor);
+      const cursor = createCursorScript(tl, cursorStateRef.current, {
+        onPositionChange: commitCursorPosition,
+        onFrameChange: commitCursorFrame
+      });
 
       tl.to({}, { duration: 0.22, ease: "none" }, 0);
 
@@ -454,7 +500,7 @@ export function SelectionAlignCard() {
     }, rootRef);
 
     return () => ctx.revert();
-  }, [leftBounds, rightBounds, leftInitial, rightInitial, leftFinal, rightFinal, toolbar]);
+  }, [leftBounds, rightBounds, leftInitial, rightInitial, leftFinal, rightFinal, toolbar, playbackEnabled]);
 
   return (
     <article className="featureCard" ref={rootRef}>
@@ -519,6 +565,7 @@ export function SelectionAlignCard() {
         </g>
 
         <CursorOverlay
+          ref={cursorOverlayRef}
           x={cursorFrame.x}
           y={cursorFrame.y}
           visible={cursorFrame.visible}
@@ -527,7 +574,11 @@ export function SelectionAlignCard() {
           scale={0.35}
         />
       </svg>
-      <SourcePreview lines={buildSelectionAlignSourceLines(sourceStateRef.current)} />
+      <SourcePreview
+        ref={sourcePreviewRef}
+        lines={buildSelectionAlignSourceLines(sourceStateRef.current)}
+        managedImperatively
+      />
     </article>
   );
 }

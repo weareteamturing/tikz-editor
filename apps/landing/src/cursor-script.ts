@@ -17,41 +17,53 @@ export type CursorScript = {
   setVisible: (visible: boolean, position?: string | number) => CursorScript;
 };
 
+export type CursorCommitters = {
+  onPositionChange?: () => void;
+  onFrameChange?: () => void;
+};
+
 export function createCursorScript(
   timeline: gsap.core.Timeline,
   state: CursorFrame,
-  commit: () => void
+  committers: CursorCommitters
 ): CursorScript {
+  const commitPosition = (): void => {
+    committers.onPositionChange?.();
+  };
+  const commitFrame = (): void => {
+    committers.onFrameChange?.();
+  };
+
   const api: CursorScript = {
     moveTo(x, y, duration = 0.3, position, ease = "power1.inOut") {
-      timeline.to(state, { x, y, duration, ease, onUpdate: commit }, position);
+      timeline.to(state, { x, y, duration, ease, onUpdate: commitPosition }, position);
       return api;
     },
     setFrame(frame, position) {
       timeline.call(() => {
         Object.assign(state, frame);
-        commit();
+        commitFrame();
       }, undefined, position);
       return api;
     },
     setStyle(cursor, position) {
       timeline.call(() => {
         state.cursor = cursor;
-        commit();
+        commitFrame();
       }, undefined, position);
       return api;
     },
     setPressed(pressed, position) {
       timeline.call(() => {
         state.pressed = pressed;
-        commit();
+        commitFrame();
       }, undefined, position);
       return api;
     },
     setVisible(visible, position) {
       timeline.call(() => {
         state.visible = visible;
-        commit();
+        commitFrame();
       }, undefined, position);
       return api;
     }

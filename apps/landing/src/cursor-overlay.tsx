@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { forwardRef, memo } from "react";
 
 export type CursorStyle =
   | "pointer"
@@ -20,6 +20,13 @@ export type CursorOverlayProps = {
   pressed: boolean;
   cursor: CursorStyle;
   scale?: number;
+};
+
+export type CursorOverlayFrame = {
+  x: number;
+  y: number;
+  visible: boolean;
+  cursor: CursorStyle;
 };
 
 const STROKE_COLOR = "#111111";
@@ -206,22 +213,33 @@ const CURSOR_DEFS: Record<CursorStyle, CursorDef> = {
   }
 };
 
-export const CursorOverlay = memo(function CursorOverlay({ x, y, visible, pressed, cursor, scale = 1 }: CursorOverlayProps) {
+export function applyCursorOverlayFrame(target: SVGGElement, frame: CursorOverlayFrame, scale = 1): void {
+  const def = CURSOR_DEFS[frame.cursor] ?? CURSOR_DEFS.pointer;
+  const offsetX = (def.offsetX ?? 0) * scale;
+  const offsetY = (def.offsetY ?? 0) * scale;
+
+  target.setAttribute("transform", `translate(${frame.x + offsetX} ${frame.y + offsetY}) scale(${scale})`);
+  target.style.opacity = frame.visible ? "1" : "0";
+}
+
+export const CursorOverlay = memo(forwardRef<SVGGElement, CursorOverlayProps>(function CursorOverlay(
+  { x, y, visible, pressed, cursor, scale = 1 }: CursorOverlayProps,
+  ref
+) {
   const def = CURSOR_DEFS[cursor] ?? CURSOR_DEFS.pointer;
   const size = def.size ?? 24;
   const offsetX = (def.offsetX ?? 0) * scale;
   const offsetY = (def.offsetY ?? 0) * scale;
-  const shadow = pressed ? "drop-shadow(0 0 3px rgba(0,0,0,0.6))" : "drop-shadow(0 1px 1px rgba(0,0,0,0.4))";
 
   return (
     <g
+      ref={ref}
       aria-hidden
       transform={`translate(${x + offsetX} ${y + offsetY}) scale(${scale})`}
       style={{
         pointerEvents: "none",
         opacity: visible ? 1 : 0,
-        transition: "opacity 120ms linear",
-        filter: shadow
+        transition: "opacity 120ms linear"
       }}
     >
       <rect x="0" y="0" width={size} height={size} fill="none" />
@@ -238,4 +256,4 @@ export const CursorOverlay = memo(function CursorOverlay({ x, y, visible, presse
       ))}
     </g>
   );
-});
+}));

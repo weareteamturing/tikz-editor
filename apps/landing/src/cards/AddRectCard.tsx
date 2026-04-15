@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { CursorOverlay } from "../cursor-overlay";
+import { applyCursorOverlayFrame, CursorOverlay } from "../cursor-overlay";
 import { CURSOR_FOR_DRAG, CURSOR_FOR_HANDLE_ROLE } from "../cursor-conventions";
 import { createCursorScript, type CursorFrame } from "../cursor-script";
 import { addRectCommonViewBox, addRectInitial, addRectResized } from "../generated/feature-svgs";
@@ -16,10 +16,12 @@ import {
   sourceLine,
   sourcePunctuation,
   SourcePreview,
+  renderSourcePreview,
   sourceNumber,
   sourceText,
   type SourceLine
 } from "../source-preview";
+import { useDemoPlayback } from "../use-demo-playback";
 
 type SceneRefs = {
   contentGroup: SVGGElement | null;
@@ -56,6 +58,9 @@ const ROTATE_HANDLE_GAP = 5.2;
 
 export function AddRectCard() {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const playbackEnabled = useDemoPlayback(rootRef);
+  const cursorOverlayRef = useRef<SVGGElement | null>(null);
+  const sourcePreviewRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<SceneRefs>({
     contentGroup: null,
     handlesGroup: null
@@ -68,7 +73,6 @@ export function AddRectCard() {
     cursor: CURSOR_FOR_DRAG.toolCreate
   });
   const [cursorFrame, setCursorFrame] = useState<CursorFrame>({ ...cursorStateRef.current });
-  const [, bumpSourceVersion] = useState(0);
   const sourceStateRef = useRef<AddRectSourceState>({
     visible: false,
     x0: 0,
@@ -77,8 +81,20 @@ export function AddRectCard() {
     y1: 0
   });
 
-  const commitCursor = (): void => setCursorFrame({ ...cursorStateRef.current });
-  const commitSource = (): void => bumpSourceVersion((version) => version + 1);
+  const commitCursorPosition = (): void => {
+    if (cursorOverlayRef.current) {
+      applyCursorOverlayFrame(cursorOverlayRef.current, cursorStateRef.current, 0.35);
+    }
+  };
+  const commitCursorFrame = (): void => {
+    commitCursorPosition();
+    setCursorFrame({ ...cursorStateRef.current });
+  };
+  const commitSource = (): void => {
+    if (sourcePreviewRef.current) {
+      renderSourcePreview(sourcePreviewRef.current, buildAddRectSourceLines(sourceStateRef.current));
+    }
+  };
   const idleAbove = point(addRectInitial.bounds.x - 6, addRectInitial.bounds.y - 18);
   const createStart = point(addRectInitial.bounds.x, addRectInitial.bounds.y);
   const createEnd = point(addRectInitial.bounds.x + addRectInitial.bounds.width, addRectInitial.bounds.y + addRectInitial.bounds.height);
@@ -158,21 +174,35 @@ export function AddRectCard() {
       updateSourceRect(bounds, phase);
     };
 
+    updateBodyAndOverlay(createState, false, "reset");
+    sourceStateRef.current.visible = false;
+    commitSource();
+    Object.assign(cursorStateRef.current, {
+      x: idleAbove.x,
+      y: idleAbove.y,
+      visible: true,
+      pressed: false,
+      cursor: CURSOR_FOR_DRAG.toolCreate
+    });
+    commitCursorFrame();
+
+    if (!playbackEnabled) {
+      gsap.set(contentGroup, { opacity: 1 });
+      gsap.set(handlesGroup, { opacity: 0, display: "none", visibility: "hidden" });
+      setSvgAttrs(bodyRect, { d: rectPathD(initialBounds) });
+      bodyRect.style.opacity = "1";
+      return;
+    }
+
     const ctx = gsap.context(() => {
-      updateBodyAndOverlay(createState, false, "reset");
       gsap.set(contentGroup, { opacity: 0 });
       gsap.set(handlesGroup, { opacity: 0, display: "none", visibility: "hidden" });
-      Object.assign(cursorStateRef.current, {
-        x: idleAbove.x,
-        y: idleAbove.y,
-        visible: true,
-        pressed: false,
-        cursor: CURSOR_FOR_DRAG.toolCreate
-      });
-      commitCursor();
 
       const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.9 });
-      const cursor = createCursorScript(tl, cursorStateRef.current, commitCursor);
+      const cursor = createCursorScript(tl, cursorStateRef.current, {
+        onPositionChange: commitCursorPosition,
+        onFrameChange: commitCursorFrame
+      });
       const cursorPath = createCursorPathScript(cursor, {
         idleAbove,
         createStart,
@@ -238,7 +268,7 @@ export function AddRectCard() {
     }, rootRef);
 
     return () => ctx.revert();
-  }, [addRectCommonViewBox, addRectInitial.bounds.width, addRectInitial.bounds.height, addRectInitial.bounds.x, addRectInitial.bounds.y, addRectResized.bounds.height, addRectResized.bounds.width, addRectResized.bounds.x, addRectResized.bounds.y]);
+  }, [addRectCommonViewBox, addRectInitial.bounds.width, addRectInitial.bounds.height, addRectInitial.bounds.x, addRectInitial.bounds.y, addRectResized.bounds.height, addRectResized.bounds.width, addRectResized.bounds.x, addRectResized.bounds.y, playbackEnabled]);
 
   return (
     <article className="featureCard" ref={rootRef}>
@@ -267,6 +297,7 @@ export function AddRectCard() {
         </g>
 
         <CursorOverlay
+          ref={cursorOverlayRef}
           x={cursorFrame.x}
           y={cursorFrame.y}
           visible={cursorFrame.visible}
@@ -275,7 +306,11 @@ export function AddRectCard() {
           scale={0.35}
         />
       </svg>
-      <SourcePreview lines={buildAddRectSourceLines(sourceStateRef.current)} />
+      <SourcePreview
+        ref={sourcePreviewRef}
+        lines={buildAddRectSourceLines(sourceStateRef.current)}
+        managedImperatively
+      />
     </article>
   );
 }

@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { forwardRef, memo } from "react";
 import type { Point } from "./points";
 
 export type RectBounds = {
@@ -56,23 +56,45 @@ const ANCHOR_STROKE = "rgba(20, 117, 40, 0.92)";
 const ACTIVE_FILL = "rgba(53, 194, 79, 0.9)";
 const ACTIVE_STROKE = "rgba(16, 102, 34, 1)";
 
-export const AnchorOverlay = memo(function AnchorOverlay({
+export function applyAnchorOverlayState(
+  target: SVGGElement,
+  anchors: readonly AnchorDot[],
+  visible: boolean,
+  activeKey: string | null,
+  radius = 2.7
+): void {
+  target.style.display = visible ? "inline" : "none";
+  const circles = target.querySelectorAll<SVGCircleElement>("circle[data-anchor-key]");
+  circles.forEach((circle, index) => {
+    const anchor = anchors[index];
+    if (!anchor) {
+      return;
+    }
+    const active = visible && anchor.key === activeKey;
+    circle.setAttribute("r", String(active ? radius * 1.1 : radius * 0.85));
+    circle.setAttribute("fill", active ? ACTIVE_FILL : ANCHOR_FILL);
+    circle.setAttribute("stroke", active ? ACTIVE_STROKE : ANCHOR_STROKE);
+  });
+}
+
+export const AnchorOverlay = memo(forwardRef<SVGGElement, AnchorOverlayProps>(function AnchorOverlay({
   anchors,
   visible = true,
   radius = 2.7,
   strokeWidth = 0.34
-}: AnchorOverlayProps) {
-  if (!visible || anchors.length === 0) {
+}: AnchorOverlayProps, ref) {
+  if (anchors.length === 0) {
     return null;
   }
 
   return (
-    <g pointerEvents="none">
+    <g ref={ref} pointerEvents="none" style={{ display: visible ? "inline" : "none" }}>
       {anchors.map((anchor) => {
         const active = anchor.active ?? false;
         return (
           <circle
             key={anchor.key}
+            data-anchor-key={anchor.key}
             cx={anchor.x}
             cy={anchor.y}
             r={active ? radius * 1.1 : radius * 0.85}
@@ -85,4 +107,4 @@ export const AnchorOverlay = memo(function AnchorOverlay({
       })}
     </g>
   );
-});
+}));

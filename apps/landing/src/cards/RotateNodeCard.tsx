@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { CursorOverlay } from "../cursor-overlay";
+import { applyCursorOverlayFrame, CursorOverlay } from "../cursor-overlay";
 import { CURSOR_FOR_ROTATE_HANDLE } from "../cursor-conventions";
 import { createCursorScript, type CursorFrame } from "../cursor-script";
 import { renderEditHandlesForBounds } from "../edit-handles";
@@ -15,11 +15,13 @@ import {
   sourceLine,
   sourcePunctuation,
   SourcePreview,
+  renderSourcePreview,
   sourceNumber,
   sourceString,
   sourceText,
   type SourceLine
 } from "../source-preview";
+import { useDemoPlayback } from "../use-demo-playback";
 
 type SceneRefs = {
   contentGroup: SVGGElement | null;
@@ -28,6 +30,9 @@ type SceneRefs = {
 
 export function RotateNodeCard() {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const playbackEnabled = useDemoPlayback(rootRef);
+  const cursorOverlayRef = useRef<SVGGElement | null>(null);
+  const sourcePreviewRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<SceneRefs>({
     contentGroup: null,
     handlesGroup: null
@@ -41,10 +46,21 @@ export function RotateNodeCard() {
     cursor: "pointer"
   });
   const [cursorFrame, setCursorFrame] = useState<CursorFrame>({ ...cursorStateRef.current });
-  const [, bumpSourceVersion] = useState(0);
 
-  const commitCursor = (): void => setCursorFrame({ ...cursorStateRef.current });
-  const commitSource = (): void => bumpSourceVersion((version) => version + 1);
+  const commitCursorPosition = (): void => {
+    if (cursorOverlayRef.current) {
+      applyCursorOverlayFrame(cursorOverlayRef.current, cursorStateRef.current, 0.35);
+    }
+  };
+  const commitCursorFrame = (): void => {
+    commitCursorPosition();
+    setCursorFrame({ ...cursorStateRef.current });
+  };
+  const commitSource = (): void => {
+    if (sourcePreviewRef.current) {
+      renderSourcePreview(sourcePreviewRef.current, buildRotateNodeSourceLines(sourceStateRef.current.rotation));
+    }
+  };
 
   useLayoutEffect(() => {
     if (!rootRef.current) {
@@ -76,6 +92,25 @@ export function RotateNodeCard() {
 
     const svgOrigin = `${center.x} ${center.y}`;
 
+    Object.assign(cursorStateRef.current, {
+      x: initialBeside.x,
+      y: initialBeside.y,
+      visible: true,
+      pressed: false,
+      cursor: "pointer"
+    });
+    commitCursorFrame();
+    sourceStateRef.current.rotation = 0;
+    commitSource();
+
+    if (!playbackEnabled) {
+      gsap.set([bodyPath, labelSvg, handlesGroup], {
+        rotation: 0,
+        svgOrigin
+      });
+      return;
+    }
+
     const ctx = gsap.context(() => {
       gsap.set([bodyPath, labelSvg, handlesGroup], {
         rotation: 0,
@@ -91,10 +126,13 @@ export function RotateNodeCard() {
         pressed: false,
         cursor: "pointer"
       });
-      commitCursor();
+      commitCursorFrame();
 
       const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.85 });
-      const cursor = createCursorScript(tl, cursorStateRef.current, commitCursor);
+      const cursor = createCursorScript(tl, cursorStateRef.current, {
+        onPositionChange: commitCursorPosition,
+        onFrameChange: commitCursorFrame
+      });
       const cursorPath = createCursorPathScript(cursor, {
         initialBeside,
         handleStart,
@@ -143,7 +181,7 @@ export function RotateNodeCard() {
     }, rootRef);
 
     return () => ctx.revert();
-  }, []);
+  }, [playbackEnabled]);
 
   const initialBounds = {
     x: rotateNodeInitial.bounds.x,
@@ -177,6 +215,7 @@ export function RotateNodeCard() {
         </g>
 
         <CursorOverlay
+          ref={cursorOverlayRef}
           x={cursorFrame.x}
           y={cursorFrame.y}
           visible={cursorFrame.visible}
@@ -185,7 +224,11 @@ export function RotateNodeCard() {
           scale={0.35}
         />
       </svg>
-      <SourcePreview lines={buildRotateNodeSourceLines(sourceStateRef.current.rotation)} />
+      <SourcePreview
+        ref={sourcePreviewRef}
+        lines={buildRotateNodeSourceLines(sourceStateRef.current.rotation)}
+        managedImperatively
+      />
     </article>
   );
 }
