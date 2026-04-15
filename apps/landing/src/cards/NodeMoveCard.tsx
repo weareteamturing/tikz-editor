@@ -39,8 +39,8 @@ type NodeMoveSourceState = {
 };
 
 const SOURCE_S_START = { x: 0, y: 0 };
-const SOURCE_S_END = { x: 2, y: 1 };
-const SOURCE_T = { x: 3, y: 1 };
+const SOURCE_S_END = { x: -0.9, y: 0.7 };
+const SOURCE_T = { x: 2, y: 0 };
 
 function queryNodeSceneElements(contentGroup: SVGGElement): NodeSceneElements | null {
   const sCircle = contentGroup.querySelector('circle[data-source-id="path:1"]') as SVGCircleElement | null;

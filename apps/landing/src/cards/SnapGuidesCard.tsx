@@ -36,6 +36,8 @@ type SnapGuidesSourceState = {
 const SNAP_STROKE_WIDTH = 0.9;
 const SNAP_CROSS_SIZE = 1.6;
 const SNAP_APPROACH_DISTANCE = 2.8;
+const SOURCE_D_START = { x: 0.2, y: -0.1 };
+const SOURCE_D_END = { x: 1.1, y: -0.8 };
 
 const SNAP_IDLE_START = {
   x: snapGuidesInitial.movingNode.center.x + 15.5,
@@ -58,7 +60,7 @@ export function SnapGuidesCard() {
   const [cursorFrame, setCursorFrame] = useState<CursorFrame>({ ...cursorStateRef.current });
   const [snapLines, setSnapLines] = useState<SnapGuideLine[]>([]);
   const sourceStateRef = useRef<SnapGuidesSourceState>({
-    d: { x: 0, y: 0 }
+    d: { ...SOURCE_D_START }
   });
   const commitCursorPosition = (): void => {
     if (cursorOverlayRef.current) {
@@ -130,8 +132,8 @@ export function SnapGuidesCard() {
       const currentDy = moveState.center.y - initialCenter.y;
       const denom = travelDx * travelDx + travelDy * travelDy || 1;
       const progress = Math.max(0, Math.min(1, (currentDx * travelDx + currentDy * travelDy) / denom));
-      sourceStateRef.current.d.x = progress * 2;
-      sourceStateRef.current.d.y = progress * 1;
+      sourceStateRef.current.d.x = SOURCE_D_START.x + progress * (SOURCE_D_END.x - SOURCE_D_START.x);
+      sourceStateRef.current.d.y = SOURCE_D_START.y + progress * (SOURCE_D_END.y - SOURCE_D_START.y);
       commitSource();
     };
 
@@ -192,6 +194,10 @@ export function SnapGuidesCard() {
       setSnapLines([]);
 
       const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.8 });
+      tl.eventCallback("onRepeat", () => {
+        sourceStateRef.current.d = { ...SOURCE_D_START };
+        commitSource();
+      });
       const cursor = createCursorScript(tl, cursorStateRef.current, {
         onPositionChange: commitCursorPosition,
         onFrameChange: commitCursorFrame
@@ -294,9 +300,9 @@ function buildSnapGuidesSourceLines(state: SnapGuidesSourceState): SourceLine[] 
       sourceText("[draw] "),
       sourcePunctuation("(A)"),
       sourceText(" at ("),
-      sourceNumber("-2"),
+      sourceNumber("-1.1"),
       sourcePunctuation(", "),
-      sourceNumber("-1"),
+      sourceNumber("0.8"),
       sourcePunctuation(") "),
       sourceString("{A};")
     ),
@@ -305,9 +311,9 @@ function buildSnapGuidesSourceLines(state: SnapGuidesSourceState): SourceLine[] 
       sourceText("[draw] "),
       sourcePunctuation("(B)"),
       sourceText(" at ("),
-      sourceNumber("2"),
+      sourceNumber("1.1"),
       sourcePunctuation(", "),
-      sourceNumber("-1"),
+      sourceNumber("0.8"),
       sourcePunctuation(") "),
       sourceString("{B};")
     ),
@@ -316,9 +322,9 @@ function buildSnapGuidesSourceLines(state: SnapGuidesSourceState): SourceLine[] 
       sourceText("[draw] "),
       sourcePunctuation("(C)"),
       sourceText(" at ("),
-      sourceNumber("-2"),
+      sourceNumber("-1.1"),
       sourcePunctuation(", "),
-      sourceNumber("1"),
+      sourceNumber("-0.8"),
       sourcePunctuation(") "),
       sourceString("{C};")
     ),
