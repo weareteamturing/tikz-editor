@@ -84,7 +84,7 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
     setBezierBendDraft,
     setPendingBezier,
     textEditingSession,
-    setTextEditingSession,
+    closeTextEditingSession,
     setMarqueeDraft,
     selectedElementIds,
     applyActionWithFeedback,
@@ -146,7 +146,7 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
           setPendingBezier(null);
           setToolCursorWorld(null);
         } else if (textEditingSession) {
-          setTextEditingSession(null);
+          closeTextEditingSession();
           event.preventDefault();
           return;
         }
@@ -288,7 +288,7 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
       setMarqueeDraft,
       setPendingBezier,
       setSnapLines,
-      setTextEditingSession,
+      closeTextEditingSession,
       setToolCursorWorld,
       setToolDraft,
       setWarning,

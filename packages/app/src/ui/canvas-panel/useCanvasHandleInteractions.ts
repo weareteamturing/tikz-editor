@@ -59,7 +59,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
     toolMode,
     viewportRef,
     dispatch,
-    setTextEditingSession,
+    closeTextEditingSession,
     setNodeAnchorOverlay,
     selectedElementIds,
     dragCapability,
@@ -87,7 +87,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       viewportRef.current?.focus({ preventScroll: true });
       event.preventDefault();
       event.stopPropagation();
-      setTextEditingSession(null);
+      closeTextEditingSession();
       setNodeAnchorOverlay(null);
       dispatch({ type: "SET_ACTIVE_HANDLE", handleId: handle.id });
 
@@ -173,7 +173,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       setDragState,
       setNodeAnchorOverlay,
       setSnapLines,
-      setTextEditingSession,
+      closeTextEditingSession,
       setWarning,
       snapshot.editHandles,
       snapshot.parseResult,
@@ -215,7 +215,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       viewportRef.current?.focus({ preventScroll: true });
       event.preventDefault();
       event.stopPropagation();
-      setTextEditingSession(null);
+      closeTextEditingSession();
 
       if (additiveSelection) {
         dispatch({ type: "SELECT", id: sourceId, additive: true });
@@ -303,7 +303,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       selectedElementIds,
       setDragState,
       setSnapLines,
-      setTextEditingSession,
+      closeTextEditingSession,
       setWarning,
       directManipulationDisabledReasonBySourceId,
       snapshot.editHandles,
@@ -372,7 +372,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       viewportRef.current?.focus({ preventScroll: true });
       event.preventDefault();
       event.stopPropagation();
-      setTextEditingSession(null);
+      closeTextEditingSession();
       setNodeAnchorOverlay(null);
 
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
@@ -436,7 +436,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       setDragState,
       setNodeAnchorOverlay,
       setSnapLines,
-      setTextEditingSession,
+      closeTextEditingSession,
       setWarning,
       snapshot.source,
       source,

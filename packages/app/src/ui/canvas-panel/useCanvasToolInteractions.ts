@@ -17,7 +17,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
   const {
     viewportRef,
     toolMode,
-    setTextEditingSession,
+    closeTextEditingSession,
     startMarqueeSelection,
     pendingTouchViewportRef,
     suppressNextBackgroundClickRef,
@@ -122,13 +122,13 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       if (toolMode !== "select" || event.button !== 0 || event.target !== event.currentTarget) {
         return;
       }
-      setTextEditingSession(null);
+      closeTextEditingSession();
       const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
       if (startMarqueeSelection(event.pointerId, event.clientX, event.clientY, additiveSelection)) {
         event.preventDefault();
       }
     },
-    [startMarqueeSelection, toolMode, setTextEditingSession, viewportRef]
+    [closeTextEditingSession, startMarqueeSelection, toolMode, viewportRef]
   );
 
   const onBackgroundClick = useCallback(
@@ -151,7 +151,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
   const onInteractionPointerDown = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
       viewportRef.current?.focus({ preventScroll: true });
-      setTextEditingSession(null);
+      closeTextEditingSession();
       const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
 
       if (!svgResult) return;
@@ -580,7 +580,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       setPathSegmentDraft,
       setPendingBezier,
       setSnapLines,
-      setTextEditingSession,
+      closeTextEditingSession,
       setToolCursorWorld,
       setToolDraft,
       setWarning,

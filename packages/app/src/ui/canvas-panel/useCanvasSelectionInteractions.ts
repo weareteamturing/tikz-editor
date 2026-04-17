@@ -11,7 +11,7 @@ export type UseCanvasSelectionInteractionsArgs = {
 export function useCanvasSelectionInteractions(args: UseCanvasSelectionInteractionsArgs) {
   const {
     openCanvasContextMenuAt,
-    setTextEditingSession,
+    closeTextEditingSession,
     selectedElementIds,
     scopeOverlay,
     focusedScopeId,
@@ -56,10 +56,10 @@ export function useCanvasSelectionInteractions(args: UseCanvasSelectionInteracti
     (event: ReactMouseEvent<SVGElement | HTMLDivElement>) => {
       event.preventDefault();
       event.stopPropagation();
-      setTextEditingSession(null);
+      closeTextEditingSession();
       openCanvasContextMenuAt(event.clientX, event.clientY, null);
     },
-    [openCanvasContextMenuAt, setTextEditingSession]
+    [closeTextEditingSession, openCanvasContextMenuAt]
   );
 
   return {

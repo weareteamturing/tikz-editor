@@ -43,9 +43,8 @@ import {
   type SnapLine
 } from "tikz-editor/edit/snapping";
 import type { NodeTextEngine, NodeTextLayoutKind } from "tikz-editor/text/types";
-import type { Span, Statement } from "tikz-editor/ast/types";
+import type { Statement } from "tikz-editor/ast/types";
 import { PT_PER_CM } from "tikz-editor/edit/format";
-import { replaceSpan } from "tikz-editor/edit/patch";
 import { resolveEligibleExplicitPath } from "tikz-editor/edit/path-editing";
 import {
   makeForeachTemplateTargetId,
@@ -96,8 +95,7 @@ import type {
   PathToolDraft,
   SelectionBounds,
   SnapDebugLogInput,
-  TextEditingSession,
-  TextSelectionOverlay
+  TextEditingSession
 } from "./canvas-panel/types";
 import {
   buildValueSequence,
@@ -184,6 +182,12 @@ import { useCanvasElementInteractions } from "./canvas-panel/useCanvasElementInt
 import { useCanvasGuideEffects } from "./canvas-panel/useCanvasGuideEffects";
 import { useCanvasViewportEffects } from "./canvas-panel/useCanvasViewportEffects";
 import { useCanvasTextEditingEffects } from "./canvas-panel/useCanvasTextEditingEffects";
+import {
+  INITIAL_CANVAS_TEXT_EDIT_STATE,
+  reduceCanvasTextEdit,
+  type CanvasTextEditAction,
+  type CanvasTextEditEffect
+} from "./canvas-panel/canvas-text-edit-machine";
 import { createSourceRenderOffsetMap } from "./canvas-panel/text-offset-map";
 import { useCanvasSelectionDerivedState } from "./canvas-panel/useCanvasSelectionDerivedState";
 import {
@@ -793,40 +797,6 @@ function resolveFallbackTextLayoutKind(text: string, hasFixedWidth: boolean | un
   return "single-line";
 }
 
-function resolveCurrentTextSpan(source: string, expectedText: string, previousSpan: Span): Span {
-  if (source.slice(previousSpan.from, previousSpan.to) === expectedText) {
-    return previousSpan;
-  }
-  if (expectedText.length === 0) {
-    return { from: previousSpan.from, to: previousSpan.from };
-  }
-  let bestStart = -1;
-  let bestDistance = Number.POSITIVE_INFINITY;
-  let searchFrom = 0;
-  while (searchFrom <= source.length - expectedText.length) {
-    const matchAt = source.indexOf(expectedText, searchFrom);
-    if (matchAt < 0) {
-      break;
-    }
-    const distance = Math.abs(matchAt - previousSpan.from);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestStart = matchAt;
-      if (distance === 0) {
-        break;
-      }
-    }
-    searchFrom = matchAt + 1;
-  }
-  if (bestStart < 0) {
-    return previousSpan;
-  }
-  return {
-    from: bestStart,
-    to: bestStart + expectedText.length
-  };
-}
-
 function expandSvgViewBox(
   viewBox: SvgViewBox,
   viewportSize: { width: number; height: number },
@@ -1058,8 +1028,10 @@ export const CanvasPanel = memo(function CanvasPanel({
   const [pendingBezier, setPendingBezier] = useState<PendingBezier | null>(null);
   const [marqueeDraft, setMarqueeDraft] = useState<Extract<DragState, { kind: "marquee" }> | null>(null);
   const [nodeAnchorOverlay, setNodeAnchorOverlay] = useState<NodeAnchorOverlayState | null>(null);
-  const [textSelectionOverlay, setTextSelectionOverlay] = useState<TextSelectionOverlay | null>(null);
-  const [textEditingSession, setTextEditingSession] = useState<TextEditingSession | null>(null);
+  const [canvasTextEditState, setCanvasTextEditState] = useState(INITIAL_CANVAS_TEXT_EDIT_STATE);
+  const canvasTextEditStateRef = useRef(INITIAL_CANVAS_TEXT_EDIT_STATE);
+  const textEditingSession = canvasTextEditState.session;
+  const textSelectionOverlay = canvasTextEditState.selectionOverlay;
   const [pendingAdornmentTextEditTargetId, setPendingAdornmentTextEditTargetId] = useState<string | null>(null);
   const [pathAttachedNodePreview, setPathAttachedNodePreview] = useState<{ sourceId: string; dx: number; dy: number } | null>(null);
   const [dragPatchMode, setDragPatchMode] = useState<"partial" | "full">("partial");
@@ -1121,10 +1093,47 @@ export const CanvasPanel = memo(function CanvasPanel({
   }, [platform.accessibility]);
   const pendingNativeContextMenuTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textEditingSessionRef = useRef<TextEditingSession | null>(null);
-  const textEditSelectionStabilizeRef = useRef<{ start: number; end: number; expiresAtMs: number } | null>(null);
   useLayoutEffect(() => {
     textEditingSessionRef.current = textEditingSession;
   }, [textEditingSession]);
+  useLayoutEffect(() => {
+    canvasTextEditStateRef.current = canvasTextEditState;
+  }, [canvasTextEditState]);
+
+  const dispatchCanvasTextEditAction = useCallback((action: CanvasTextEditAction) => {
+    const reduced = reduceCanvasTextEdit(canvasTextEditStateRef.current, action);
+    canvasTextEditStateRef.current = reduced.state;
+    setCanvasTextEditState(reduced.state);
+    for (const effect of reduced.effects) {
+      if (effect.type !== "apply_source_patch") {
+        continue;
+      }
+      dispatch({
+        type: "APPLY_EDIT_ACTION",
+        action: {
+          kind: "updateNodeText",
+          elementId: effect.sourceId,
+          text: effect.nextText
+        },
+        historyMergeKey: effect.historyMergeKey,
+        precomputedResult: {
+          kind: "success",
+          newSource: effect.nextSource,
+          patches: [
+            {
+              oldSpan: effect.previousSpan,
+              newSpan: effect.changedSpan,
+              replacement: effect.replacement
+            }
+          ]
+        }
+      });
+    }
+  }, [dispatch]);
+
+  const closeTextEditingSession = useCallback(() => {
+    dispatchCanvasTextEditAction({ type: "session_close" });
+  }, [dispatchCanvasTextEditAction]);
 
   const contextMenuHandleIdOverride =
     pendingNativeContextMenuRequest?.clickedHandleId ?? contextMenuState?.handleIdOverride;
@@ -1469,7 +1478,6 @@ export const CanvasPanel = memo(function CanvasPanel({
       return { element, transform };
     });
   }, [pathAttachedNodePreview, snapshot.source]);
-  const textSelectionRequestIdRef = useRef(0);
   const pendingTouchViewportRef = useRef<PendingTouchViewport | null>(null);
   const viewportStateByFigureKeyRef = useRef(new Map<string, FigureViewportState>());
   const visitedFigureKeysRef = useRef(new Set<string>());
@@ -2428,27 +2436,16 @@ export const CanvasPanel = memo(function CanvasPanel({
       selectionEnd: number,
       historyMergeKey?: string
     ) => {
-      const boundedStart = clamp(Math.floor(selectionStart), 0, target.text.length);
-      const boundedEnd = clamp(Math.floor(selectionEnd), 0, target.text.length);
-      const normalizedStart = Math.min(boundedStart, boundedEnd);
-      const normalizedEnd = Math.max(boundedStart, boundedEnd);
-      setTextEditingSession({
-        sourceId: target.sourceId,
-        sceneTextId: target.sceneTextId,
-        sourceSpan: target.sourceSpan,
-        workingSource: source,
-        text: target.text,
-        selectionStart: normalizedStart,
-        selectionEnd: normalizedEnd,
-        historyMergeKey: historyMergeKey ?? makeMergeKey("canvas-text-edit", target.sourceId, Date.now()),
-        paragraphId: target.paragraphId,
-        renderSourceText: target.renderSourceText,
-        layoutKind: target.layoutKind,
-        region: target.region,
-        popupAnchorBox: target.popupAnchorBox
+      dispatchCanvasTextEditAction({
+        type: "start_session",
+        target,
+        source,
+        selectionStart,
+        selectionEnd,
+        historyMergeKey: historyMergeKey ?? makeMergeKey("canvas-text-edit", target.sourceId, Date.now())
       });
     },
-    [source]
+    [dispatchCanvasTextEditAction, source]
   );
 
   const beginCanvasTextInteraction = useCallback(
@@ -2457,8 +2454,8 @@ export const CanvasPanel = memo(function CanvasPanel({
         return;
       }
       suppressNextBackgroundClickRef.current = true;
-      textSelectionRequestIdRef.current += 1;
-      const requestId = textSelectionRequestIdRef.current;
+      const requestRevision = canvasTextEditState.asyncRequestRevision + 1;
+      const baseInputRevision = canvasTextEditState.inputRevision;
       const existingHistoryMergeKey =
         textEditingSession?.sourceId === target.sourceId ? textEditingSession.historyMergeKey : undefined;
       const clickCount = event.detail >= 2 ? event.detail : 1;
@@ -2481,7 +2478,18 @@ export const CanvasPanel = memo(function CanvasPanel({
         provisionalOffset,
         provisionalLineRange
       );
-      startTextEditingSession(target, provisionalSelection.start, provisionalSelection.end, existingHistoryMergeKey);
+      dispatchCanvasTextEditAction({
+        type: "pointer_down_provisional",
+        target,
+        source,
+        pointerId: event.pointerId,
+        selectionStart: provisionalSelection.start,
+        selectionEnd: provisionalSelection.end,
+        anchorOffset: provisionalOffset,
+        mode,
+        anchorLineRange: provisionalLineRange,
+        historyMergeKey: existingHistoryMergeKey ?? makeMergeKey("canvas-text-edit", target.sourceId, Date.now())
+      });
       textSelectionDragRef.current = {
         pointerId: event.pointerId,
         sourceId: target.sourceId,
@@ -2495,9 +2503,6 @@ export const CanvasPanel = memo(function CanvasPanel({
         ? resolveTextLineRangeFromClient(target, event.clientX, event.clientY)
         : Promise.resolve<TextLineRange | null>(null);
       void Promise.all([offsetPromise, lineRangePromise]).then(([offset, lineRange]) => {
-        if (requestId !== textSelectionRequestIdRef.current) {
-          return;
-        }
         const resolvedOffset = offset == null ? provisionalOffset : clamp(offset, 0, target.text.length);
         const resolvedLineRange = mode === "line"
           ? (
@@ -2515,18 +2520,18 @@ export const CanvasPanel = memo(function CanvasPanel({
           resolvedOffset,
           resolvedLineRange
         );
-        setTextEditingSession((current) =>
-          current && current.sourceId === target.sourceId
-            ? current.selectionStart === provisionalSelection.start &&
-              current.selectionEnd === provisionalSelection.end
-              ? {
-                  ...current,
-                  selectionStart: selection.start,
-                  selectionEnd: selection.end
-                }
-              : current
-            : current
-        );
+        dispatchCanvasTextEditAction({
+          type: "pointer_resolved",
+          requestRevision,
+          baseInputRevision,
+          sourceId: target.sourceId,
+          sceneTextId: target.sceneTextId,
+          pointerId: event.pointerId,
+          selectionStart: selection.start,
+          selectionEnd: selection.end,
+          anchorOffset: resolvedOffset,
+          anchorLineRange: resolvedLineRange
+        });
         if (textSelectionDragRef.current?.pointerId === event.pointerId) {
           textSelectionDragRef.current = {
             pointerId: event.pointerId,
@@ -2546,11 +2551,13 @@ export const CanvasPanel = memo(function CanvasPanel({
     },
     [
       canvasTransform,
+      canvasTextEditState.asyncRequestRevision,
+      canvasTextEditState.inputRevision,
+      dispatchCanvasTextEditAction,
       interactionSvgRef,
       resolveTextLineRangeFromClient,
       resolveTextOffsetFromClient,
-      setTextEditingSession,
-      startTextEditingSession,
+      source,
       svgResult,
       textEditingSession,
       viewportRef
@@ -2563,48 +2570,14 @@ export const CanvasPanel = memo(function CanvasPanel({
       if (!current) {
         return;
       }
-      // Cancel any in-flight click/drag caret resolution so stale async results
-      // cannot overwrite the selection immediately after a text input update.
-      textSelectionRequestIdRef.current += 1;
-      const boundedStart = clamp(Math.floor(nextSelectionStart), 0, nextText.length);
-      const boundedEnd = clamp(Math.floor(nextSelectionEnd), 0, nextText.length);
-      textEditSelectionStabilizeRef.current = {
-        start: boundedStart,
-        end: boundedEnd,
-        expiresAtMs: Date.now() + 250
-      };
-      const currentSpan = resolveCurrentTextSpan(current.workingSource, current.text, current.sourceSpan);
-      const updated = replaceSpan(current.workingSource, currentSpan, nextText);
-      dispatch({
-        type: "APPLY_EDIT_ACTION",
-        action: {
-          kind: "updateNodeText",
-          elementId: current.sourceId,
-          text: nextText
-        },
-        historyMergeKey: current.historyMergeKey,
-        precomputedResult: {
-          kind: "success",
-          newSource: updated.source,
-          patches: [
-            {
-              oldSpan: currentSpan,
-              newSpan: updated.changedSpan,
-              replacement: nextText
-            }
-          ]
-        }
-      });
-      setTextEditingSession({
-        ...current,
-        sourceSpan: updated.changedSpan,
-        workingSource: updated.source,
-        text: nextText,
-        selectionStart: boundedStart,
-        selectionEnd: boundedEnd
+      dispatchCanvasTextEditAction({
+        type: "textarea_input_replace",
+        nextText,
+        selectionStart: nextSelectionStart,
+        selectionEnd: nextSelectionEnd
       });
     },
-    [dispatch]
+    [dispatchCanvasTextEditAction]
   );
 
   const handleTextEditTextareaChange = useCallback(
@@ -2634,28 +2607,12 @@ export const CanvasPanel = memo(function CanvasPanel({
 
   const handleTextEditTextareaSelect = useCallback((event: ReactSyntheticEvent<HTMLTextAreaElement>) => {
     const textarea = event.currentTarget;
-    setTextEditingSession((current) =>
-      current
-        ? (() => {
-            const nextStart = clamp(textarea.selectionStart ?? 0, 0, current.text.length);
-            const nextEnd = clamp(textarea.selectionEnd ?? 0, 0, current.text.length);
-            const stabilization = textEditSelectionStabilizeRef.current;
-            if (
-              stabilization &&
-              Date.now() < stabilization.expiresAtMs &&
-              (nextStart !== stabilization.start || nextEnd !== stabilization.end)
-            ) {
-              return current;
-            }
-            return {
-              ...current,
-              selectionStart: nextStart,
-              selectionEnd: nextEnd
-            };
-          })()
-        : current
-    );
-  }, []);
+    dispatchCanvasTextEditAction({
+      type: "textarea_selection",
+      selectionStart: textarea.selectionStart ?? 0,
+      selectionEnd: textarea.selectionEnd ?? 0
+    });
+  }, [dispatchCanvasTextEditAction]);
 
   const stopTextEditTextareaClipboardPropagation = useCallback((event: ReactClipboardEvent<HTMLTextAreaElement>) => {
     event.stopPropagation();
@@ -2666,7 +2623,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       event.preventDefault();
       event.stopPropagation();
       textSelectionDragRef.current = null;
-      setTextEditingSession(null);
+      dispatchCanvasTextEditAction({ type: "session_close" });
       return;
     }
 
@@ -2678,33 +2635,17 @@ export const CanvasPanel = memo(function CanvasPanel({
       return;
     }
 
-    const textarea = event.currentTarget;
-    const value = textarea.value;
-    const rawStart = textarea.selectionStart ?? 0;
-    const rawEnd = textarea.selectionEnd ?? rawStart;
-    const start = clamp(Math.min(rawStart, rawEnd), 0, value.length);
-    const end = clamp(Math.max(rawStart, rawEnd), 0, value.length);
-
-    let nextText = value;
-    let nextCaret = start;
-
-    if (start !== end) {
-      nextText = `${value.slice(0, start)}${value.slice(end)}`;
-      nextCaret = start;
-    } else if (event.key === "Backspace" && start > 0) {
-      nextText = `${value.slice(0, start - 1)}${value.slice(start)}`;
-      nextCaret = start - 1;
-    } else if (event.key === "Delete" && start < value.length) {
-      nextText = `${value.slice(0, start)}${value.slice(start + 1)}`;
-      nextCaret = start;
-    } else {
-      return;
-    }
-
     event.preventDefault();
     event.stopPropagation();
-    applyTextEditingUpdate(nextText, nextCaret, nextCaret);
-  }, [applyTextEditingUpdate]);
+    const textarea = event.currentTarget;
+    dispatchCanvasTextEditAction({
+      type: "textarea_delete",
+      key: event.key,
+      value: textarea.value,
+      selectionStart: textarea.selectionStart ?? 0,
+      selectionEnd: textarea.selectionEnd ?? 0
+    });
+  }, [dispatchCanvasTextEditAction]);
 
   const handleTextEditPopupPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     event.stopPropagation();
@@ -2731,28 +2672,10 @@ export const CanvasPanel = memo(function CanvasPanel({
       return;
     }
     const syncSelectionFromTextarea = () => {
-      setTextEditingSession((current) => {
-        if (!current) {
-          return current;
-        }
-        const nextStart = clamp(textarea.selectionStart ?? 0, 0, current.text.length);
-        const nextEnd = clamp(textarea.selectionEnd ?? 0, 0, current.text.length);
-        const stabilization = textEditSelectionStabilizeRef.current;
-        if (
-          stabilization &&
-          Date.now() < stabilization.expiresAtMs &&
-          (nextStart !== stabilization.start || nextEnd !== stabilization.end)
-        ) {
-          return current;
-        }
-        if (current.selectionStart === nextStart && current.selectionEnd === nextEnd) {
-          return current;
-        }
-        return {
-          ...current,
-          selectionStart: nextStart,
-          selectionEnd: nextEnd
-        };
+      dispatchCanvasTextEditAction({
+        type: "textarea_selection",
+        selectionStart: textarea.selectionStart ?? 0,
+        selectionEnd: textarea.selectionEnd ?? 0
       });
     };
     const handleDocumentSelectionChange = () => {
@@ -2768,7 +2691,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       textarea.removeEventListener("mouseup", syncSelectionFromTextarea);
       document.removeEventListener("selectionchange", handleDocumentSelectionChange);
     };
-  }, [textEditingSession]);
+  }, [dispatchCanvasTextEditAction, textEditingSession]);
 
   useLayoutEffect(() => {
     const textarea = textEditTextareaRef.current;
@@ -2864,16 +2787,13 @@ export const CanvasPanel = memo(function CanvasPanel({
         textSelectionDragRef.current = null;
         return;
       }
-      textSelectionRequestIdRef.current += 1;
-      const requestId = textSelectionRequestIdRef.current;
+      const requestRevision = canvasTextEditState.asyncRequestRevision;
+      const baseInputRevision = canvasTextEditState.inputRevision;
       const offsetPromise = resolveTextOffsetFromClient(target, event.clientX, event.clientY);
       const lineRangePromise = drag.mode === "line"
         ? resolveTextLineRangeFromClient(target, event.clientX, event.clientY)
         : Promise.resolve<TextLineRange | null>(null);
       void Promise.all([offsetPromise, lineRangePromise]).then(([offset, focusLineRange]) => {
-        if (requestId !== textSelectionRequestIdRef.current) {
-          return;
-        }
         const resolvedOffset = offset == null ? drag.anchorOffset : clamp(offset, 0, target.text.length);
         const selection = resolveTextSelectionRangeForDrag(
           target.text,
@@ -2883,15 +2803,15 @@ export const CanvasPanel = memo(function CanvasPanel({
           drag.anchorLineRange,
           focusLineRange
         );
-        setTextEditingSession((current) =>
-          current && current.sourceId === target.sourceId && current.sceneTextId === target.sceneTextId
-            ? {
-                ...current,
-                selectionStart: clamp(selection.start, 0, current.text.length),
-                selectionEnd: clamp(selection.end, 0, current.text.length)
-              }
-            : current
-        );
+        dispatchCanvasTextEditAction({
+          type: "drag_resolved",
+          requestRevision,
+          baseInputRevision,
+          sourceId: target.sourceId,
+          sceneTextId: target.sceneTextId,
+          selectionStart: selection.start,
+          selectionEnd: selection.end
+        });
       });
     };
 
@@ -2911,7 +2831,14 @@ export const CanvasPanel = memo(function CanvasPanel({
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
     };
-  }, [resolveEditableTextTargetById, resolveTextLineRangeFromClient, resolveTextOffsetFromClient]);
+  }, [
+    canvasTextEditState.asyncRequestRevision,
+    canvasTextEditState.inputRevision,
+    dispatchCanvasTextEditAction,
+    resolveEditableTextTargetById,
+    resolveTextLineRangeFromClient,
+    resolveTextOffsetFromClient
+  ]);
 
   useEffect(() => {
     if (!textEditingSession) {
@@ -2926,11 +2853,11 @@ export const CanvasPanel = memo(function CanvasPanel({
         return;
       }
       textSelectionDragRef.current = null;
-      setTextEditingSession(null);
+      dispatchCanvasTextEditAction({ type: "session_close" });
     };
     window.addEventListener("pointerdown", handleGlobalPointerDown, true);
     return () => window.removeEventListener("pointerdown", handleGlobalPointerDown, true);
-  }, [textEditingSession]);
+  }, [dispatchCanvasTextEditAction, textEditingSession]);
 
   const { onElementPointerDown, onElementDoubleClick } = useCanvasElementInteractions({
     svgResult,
@@ -2938,7 +2865,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     selectedElementIds,
     viewportRef,
     beginCanvasTextInteraction,
-    setTextEditingSession,
+    closeTextEditingSession,
     interactionSvgRef,
     dispatch,
     draggableSourceIds,
@@ -3004,7 +2931,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     toolMode,
     viewportRef,
     dispatch,
-    setTextEditingSession,
+    closeTextEditingSession,
     setNodeAnchorOverlay,
     selectedElementIds,
     dragCapability,
@@ -3221,7 +3148,7 @@ export const CanvasPanel = memo(function CanvasPanel({
 
   const { onElementContextMenu, onCanvasContextMenu } = useCanvasSelectionInteractions({
     openCanvasContextMenuAt,
-    setTextEditingSession,
+    closeTextEditingSession,
     selectedElementIds,
     scopeOverlay,
     focusedScopeId,
@@ -3244,7 +3171,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   } = useCanvasToolInteractions({
     viewportRef,
     toolMode,
-    setTextEditingSession,
+    closeTextEditingSession,
     startMarqueeSelection,
     pendingTouchViewportRef,
     suppressNextBackgroundClickRef,
@@ -3316,7 +3243,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     setBezierBendDraft,
     setPendingBezier,
     textEditingSession,
-    setTextEditingSession,
+    closeTextEditingSession,
     setMarqueeDraft,
     selectedElementIds,
     applyActionWithFeedback,
@@ -3631,25 +3558,26 @@ export const CanvasPanel = memo(function CanvasPanel({
       }
     }
 
-    setTextEditingSession(null);
+    closeTextEditingSession();
     if (dragRef.current?.kind === "marquee") {
       setDragState(null);
       setMarqueeDraft(null);
     }
-  }, [setDragState, toolMode]);
+  }, [closeTextEditingSession, setDragState, toolMode]);
 
   useCanvasTextEditingEffects({
     toolMode,
     textEditingSession,
-    setTextEditingSession,
+    textEditAsyncRequestRevision: canvasTextEditState.asyncRequestRevision,
+    dispatchCanvasTextEditAction,
     selectedElementIds,
     resolveEditableTextTargetById,
     resolveRenderedMathTextElement,
     viewportRef,
-    setTextSelectionOverlay,
     pendingAdornmentTextEditTargetId,
     snapshot,
     source,
+    sourceRevision,
     startTextEditingSession,
     setPendingAdornmentTextEditTargetId,
     canvasTransform,

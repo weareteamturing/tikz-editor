@@ -25,7 +25,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     selectedElementIds,
     viewportRef,
     beginCanvasTextInteraction,
-    setTextEditingSession,
+    closeTextEditingSession,
     interactionSvgRef,
     dispatch,
     draggableSourceIds,
@@ -284,7 +284,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
           scopeId: resolveFocusedScopeIdForSelection(pending.targetId, scopeOverlay)
         });
       }
-      setTextEditingSession(null);
+      closeTextEditingSession();
       startElementDrag(event.pointerId, world, pending.dragIds);
       pending.dragStarted = true;
     }
@@ -337,7 +337,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       window.removeEventListener("pointerup", onTextPointerUp);
       window.removeEventListener("pointercancel", onTextPointerUp);
     };
-  }, [beginCanvasTextInteraction, dispatch, interactionSvgRef, scopeOverlay, selectedElementIds, setSnapLines, setTextEditingSession, startElementDrag, svgResult]);
+  }, [beginCanvasTextInteraction, closeTextEditingSession, dispatch, interactionSvgRef, scopeOverlay, selectedElementIds, setSnapLines, startElementDrag, svgResult]);
 
   const onElementPointerDown = useCallback(
     (event: ReactPointerEvent<SVGElement>, targetId: string, region?: any) => {
@@ -347,7 +347,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
           return;
         }
         viewportRef.current?.focus({ preventScroll: true });
-        setTextEditingSession(null);
+        closeTextEditingSession();
         event.preventDefault();
         event.stopPropagation();
         onBucketFillRegion(region);
@@ -378,7 +378,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       event.stopPropagation();
 
       if (!additiveSelection && matrixEdgeSelection && event.button === 0) {
-        setTextEditingSession(null);
+        closeTextEditingSession();
         setExpandedDensePathSourceId(null);
         dispatch({ type: "SELECT_RANGE", ids: matrixEdgeSelection.selectionIds });
         dispatch({
@@ -426,7 +426,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       }
 
       const isAdornmentTarget = resolvedTargetId.startsWith("node-adornment:");
-      setTextEditingSession(null);
+      closeTextEditingSession();
 
       // Keep dense-path expansion when re-clicking the same selected dense path.
       if (
@@ -507,7 +507,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       selectedElementIds,
       setExpandedDensePathSourceId,
       setSnapLines,
-      setTextEditingSession,
+      closeTextEditingSession,
       startElementDrag,
       scopeOverlay,
       snapshot.editHandles,
@@ -584,7 +584,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
           scopeId: resolveFocusedScopeIdForSelection(sourceId, scopeOverlay)
         });
         setExpandedDensePathSourceId(sourceId);
-        setTextEditingSession(null);
+        closeTextEditingSession();
         return;
       }
 
@@ -598,7 +598,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       densePathSourceIds,
       scopeOverlay,
       setExpandedDensePathSourceId,
-      setTextEditingSession,
+      closeTextEditingSession,
       toolMode,
       viewportRef,
       // eslint-disable-next-line react-hooks/exhaustive-deps

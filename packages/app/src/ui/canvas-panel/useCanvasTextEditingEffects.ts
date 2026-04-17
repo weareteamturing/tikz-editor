@@ -8,40 +8,6 @@ export type UseCanvasTextEditingEffectsArgs = {
   [key: string]: any;
 };
 
-const REGION_EPSILON = 1e-6;
-
-function sameRectRegion(left: any, right: any): boolean {
-  if (!left || !right) {
-    return left === right;
-  }
-  const leftTransform = left.transform ?? null;
-  const rightTransform = right.transform ?? null;
-  return (
-    left.key === right.key &&
-    left.sourceId === right.sourceId &&
-    left.targetId === right.targetId &&
-    left.interactionMode === right.interactionMode &&
-    Math.abs(Number(left.x) - Number(right.x)) <= REGION_EPSILON &&
-    Math.abs(Number(left.y) - Number(right.y)) <= REGION_EPSILON &&
-    Math.abs(Number(left.width) - Number(right.width)) <= REGION_EPSILON &&
-    Math.abs(Number(left.height) - Number(right.height)) <= REGION_EPSILON &&
-    Math.abs(Number(left.cx) - Number(right.cx)) <= REGION_EPSILON &&
-    Math.abs(Number(left.cy) - Number(right.cy)) <= REGION_EPSILON &&
-    Math.abs(Number(left.rotation) - Number(right.rotation)) <= REGION_EPSILON &&
-    ((leftTransform == null && rightTransform == null) ||
-      (leftTransform != null &&
-        rightTransform != null &&
-        Math.abs(Number(leftTransform.a) - Number(rightTransform.a)) <= REGION_EPSILON &&
-        Math.abs(Number(leftTransform.b) - Number(rightTransform.b)) <= REGION_EPSILON &&
-        Math.abs(Number(leftTransform.c) - Number(rightTransform.c)) <= REGION_EPSILON &&
-        Math.abs(Number(leftTransform.d) - Number(rightTransform.d)) <= REGION_EPSILON &&
-        Math.abs(Number(leftTransform.e) - Number(rightTransform.e)) <= REGION_EPSILON &&
-        Math.abs(Number(leftTransform.f) - Number(rightTransform.f)) <= REGION_EPSILON)) &&
-    Math.abs(Number(left.contentWidth ?? left.width) - Number(right.contentWidth ?? right.width)) <= REGION_EPSILON &&
-    Math.abs(Number(left.contentHeight ?? left.height) - Number(right.contentHeight ?? right.height)) <= REGION_EPSILON
-  );
-}
-
 type LogicalLineRange = {
   start: number;
   end: number;
@@ -229,15 +195,16 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
   const {
     toolMode,
     textEditingSession,
-    setTextEditingSession,
+    textEditAsyncRequestRevision,
+    dispatchCanvasTextEditAction,
     selectedElementIds,
     resolveEditableTextTargetById,
     resolveRenderedMathTextElement,
     viewportRef,
-    setTextSelectionOverlay,
     pendingAdornmentTextEditTargetId,
     snapshot,
     source,
+    sourceRevision,
     startTextEditingSession,
     setPendingAdornmentTextEditTargetId,
     canvasTransform,
@@ -248,27 +215,52 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
     if (toolMode === "select" || !textEditingSession) {
       return;
     }
-    setTextEditingSession(null);
-  }, [setTextEditingSession, textEditingSession, toolMode]);
+    dispatchCanvasTextEditAction({ type: "session_close" });
+  }, [dispatchCanvasTextEditAction, textEditingSession, toolMode]);
 
   useEffect(() => {
     if (!textEditingSession) {
       return;
     }
     if (selectedElementIds.size > 0 && !selectedElementIds.has(textEditingSession.sourceId)) {
-      setTextEditingSession(null);
+      dispatchCanvasTextEditAction({ type: "session_close" });
     }
-  }, [selectedElementIds, setTextEditingSession, textEditingSession]);
+  }, [dispatchCanvasTextEditAction, selectedElementIds, textEditingSession]);
+
+  useEffect(() => {
+    dispatchCanvasTextEditAction({
+      type: "source_reconciled",
+      source,
+      sourceRevision,
+      target: textEditingSession
+        ? resolveEditableTextTargetById(textEditingSession.sourceId, textEditingSession.sceneTextId)
+        : null
+    });
+  }, [dispatchCanvasTextEditAction, resolveEditableTextTargetById, source, sourceRevision, textEditingSession]);
 
   useEffect(() => {
     if (!textEditingSession) {
-      setTextSelectionOverlay(null);
+      dispatchCanvasTextEditAction({
+        type: "overlay_resolved",
+        requestRevision: textEditAsyncRequestRevision,
+        sourceId: "",
+        selectionStart: 0,
+        selectionEnd: 0,
+        overlay: null
+      });
       return;
     }
 
     const target = resolveEditableTextTargetById(textEditingSession.sourceId, textEditingSession.sceneTextId);
     if (!target) {
-      setTextSelectionOverlay(null);
+      dispatchCanvasTextEditAction({
+        type: "overlay_resolved",
+        requestRevision: textEditAsyncRequestRevision,
+        sourceId: textEditingSession.sourceId,
+        selectionStart: textEditingSession.selectionStart,
+        selectionEnd: textEditingSession.selectionEnd,
+        overlay: null
+      });
       return;
     }
     if (snapshot.source !== source) {
@@ -277,43 +269,19 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
 
     const boundedStart = clamp(textEditingSession.selectionStart, 0, textEditingSession.text.length);
     const boundedEnd = clamp(textEditingSession.selectionEnd, 0, textEditingSession.text.length);
-    if (
-      textEditingSession.sourceSpan.from !== target.sourceSpan.from ||
-      textEditingSession.sourceSpan.to !== target.sourceSpan.to ||
-      textEditingSession.paragraphId !== target.paragraphId ||
-      textEditingSession.renderSourceText !== target.renderSourceText ||
-      textEditingSession.layoutKind !== target.layoutKind ||
-      textEditingSession.sceneTextId !== target.sceneTextId ||
-      !sameRectRegion(textEditingSession.region, target.region) ||
-      textEditingSession.selectionStart !== boundedStart ||
-      textEditingSession.selectionEnd !== boundedEnd
-    ) {
-      setTextEditingSession((current: any) =>
-        current && current.sourceId === target.sourceId && current.sceneTextId === target.sceneTextId
-          ? (() => {
-              const nextSelectionStart = clamp(current.selectionStart, 0, current.text.length);
-              const nextSelectionEnd = clamp(current.selectionEnd, 0, current.text.length);
-              return {
-                ...current,
-                sceneTextId: target.sceneTextId,
-                sourceSpan: target.sourceSpan,
-                selectionStart: nextSelectionStart,
-                selectionEnd: nextSelectionEnd,
-                paragraphId: target.paragraphId,
-                renderSourceText: target.renderSourceText,
-                layoutKind: target.layoutKind,
-                region: target.region
-              };
-            })()
-          : current
-      );
-    }
 
     const outputJax = getActiveMathJaxOutputJax();
     const containerElement = resolveRenderedMathTextElement(target);
     const viewport = viewportRef.current;
     if (!viewport) {
-      setTextSelectionOverlay(null);
+      dispatchCanvasTextEditAction({
+        type: "overlay_resolved",
+        requestRevision: textEditAsyncRequestRevision,
+        sourceId: target.sourceId,
+        selectionStart: boundedStart,
+        selectionEnd: boundedEnd,
+        overlay: null
+      });
       return;
     }
 
@@ -326,9 +294,19 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
     const renderEnd = Math.max(renderAnchor, renderFocus);
 
     void (async () => {
+      const pushOverlay = (overlay: any) => {
+        dispatchCanvasTextEditAction({
+          type: "overlay_resolved",
+          requestRevision: textEditAsyncRequestRevision,
+          sourceId: target.sourceId,
+          selectionStart: boundedStart,
+          selectionEnd: boundedEnd,
+          overlay
+        });
+      };
       const setRegionFallbackOverlay = () => {
         if (!svgResult) {
-          setTextSelectionOverlay(null);
+          pushOverlay(null);
           return;
         }
         const overlay = projectRegionSelectionOverlayToViewport(
@@ -336,7 +314,7 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
           canvasTransform,
           svgResult.viewBox
         );
-        setTextSelectionOverlay({
+        pushOverlay({
           sourceId: target.sourceId,
           selectionStart: boundedStart,
           selectionEnd: boundedEnd,
@@ -376,7 +354,7 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
           if (requestRef.cancelled) {
             return;
           }
-          setTextSelectionOverlay({
+          pushOverlay({
             sourceId: target.sourceId,
             selectionStart: boundedStart,
             selectionEnd: boundedEnd,
@@ -407,7 +385,7 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
           setRegionFallbackOverlay();
           return;
         }
-        setTextSelectionOverlay({
+        pushOverlay({
           sourceId: target.sourceId,
           selectionStart: boundedStart,
           selectionEnd: boundedEnd,
@@ -436,11 +414,11 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
   }, [
     resolveEditableTextTargetById,
     resolveRenderedMathTextElement,
-    setTextEditingSession,
-    setTextSelectionOverlay,
+    dispatchCanvasTextEditAction,
     snapshot.source,
     source,
     textEditingSession,
+    textEditAsyncRequestRevision,
     viewportRef,
     canvasTransform.scale,
     canvasTransform.translateX,
