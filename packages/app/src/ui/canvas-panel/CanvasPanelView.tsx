@@ -121,7 +121,6 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     textEditCaretOverlay,
     hideNativeTextEditCaret,
     onTextEditPopupPointerDown,
-    onTextEditTextareaChange,
     onTextEditTextareaSelect,
     onTextEditTextareaCopy,
     onTextEditTextareaCut,
@@ -554,7 +553,6 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                   spellCheck={false}
                   rows={textEditTextareaSizing?.rows}
                   style={textEditTextareaSizing != null ? { width: textEditPopup.textareaWidth } : undefined}
-                  onChange={onTextEditTextareaChange}
                   onSelect={onTextEditTextareaSelect}
                   onCopy={onTextEditTextareaCopy}
                   onCut={onTextEditTextareaCut}

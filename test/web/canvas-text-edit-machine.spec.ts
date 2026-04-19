@@ -5,7 +5,8 @@ import {
   reduceCanvasTextEdit,
   type CanvasTextEditAction,
   type CanvasTextEditEffect,
-  type CanvasTextEditState
+  type CanvasTextEditState,
+  type CanvasTextInputIntentType
 } from "../../packages/app/src/ui/canvas-panel/canvas-text-edit-machine";
 import type { EditableTextTarget } from "../../packages/app/src/ui/canvas-panel/types";
 
@@ -71,6 +72,22 @@ function reduceMany(state: CanvasTextEditState, actions: CanvasTextEditAction[])
   return { state: current, effectsCount };
 }
 
+function reduceInputIntent(
+  state: CanvasTextEditState,
+  inputType: CanvasTextInputIntentType | string,
+  selectionStart: number,
+  selectionEnd: number,
+  data: string | null = null
+) {
+  return reduceCanvasTextEdit(state, {
+    type: "textarea_input_intent",
+    inputType,
+    data,
+    selectionStart,
+    selectionEnd
+  });
+}
+
 function buildTargetAtOccurrence(source: string, text: string, occurrence: number): EditableTextTarget {
   let searchFrom = 0;
   let found = -1;
@@ -130,22 +147,11 @@ describe("canvas text edit machine", () => {
     }).state;
     expect(selected.session?.selectionStart).toBe(2);
 
-    const typed = reduceCanvasTextEdit(selected, {
-      type: "textarea_input_replace",
-      nextText: "$x}$",
-      selectionStart: 3,
-      selectionEnd: 3
-    });
+    const typed = reduceInputIntent(selected, "insertText", 2, 2, "}");
     expect(typed.state.session?.text).toBe("$x}$");
     expect(typed.effects).toHaveLength(1);
 
-    const deleted = reduceCanvasTextEdit(typed.state, {
-      type: "textarea_delete",
-      key: "Backspace",
-      value: "$x}$",
-      selectionStart: 3,
-      selectionEnd: 3
-    });
+    const deleted = reduceInputIntent(typed.state, "deleteContentBackward", 3, 3);
     expect(deleted.state.session?.text).toBe("$x$");
 
     const closed = reduceCanvasTextEdit(deleted.state, { type: "session_close" }).state;
@@ -167,12 +173,7 @@ describe("canvas text edit machine", () => {
       historyMergeKey: "merge"
     }).state;
 
-    const afterInput = reduceCanvasTextEdit(down, {
-      type: "textarea_input_replace",
-      nextText: "$x}$",
-      selectionStart: 3,
-      selectionEnd: 3
-    }).state;
+    const afterInput = reduceInputIntent(down, "insertText", 2, 2, "}").state;
 
     const stalePointer = reduceCanvasTextEdit(afterInput, {
       type: "pointer_resolved",
@@ -202,12 +203,7 @@ describe("canvas text edit machine", () => {
       historyMergeKey: "merge"
     }).state;
 
-    const typed = reduceCanvasTextEdit(initial, {
-      type: "textarea_input_replace",
-      nextText: "$x}$",
-      selectionStart: 3,
-      selectionEnd: 3
-    }).state;
+    const typed = reduceInputIntent(initial, "insertText", 2, 2, "}").state;
 
     const invalidRecon = reduceCanvasTextEdit(typed, {
       type: "source_reconciled",
@@ -234,10 +230,11 @@ describe("canvas text edit machine", () => {
         historyMergeKey: "merge"
       },
       {
-        type: "textarea_input_replace",
-        nextText: "$x}$",
-        selectionStart: 3,
-        selectionEnd: 3
+        type: "textarea_input_intent",
+        inputType: "insertText",
+        data: "}",
+        selectionStart: 2,
+        selectionEnd: 2
       },
       {
         type: "source_reconciled",
@@ -256,9 +253,9 @@ describe("canvas text edit machine", () => {
         target: null
       },
       {
-        type: "textarea_delete",
-        key: "Backspace",
-        value: "$x}$",
+        type: "textarea_input_intent",
+        inputType: "deleteContentBackward",
+        data: null,
         selectionStart: 3,
         selectionEnd: 3
       }
@@ -337,6 +334,8 @@ describe("canvas text edit machine", () => {
     expect(state.session).toBeNull();
     expect(state.selectionOverlay).toBeNull();
     expect(state.dragSelection).toBeNull();
+    expect(state.undoStack).toHaveLength(0);
+    expect(state.redoStack).toHaveLength(0);
   });
 
   it("keeps text and selection unchanged for stale async responses", () => {
@@ -353,12 +352,7 @@ describe("canvas text edit machine", () => {
       anchorLineRange: null,
       historyMergeKey: "merge"
     }).state;
-    const typed = reduceCanvasTextEdit(started, {
-      type: "textarea_input_replace",
-      nextText: "$x}$",
-      selectionStart: 3,
-      selectionEnd: 3
-    }).state;
+    const typed = reduceInputIntent(started, "insertText", 2, 2, "}").state;
     const baselineText = typed.session?.text;
     const baselineSelection = {
       start: typed.session?.selectionStart,
@@ -440,23 +434,12 @@ describe("canvas text edit machine", () => {
           const text = state.session.text;
           const insertAt = randomInt(rng, 0, text.length);
           const token = ["}", "$", "x", " "][randomInt(rng, 0, 3)]!;
-          reduced = reduceCanvasTextEdit(state, {
-            type: "textarea_input_replace",
-            nextText: `${text.slice(0, insertAt)}${token}${text.slice(insertAt)}`,
-            selectionStart: insertAt + token.length,
-            selectionEnd: insertAt + token.length
-          });
+          reduced = reduceInputIntent(state, "insertText", insertAt, insertAt, token);
         } else if (roll < 0.35) {
           const text = state.session.text;
           const a = randomInt(rng, 0, text.length);
           const b = randomInt(rng, 0, text.length);
-          reduced = reduceCanvasTextEdit(state, {
-            type: "textarea_delete",
-            key: rng() < 0.5 ? "Backspace" : "Delete",
-            value: text,
-            selectionStart: a,
-            selectionEnd: b
-          });
+          reduced = reduceInputIntent(state, rng() < 0.5 ? "deleteContentBackward" : "deleteContentForward", a, b);
         } else if (roll < 0.48) {
           reduced = reduceCanvasTextEdit(state, {
             type: "textarea_selection",
@@ -548,12 +531,7 @@ describe("canvas text edit machine", () => {
       sourceRevision: 1,
       target: null
     }).state;
-    const reduced = reduceCanvasTextEdit(reconciled, {
-      type: "textarea_input_replace",
-      nextText: "$x}$",
-      selectionStart: 3,
-      selectionEnd: 3
-    });
+    const reduced = reduceInputIntent(reconciled, "insertText", 2, 2, "}");
     expect(reduced.effects).toHaveLength(1);
     const [effect] = reduced.effects;
     expect(effect?.type).toBe("apply_source_patch");
@@ -602,12 +580,7 @@ describe("canvas text edit machine", () => {
         const caret = state.session?.selectionStart ?? Math.max(0, current.length - 1);
         const nextText = `${current.slice(0, caret)}${ch}${current.slice(caret)}`;
         const nextCaret = caret + ch.length;
-        state = reduceCanvasTextEdit(state, {
-          type: "textarea_input_replace",
-          nextText,
-          selectionStart: nextCaret,
-          selectionEnd: nextCaret
-        }).state;
+        state = reduceInputIntent(state, "insertText", caret, caret, ch).state;
         sourceRevision += 1;
         state = reduceCanvasTextEdit(state, {
           type: "source_reconciled",
@@ -618,15 +591,8 @@ describe("canvas text edit machine", () => {
       }
 
       for (let i = 0; i < testCase.insertChars.length; i += 1) {
-        const value = state.session?.text ?? "";
         const caret = state.session?.selectionStart ?? 0;
-        state = reduceCanvasTextEdit(state, {
-          type: "textarea_delete",
-          key: "Backspace",
-          value,
-          selectionStart: caret,
-          selectionEnd: caret
-        }).state;
+        state = reduceInputIntent(state, "deleteContentBackward", caret, caret).state;
         sourceRevision += 1;
         state = reduceCanvasTextEdit(state, {
           type: "source_reconciled",
@@ -641,5 +607,213 @@ describe("canvas text edit machine", () => {
       expect(state.session?.selectionStart, testCase.name).toBe(Math.max(0, testCase.initialText.length - 1));
       expect(state.session?.selectionEnd, testCase.name).toBe(Math.max(0, testCase.initialText.length - 1));
     }
+  });
+
+  it("supports composition intents and insertFromComposition", () => {
+    const target = buildTarget(BASE_SOURCE, "$x$");
+    const started = reduceCanvasTextEdit(INITIAL_CANVAS_TEXT_EDIT_STATE, {
+      type: "start_session",
+      source: BASE_SOURCE,
+      target,
+      selectionStart: 2,
+      selectionEnd: 2,
+      historyMergeKey: "merge"
+    }).state;
+
+    const composition = reduceInputIntent(started, "insertCompositionText", 2, 2, "y").state;
+    expect(composition.session?.text).toBe("$xy$");
+    expect(composition.session?.selectionStart).toBe(3);
+
+    const committed = reduceInputIntent(composition, "insertFromComposition", 2, 3, "z").state;
+    expect(committed.session?.text).toBe("$xz$");
+    expect(committed.session?.selectionStart).toBe(3);
+  });
+
+  it("defers source patch emission for trailing single backslash and catches up on next character", () => {
+    const baseSource = String.raw`\begin{tikzpicture}
+  \node at (0,0) {A};
+  \node at (1,0) {B};
+\end{tikzpicture}`;
+    const target = buildTarget(baseSource, "A");
+    const started = reduceCanvasTextEdit(INITIAL_CANVAS_TEXT_EDIT_STATE, {
+      type: "start_session",
+      source: baseSource,
+      target,
+      selectionStart: 1,
+      selectionEnd: 1,
+      historyMergeKey: "merge"
+    }).state;
+
+    const insertedBackslash = reduceInputIntent(started, "insertText", 1, 1, "\\");
+    expect(insertedBackslash.state.session?.text).toBe("A\\");
+    expect(insertedBackslash.state.session?.workingSource).toBe(baseSource);
+    expect(insertedBackslash.effects).toHaveLength(0);
+
+    const insertedNextChar = reduceInputIntent(insertedBackslash.state, "insertText", 2, 2, "a");
+    expect(insertedNextChar.state.session?.text).toBe("A\\a");
+    expect(insertedNextChar.effects).toHaveLength(1);
+    expect(insertedNextChar.state.session?.workingSource).toContain("{A\\a};");
+    expect(insertedNextChar.state.session?.workingSource).toContain("{B};");
+  });
+
+  it("restores original source after typing two backslashes then backspacing twice", () => {
+    const baseSource = String.raw`\begin{tikzpicture}
+  \node[draw] (A) at (-1, -1) {Q};
+  \node[draw] (B) at (1.5, -0.5) {B};
+\end{tikzpicture}`;
+    const target = buildTarget(baseSource, "Q");
+    const started = reduceCanvasTextEdit(INITIAL_CANVAS_TEXT_EDIT_STATE, {
+      type: "start_session",
+      source: baseSource,
+      target,
+      selectionStart: 1,
+      selectionEnd: 1,
+      historyMergeKey: "merge"
+    }).state;
+
+    const firstSlash = reduceInputIntent(started, "insertText", 1, 1, "\\").state;
+    expect(firstSlash.session?.text).toBe("Q\\");
+    expect(firstSlash.session?.workingSource).toBe(baseSource);
+
+    const secondSlash = reduceInputIntent(firstSlash, "insertText", 2, 2, "\\").state;
+    expect(secondSlash.session?.text).toBe("Q\\\\");
+    expect(secondSlash.session?.workingSource).toContain("{Q\\\\};");
+
+    const backspaceOnce = reduceInputIntent(secondSlash, "deleteContentBackward", 3, 3).state;
+    expect(backspaceOnce.session?.text).toBe("Q\\");
+    expect(backspaceOnce.session?.workingSource).toContain("{Q\\\\};");
+
+    const backspaceTwice = reduceInputIntent(backspaceOnce, "deleteContentBackward", 2, 2).state;
+    expect(backspaceTwice.session?.text).toBe("Q");
+    expect(backspaceTwice.session?.workingSource).toBe(baseSource);
+  });
+
+  it("normalizes target spans that are shorter than the session text at session start", () => {
+    const baseSource = String.raw`\begin{tikzpicture}
+  \foreach \y in {1,2,3} {
+    \node at (\y, 0) {\y};
+  }
+\end{tikzpicture}`;
+    const canonicalTarget = buildTargetAtOccurrence(baseSource, String.raw`\y`, 2);
+    const malformedTarget: EditableTextTarget = {
+      ...canonicalTarget,
+      sourceSpan: {
+        from: canonicalTarget.sourceSpan.from,
+        to: canonicalTarget.sourceSpan.from + 1
+      }
+    };
+
+    const started = reduceCanvasTextEdit(INITIAL_CANVAS_TEXT_EDIT_STATE, {
+      type: "start_session",
+      source: baseSource,
+      target: malformedTarget,
+      selectionStart: 0,
+      selectionEnd: 2,
+      historyMergeKey: "merge"
+    }).state;
+
+    const firstInsert = reduceInputIntent(started, "insertText", 0, 2, "\\");
+    expect(firstInsert.state.session?.text).toBe("\\");
+    expect(firstInsert.effects).toHaveLength(0);
+
+    const secondInsert = reduceInputIntent(firstInsert.state, "insertText", 1, 1, "y units");
+    expect(secondInsert.state.session?.text).toBe(String.raw`\y units`);
+    expect(secondInsert.state.session?.workingSource).toContain(String.raw`{\y units};`);
+    expect(secondInsert.state.session?.workingSource).not.toContain(String.raw`{\y unitsy};`);
+  });
+
+  it("keeps session span stable when source_reconciled target text diverges from session text", () => {
+    const baseSource = String.raw`\begin{tikzpicture}
+  \node[draw] (A) at (-1, -1) {Q};
+  \node[draw] (B) at (1.5, -0.5) {B};
+\end{tikzpicture}`;
+    const target = buildTarget(baseSource, "Q");
+    const started = reduceCanvasTextEdit(INITIAL_CANVAS_TEXT_EDIT_STATE, {
+      type: "start_session",
+      source: baseSource,
+      target,
+      selectionStart: 1,
+      selectionEnd: 1,
+      historyMergeKey: "merge"
+    }).state;
+
+    const firstSlash = reduceInputIntent(started, "insertText", 1, 1, "\\").state;
+    const secondSlash = reduceInputIntent(firstSlash, "insertText", 2, 2, "\\").state;
+    const secondSlashSession = secondSlash.session;
+    expect(secondSlashSession).not.toBeNull();
+    if (!secondSlashSession) {
+      throw new Error("expected active text editing session after second slash");
+    }
+    expect(secondSlashSession.workingSource).toContain("{Q\\\\};");
+    expect(secondSlashSession.sourceSpan.to).toBe(secondSlashSession.sourceSpan.from + 3);
+
+    const reconciled = reduceCanvasTextEdit(secondSlash, {
+      type: "source_reconciled",
+      source: secondSlash.session?.workingSource ?? "",
+      sourceRevision: 1,
+      target: {
+        ...target,
+        sourceSpan: { from: target.sourceSpan.from, to: target.sourceSpan.to },
+        text: "Q"
+      }
+    }).state;
+    const reconciledSession = reconciled.session;
+    expect(reconciledSession).not.toBeNull();
+    if (!reconciledSession) {
+      throw new Error("expected active text editing session after source reconcile");
+    }
+    expect(reconciledSession.sourceSpan.to).toBe(reconciledSession.sourceSpan.from + 3);
+
+    const backspaceOnce = reduceInputIntent(reconciled, "deleteContentBackward", 3, 3).state;
+    const backspaceTwice = reduceInputIntent(backspaceOnce, "deleteContentBackward", 2, 2).state;
+    expect(backspaceTwice.session?.text).toBe("Q");
+    expect(backspaceTwice.session?.workingSource).toBe(baseSource);
+  });
+
+  it("supports textarea-local undo and redo intents", () => {
+    const target = buildTarget(BASE_SOURCE, "$x$");
+    const started = reduceCanvasTextEdit(INITIAL_CANVAS_TEXT_EDIT_STATE, {
+      type: "start_session",
+      source: BASE_SOURCE,
+      target,
+      selectionStart: 2,
+      selectionEnd: 2,
+      historyMergeKey: "merge"
+    }).state;
+
+    const insertedBrace = reduceInputIntent(started, "insertText", 2, 2, "}").state;
+    expect(insertedBrace.session?.text).toBe("$x}$");
+    expect(insertedBrace.undoStack).toHaveLength(1);
+    expect(insertedBrace.redoStack).toHaveLength(0);
+
+    const insertedChar = reduceInputIntent(insertedBrace, "insertText", 3, 3, "a").state;
+    expect(insertedChar.session?.text).toBe("$x}a$");
+    expect(insertedChar.undoStack).toHaveLength(2);
+
+    const undone = reduceInputIntent(insertedChar, "historyUndo", 4, 4).state;
+    expect(undone.session?.text).toBe("$x}$");
+    expect(undone.undoStack).toHaveLength(1);
+    expect(undone.redoStack).toHaveLength(1);
+
+    const redone = reduceInputIntent(undone, "historyRedo", 3, 3).state;
+    expect(redone.session?.text).toBe("$x}a$");
+    expect(redone.undoStack).toHaveLength(2);
+    expect(redone.redoStack).toHaveLength(0);
+  });
+
+  it("throws on unsupported inputType in test mode", () => {
+    const target = buildTarget(BASE_SOURCE, "$x$");
+    const started = reduceCanvasTextEdit(INITIAL_CANVAS_TEXT_EDIT_STATE, {
+      type: "start_session",
+      source: BASE_SOURCE,
+      target,
+      selectionStart: 2,
+      selectionEnd: 2,
+      historyMergeKey: "merge"
+    }).state;
+
+    expect(() =>
+      reduceInputIntent(started, "insertOrderedList", 2, 2, "x")
+    ).toThrowError(/unsupported inputType/i);
   });
 });

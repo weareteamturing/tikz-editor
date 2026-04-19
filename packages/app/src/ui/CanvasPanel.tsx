@@ -8,7 +8,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ChangeEvent as ReactChangeEvent,
   type ClipboardEvent as ReactClipboardEvent,
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
@@ -184,6 +183,7 @@ import { useCanvasViewportEffects } from "./canvas-panel/useCanvasViewportEffect
 import { useCanvasTextEditingEffects } from "./canvas-panel/useCanvasTextEditingEffects";
 import {
   INITIAL_CANVAS_TEXT_EDIT_STATE,
+  isCanvasTextInputIntentType,
   reduceCanvasTextEdit,
   type CanvasTextEditAction,
   type CanvasTextEditEffect
@@ -1092,10 +1092,6 @@ export const CanvasPanel = memo(function CanvasPanel({
     };
   }, [platform.accessibility]);
   const pendingNativeContextMenuTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const textEditingSessionRef = useRef<TextEditingSession | null>(null);
-  useLayoutEffect(() => {
-    textEditingSessionRef.current = textEditingSession;
-  }, [textEditingSession]);
   useLayoutEffect(() => {
     canvasTextEditStateRef.current = canvasTextEditState;
   }, [canvasTextEditState]);
@@ -1446,6 +1442,15 @@ export const CanvasPanel = memo(function CanvasPanel({
     mode: TextSelectionDragMode;
     anchorLineRange: TextLineRange | null;
   } | null>(null);
+  const pendingTextEditPasteRef = useRef<string | null>(null);
+  const pendingTextEditInsertTextRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!textEditingSession) {
+      pendingTextEditPasteRef.current = null;
+      pendingTextEditInsertTextRef.current = null;
+    }
+  }, [textEditingSession]);
 
   useEffect(() => {
     for (const entry of appliedPathAttachedNodePreviewRef.current) {
@@ -2260,6 +2265,15 @@ export const CanvasPanel = memo(function CanvasPanel({
         sceneText.nodeVisualHeight != null && Number.isFinite(sceneText.nodeVisualHeight) && sceneText.nodeVisualHeight > 0
           ? sceneText.nodeVisualHeight
           : (region.contentHeight ?? region.height);
+      const preferredBounds =
+        snapshot.scene && svgResult
+          ? preferredNodeBoundsForSource(
+              snapshot.scene.elements,
+              targetId,
+              svgResult.viewBox,
+              sourceBoundsSvg.get(targetId) ?? null
+            )
+          : sourceBoundsSvg.get(targetId) ?? null;
       return {
         sourceId: targetId,
         sceneTextId: sceneText.id,
@@ -2280,15 +2294,22 @@ export const CanvasPanel = memo(function CanvasPanel({
         style: sceneText.style,
         totalWidth: textBlockWidth,
         region,
-        popupAnchorBox: {
-          x: region.cx - popupAnchorWidth / 2,
-          y: region.cy - popupAnchorHeight / 2,
-          width: popupAnchorWidth,
-          height: popupAnchorHeight
-        }
+        popupAnchorBox: preferredBounds
+          ? {
+              x: preferredBounds.minX,
+              y: preferredBounds.minY,
+              width: preferredBounds.maxX - preferredBounds.minX,
+              height: preferredBounds.maxY - preferredBounds.minY
+            }
+          : {
+              x: region.cx - popupAnchorWidth / 2,
+              y: region.cy - popupAnchorHeight / 2,
+              width: popupAnchorWidth,
+              height: popupAnchorHeight
+            }
       };
     },
-    [sceneTextByRegionKey, snapshot.parseResult, source]
+    [sceneTextByRegionKey, snapshot.parseResult, snapshot.scene, source, sourceBoundsSvg, svgResult]
   );
 
   const editableTextRegionKeys = useMemo(() => {
@@ -2564,45 +2585,37 @@ export const CanvasPanel = memo(function CanvasPanel({
     ]
   );
 
-  const applyTextEditingUpdate = useCallback(
-    (nextText: string, nextSelectionStart: number, nextSelectionEnd: number) => {
-      const current = textEditingSessionRef.current;
-      if (!current) {
+  const dispatchTextEditBeforeInputIntent = useCallback(
+    (nativeEvent: InputEvent, textarea: HTMLTextAreaElement) => {
+      if (typeof nativeEvent.inputType !== "string") {
         return;
       }
+      const inputType = nativeEvent.inputType;
+      const isSupported = isCanvasTextInputIntentType(inputType);
+      if (isSupported) {
+        nativeEvent.preventDefault();
+      }
+      nativeEvent.stopPropagation();
+      let data = nativeEvent.data;
+      if (inputType === "insertText" && data == null) {
+        data = pendingTextEditInsertTextRef.current;
+      }
+      if (inputType === "insertFromPaste" && data == null) {
+        data = pendingTextEditPasteRef.current;
+      }
+      if (inputType === "insertFromPaste") {
+        pendingTextEditPasteRef.current = null;
+      }
+      pendingTextEditInsertTextRef.current = null;
       dispatchCanvasTextEditAction({
-        type: "textarea_input_replace",
-        nextText,
-        selectionStart: nextSelectionStart,
-        selectionEnd: nextSelectionEnd
+        type: "textarea_input_intent",
+        inputType,
+        data,
+        selectionStart: textarea.selectionStart ?? 0,
+        selectionEnd: textarea.selectionEnd ?? 0
       });
     },
     [dispatchCanvasTextEditAction]
-  );
-
-  const handleTextEditTextareaChange = useCallback(
-    (event: ReactChangeEvent<HTMLTextAreaElement>) => {
-      const nextText = event.currentTarget.value;
-      let nextSelectionStart = event.currentTarget.selectionStart ?? 0;
-      let nextSelectionEnd = event.currentTarget.selectionEnd ?? 0;
-      const current = textEditingSessionRef.current;
-      if (current) {
-        const previousSelectionCollapsed = current.selectionStart === current.selectionEnd;
-        const nextSelectionCollapsed = nextSelectionStart === nextSelectionEnd;
-        const lengthDelta = nextText.length - current.text.length;
-        if (lengthDelta > 0 && previousSelectionCollapsed && nextSelectionCollapsed) {
-          const advancedCaret = clamp(current.selectionStart + lengthDelta, 0, nextText.length);
-          nextSelectionStart = advancedCaret;
-          nextSelectionEnd = advancedCaret;
-        }
-      }
-      applyTextEditingUpdate(
-        nextText,
-        nextSelectionStart,
-        nextSelectionEnd
-      );
-    },
-    [applyTextEditingUpdate]
   );
 
   const handleTextEditTextareaSelect = useCallback((event: ReactSyntheticEvent<HTMLTextAreaElement>) => {
@@ -2618,6 +2631,11 @@ export const CanvasPanel = memo(function CanvasPanel({
     event.stopPropagation();
   }, []);
 
+  const handleTextEditTextareaPaste = useCallback((event: ReactClipboardEvent<HTMLTextAreaElement>) => {
+    event.stopPropagation();
+    pendingTextEditPasteRef.current = event.clipboardData.getData("text/plain");
+  }, []);
+
   const handleTextEditTextareaKeyDown = useCallback((event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Escape") {
       event.preventDefault();
@@ -2627,29 +2645,57 @@ export const CanvasPanel = memo(function CanvasPanel({
       return;
     }
 
+    if ((event.ctrlKey || event.metaKey) && !event.altKey) {
+      const lowerKey = event.key.toLowerCase();
+      let historyIntent: "historyUndo" | "historyRedo" | null = null;
+      if (lowerKey === "z") {
+        historyIntent = event.shiftKey ? "historyRedo" : "historyUndo";
+      } else if (lowerKey === "y" && !event.shiftKey) {
+        historyIntent = "historyRedo";
+      }
+      if (historyIntent) {
+        pendingTextEditInsertTextRef.current = null;
+        event.preventDefault();
+        event.stopPropagation();
+        const textarea = event.currentTarget;
+        dispatchCanvasTextEditAction({
+          type: "textarea_input_intent",
+          inputType: historyIntent,
+          data: null,
+          selectionStart: textarea.selectionStart ?? 0,
+          selectionEnd: textarea.selectionEnd ?? 0
+        });
+        return;
+      }
+    }
+
     if (event.ctrlKey || event.metaKey || event.altKey) {
+      pendingTextEditInsertTextRef.current = null;
+      event.stopPropagation();
       return;
     }
-
-    if (event.key !== "Backspace" && event.key !== "Delete") {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    const textarea = event.currentTarget;
-    dispatchCanvasTextEditAction({
-      type: "textarea_delete",
-      key: event.key,
-      value: textarea.value,
-      selectionStart: textarea.selectionStart ?? 0,
-      selectionEnd: textarea.selectionEnd ?? 0
-    });
+    pendingTextEditInsertTextRef.current = event.key.length === 1 ? event.key : null;
   }, [dispatchCanvasTextEditAction]);
 
   const handleTextEditPopupPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     event.stopPropagation();
   }, []);
+
+  useLayoutEffect(() => {
+    const textarea = textEditTextareaRef.current;
+    if (!textEditingSession || !textarea) {
+      return;
+    }
+    const handleBeforeInput = (event: Event) => {
+      const inputEvent = event as InputEvent;
+      if (typeof inputEvent.inputType !== "string") {
+        return;
+      }
+      dispatchTextEditBeforeInputIntent(inputEvent, textarea);
+    };
+    textarea.addEventListener("beforeinput", handleBeforeInput);
+    return () => textarea.removeEventListener("beforeinput", handleBeforeInput);
+  }, [dispatchTextEditBeforeInputIntent, textEditingSession?.sourceId]);
 
   useEffect(() => {
     const textarea = textEditTextareaRef.current;
@@ -4005,11 +4051,10 @@ export const CanvasPanel = memo(function CanvasPanel({
         textEditCaretOverlay={textEditCaretOverlay}
         hideNativeTextEditCaret={hideNativeTextEditCaret}
         onTextEditPopupPointerDown={handleTextEditPopupPointerDown}
-        onTextEditTextareaChange={handleTextEditTextareaChange}
         onTextEditTextareaSelect={handleTextEditTextareaSelect}
         onTextEditTextareaCopy={stopTextEditTextareaClipboardPropagation}
         onTextEditTextareaCut={stopTextEditTextareaClipboardPropagation}
-        onTextEditTextareaPaste={stopTextEditTextareaClipboardPropagation}
+        onTextEditTextareaPaste={handleTextEditTextareaPaste}
         onTextEditTextareaKeyDown={handleTextEditTextareaKeyDown}
         selectionHint={pathSelectionHint}
         showDevPanel={showDevPanel}

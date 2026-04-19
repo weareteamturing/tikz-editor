@@ -25,7 +25,10 @@ export default defineConfig({
     cwd: "..",
     url: "http://127.0.0.1:4174",
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000
+    timeout: 120_000,
+    env: {
+      TIKZ_PROFILE_BUILD: "1"
+    }
   },
   projects: [
     {

@@ -188,13 +188,40 @@ test("single-line node text enters canvas edit mode and closes when CodeMirror t
   await expect(page.getByTestId("canvas-text-selection-overlay")).toBeVisible();
   await expect.poll(async () => await readSelectedSourceIds(page)).toEqual(["path:0"]);
 
-  await textarea.fill("Hello world");
+  await textarea.press(`${PRIMARY_MOD}+A`);
+  await page.keyboard.type("Hello world");
   await expect.poll(async () => await readStoreSource(page)).toContain("{Hello world}");
 
   const sourceEditor = page.locator(".cm-editor").first();
   await sourceEditor.click();
   await expect(popup).toBeHidden();
   await expect(page.getByTestId("canvas-text-selection-overlay")).toHaveCount(0);
+});
+
+test("block node text popup stays below the node bounds", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(
+    page,
+    String.raw`\begin{tikzpicture}[
+  block/.style={draw, minimum width=2cm, minimum height=1cm, align=center, sharp corners}
+]
+\node[block] (edm) at (0,0) {EDM};
+\end{tikzpicture}`
+  );
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+
+  const popup = page.getByTestId("canvas-text-edit-popup");
+  const nodeBounds = page.locator("[data-testid='canvas-svg-layer'] [data-source-id='path:0']").first();
+  await expect(popup).toBeVisible();
+  await expect(nodeBounds).toBeVisible();
+
+  const [popupBox, nodeBox] = await Promise.all([popup.boundingBox(), nodeBounds.boundingBox()]);
+  if (!popupBox || !nodeBox) {
+    throw new Error("Missing popup or node bounds.");
+  }
+
+  expect(popupBox.y).toBeGreaterThan(nodeBox.y + nodeBox.height - 1);
 });
 
 test("foreach-expanded node text editing uses the template source text", async ({ page }) => {
@@ -214,7 +241,8 @@ test("foreach-expanded node text editing uses the template source text", async (
   await expect(textarea).toBeFocused();
   await expect(textarea).toHaveValue(String.raw`\y`);
 
-  await textarea.fill(String.raw`\y units`);
+  await textarea.press(`${PRIMARY_MOD}+A`);
+  await page.keyboard.type(String.raw`\y units`);
   await expect.poll(async () => await readStoreSource(page)).toContain(String.raw`{\y units}`);
 });
 
@@ -467,7 +495,7 @@ test("deleting all node text keeps the popup open so new text can be entered", a
   await expect(textarea).toHaveValue("");
   await expect.poll(async () => await readStoreSource(page)).toContain("{}");
 
-  await textarea.fill("New");
+  await page.keyboard.type("New");
   await expect(textarea).toHaveValue("New");
   await expect.poll(async () => await readStoreSource(page)).toContain("{New}");
 });
@@ -581,7 +609,8 @@ test("wrapped text-width nodes enter canvas edit mode and update source through 
   await expect(textarea).toBeVisible();
   await expect(textarea).toHaveValue("Hello wrapped world");
 
-  await textarea.fill("Hello wrapped world with more text");
+  await textarea.press(`${PRIMARY_MOD}+A`);
+  await page.keyboard.type("Hello wrapped world with more text");
   await expect
     .poll(async () => await readStoreSource(page))
     .toContain("{Hello wrapped world with more text}");
@@ -737,7 +766,8 @@ test("explicit multiline node text with align and \\\\ edits from the canvas pop
   const textarea = page.getByTestId("canvas-text-edit-textarea");
   await expect(textarea).toHaveValue(String.raw`First\\Second`);
 
-  await textarea.fill(String.raw`First\\Third`);
+  await textarea.press(`${PRIMARY_MOD}+A`);
+  await page.keyboard.type(String.raw`First\\Third`);
   await expect
     .poll(async () => await readStoreSource(page))
     .toContain(String.raw`{First\\Third}`);
@@ -973,6 +1003,95 @@ test("cmd/ctrl+x stays scoped to the textarea while editing node text", async ({
   await expect.poll(async () => await readStoreSource(page)).toContain("{ World}");
   await expect.poll(async () => await readStoreSource(page)).toContain("{Other}");
   await expect.poll(async () => await readSelectedSourceIds(page)).toEqual(["path:0"]);
+});
+
+test("textarea-local undo/redo works while node text edit is focused", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node at (0,0) {Hello};
+\node at (2,0) {Other};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeFocused();
+  await expect(textarea).toHaveValue("Hello");
+
+  await textarea.press("End");
+  await page.keyboard.type("!");
+  await expect(textarea).toHaveValue("Hello!");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{Hello!}");
+
+  await textarea.press(`${PRIMARY_MOD}+Z`);
+  await expect(textarea).toHaveValue("Hello");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{Hello}");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{Other}");
+  await expect.poll(async () => await readSelectedSourceIds(page)).toEqual(["path:0"]);
+
+  if (process.platform === "darwin") {
+    await textarea.press("Meta+Shift+Z");
+  } else {
+    await textarea.press("Control+Y");
+  }
+  await expect(textarea).toHaveValue("Hello!");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{Hello!}");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{Other}");
+  await expect.poll(async () => await readSelectedSourceIds(page)).toEqual(["path:0"]);
+});
+
+test("typing trailing backslash in node text stays local until stabilized by next character", async ({ page }) => {
+  await gotoApp(page);
+  const originalSource = String.raw`\begin{tikzpicture}
+  \node at (0,0) {A};
+  \node at (1.5,-0.5) {B};
+  \node at (0,1.5) {C};
+\end{tikzpicture}`;
+  await setSource(page, originalSource);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeVisible();
+  await expect(textarea).toBeFocused();
+  await expect(textarea).toHaveValue("A");
+  await expect.poll(async () => await readTextareaSelection(page)).toEqual({ start: 1, end: 1 });
+  await page.keyboard.type("\\");
+  await expect(textarea).toHaveValue("A\\");
+  await expect.poll(async () => await readStoreSource(page)).toBe(originalSource);
+
+  await page.keyboard.type("a");
+  await expect(textarea).toHaveValue("A\\a");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{A\\a};");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{B};");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{C};");
+});
+
+test("typing two backslashes then backspacing twice restores original node source text", async ({ page }) => {
+  await gotoApp(page);
+  const originalSource = String.raw`\begin{tikzpicture}
+  \node[draw] (A) at (-1, -1) {A};
+  \node[draw] (B) at (1.5, -0.5) {B};
+  \node[draw] (C) at (0, 1.5) {C};
+\end{tikzpicture}`;
+  await setSource(page, originalSource);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeVisible();
+  await expect(textarea).toBeFocused();
+  await expect(textarea).toHaveValue("A");
+  await expect.poll(async () => await readTextareaSelection(page)).toEqual({ start: 1, end: 1 });
+
+  await page.keyboard.type("\\\\");
+  await expect(textarea).toHaveValue("A\\\\");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{A\\\\};");
+
+  await textarea.press("Backspace");
+  await expect(textarea).toHaveValue("A\\");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{A\\\\};");
+
+  await textarea.press("Backspace");
+  await expect(textarea).toHaveValue("A");
+  await expect.poll(async () => await readStoreSource(page)).toBe(originalSource);
 });
 
 test("synthetic cut/paste events on the textarea do not trigger canvas clipboard handlers", async ({ page }) => {

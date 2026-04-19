@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   clickTextHitRegionByTargetId,
   gotoApp,
@@ -52,6 +52,39 @@ type NodeTextEditVariant = {
   openEditMode: (page: Page) => Promise<void>;
 };
 
+async function moveTextareaCaretToNaturalEnd(page: Page, expectedCaretOffset: number): Promise<void> {
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeVisible();
+  const box = await textarea.boundingBox();
+  if (!box) {
+    throw new Error("Missing textarea bounds.");
+  }
+  const probePoints = [
+    { xRatio: 0.99, yRatio: 0.95 },
+    { xRatio: 0.99, yRatio: 0.7 },
+    { xRatio: 0.99, yRatio: 0.5 },
+    { xRatio: 0.95, yRatio: 0.95 },
+    { xRatio: 0.9, yRatio: 0.95 }
+  ];
+  for (const point of probePoints) {
+    await page.mouse.click(
+      box.x + Math.max(1, box.width * point.xRatio),
+      box.y + Math.max(1, box.height * point.yRatio)
+    );
+    const selection = await textarea.evaluate((element) => {
+      const textarea = element as HTMLTextAreaElement;
+      return {
+        start: textarea.selectionStart ?? -1,
+        end: textarea.selectionEnd ?? -1
+      };
+    });
+    if (selection.start === expectedCaretOffset && selection.end === expectedCaretOffset) {
+      return;
+    }
+  }
+  throw new Error(`Failed to place natural caret at end (${expectedCaretOffset}).`);
+}
+
 function normalizeSourceWhitespace(source: string): string {
   return source.replace(/\s+/g, "");
 }
@@ -81,6 +114,7 @@ const VARIANTS: NodeTextEditVariant[] = [
         throw new Error("Missing single-line text hit-region bounds.");
       }
       await page.mouse.click(box.x + box.width - 1, box.y + box.height / 2);
+      await moveTextareaCaretToNaturalEnd(page, "Let me think of something long and fun to write".length);
     }
   },
   {
@@ -99,6 +133,7 @@ const VARIANTS: NodeTextEditVariant[] = [
     expectedInsertedText: `Let me think of something long and fun to write${APPEND_TEXT}`,
     async openEditMode(page) {
       await clickTextHitRegionByTargetId(page, "path:0");
+      await moveTextareaCaretToNaturalEnd(page, "Let me think of something long and fun to write".length);
     }
   },
   {
@@ -117,6 +152,7 @@ const VARIANTS: NodeTextEditVariant[] = [
     expectedInsertedText: String.raw`Let me think of something long\\ and fun to write that will be interesting`,
     async openEditMode(page) {
       await clickTextHitRegionByTargetId(page, "path:0");
+      await moveTextareaCaretToNaturalEnd(page, String.raw`Let me think of something long\\ and fun to write`.length);
     }
   },
   {
@@ -148,6 +184,7 @@ const VARIANTS: NodeTextEditVariant[] = [
       await textRegion.click({ force: true });
       await textRegion.click({ force: true });
       await textRegion.click({ force: true });
+      await moveTextareaCaretToNaturalEnd(page, "E".length);
     }
   }
 ];
@@ -156,15 +193,10 @@ test.beforeEach(async ({ page }) => {
   await resetStorageBeforeNavigation(page);
 });
 
-async function setTextareaSelection(page: Page, start: number, end: number): Promise<void> {
-  const textarea = page.getByTestId("canvas-text-edit-textarea");
-  await textarea.evaluate((element, selection) => {
-    const [nextStart, nextEnd] = selection as [number, number];
-    const textareaElement = element as HTMLTextAreaElement;
-    textareaElement.focus();
-    textareaElement.setSelectionRange(nextStart, nextEnd);
-    textareaElement.dispatchEvent(new Event("select", { bubbles: true }));
-  }, [start, end]);
+async function pressIndividualKeystrokes(textarea: Locator, text: string): Promise<void> {
+  for (const character of text) {
+    await textarea.type(character, { delay: 40 });
+  }
 }
 
 async function installProbe(page: Page): Promise<void> {
@@ -417,23 +449,20 @@ async function runVariant(page: Page, variant: NodeTextEditVariant) {
   await expect(textarea).toBeVisible();
   await expect(textarea).toBeFocused();
   await expect(textarea).toHaveValue(variant.initialText);
-
-  await setTextareaSelection(page, variant.initialText.length, variant.initialText.length);
-  await textarea.press("End");
+  const appendStartOffset = variant.initialText.length;
   await expect.poll(async () => {
     return await textarea.evaluate((element) => {
       const textareaElement = element as HTMLTextAreaElement;
       return {
-        start: textareaElement.selectionStart,
-        end: textareaElement.selectionEnd
+        start: textareaElement.selectionStart ?? -1,
+        end: textareaElement.selectionEnd ?? -1
       };
     });
   }).toEqual({
-    start: variant.initialText.length,
-    end: variant.initialText.length
+    start: appendStartOffset,
+    end: appendStartOffset
   });
-
-  await textarea.fill(variant.expectedInsertedText);
+  await pressIndividualKeystrokes(textarea, APPEND_TEXT);
 
   await expect(textarea).toHaveValue(variant.expectedInsertedText);
   if (variant.expectedSourceSubstringNormalized) {

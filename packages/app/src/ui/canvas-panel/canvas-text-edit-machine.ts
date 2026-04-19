@@ -24,10 +24,39 @@ export type CanvasTextEditState = {
   session: TextEditingSession | null;
   selectionOverlay: TextSelectionOverlay | null;
   dragSelection: CanvasTextSelectionDragState | null;
+  undoStack: CanvasTextEditHistoryEntry[];
+  redoStack: CanvasTextEditHistoryEntry[];
   inputRevision: number;
   asyncRequestRevision: number;
   sourceRevision: number;
 };
+
+export type CanvasTextEditHistoryEntry = {
+  text: string;
+  selectionStart: number;
+  selectionEnd: number;
+};
+
+const SUPPORTED_CANVAS_TEXT_INPUT_TYPES = [
+  "insertText",
+  "insertLineBreak",
+  "insertCompositionText",
+  "insertFromComposition",
+  "insertFromPaste",
+  "deleteContentBackward",
+  "deleteContentForward",
+  "deleteByCut",
+  "historyUndo",
+  "historyRedo"
+] as const;
+
+export type CanvasTextInputIntentType = (typeof SUPPORTED_CANVAS_TEXT_INPUT_TYPES)[number];
+
+const IS_FAIL_FAST_UNSUPPORTED_INPUT_TYPE = import.meta.env.DEV || import.meta.env.MODE === "test";
+
+export function isCanvasTextInputIntentType(value: string): value is CanvasTextInputIntentType {
+  return (SUPPORTED_CANVAS_TEXT_INPUT_TYPES as readonly string[]).includes(value);
+}
 
 export type CanvasTextEditAction =
   | {
@@ -72,15 +101,9 @@ export type CanvasTextEditAction =
       selectionEnd: number;
     }
   | {
-      type: "textarea_input_replace";
-      nextText: string;
-      selectionStart: number;
-      selectionEnd: number;
-    }
-  | {
-      type: "textarea_delete";
-      key: "Backspace" | "Delete";
-      value: string;
+      type: "textarea_input_intent";
+      inputType: string;
+      data: string | null;
       selectionStart: number;
       selectionEnd: number;
     }
@@ -123,6 +146,8 @@ export const INITIAL_CANVAS_TEXT_EDIT_STATE: CanvasTextEditState = {
   session: null,
   selectionOverlay: null,
   dragSelection: null,
+  undoStack: [],
+  redoStack: [],
   inputRevision: 0,
   asyncRequestRevision: 0,
   sourceRevision: 0
@@ -205,7 +230,7 @@ function sameRegion(left: TextEditingSession["region"], right: TextEditingSessio
 }
 
 function closeState(state: CanvasTextEditState): CanvasTextEditState {
-  if (!state.session && !state.selectionOverlay && !state.dragSelection) {
+  if (!state.session && !state.selectionOverlay && !state.dragSelection && state.undoStack.length === 0 && state.redoStack.length === 0) {
     return state;
   }
   return {
@@ -213,8 +238,155 @@ function closeState(state: CanvasTextEditState): CanvasTextEditState {
     session: null,
     selectionOverlay: null,
     dragSelection: null,
+    undoStack: [],
+    redoStack: [],
     asyncRequestRevision: state.asyncRequestRevision + 1
   };
+}
+
+function snapshotSession(session: TextEditingSession): CanvasTextEditHistoryEntry {
+  return {
+    text: session.text,
+    selectionStart: session.selectionStart,
+    selectionEnd: session.selectionEnd
+  };
+}
+
+function withUndoCheckpoint(state: CanvasTextEditState, session: TextEditingSession): CanvasTextEditState {
+  return {
+    ...state,
+    undoStack: [...state.undoStack, snapshotSession(session)],
+    redoStack: []
+  };
+}
+
+function applyInsertIntent(
+  text: string,
+  selectionStart: number,
+  selectionEnd: number,
+  insertedText: string
+): { nextText: string; nextSelectionStart: number; nextSelectionEnd: number } {
+  const nextText = `${text.slice(0, selectionStart)}${insertedText}${text.slice(selectionEnd)}`;
+  const caret = selectionStart + insertedText.length;
+  return {
+    nextText,
+    nextSelectionStart: caret,
+    nextSelectionEnd: caret
+  };
+}
+
+function applyDeleteIntent(
+  text: string,
+  selectionStart: number,
+  selectionEnd: number,
+  mode: "backward" | "forward" | "cut"
+): { nextText: string; nextSelectionStart: number; nextSelectionEnd: number } | null {
+  if (selectionStart !== selectionEnd) {
+    return {
+      nextText: `${text.slice(0, selectionStart)}${text.slice(selectionEnd)}`,
+      nextSelectionStart: selectionStart,
+      nextSelectionEnd: selectionStart
+    };
+  }
+  if (mode === "cut") {
+    return null;
+  }
+  if (mode === "backward") {
+    if (selectionStart === 0) {
+      return null;
+    }
+    return {
+      nextText: `${text.slice(0, selectionStart - 1)}${text.slice(selectionStart)}`,
+      nextSelectionStart: selectionStart - 1,
+      nextSelectionEnd: selectionStart - 1
+    };
+  }
+  if (selectionStart >= text.length) {
+    return null;
+  }
+  return {
+    nextText: `${text.slice(0, selectionStart)}${text.slice(selectionStart + 1)}`,
+    nextSelectionStart: selectionStart,
+    nextSelectionEnd: selectionStart
+  };
+}
+
+function reduceUnsupportedInputIntent(
+  state: CanvasTextEditState,
+  inputType: string
+): { state: CanvasTextEditState; effects: CanvasTextEditEffect[] } {
+  if (IS_FAIL_FAST_UNSUPPORTED_INPUT_TYPE) {
+    throw new Error(
+      `[canvas-text-edit] unsupported inputType "${inputType}". Supported: ${SUPPORTED_CANVAS_TEXT_INPUT_TYPES.join(", ")}`
+    );
+  }
+  console.warn("[canvas-text-edit][unsupported-input-type]", { inputType });
+  return { state, effects: [] };
+}
+
+function hasUnstableTrailingEscape(text: string): boolean {
+  let trailingBackslashes = 0;
+  for (let index = text.length - 1; index >= 0; index -= 1) {
+    if (text[index] !== "\\") {
+      break;
+    }
+    trailingBackslashes += 1;
+  }
+  return trailingBackslashes % 2 === 1;
+}
+
+function shouldReuseCurrentSpanForDeferredEscape(
+  sourceSlice: string,
+  expectedText: string
+): boolean {
+  if (sourceSlice === expectedText) {
+    return true;
+  }
+  if (!sourceSlice.startsWith(expectedText)) {
+    return false;
+  }
+  const suffix = sourceSlice.slice(expectedText.length);
+  if (suffix.length === 0) {
+    return false;
+  }
+  for (const character of suffix) {
+    if (character !== "\\") {
+      return false;
+    }
+  }
+  return true;
+}
+
+function resolveSourceSpanForSessionText(source: string, text: string, suggestedSpan: Span): Span {
+  if (source.slice(suggestedSpan.from, suggestedSpan.to) === text) {
+    return suggestedSpan;
+  }
+  const resolved = resolveCurrentTextSpan(source, text, suggestedSpan);
+  if (source.slice(resolved.from, resolved.to) === text) {
+    return resolved;
+  }
+  const suggestedLength = Math.max(0, suggestedSpan.to - suggestedSpan.from);
+  if (suggestedLength < text.length) {
+    const expandedTo = Math.min(source.length, suggestedSpan.from + text.length);
+    if (expandedTo > suggestedSpan.to) {
+      return {
+        from: suggestedSpan.from,
+        to: expandedTo
+      };
+    }
+  }
+  return suggestedSpan;
+}
+
+function resolveReconciledSessionSourceSpan(
+  source: string,
+  session: TextEditingSession,
+  targetSpan: Span
+): Span {
+  if (hasUnstableTrailingEscape(session.text)) {
+    return session.sourceSpan;
+  }
+  return resolveSourceSpanForSessionText(source, session.text, targetSpan);
 }
 
 function applySessionTextUpdate(
@@ -228,7 +400,31 @@ function applySessionTextUpdate(
     return { state, effects: [] };
   }
   const selection = normalizeSelection(nextText.length, selectionStart, selectionEnd);
-  const currentSpan = resolveCurrentTextSpan(current.workingSource, current.text, current.sourceSpan);
+  const currentTextHasUnstableTrailingEscape = hasUnstableTrailingEscape(current.text);
+  const nextTextHasUnstableTrailingEscape = hasUnstableTrailingEscape(nextText);
+  if (nextTextHasUnstableTrailingEscape) {
+    return {
+      state: {
+        ...state,
+        session: {
+          ...current,
+          text: nextText,
+          selectionStart: selection.start,
+          selectionEnd: selection.end
+        },
+        inputRevision: state.inputRevision + 1,
+        asyncRequestRevision: state.asyncRequestRevision + 1
+      },
+      effects: []
+    };
+  }
+  const currentSlice = current.workingSource.slice(current.sourceSpan.from, current.sourceSpan.to);
+  const isStabilizingDeferredEscape = currentTextHasUnstableTrailingEscape && !nextTextHasUnstableTrailingEscape;
+  const currentSpan = isStabilizingDeferredEscape
+    ? current.sourceSpan
+    : shouldReuseCurrentSpanForDeferredEscape(currentSlice, current.text)
+      ? current.sourceSpan
+      : resolveCurrentTextSpan(current.workingSource, current.text, current.sourceSpan);
   const updated = replaceSpan(current.workingSource, currentSpan, nextText);
   return {
     state: {
@@ -266,13 +462,18 @@ export function reduceCanvasTextEdit(
   switch (action.type) {
     case "start_session": {
       const selection = normalizeSelection(action.target.text.length, action.selectionStart, action.selectionEnd);
+      const sourceSpan = resolveSourceSpanForSessionText(
+        action.source,
+        action.target.text,
+        action.target.sourceSpan
+      );
       return {
         state: {
           ...state,
           session: {
             sourceId: action.target.sourceId,
             sceneTextId: action.target.sceneTextId,
-            sourceSpan: action.target.sourceSpan,
+            sourceSpan,
             workingSource: action.source,
             text: action.target.text,
             selectionStart: selection.start,
@@ -286,6 +487,8 @@ export function reduceCanvasTextEdit(
           },
           selectionOverlay: null,
           dragSelection: null,
+          undoStack: [],
+          redoStack: [],
           asyncRequestRevision: state.asyncRequestRevision + 1
         },
         effects: []
@@ -294,13 +497,18 @@ export function reduceCanvasTextEdit(
 
     case "pointer_down_provisional": {
       const selection = normalizeSelection(action.target.text.length, action.selectionStart, action.selectionEnd);
+      const sourceSpan = resolveSourceSpanForSessionText(
+        action.source,
+        action.target.text,
+        action.target.sourceSpan
+      );
       return {
         state: {
           ...state,
           session: {
             sourceId: action.target.sourceId,
             sceneTextId: action.target.sceneTextId,
-            sourceSpan: action.target.sourceSpan,
+            sourceSpan,
             workingSource: action.source,
             text: action.target.text,
             selectionStart: selection.start,
@@ -321,6 +529,8 @@ export function reduceCanvasTextEdit(
             mode: action.mode,
             anchorLineRange: action.anchorLineRange
           },
+          undoStack: [],
+          redoStack: [],
           asyncRequestRevision: state.asyncRequestRevision + 1
         },
         effects: []
@@ -382,35 +592,87 @@ export function reduceCanvasTextEdit(
       };
     }
 
-    case "textarea_input_replace": {
-      return applySessionTextUpdate(state, action.nextText, action.selectionStart, action.selectionEnd);
-    }
-
-    case "textarea_delete": {
+    case "textarea_input_intent": {
       const session = state.session;
       if (!session) {
         return { state, effects: [] };
       }
-      const value = action.value;
-      const start = clamp(Math.min(action.selectionStart, action.selectionEnd), 0, value.length);
-      const end = clamp(Math.max(action.selectionStart, action.selectionEnd), 0, value.length);
-
-      if (start !== end) {
-        const nextText = `${value.slice(0, start)}${value.slice(end)}`;
-        return applySessionTextUpdate(state, nextText, start, start);
+      const selection = normalizeSelection(session.text.length, action.selectionStart, action.selectionEnd);
+      if (!isCanvasTextInputIntentType(action.inputType)) {
+        return reduceUnsupportedInputIntent(state, action.inputType);
       }
-      if (action.key === "Backspace") {
-        if (start === 0) {
+
+      if (action.inputType === "historyUndo") {
+        const previous = state.undoStack[state.undoStack.length - 1];
+        if (!previous) {
           return { state, effects: [] };
         }
-        const nextText = `${value.slice(0, start - 1)}${value.slice(start)}`;
-        return applySessionTextUpdate(state, nextText, start - 1, start - 1);
+        const reduced = applySessionTextUpdate(state, previous.text, previous.selectionStart, previous.selectionEnd);
+        return {
+          state: {
+            ...reduced.state,
+            undoStack: state.undoStack.slice(0, -1),
+            redoStack: [...state.redoStack, snapshotSession(session)]
+          },
+          effects: reduced.effects
+        };
       }
-      if (start >= value.length) {
+
+      if (action.inputType === "historyRedo") {
+        const next = state.redoStack[state.redoStack.length - 1];
+        if (!next) {
+          return { state, effects: [] };
+        }
+        const reduced = applySessionTextUpdate(state, next.text, next.selectionStart, next.selectionEnd);
+        return {
+          state: {
+            ...reduced.state,
+            undoStack: [...state.undoStack, snapshotSession(session)],
+            redoStack: state.redoStack.slice(0, -1)
+          },
+          effects: reduced.effects
+        };
+      }
+
+      let nextIntent:
+        | { nextText: string; nextSelectionStart: number; nextSelectionEnd: number }
+        | null = null;
+
+      switch (action.inputType) {
+        case "insertText":
+        case "insertCompositionText":
+        case "insertFromComposition":
+          nextIntent = applyInsertIntent(session.text, selection.start, selection.end, action.data ?? "");
+          break;
+        case "insertLineBreak":
+          nextIntent = applyInsertIntent(session.text, selection.start, selection.end, "\n");
+          break;
+        case "insertFromPaste":
+          nextIntent = applyInsertIntent(session.text, selection.start, selection.end, action.data ?? "");
+          break;
+        case "deleteContentBackward":
+          nextIntent = applyDeleteIntent(session.text, selection.start, selection.end, "backward");
+          break;
+        case "deleteContentForward":
+          nextIntent = applyDeleteIntent(session.text, selection.start, selection.end, "forward");
+          break;
+        case "deleteByCut":
+          nextIntent = applyDeleteIntent(session.text, selection.start, selection.end, "cut");
+          break;
+        default:
+          return { state, effects: [] };
+      }
+
+      if (!nextIntent) {
         return { state, effects: [] };
       }
-      const nextText = `${value.slice(0, start)}${value.slice(start + 1)}`;
-      return applySessionTextUpdate(state, nextText, start, start);
+      const reduced = applySessionTextUpdate(
+        withUndoCheckpoint(state, session),
+        nextIntent.nextText,
+        nextIntent.nextSelectionStart,
+        nextIntent.nextSelectionEnd
+      );
+      return reduced;
     }
 
     case "textarea_selection": {
@@ -465,19 +727,31 @@ export function reduceCanvasTextEdit(
           effects: []
         };
       }
+      const targetMatchesSessionText = action.target.text === session.text;
+      const reconciledSourceSpan = resolveReconciledSessionSourceSpan(
+        action.source,
+        session,
+        action.target.sourceSpan
+      );
+      const nextSceneTextId = targetMatchesSessionText ? action.target.sceneTextId : session.sceneTextId;
+      const nextParagraphId = targetMatchesSessionText ? action.target.paragraphId : session.paragraphId;
+      const nextRenderSourceText = targetMatchesSessionText ? action.target.renderSourceText : session.renderSourceText;
+      const nextLayoutKind = targetMatchesSessionText ? action.target.layoutKind : session.layoutKind;
+      const nextRegion = targetMatchesSessionText ? action.target.region : session.region;
+      const nextPopupAnchorBox = targetMatchesSessionText ? action.target.popupAnchorBox : session.popupAnchorBox;
       if (
         state.sourceRevision === action.sourceRevision &&
         session.workingSource === action.source &&
-        session.sceneTextId === action.target.sceneTextId &&
-        sameSpan(session.sourceSpan, action.target.sourceSpan) &&
-        session.paragraphId === action.target.paragraphId &&
-        session.renderSourceText === action.target.renderSourceText &&
-        session.layoutKind === action.target.layoutKind &&
-        sameRegion(session.region, action.target.region) &&
-        session.popupAnchorBox?.x === action.target.popupAnchorBox?.x &&
-        session.popupAnchorBox?.y === action.target.popupAnchorBox?.y &&
-        session.popupAnchorBox?.width === action.target.popupAnchorBox?.width &&
-        session.popupAnchorBox?.height === action.target.popupAnchorBox?.height
+        session.sceneTextId === nextSceneTextId &&
+        sameSpan(session.sourceSpan, reconciledSourceSpan) &&
+        session.paragraphId === nextParagraphId &&
+        session.renderSourceText === nextRenderSourceText &&
+        session.layoutKind === nextLayoutKind &&
+        sameRegion(session.region, nextRegion) &&
+        session.popupAnchorBox?.x === nextPopupAnchorBox?.x &&
+        session.popupAnchorBox?.y === nextPopupAnchorBox?.y &&
+        session.popupAnchorBox?.width === nextPopupAnchorBox?.width &&
+        session.popupAnchorBox?.height === nextPopupAnchorBox?.height
       ) {
         return { state, effects: [] };
       }
@@ -487,14 +761,14 @@ export function reduceCanvasTextEdit(
           sourceRevision: action.sourceRevision,
           session: {
             ...session,
-            sceneTextId: action.target.sceneTextId,
-            sourceSpan: action.target.sourceSpan,
+            sceneTextId: nextSceneTextId,
+            sourceSpan: reconciledSourceSpan,
             workingSource: action.source,
-            paragraphId: action.target.paragraphId,
-            renderSourceText: action.target.renderSourceText,
-            layoutKind: action.target.layoutKind,
-            region: action.target.region,
-            popupAnchorBox: action.target.popupAnchorBox
+            paragraphId: nextParagraphId,
+            renderSourceText: nextRenderSourceText,
+            layoutKind: nextLayoutKind,
+            region: nextRegion,
+            popupAnchorBox: nextPopupAnchorBox
           }
         },
         effects: []

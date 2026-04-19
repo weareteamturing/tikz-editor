@@ -2,6 +2,8 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
+const profilingBuild = process.env.TIKZ_PROFILE_BUILD === "1";
+
 export default defineConfig({
   base: "https://tikz.dev/editor/",
   plugins: [react()],
@@ -17,6 +19,9 @@ export default defineConfig({
       "tikz-editor": path.resolve(__dirname, "../../packages/core/src"),
     },
   },
+  esbuild: profilingBuild
+    ? { minifyIdentifiers: false, keepNames: true }
+    : undefined,
   // Content-Security-Policy should be configured at the production web server level:
   //   Content-Security-Policy: script-src 'self'
   // This blocks any inline event handlers that could be embedded in TikZ-generated SVG.
