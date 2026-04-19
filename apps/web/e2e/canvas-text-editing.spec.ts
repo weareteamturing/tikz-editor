@@ -46,6 +46,48 @@ async function readTextareaSelectedText(page: Page): Promise<string> {
   });
 }
 
+async function dispatchTextareaBeforeInput(
+  page: Page,
+  inputType: string,
+  options?: {
+    data?: string | null;
+    selectionStart?: number;
+    selectionEnd?: number;
+  }
+): Promise<void> {
+  const { data = null, selectionStart, selectionEnd } = options ?? {};
+  await page.getByTestId("canvas-text-edit-textarea").evaluate((element, payload) => {
+    const textarea = element as HTMLTextAreaElement;
+    textarea.focus();
+    if (typeof payload.selectionStart === "number" && typeof payload.selectionEnd === "number") {
+      textarea.setSelectionRange(payload.selectionStart, payload.selectionEnd);
+    }
+    const event = new InputEvent("beforeinput", {
+      bubbles: true,
+      cancelable: true,
+      inputType: payload.inputType,
+      data: payload.data
+    });
+    textarea.dispatchEvent(event);
+  }, { inputType, data, selectionStart, selectionEnd });
+}
+
+async function dispatchTextareaDrop(page: Page, text: string, selectionStart: number, selectionEnd: number): Promise<void> {
+  await page.getByTestId("canvas-text-edit-textarea").evaluate((element, payload) => {
+    const textarea = element as HTMLTextAreaElement;
+    textarea.focus();
+    textarea.setSelectionRange(payload.selectionStart, payload.selectionEnd);
+    const dataTransfer = new DataTransfer();
+    dataTransfer.setData("text/plain", payload.text);
+    const event = new DragEvent("drop", {
+      bubbles: true,
+      cancelable: true,
+      dataTransfer
+    });
+    textarea.dispatchEvent(event);
+  }, { text, selectionStart, selectionEnd });
+}
+
 async function dispatchTextRegionPointerDrag(
   page: Page,
   options: {
@@ -1037,6 +1079,122 @@ test("textarea-local undo/redo works while node text edit is focused", async ({ 
   await expect.poll(async () => await readStoreSource(page)).toContain("{Hello!}");
   await expect.poll(async () => await readStoreSource(page)).toContain("{Other}");
   await expect.poll(async () => await readSelectedSourceIds(page)).toEqual(["path:0"]);
+});
+
+test("supported beforeinput replacement and word-delete intents update node text", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node at (0,0) {alpha beta gamma};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeFocused();
+  await expect(textarea).toHaveValue("alpha beta gamma");
+
+  await dispatchTextareaBeforeInput(page, "insertReplacementText", {
+    data: "BETA",
+    selectionStart: 6,
+    selectionEnd: 10
+  });
+  await expect(textarea).toHaveValue("alpha BETA gamma");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{alpha BETA gamma}");
+
+  await dispatchTextareaBeforeInput(page, "deleteWordBackward", {
+    selectionStart: 11,
+    selectionEnd: 11
+  });
+  await expect(textarea).toHaveValue("alpha gamma");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{alpha gamma}");
+});
+
+test("insertParagraph and line-delete beforeinput intents work in multiline node text", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node at (0,0) {alpha};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeFocused();
+  await expect(textarea).toHaveValue("alpha");
+
+  await dispatchTextareaBeforeInput(page, "insertParagraph", {
+    selectionStart: 5,
+    selectionEnd: 5
+  });
+  await dispatchTextareaBeforeInput(page, "insertText", {
+    data: "beta",
+    selectionStart: 6,
+    selectionEnd: 6
+  });
+  await dispatchTextareaBeforeInput(page, "insertParagraph", {
+    selectionStart: 10,
+    selectionEnd: 10
+  });
+  await dispatchTextareaBeforeInput(page, "insertText", {
+    data: "gamma",
+    selectionStart: 11,
+    selectionEnd: 11
+  });
+
+  await expect(textarea).toHaveValue("alpha\nbeta\ngamma");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{alpha\nbeta\ngamma}");
+
+  await dispatchTextareaBeforeInput(page, "deleteSoftLineBackward", {
+    selectionStart: 8,
+    selectionEnd: 8
+  });
+  await expect(textarea).toHaveValue("alpha\nta\ngamma");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{alpha\nta\ngamma}");
+
+  await dispatchTextareaBeforeInput(page, "deleteSoftLineForward", {
+    selectionStart: 7,
+    selectionEnd: 7
+  });
+  await expect(textarea).toHaveValue("alpha\nt\ngamma");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{alpha\nt\ngamma}");
+});
+
+test("dropping plain text into the popup textarea updates node text through the reducer", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node at (0,0) {Hello world};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeFocused();
+  await expect(textarea).toHaveValue("Hello world");
+
+  await dispatchTextareaDrop(page, "TikZ", 6, 11);
+  await expect(textarea).toHaveValue("Hello TikZ");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{Hello TikZ}");
+});
+
+test("replacement and drop affect only the targeted identical text node", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node at (0,0) {Hello};
+\node at (2,0) {Hello};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:1");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeFocused();
+  await expect(textarea).toHaveValue("Hello");
+
+  await dispatchTextareaBeforeInput(page, "insertReplacementText", {
+    data: "Hi",
+    selectionStart: 0,
+    selectionEnd: 5
+  });
+  await expect(textarea).toHaveValue("Hi");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{Hello};\n\\node at (2,0) {Hi}");
+
+  await dispatchTextareaDrop(page, "TikZ", 0, 2);
+  await expect(textarea).toHaveValue("TikZ");
+  await expect.poll(async () => await readStoreSource(page)).toContain("{Hello};\n\\node at (2,0) {TikZ}");
 });
 
 test("typing trailing backslash in node text stays local until stabilized by next character", async ({ page }) => {

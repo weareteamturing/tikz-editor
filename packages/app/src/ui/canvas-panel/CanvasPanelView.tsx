@@ -125,6 +125,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     onTextEditTextareaCopy,
     onTextEditTextareaCut,
     onTextEditTextareaPaste,
+    onTextEditTextareaDrop,
     onTextEditTextareaKeyDown,
     selectionHint,
     showDevPanel,
@@ -557,6 +558,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                   onCopy={onTextEditTextareaCopy}
                   onCut={onTextEditTextareaCut}
                   onPaste={onTextEditTextareaPaste}
+                  onDrop={onTextEditTextareaDrop}
                   onKeyDown={onTextEditTextareaKeyDown}
                   data-testid="canvas-text-edit-textarea"
                   data-select="text"

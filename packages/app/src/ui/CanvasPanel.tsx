@@ -2597,6 +2597,9 @@ export const CanvasPanel = memo(function CanvasPanel({
       }
       nativeEvent.stopPropagation();
       let data = nativeEvent.data;
+      if (inputType === "insertFromDrop" && data == null) {
+        data = nativeEvent.dataTransfer?.getData("text/plain") ?? null;
+      }
       if (inputType === "insertText" && data == null) {
         data = pendingTextEditInsertTextRef.current;
       }
@@ -2635,6 +2638,19 @@ export const CanvasPanel = memo(function CanvasPanel({
     event.stopPropagation();
     pendingTextEditPasteRef.current = event.clipboardData.getData("text/plain");
   }, []);
+
+  const handleTextEditTextareaDrop = useCallback((event: ReactDragEvent<HTMLTextAreaElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const textarea = event.currentTarget;
+    dispatchCanvasTextEditAction({
+      type: "textarea_input_intent",
+      inputType: "insertFromDrop",
+      data: event.dataTransfer.getData("text/plain"),
+      selectionStart: textarea.selectionStart ?? 0,
+      selectionEnd: textarea.selectionEnd ?? 0
+    });
+  }, [dispatchCanvasTextEditAction]);
 
   const handleTextEditTextareaKeyDown = useCallback((event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Escape") {
@@ -2833,8 +2849,8 @@ export const CanvasPanel = memo(function CanvasPanel({
         textSelectionDragRef.current = null;
         return;
       }
-      const requestRevision = canvasTextEditState.asyncRequestRevision;
-      const baseInputRevision = canvasTextEditState.inputRevision;
+      const requestRevision = canvasTextEditStateRef.current.asyncRequestRevision;
+      const baseInputRevision = canvasTextEditStateRef.current.inputRevision;
       const offsetPromise = resolveTextOffsetFromClient(target, event.clientX, event.clientY);
       const lineRangePromise = drag.mode === "line"
         ? resolveTextLineRangeFromClient(target, event.clientX, event.clientY)
@@ -2878,8 +2894,6 @@ export const CanvasPanel = memo(function CanvasPanel({
       window.removeEventListener("pointercancel", handlePointerUp);
     };
   }, [
-    canvasTextEditState.asyncRequestRevision,
-    canvasTextEditState.inputRevision,
     dispatchCanvasTextEditAction,
     resolveEditableTextTargetById,
     resolveTextLineRangeFromClient,
@@ -4055,6 +4069,7 @@ export const CanvasPanel = memo(function CanvasPanel({
         onTextEditTextareaCopy={stopTextEditTextareaClipboardPropagation}
         onTextEditTextareaCut={stopTextEditTextareaClipboardPropagation}
         onTextEditTextareaPaste={handleTextEditTextareaPaste}
+        onTextEditTextareaDrop={handleTextEditTextareaDrop}
         onTextEditTextareaKeyDown={handleTextEditTextareaKeyDown}
         selectionHint={pathSelectionHint}
         showDevPanel={showDevPanel}
