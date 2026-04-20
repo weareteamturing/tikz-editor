@@ -2,24 +2,20 @@ import type { AdornmentOwnerGeometry, NodeItem, PathItem, Span, Statement } from
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import { parseCoordinateLike, parseLength } from "tikz-editor/semantic/coords/parse-length";
 import type { OptionListAst } from "tikz-editor/options/types";
-import type {
-  EditHandle,
-  Matrix2D,
-  Point,
-  SceneClipPath,
-  SceneElement,
-  ScenePath,
-  ScenePathCommand,
-  ScenePathShapeHint,
-  SceneText
-} from "tikz-editor/semantic/types";
+import type { EditHandle, SceneClipPath, SceneElement, ScenePath, ScenePathCommand, ScenePathShapeHint, SceneText } from "tikz-editor/semantic/types";
+import type { SvgTransform, WorldTransform } from "tikz-editor/coords/index";
 import { intersectRayWithPolygon } from "tikz-editor/semantic/nodes/shape-geometry";
 import type { SvgViewBox } from "tikz-editor/svg/index";
 import { applyMatrix, applyMatrixToVector, inverseMatrix } from "tikz-editor/semantic/transform";
 import type { CanvasDragKind } from "../../store/types";
+import type { ClientPoint, SvgBounds, SvgPoint, TextRectLocalPoint, WorldPoint } from "../coords/types";
+import {
+  isSvgPointInsideRectHitRegionContentBox,
+  resolveRectHitRegionContentBox as resolveTypedRectHitRegionContentBox,
+  svgPointToTextRectLocal
+} from "../coords/regions";
 import type { HitRegion } from "./hit-regions";
 import type {
-  Bounds,
   DragState,
   EditableTextTarget,
   GridResizeSnapConfig,
@@ -76,45 +72,25 @@ export function resolveRectHitRegionContentBox(region: Extract<HitRegion, { shap
   width: number;
   height: number;
 } {
-  const width = region.contentWidth ?? region.width;
-  const height = region.contentHeight ?? region.height;
-  return {
-    x: region.cx - width / 2,
-    y: region.cy - height / 2,
-    width,
-    height
-  };
+  return resolveTypedRectHitRegionContentBox(region);
 }
 
 export function isPointInsideRectHitRegionContentBox(
-  point: Point,
+  point: SvgPoint,
   region: Extract<HitRegion, { shape: "rect" }>
 ): boolean {
-  const unrotatedPoint = mapPointToRectRegionLocal(point, region);
-  const contentBox = resolveRectHitRegionContentBox(region);
-  return (
-    unrotatedPoint.x >= contentBox.x &&
-    unrotatedPoint.x <= contentBox.x + contentBox.width &&
-    unrotatedPoint.y >= contentBox.y &&
-    unrotatedPoint.y <= contentBox.y + contentBox.height
-  );
+  return isSvgPointInsideRectHitRegionContentBox(point, region);
 }
 
 export function mapPointToRectRegionLocal(
-  point: Point,
+  point: SvgPoint,
   region: Extract<HitRegion, { shape: "rect" }>
-): Point {
-  if (region.transform) {
-    const inverse = inverseMatrix(region.transform);
-    if (inverse) {
-      return applyMatrix(inverse, point);
-    }
-  }
-  return rotatePointAroundCenter(point, region.cx, region.cy, region.rotation);
+): TextRectLocalPoint {
+  return svgPointToTextRectLocal(point, region);
 }
 
-export function collectSourceBounds(elements: SceneElement[], viewBox: SvgViewBox): Map<string, Bounds> {
-  const boundsBySource = new Map<string, Bounds>();
+export function collectSourceBounds(elements: SceneElement[], viewBox: SvgViewBox): Map<string, SvgBounds> {
+  const boundsBySource = new Map<string, SvgBounds>();
 
   for (const element of elements) {
     if (element.adornment?.kind === "pin" && element.kind === "Path") {
@@ -137,9 +113,9 @@ export function collectSourceBounds(elements: SceneElement[], viewBox: SvgViewBo
 
 export function resolveAdornmentOwnerBoundaryPoint(
   ownerGeometry: AdornmentOwnerGeometry | undefined,
-  ownerPoint: Point,
-  targetPoint: Point
-): Point {
+  ownerPoint: WorldPoint,
+  targetPoint: WorldPoint
+): WorldPoint {
   const center = ownerGeometry?.center ?? ownerPoint;
   const dx = targetPoint.x - center.x;
   const dy = targetPoint.y - center.y;
@@ -223,7 +199,7 @@ export function resolveAdornmentOwnerBoundaryPoint(
   };
 }
 
-export function resolveBoundsEdgePointToward(bounds: Bounds, from: Point): Point {
+export function resolveBoundsEdgePointToward(bounds: SvgBounds, from: SvgPoint): SvgPoint {
   const center = {
     x: (bounds.minX + bounds.maxX) / 2,
     y: (bounds.minY + bounds.maxY) / 2
@@ -244,7 +220,7 @@ export function resolveBoundsEdgePointToward(bounds: Bounds, from: Point): Point
   };
 }
 
-export function elementBoundsInSvg(element: SceneElement, viewBox: SvgViewBox): Bounds | null {
+export function elementBoundsInSvg(element: SceneElement, viewBox: SvgViewBox): SvgBounds | null {
   if (element.kind === "Path") {
     const bounds = pathBoundsInSvg(element, viewBox);
     return applyElementTransformToSvgBounds(bounds, element.transform, viewBox);
@@ -271,11 +247,11 @@ export function elementBoundsInSvg(element: SceneElement, viewBox: SvgViewBox): 
   return applyElementTransformToSvgBounds(bounds, element.transform, viewBox);
 }
 
-export function effectiveElementBoundsInSvg(element: SceneElement, viewBox: SvgViewBox): Bounds | null {
+export function effectiveElementBoundsInSvg(element: SceneElement, viewBox: SvgViewBox): SvgBounds | null {
   return constrainBoundsToClipChain(elementBoundsInSvg(element, viewBox), element.clipChain ?? [], viewBox);
 }
 
-export function textBounds(element: SceneText, viewBox: SvgViewBox): Bounds {
+export function textBounds(element: SceneText, viewBox: SvgViewBox): SvgBounds {
   const textGeometry = textGeometryInSvg(element, viewBox);
   return computeRotatedRectBounds(
     textGeometry.cx,
@@ -303,23 +279,23 @@ export function textGeometryInSvg(
   };
 }
 
-export function pathBoundsInSvg(path: ScenePath, viewBox: SvgViewBox): Bounds | null {
+export function pathBoundsInSvg(path: ScenePath, viewBox: SvgViewBox): SvgBounds | null {
   return pathCommandBoundsInSvg(path.commands, viewBox);
 }
 
-export function clipPathBoundsInSvg(clipPath: SceneClipPath, viewBox: SvgViewBox): Bounds | null {
+export function clipPathBoundsInSvg(clipPath: SceneClipPath, viewBox: SvgViewBox): SvgBounds | null {
   return pathCommandBoundsInSvg(clipPath.commands, viewBox);
 }
 
 export function constrainBoundsToClipChain(
-  bounds: Bounds | null,
+  bounds: SvgBounds | null,
   clipChain: readonly SceneClipPath[],
   viewBox: SvgViewBox
-): Bounds | null {
+): SvgBounds | null {
   if (!bounds) {
     return null;
   }
-  let constrained: Bounds | null = { ...bounds };
+  let constrained: SvgBounds | null = { ...bounds };
   for (const clipPath of clipChain) {
     const clipBounds = clipPathBoundsInSvg(clipPath, viewBox);
     if (!clipBounds) {
@@ -333,7 +309,7 @@ export function constrainBoundsToClipChain(
   return constrained;
 }
 
-function pathCommandBoundsInSvg(commands: readonly ScenePathCommand[], viewBox: SvgViewBox): Bounds | null {
+function pathCommandBoundsInSvg(commands: readonly ScenePathCommand[], viewBox: SvgViewBox): SvgBounds | null {
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
@@ -379,7 +355,7 @@ function pathCommandBoundsInSvg(commands: readonly ScenePathCommand[], viewBox: 
   return { minX, minY, maxX, maxY };
 }
 
-function intersectBounds(a: Bounds, b: Bounds): Bounds | null {
+function intersectBounds(a: SvgBounds, b: SvgBounds): SvgBounds | null {
   const minX = Math.max(a.minX, b.minX);
   const minY = Math.max(a.minY, b.minY);
   const maxX = Math.min(a.maxX, b.maxX);
@@ -390,7 +366,7 @@ function intersectBounds(a: Bounds, b: Bounds): Bounds | null {
   return { minX, minY, maxX, maxY };
 }
 
-export function computeEllipseBounds(cx: number, cy: number, rx: number, ry: number, rotation: number): Bounds {
+export function computeEllipseBounds(cx: number, cy: number, rx: number, ry: number, rotation: number): SvgBounds {
   const theta = (rotation * Math.PI) / 180;
   const cos = Math.cos(theta);
   const sin = Math.sin(theta);
@@ -405,7 +381,7 @@ export function computeEllipseBounds(cx: number, cy: number, rx: number, ry: num
   };
 }
 
-export function computeRotatedRectBounds(cx: number, cy: number, width: number, height: number, rotation: number): Bounds {
+export function computeRotatedRectBounds(cx: number, cy: number, width: number, height: number, rotation: number): SvgBounds {
   const halfWidth = width / 2;
   const halfHeight = height / 2;
   if (Math.abs(rotation) <= 1e-6) {
@@ -431,7 +407,7 @@ export function computeRotatedRectBounds(cx: number, cy: number, width: number, 
   };
 }
 
-export function mergeBounds(a: Bounds, b: Bounds): Bounds {
+export function mergeBounds(a: SvgBounds, b: SvgBounds): SvgBounds {
   return {
     minX: Math.min(a.minX, b.minX),
     minY: Math.min(a.minY, b.minY),
@@ -441,10 +417,10 @@ export function mergeBounds(a: Bounds, b: Bounds): Bounds {
 }
 
 function applyElementTransformToSvgBounds(
-  bounds: Bounds | null,
-  transform: Matrix2D | undefined,
+  bounds: SvgBounds | null,
+  transform: WorldTransform | undefined,
   viewBox: Pick<SvgViewBox, "y" | "height">
-): Bounds | null {
+): SvgBounds | null {
   if (!bounds) {
     return null;
   }
@@ -456,15 +432,15 @@ function applyElementTransformToSvgBounds(
 }
 
 function worldTransformToSvgTransform(
-  matrix: Matrix2D,
+  matrix: WorldTransform,
   viewBox: Pick<SvgViewBox, "y" | "height">
-): Matrix2D {
+): SvgTransform {
   const k = viewBox.y + viewBox.height + viewBox.y;
-  const flip: Matrix2D = { a: 1, b: 0, c: 0, d: -1, e: 0, f: k };
+  const flip: SvgTransform = { a: 1, b: 0, c: 0, d: -1, e: 0, f: k };
   return multiplyAffine(multiplyAffine(flip, matrix), flip);
 }
 
-function multiplyAffine(left: Matrix2D, right: Matrix2D): Matrix2D {
+function multiplyAffine(left: SvgTransform, right: SvgTransform): SvgTransform {
   return {
     a: left.a * right.a + left.c * right.b,
     b: left.b * right.a + left.d * right.b,
@@ -475,7 +451,7 @@ function multiplyAffine(left: Matrix2D, right: Matrix2D): Matrix2D {
   };
 }
 
-function transformBounds(bounds: Bounds, transform: Matrix2D): Bounds {
+function transformBounds(bounds: SvgBounds, transform: SvgTransform): SvgBounds {
   const corners = [
     { x: bounds.minX, y: bounds.minY },
     { x: bounds.maxX, y: bounds.minY },
@@ -501,7 +477,7 @@ function transformBounds(bounds: Bounds, transform: Matrix2D): Bounds {
   return { minX, minY, maxX, maxY };
 }
 
-export function selectionAnchorRatioFromPoint(bounds: Bounds, point: Point): { x: number; y: number } {
+export function selectionAnchorRatioFromPoint(bounds: SvgBounds, point: SvgPoint): { x: number; y: number } {
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
   return {
@@ -1010,8 +986,8 @@ export function preferredNodeBoundsForSource(
   elements: SceneElement[],
   sourceId: string,
   viewBox: SvgViewBox,
-  fallback: Bounds | null
-): Bounds | null {
+  fallback: SvgBounds | null
+): SvgBounds | null {
   const sourceElements = elements.filter((element) => element.sourceRef.sourceId === sourceId && !element.adornment);
   if (sourceElements.length === 0) {
     return fallback;
@@ -1034,7 +1010,7 @@ export function preferredNodeBoundsForSource(
       ? nonText
       : sourceElements;
 
-  let bounds: Bounds | null = null;
+  let bounds: SvgBounds | null = null;
   for (const element of preferred) {
     const next = effectiveElementBoundsInSvg(element, viewBox);
     if (!next) continue;
@@ -1055,8 +1031,8 @@ export function isTextOnlyNodeSource(elements: SceneElement[], sourceId: string)
 function collectTextOnlyNodeVisualBoundsInSvg(
   sourceElements: SceneElement[],
   viewBox: SvgViewBox
-): Bounds | null {
-  let bounds: Bounds | null = null;
+): SvgBounds | null {
+  let bounds: SvgBounds | null = null;
   for (const element of sourceElements) {
     if (!isTextNodeWithVisualBounds(element)) {
       continue;
@@ -1120,12 +1096,12 @@ export function getHandleCursor(
     return "move";
   }
 
-  let bestVector: Point | null = null;
+  let bestVector: WorldPoint | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const path of sourcePaths) {
-    let current: Point | null = null;
-    let subpathStart: Point | null = null;
+    let current: WorldPoint | null = null;
+    let subpathStart: WorldPoint | null = null;
     for (const command of path.commands) {
       if (command.kind === "M") {
         current = command.to;
@@ -1253,8 +1229,8 @@ export function resizeCursorForRole(role: ResizeRole): string {
   return role === "top-left" || role === "bottom-right" ? "nwse-resize" : "nesw-resize";
 }
 
-export function isPointInsideRect(clientX: number, clientY: number, rect: DOMRect): boolean {
-  return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+export function isPointInsideRect(point: ClientPoint, rect: DOMRect): boolean {
+  return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom;
 }
 
 export function addGuide(guides: GuidesState, orientation: GuideOrientation, value: number): GuidesState {

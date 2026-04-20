@@ -1,5 +1,5 @@
 import type { Span } from "../ast/types.js";
-import type { Point } from "../semantic/types.js";
+import type { WorldPoint } from "../coords/points.js";
 
 export type TikzEdit =
   | { kind: "updateCoordinate"; targetId: string; x: string; y: string }
@@ -11,7 +11,7 @@ export type ApplyEditResult = {
 };
 
 /** High-level editing intent (world coordinates, handle-based). */
-export type EditIntent = { kind: "move"; handleId: string; newWorld: Point };
+export type EditIntent = { kind: "move"; handleId: string; newWorld: WorldPoint };
 
 /** Result of applying an edit intent. */
 export type EditIntentResult =

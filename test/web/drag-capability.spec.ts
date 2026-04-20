@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { EditHandle, Point } from "../../packages/core/src/semantic/types.js";
+import type { WorldPoint } from "../../packages/core/src/coords/points.js";
+import type { EditHandle } from "../../packages/core/src/semantic/types.js";
 import { identityMatrix } from "../../packages/core/src/semantic/transform.js";
 import { computeDragCapability } from "../../packages/app/src/ui/canvas-panel/drag-capability";
 
@@ -8,7 +9,7 @@ function makeHandle(
     id: string;
     sourceId: string;
     sourceFingerprint?: string;
-    world?: Point;
+    world?: WorldPoint;
     sourceSpan?: { from: number; to: number };
   }
 ): EditHandle {
@@ -28,9 +29,9 @@ function makeHandle(
     rewriteMode: overrides.rewriteMode ?? "direct",
     rewriteTargetHandleId: overrides.rewriteTargetHandleId,
     relativePrefix: overrides.relativePrefix,
-    relativeBaseWorld: overrides.relativeBaseWorld,
+    relativeBase: overrides.relativeBase,
     local: overrides.local
-  };
+  } as EditHandle;
 }
 
 describe("computeDragCapability", () => {

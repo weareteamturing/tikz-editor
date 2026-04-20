@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { unsafeBounds } from "../../packages/core/src/coords/index";
 
 import {
   INITIAL_CANVAS_TEXT_EDIT_STATE,
@@ -377,7 +378,7 @@ describe("canvas text edit machine", () => {
         sourceId: target.sourceId,
         selectionStart: 0,
         selectionEnd: 0,
-        caret: { left: 0, top: 0, height: 1 },
+        caret: { bounds: unsafeBounds(0, 0, 0, 1) },
         rects: []
       }
     }).state;
@@ -450,7 +451,7 @@ describe("canvas text edit machine", () => {
         sourceId: target.sourceId,
         selectionStart: 0,
         selectionEnd: 0,
-        caret: { left: 0, top: 0, height: 1 },
+        caret: { bounds: unsafeBounds(0, 0, 0, 1) },
         rects: []
       }
     }).state;
@@ -554,7 +555,7 @@ describe("canvas text edit machine", () => {
               sourceId: state.session.sourceId,
               selectionStart: 0,
               selectionEnd: 0,
-              caret: { left: 0, top: 0, height: 1 },
+              caret: { bounds: unsafeBounds(0, 0, 0, 1) },
               rects: []
             }
           });

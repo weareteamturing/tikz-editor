@@ -1,13 +1,15 @@
-import type {
+import {
   EditHandle,
   EvaluateOptions,
-  Point,
+  isFrameLocalCoordinateEditHandle,
+  isRelativeCoordinateEditHandle,
   SceneCircle,
   SceneElement,
   SceneEllipse,
   ScenePath,
   ScenePathShapeHint
 } from "../../semantic/types.js";
+import type { FrameLocalPoint, WorldPoint } from "../../coords/points.js";
 import type { CoordinateItem, NodeItem, PathItem, PathOptionItem, Statement, Span } from "../../ast/types.js";
 import type { PropertyTarget } from "../property-target.js";
 import { resolvePropertyTarget } from "../property-target.js";
@@ -52,7 +54,7 @@ type NodeWidthResizeStrategy = "minimum-width" | "text-width";
 export type ResizeElementAction = {
   elementId: string;
   role: ResizeRole;
-  newWorld: Point;
+  newWorld: WorldPoint;
   preserveAspect?: boolean;
   preserveAspectRatio?: number;
   referenceBounds?: {
@@ -616,7 +618,7 @@ const SCOPE_TRANSFORM_OPTION_KEYS = new Set([
 function resolveFixedScopePoint(
   bounds: { minX: number; minY: number; maxX: number; maxY: number },
   role: ResizeRole
-): Point {
+): WorldPoint {
   switch (role) {
     case "top-left":
       return { x: bounds.maxX, y: bounds.minY };
@@ -744,7 +746,7 @@ type PathShapeResizeSyntax = {
 type PathShapeResizeContext = {
   kind: "found";
   shapeKind: "circle" | "ellipse";
-  center: Point;
+  center: WorldPoint;
   syntax: PathShapeResizeSyntax;
   centerHandle: EditHandle;
 };
@@ -775,8 +777,12 @@ function applyResizePathRectangle(
 
   const transform = context.startHandle.transform;
   const localPointer = worldToLocal(action.newWorld, transform);
-  const startLocal = context.startHandle.local ?? worldToLocal(context.startHandle.world, transform);
-  const oppositeLocal = context.oppositeHandle.local ?? worldToLocal(context.oppositeHandle.world, transform);
+  const startLocal = isFrameLocalCoordinateEditHandle(context.startHandle)
+    ? context.startHandle.local
+    : worldToLocal(context.startHandle.world, transform);
+  const oppositeLocal = isFrameLocalCoordinateEditHandle(context.oppositeHandle)
+    ? context.oppositeHandle.local
+    : worldToLocal(context.oppositeHandle.world, transform);
   if (!localPointer || !startLocal || !oppositeLocal) {
     return { kind: "unsupported", reason: "Could not resolve local geometry for rectangle resize." };
   }
@@ -815,11 +821,11 @@ function applyResizePathRectangle(
   const startUsesMinX = startLocal.x <= oppositeLocal.x;
   const startUsesMinY = startLocal.y <= oppositeLocal.y;
 
-  const nextStartLocal: Point = {
+  const nextStartLocal: FrameLocalPoint = {
     x: startUsesMinX ? minX : maxX,
     y: startUsesMinY ? minY : maxY
   };
-  const nextOppositeLocal: Point = {
+  const nextOppositeLocal: FrameLocalPoint = {
     x: startUsesMinX ? maxX : minX,
     y: startUsesMinY ? maxY : minY
   };
@@ -828,17 +834,16 @@ function applyResizePathRectangle(
   const nextOppositeWorld = applyMatrix(transform, nextOppositeLocal);
   let oppositeRewriteHandle = context.oppositeHandle;
   if (
-    oppositeRewriteHandle.rewriteMode === "delta" &&
-    oppositeRewriteHandle.relativeBaseWorld &&
-    pointDistanceSquared(oppositeRewriteHandle.relativeBaseWorld, context.startHandle.world) <= 1e-6
+    isRelativeCoordinateEditHandle(oppositeRewriteHandle) &&
+    pointDistanceSquared(oppositeRewriteHandle.relativeBase, context.startHandle.world) <= 1e-6
   ) {
     oppositeRewriteHandle = {
       ...oppositeRewriteHandle,
-      relativeBaseWorld: nextStartWorld
+      relativeBase: nextStartWorld
     };
   }
 
-  const rewriteTargets: Array<{ handle: EditHandle; newWorld: Point }> = [
+  const rewriteTargets: Array<{ handle: EditHandle; newWorld: WorldPoint }> = [
     { handle: context.startHandle, newWorld: nextStartWorld },
     { handle: oppositeRewriteHandle, newWorld: nextOppositeWorld }
   ];
@@ -1020,7 +1025,9 @@ function applyResizePathCircleOrEllipse(
 
   const localPointer = worldToLocal(action.newWorld, context.centerHandle.transform);
   const localCenter =
-    context.centerHandle.local ?? worldToLocal(context.center, context.centerHandle.transform);
+    isFrameLocalCoordinateEditHandle(context.centerHandle)
+      ? context.centerHandle.local
+      : worldToLocal(context.center, context.centerHandle.transform);
   if (!localPointer || !localCenter) {
     return { kind: "unsupported", reason: "Could not resolve local geometry for circle/ellipse resize." };
   }
@@ -1142,7 +1149,7 @@ function resolvePathShapeResizeContext(
   );
 
   let shapeKind: "circle" | "ellipse" | null = null;
-  let center: Point | null = null;
+  let center: WorldPoint | null = null;
   let requireSingleCenterHandle = false;
 
   if (explicitShapeElements.length === 1 && nonTextElements.length === 1) {
@@ -1458,9 +1465,9 @@ function applySpanTextReplacement(
 }
 
 function resolveRectangleRoleCorners(
-  startLocal: Point,
-  oppositeLocal: Point
-): Record<RectangleCornerRole, Point> {
+  startLocal: FrameLocalPoint,
+  oppositeLocal: FrameLocalPoint
+): Record<RectangleCornerRole, FrameLocalPoint> {
   const minX = Math.min(startLocal.x, oppositeLocal.x);
   const maxX = Math.max(startLocal.x, oppositeLocal.x);
   const minY = Math.min(startLocal.y, oppositeLocal.y);
@@ -1491,7 +1498,7 @@ function oppositeRectangleCornerRole(role: RectangleCornerRole): RectangleCorner
   }
 }
 
-function pointDistanceSquared(left: Point, right: Point): number {
+function pointDistanceSquared(left: WorldPoint, right: WorldPoint): number {
   const dx = left.x - right.x;
   const dy = left.y - right.y;
   return dx * dx + dy * dy;
@@ -1826,9 +1833,9 @@ function resolveTargetMinimumDimensions(target: PropertyTarget): {
 }
 
 function worldVectorToLocal(
-  vector: Point,
+  vector: WorldPoint,
   linearTransform: { a: number; b: number; c: number; d: number }
-): Point {
+): FrameLocalPoint {
   const matrix = {
     ...linearTransform,
     e: 0,

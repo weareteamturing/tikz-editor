@@ -1,3 +1,4 @@
+import type { WorldPoint } from "../../coords/points.js";
 import type { EdgeOperationItem, PathStatement } from "../../ast/types.js";
 import {
   readNamedCoordinate,
@@ -6,7 +7,7 @@ import {
   writeNamedCoordinate,
   type SemanticContext
 } from "../context.js";
-import type { Point, ResolvedStyle, SceneElement, TreeChildInfo } from "../types.js";
+import type { ResolvedStyle, SceneElement, TreeChildInfo } from "../types.js";
 import type { StyleTraceLayerInput } from "../style-chain.js";
 import { pointAtPlacementSegment, resolveNodePositionFraction } from "../nodes/placement.js";
 import { parseCoordinateOperation } from "./parsers.js";
@@ -61,7 +62,7 @@ function absolutizeTreeChildSpan(
   };
 }
 
-export type TreeParentCandidate = { nameRaw: string | null; point: Point; span: { from: number; to: number } } | null;
+export type TreeParentCandidate = { nameRaw: string | null; point: WorldPoint; span: { from: number; to: number } } | null;
 
 export function handleChildOperationCluster(params: {
   statement: PathStatement;
@@ -69,7 +70,7 @@ export function handleChildOperationCluster(params: {
   treeParentCandidate: TreeParentCandidate;
   treeFrameState: SemanticContext["stack"][number];
   context: SemanticContext;
-  defaultPathOrigin: Point;
+  defaultPathOrigin: WorldPoint;
   drawEdgeOptions: ReturnType<typeof import("../style/resolve.js").parseStyleValueAsOptionList>;
   edgeFromParentStyleOptions: ReturnType<typeof import("../style/resolve.js").parseStyleValueAsOptionList>;
   markFeature: FeatureMarkFn;
@@ -84,7 +85,7 @@ export function handleChildOperationCluster(params: {
     options?: { honorInitialCurrentPoint?: boolean }
   ) => SceneElement[];
   frontNodeElements: SceneElement[];
-  evaluateRawCoordinateWorld: (rawCoordinate: string) => Point | null;
+  evaluateRawCoordinateWorld: (rawCoordinate: string) => WorldPoint | null;
 }): { consumed: number; treeParentCandidate: TreeParentCandidate } {
   const {
     statement,

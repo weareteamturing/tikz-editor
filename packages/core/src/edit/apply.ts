@@ -1,6 +1,7 @@
 import type { ParseTikzResult } from "../parser/index.js";
 import type { CoordinateItem, NodeItem, PathItem, Statement } from "../ast/types.js";
-import type { EditHandle, Point } from "../semantic/types.js";
+import type { EditHandle } from "../semantic/types.js";
+import type { WorldPoint } from "../coords/points.js";
 import type { ApplyEditResult, EditIntent, EditIntentResult, TikzEdit } from "./types.js";
 import { replaceSpan } from "./patch.js";
 import { formatCoordinate } from "./style.js";
@@ -170,7 +171,7 @@ function applyMoveIntent(
 function applyCurveEditMoveIntent(
   source: string,
   handle: EditHandle,
-  newWorld: Point,
+  newWorld: WorldPoint,
   parseOptions: EditParseOptions = {}
 ): EditIntentResult {
   const curveEdit = handle.curveEdit;
@@ -216,7 +217,7 @@ function applyCurveEditMoveIntent(
 
 function buildCurveEditMutations(
   curveEdit: NonNullable<EditHandle["curveEdit"]>,
-  newWorld: Point
+  newWorld: WorldPoint
 ): Map<string, OptionMutation> {
   if (curveEdit.kind === "to-angle") {
     const anchor = curveEdit.role === "out" ? curveEdit.startWorld : curveEdit.endWorld;
@@ -254,7 +255,7 @@ function buildCurveEditMutations(
   return mutations;
 }
 
-function angleDegrees(from: Point, to: Point): number {
+function angleDegrees(from: WorldPoint, to: WorldPoint): number {
   return (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI;
 }
 
@@ -262,7 +263,7 @@ function formatInteger(value: number): string {
   return formatNumber(Math.trunc(value));
 }
 
-function signedBendAngleFromHandle(start: Point, end: Point, handleWorld: Point): number {
+function signedBendAngleFromHandle(start: WorldPoint, end: WorldPoint, handleWorld: WorldPoint): number {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const length = Math.hypot(dx, dy);

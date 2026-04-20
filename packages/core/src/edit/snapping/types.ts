@@ -1,12 +1,15 @@
-import type { Bounds, Point, SceneElement } from "../../semantic/types.js";
+import { px } from "../../coords/scalars.js";
+import type { Px } from "../../coords/scalars.js";
+import type { WorldBounds, WorldPoint } from "../../coords/points.js";
+import type { SceneElement } from "../../semantic/types.js";
 
 export type Axis = "x" | "y";
 
 export type SnapSettings = {
-  thresholdPx: number;
+  thresholdPx: Px;
   grid: {
     enabled: boolean;
-    minorTargetPx: number;
+    minorTargetPx: Px;
   };
   points: {
     enabled: boolean;
@@ -16,16 +19,16 @@ export type SnapSettings = {
     maxPairsPerAxis: number;
   };
   bypassWithCtrlOrMeta: boolean;
-  viewportPaddingPx: number;
+  viewportPaddingPx: Px;
 };
 
 export const GRID_MINOR_TARGET_PX = 22;
 
 export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
-  thresholdPx: 8,
+  thresholdPx: px(8),
   grid: {
     enabled: true,
-    minorTargetPx: GRID_MINOR_TARGET_PX
+    minorTargetPx: px(GRID_MINOR_TARGET_PX)
   },
   points: {
     enabled: true
@@ -35,36 +38,36 @@ export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
     maxPairsPerAxis: 100000
   },
   bypassWithCtrlOrMeta: true,
-  viewportPaddingPx: 12
+  viewportPaddingPx: px(12)
 };
 
 export type SnapSettingsPatch = {
-  thresholdPx?: number;
+  thresholdPx?: Px;
   grid?: Partial<SnapSettings["grid"]>;
   points?: Partial<SnapSettings["points"]>;
   gaps?: Partial<SnapSettings["gaps"]>;
   bypassWithCtrlOrMeta?: boolean;
-  viewportPaddingPx?: number;
+  viewportPaddingPx?: Px;
 };
 
 export type SnapModifiers = {
   ctrlOrMeta: boolean;
 };
 
-export type SnapPoint = Point & {
+export type SnapPoint = WorldPoint & {
   sourceId: string;
   role: "corner" | "center";
 };
 
-export type SnapBounds = Bounds & {
+export type SnapBounds = WorldBounds & {
   sourceId: string;
 };
 
 export type Gap = {
   startBounds: SnapBounds;
   endBounds: SnapBounds;
-  startSide: [Point, Point];
-  endSide: [Point, Point];
+  startSide: [WorldPoint, WorldPoint];
+  endSide: [WorldPoint, WorldPoint];
   overlap: [number, number];
   length: number;
 };
@@ -81,7 +84,7 @@ export type SnapGuideInput = {
 
 export type SnapContext = {
   zoom: number;
-  viewportWorld: Bounds | null;
+  viewportWorld: WorldBounds | null;
   selectedSourceIds: string[];
   guides: SnapGuides;
   referencePoints: SnapPoint[];
@@ -94,32 +97,32 @@ export type SnapContext = {
 };
 
 export type SnapLine =
-  | { type: "points"; axis: Axis; points: Point[] }
+  | { type: "points"; axis: Axis; points: WorldPoint[] }
   | {
       type: "gap";
       direction: "horizontal" | "vertical";
       gapKind: "center" | "equal";
-      segments: Array<[Point, Point]>;
+      segments: Array<[WorldPoint, WorldPoint]>;
     }
-  | { type: "pointer"; axis: Axis; from: Point; to: Point };
+  | { type: "pointer"; axis: Axis; from: WorldPoint; to: WorldPoint };
 
 export type SnapResult = {
-  offset: Point;
-  snappedPoint?: Point;
-  snappedDelta?: Point;
+  offset: WorldPoint;
+  snappedPoint?: WorldPoint;
+  snappedDelta?: WorldPoint;
   lines: SnapLine[];
 };
 
 export type SelectionGeometry = {
-  bounds: Bounds;
-  snapPoints: Point[];
+  bounds: WorldBounds;
+  snapPoints: WorldPoint[];
 };
 
 export type BuildSnapContextInput = {
   sceneElements: SceneElement[];
   selectedSourceIds: readonly string[];
   zoom: number;
-  viewportWorld?: Bounds | null;
+  viewportWorld?: WorldBounds | null;
   guides?: SnapGuideInput;
   settings?: SnapSettingsPatch;
 };
@@ -127,7 +130,7 @@ export type BuildSnapContextInput = {
 export type SnapSelectionTranslationInput = {
   context: SnapContext;
   selection: SelectionGeometry;
-  rawDelta: Point;
+  rawDelta: WorldPoint;
   modifiers?: SnapModifiers;
   settings?: SnapSettingsPatch;
   enabledAxis?: Axis | null;
@@ -135,7 +138,7 @@ export type SnapSelectionTranslationInput = {
 
 export type SnapHandlePositionInput = {
   context: SnapContext;
-  point: Point;
+  point: WorldPoint;
   sourceId?: string;
   allowSelfSnap?: boolean;
   modifiers?: SnapModifiers;
@@ -143,7 +146,7 @@ export type SnapHandlePositionInput = {
 };
 
 export type SnapKeyboardNudgeInput = {
-  anchor: Point | null;
+  anchor: WorldPoint | null;
   axis: Axis;
   direction: -1 | 1;
   step: number;
@@ -153,9 +156,9 @@ export type SnapToolPointerKind = "node" | "line-end" | "rect-corner" | "circle-
 
 export type SnapToolPointerInput = {
   context: SnapContext;
-  pointer: Point;
+  pointer: WorldPoint;
   kind: SnapToolPointerKind;
-  anchor?: Point;
+  anchor?: WorldPoint;
   modifiers?: SnapModifiers;
   settings?: SnapSettingsPatch;
 };
@@ -163,8 +166,8 @@ export type SnapToolPointerInput = {
 export type PointSnapCandidate = {
   kind: "point" | "grid" | "guide";
   axis: Axis;
-  from: Point;
-  to: Point;
+  from: WorldPoint;
+  to: WorldPoint;
   offset: number;
   key: number;
 };

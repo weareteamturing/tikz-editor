@@ -1,9 +1,10 @@
 import type { EditAction } from "tikz-editor/edit/actions";
-import type { NodeAnchorTarget, Point } from "tikz-editor/semantic/types";
+import type { NodeAnchorTarget } from "tikz-editor/semantic/types";
+import type { WorldPoint } from "../coords/types";
 
 export function resolveHandleDragAction(input: {
   handleId: string;
-  newWorld: Point;
+  newWorld: WorldPoint;
   activeEndpointAnchor: NodeAnchorTarget | null;
 }): EditAction {
   if (input.activeEndpointAnchor) {

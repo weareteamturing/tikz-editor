@@ -1,5 +1,4 @@
 import type {
-  Matrix2D,
   ResolvedPattern,
   ResolvedStyle,
   SceneClipPath,
@@ -8,13 +7,17 @@ import type {
   ScenePathCommand,
   ShadowLayer
 } from "../semantic/types.js";
+import type { SvgBounds, SvgPoint, WorldPoint } from "../coords/points.js";
+import type { SvgTransform, WorldTransform } from "../coords/transforms.js";
+import { worldToSvgPoint as convertWorldToSvgPoint, worldToSvgTransform as convertWorldToSvgTransform } from "../coords/svg.js";
 import { COLOR_HEX } from "../semantic/style/constants.js";
 import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../semantic/types.js";
 import { renderPathWithArrows } from "./arrows/render.js";
+import { computeSvgEllipseBounds, computeSvgPathBounds, transformSvgBounds } from "./geometry.js";
 import type { RenderedArrowTipPath } from "./arrows/types.js";
 import { createSvgModelBuilder, serializeSvgModel } from "./model.js";
 import { computeViewBox } from "./viewbox.js";
-import type { EmitSvgOptions, EmitSvgResult, SvgRenderModel, SvgRenderPart } from "./types.js";
+import type { EmitSvgOptions, EmitSvgResult, SvgRenderModel, SvgRenderPart, SvgViewBox } from "./types.js";
 
 type ShadowRenderableStyle = Pick<
   ResolvedStyle,
@@ -49,13 +52,6 @@ type ShadowRenderableStyle = Pick<
 >;
 
 type PatternRenderableStyle = Pick<ResolvedStyle, "fill" | "fillPattern" | "patternColor">;
-
-type ElementBounds = {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-};
 
 type ShadingTransform = {
   centerX: number;
@@ -186,7 +182,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     return wrapped;
   };
 
-  const resolveShadingFill = (style: ShadowRenderableStyle, sourceId: string, bounds: ElementBounds | null): string | null => {
+  const resolveShadingFill = (style: ShadowRenderableStyle, sourceId: string, bounds: SvgBounds | null): string | null => {
     if (!style.shadeEnabled) {
       return null;
     }
@@ -266,7 +262,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     return `url(#${id})`;
   };
 
-  const resolveFillPaint = (style: ShadowRenderableStyle, sourceId: string, bounds: ElementBounds | null): string | null => {
+  const resolveFillPaint = (style: ShadowRenderableStyle, sourceId: string, bounds: SvgBounds | null): string | null => {
     return resolveShadingFill(style, sourceId, bounds) ?? resolvePatternFill(style);
   };
 
@@ -276,7 +272,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     for (const clipPath of element.clipChain ?? []) {
       ensureClipPathDefinition(clipPath);
     }
-    let elementBounds: ElementBounds | null = null;
+    let elementBounds: SvgBounds | null = null;
     const svgElementTransform = element.transform ? worldTransformToSvgTransform(element.transform, viewBox) : null;
     if (element.kind === "Path") {
       if (!hasDrawablePathCommands(element.commands)) {
@@ -290,9 +286,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
       if (d.length === 0) {
         return;
       }
-      elementBounds = computePathBounds(renderedPath.shaftCommands, viewBox);
+      elementBounds = computeSvgPathBounds(renderedPath.shaftCommands, viewBox);
       if (elementBounds && svgElementTransform) {
-        elementBounds = transformBounds(elementBounds, svgElementTransform);
+        elementBounds = transformSvgBounds(elementBounds, svgElementTransform);
       }
     } else if (element.kind === "Circle") {
       const center = toSvgPoint(element.center, viewBox);
@@ -303,13 +299,13 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         maxY: center.y + element.radius
       };
       if (svgElementTransform) {
-        elementBounds = transformBounds(elementBounds, svgElementTransform);
+        elementBounds = transformSvgBounds(elementBounds, svgElementTransform);
       }
     } else if (element.kind === "Ellipse") {
       const center = toSvgPoint(element.center, viewBox);
-      elementBounds = computeEllipseBounds(center.x, center.y, element.rx, element.ry, element.rotation ?? 0);
+      elementBounds = computeSvgEllipseBounds(center.x, center.y, element.rx, element.ry, element.rotation ?? 0);
       if (svgElementTransform) {
-        elementBounds = transformBounds(elementBounds, svgElementTransform);
+        elementBounds = transformSvgBounds(elementBounds, svgElementTransform);
       }
     } else if (element.kind === "Text") {
       return;
@@ -348,11 +344,11 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         const d = encodePathData(renderedPath.shaftCommands, viewBox);
         if (d.length > 0) {
           const svgElementTransform = element.transform ? worldTransformToSvgTransform(element.transform, viewBox) : null;
-          const rawPathBounds = computePathBounds(renderedPath.shaftCommands, viewBox);
+          const rawPathBounds = computeSvgPathBounds(renderedPath.shaftCommands, viewBox);
           if (!rawPathBounds) {
             continue;
           }
-          const pathBounds = svgElementTransform ? transformBounds(rawPathBounds, svgElementTransform) : rawPathBounds;
+          const pathBounds = svgElementTransform ? transformSvgBounds(rawPathBounds, svgElementTransform) : rawPathBounds;
           emitShadowPathPart({
             appendPart,
             sourceId: element.sourceRef.sourceId,
@@ -437,13 +433,13 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     if (element.kind === "Circle") {
       const center = toSvgPoint(element.center, viewBox);
       const svgElementTransform = element.transform ? worldTransformToSvgTransform(element.transform, viewBox) : null;
-      const circleBounds: ElementBounds = {
+      const circleBounds: SvgBounds = {
         minX: center.x - element.radius,
         minY: center.y - element.radius,
         maxX: center.x + element.radius,
         maxY: center.y + element.radius
       };
-      const transformedCircleBounds = svgElementTransform ? transformBounds(circleBounds, svgElementTransform) : circleBounds;
+      const transformedCircleBounds = svgElementTransform ? transformSvgBounds(circleBounds, svgElementTransform) : circleBounds;
       emitShadowCircle({
         appendPart,
         sourceId: element.sourceRef.sourceId,
@@ -507,8 +503,8 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     if (element.kind === "Ellipse") {
       const center = toSvgPoint(element.center, viewBox);
       const svgElementTransform = element.transform ? worldTransformToSvgTransform(element.transform, viewBox) : null;
-      const ellipseBounds = computeEllipseBounds(center.x, center.y, element.rx, element.ry, element.rotation ?? 0);
-      const transformedEllipseBounds = svgElementTransform ? transformBounds(ellipseBounds, svgElementTransform) : ellipseBounds;
+      const ellipseBounds = computeSvgEllipseBounds(center.x, center.y, element.rx, element.ry, element.rotation ?? 0);
+      const transformedEllipseBounds = svgElementTransform ? transformSvgBounds(ellipseBounds, svgElementTransform) : ellipseBounds;
       emitShadowEllipse({
         appendPart,
         sourceId: element.sourceRef.sourceId,
@@ -716,10 +712,10 @@ function emitShadowPathPart(args: {
   sourceId: string;
   elementId: string | null;
   d: string;
-  bounds: ElementBounds | null;
+  bounds: SvgBounds | null;
   shadowLayers: ShadowLayer[];
   baseStyle: ResolvedStyle;
-  resolveFillPaint: (style: ShadowRenderableStyle, sourceId: string, bounds: ElementBounds | null) => string | null;
+  resolveFillPaint: (style: ShadowRenderableStyle, sourceId: string, bounds: SvgBounds | null) => string | null;
   ensureCircularShadowMaskDefinition: () => string;
 }): void {
   for (let index = 0; index < args.shadowLayers.length; index += 1) {
@@ -767,10 +763,10 @@ function emitShadowCircle(args: {
   cx: number;
   cy: number;
   radius: number;
-  bounds: ElementBounds | null;
+  bounds: SvgBounds | null;
   shadowLayers: ShadowLayer[];
   baseStyle: ResolvedStyle;
-  resolveFillPaint: (style: ShadowRenderableStyle, sourceId: string, bounds: ElementBounds | null) => string | null;
+  resolveFillPaint: (style: ShadowRenderableStyle, sourceId: string, bounds: SvgBounds | null) => string | null;
   ensureCircularShadowMaskDefinition: () => string;
 }): void {
   for (let index = 0; index < args.shadowLayers.length; index += 1) {
@@ -826,10 +822,10 @@ function emitShadowEllipse(args: {
   rx: number;
   ry: number;
   rotation: number;
-  bounds: ElementBounds | null;
+  bounds: SvgBounds | null;
   shadowLayers: ShadowLayer[];
   baseStyle: ResolvedStyle;
-  resolveFillPaint: (style: ShadowRenderableStyle, sourceId: string, bounds: ElementBounds | null) => string | null;
+  resolveFillPaint: (style: ShadowRenderableStyle, sourceId: string, bounds: SvgBounds | null) => string | null;
   ensureCircularShadowMaskDefinition: () => string;
 }): void {
   for (let index = 0; index < args.shadowLayers.length; index += 1) {
@@ -908,7 +904,7 @@ function shadowGroupAttributes(
   return attrs;
 }
 
-function shadowTransformMatrix(layer: ShadowLayer, bounds: ElementBounds | null): string | null {
+function shadowTransformMatrix(layer: ShadowLayer, bounds: SvgBounds | null): string | null {
   const scale = Number.isFinite(layer.scale) ? layer.scale : 1;
   const dx = Number.isFinite(layer.xshift) ? layer.xshift : 0;
   const dy = Number.isFinite(layer.yshift) ? -layer.yshift : 0;
@@ -927,175 +923,6 @@ function shadowTransformMatrix(layer: ShadowLayer, bounds: ElementBounds | null)
   }
 
   return `matrix(${fmt(scale)} 0 0 ${fmt(scale)} ${fmt(e)} ${fmt(f)})`;
-}
-
-function computePathBounds(commands: ScenePathCommand[], viewBox: { y: number; height: number }): ElementBounds | null {
-  let minX = Number.POSITIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  let maxX = Number.NEGATIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
-  let previous: { x: number; y: number } | null = null;
-
-  const includePoint = (point: { x: number; y: number }) => {
-    minX = Math.min(minX, point.x);
-    minY = Math.min(minY, point.y);
-    maxX = Math.max(maxX, point.x);
-    maxY = Math.max(maxY, point.y);
-  };
-
-  for (const command of commands) {
-    if (command.kind === "Z") {
-      continue;
-    }
-
-    if (command.kind === "C") {
-      const c1 = toSvgPoint(command.c1, viewBox);
-      const c2 = toSvgPoint(command.c2, viewBox);
-      includePoint(c1);
-      includePoint(c2);
-    }
-
-    if (command.kind === "A") {
-      const to = toSvgPoint(command.to, viewBox);
-      if (previous) {
-        includeSvgArcBounds({
-          start: previous,
-          end: to,
-          rx: command.rx,
-          ry: command.ry,
-          xAxisRotation: -command.xAxisRotation,
-          largeArc: command.largeArc,
-          // Path points are mirrored into SVG space (`toSvgPoint`), so arc sweep must be mirrored too.
-          sweep: command.sweep ? 0 : 1,
-          includePoint
-        });
-      } else {
-        includePoint(to);
-      }
-      previous = to;
-      continue;
-    }
-
-    const point = toSvgPoint(command.to, viewBox);
-    includePoint(point);
-    previous = point;
-  }
-
-  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
-    return null;
-  }
-
-  return { minX, minY, maxX, maxY };
-}
-
-function includeSvgArcBounds(args: {
-  start: { x: number; y: number };
-  end: { x: number; y: number };
-  rx: number;
-  ry: number;
-  xAxisRotation: number;
-  largeArc: boolean;
-  sweep: 0 | 1;
-  includePoint: (point: { x: number; y: number }) => void;
-}): void {
-  const { start, end, xAxisRotation, largeArc, sweep, includePoint } = args;
-  let rx = Math.abs(args.rx);
-  let ry = Math.abs(args.ry);
-  includePoint(start);
-  includePoint(end);
-  if (!Number.isFinite(rx) || !Number.isFinite(ry) || rx <= 1e-9 || ry <= 1e-9) {
-    return;
-  }
-
-  const phi = (xAxisRotation * Math.PI) / 180;
-  const cosPhi = Math.cos(phi);
-  const sinPhi = Math.sin(phi);
-  const dx2 = (start.x - end.x) / 2;
-  const dy2 = (start.y - end.y) / 2;
-  const x1p = cosPhi * dx2 + sinPhi * dy2;
-  const y1p = -sinPhi * dx2 + cosPhi * dy2;
-
-  const lambda = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry);
-  if (lambda > 1) {
-    const scale = Math.sqrt(lambda);
-    rx *= scale;
-    ry *= scale;
-  }
-
-  const rx2 = rx * rx;
-  const ry2 = ry * ry;
-  const numerator = rx2 * ry2 - rx2 * y1p * y1p - ry2 * x1p * x1p;
-  const denominator = rx2 * y1p * y1p + ry2 * x1p * x1p;
-  const factor = denominator <= 1e-12 ? 0 : Math.sqrt(Math.max(0, numerator / denominator));
-  const sign = largeArc === Boolean(sweep) ? -1 : 1;
-  const cxp = sign * factor * ((rx * y1p) / ry);
-  const cyp = sign * factor * ((-ry * x1p) / rx);
-  const cx = cosPhi * cxp - sinPhi * cyp + (start.x + end.x) / 2;
-  const cy = sinPhi * cxp + cosPhi * cyp + (start.y + end.y) / 2;
-
-  const ux = (x1p - cxp) / rx;
-  const uy = (y1p - cyp) / ry;
-  const vx = (-x1p - cxp) / rx;
-  const vy = (-y1p - cyp) / ry;
-  const theta1 = Math.atan2(uy, ux);
-  let deltaTheta = Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy);
-  if (sweep === 0 && deltaTheta > 0) {
-    deltaTheta -= Math.PI * 2;
-  } else if (sweep === 1 && deltaTheta < 0) {
-    deltaTheta += Math.PI * 2;
-  }
-
-  const candidates = [
-    Math.atan2(-ry * sinPhi, rx * cosPhi),
-    Math.atan2(-ry * sinPhi, rx * cosPhi) + Math.PI,
-    Math.atan2(ry * cosPhi, rx * sinPhi),
-    Math.atan2(ry * cosPhi, rx * sinPhi) + Math.PI
-  ];
-
-  for (const angle of candidates) {
-    if (!isAngleOnArc(angle, theta1, deltaTheta)) {
-      continue;
-    }
-    const cosT = Math.cos(angle);
-    const sinT = Math.sin(angle);
-    includePoint({
-      x: cx + rx * cosPhi * cosT - ry * sinPhi * sinT,
-      y: cy + rx * sinPhi * cosT + ry * cosPhi * sinT
-    });
-  }
-}
-
-function isAngleOnArc(angle: number, startAngle: number, deltaAngle: number): boolean {
-  const tau = Math.PI * 2;
-  const normalize = (value: number): number => {
-    let normalized = value % tau;
-    if (normalized < 0) {
-      normalized += tau;
-    }
-    return normalized;
-  };
-
-  const epsilon = 1e-9;
-  if (deltaAngle >= 0) {
-    const distance = normalize(angle - startAngle);
-    return distance <= deltaAngle + epsilon;
-  }
-  const distance = normalize(startAngle - angle);
-  return distance <= -deltaAngle + epsilon;
-}
-
-function computeEllipseBounds(cx: number, cy: number, rx: number, ry: number, rotation: number): ElementBounds {
-  const theta = (rotation * Math.PI) / 180;
-  const cos = Math.cos(theta);
-  const sin = Math.sin(theta);
-  const extentX = Math.sqrt(rx * rx * cos * cos + ry * ry * sin * sin);
-  const extentY = Math.sqrt(rx * rx * sin * sin + ry * ry * cos * cos);
-  return {
-    minX: cx - extentX,
-    maxX: cx + extentX,
-    minY: cy - extentY,
-    maxY: cy + extentY
-  };
 }
 
 function renderCircularShadowMaskDefinition(maskId: string, gradientId: string): string {
@@ -1137,7 +964,7 @@ function normalizeShadingName(raw: string): string {
   return raw.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-function computeShadingTransform(bounds: ElementBounds, angle: number): ShadingTransform | null {
+function computeShadingTransform(bounds: SvgBounds, angle: number): ShadingTransform | null {
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
@@ -1665,59 +1492,19 @@ function shouldEmitDoubleStroke(style: {
   return style.doubleStroke && style.stroke != null && style.stroke !== "none" && style.doubleDistance > 0;
 }
 
-function toSvgPoint(point: { x: number; y: number }, viewBox: { y: number; height: number }): { x: number; y: number } {
-  return {
-    x: point.x,
-    y: viewBox.y + viewBox.height - (point.y - viewBox.y)
-  };
+function toSvgPoint(point: WorldPoint, viewBox: Pick<SvgViewBox, "y" | "height">): SvgPoint {
+  return convertWorldToSvgPoint(point, viewBox);
 }
 
 function worldTransformToSvgTransform(
-  matrix: Matrix2D,
+  matrix: WorldTransform,
   viewBox: { y: number; height: number }
-): Matrix2D {
-  const k = viewBox.y + viewBox.height + viewBox.y;
-  const flip: Matrix2D = { a: 1, b: 0, c: 0, d: -1, e: 0, f: k };
-  return multiplyAffine(multiplyAffine(flip, matrix), flip);
+): SvgTransform {
+  return convertWorldToSvgTransform(matrix, viewBox);
 }
 
-function multiplyAffine(left: Matrix2D, right: Matrix2D): Matrix2D {
-  return {
-    a: left.a * right.a + left.c * right.b,
-    b: left.b * right.a + left.d * right.b,
-    c: left.a * right.c + left.c * right.d,
-    d: left.b * right.c + left.d * right.d,
-    e: left.a * right.e + left.c * right.f + left.e,
-    f: left.b * right.e + left.d * right.f + left.f
-  };
-}
-
-function formatMatrix(matrix: Matrix2D): string {
+function formatMatrix(matrix: SvgTransform): string {
   return `matrix(${fmt(matrix.a)} ${fmt(matrix.b)} ${fmt(matrix.c)} ${fmt(matrix.d)} ${fmt(matrix.e)} ${fmt(matrix.f)})`;
-}
-
-function transformBounds(bounds: ElementBounds, transform: Matrix2D): ElementBounds {
-  const corners = [
-    { x: bounds.minX, y: bounds.minY },
-    { x: bounds.maxX, y: bounds.minY },
-    { x: bounds.maxX, y: bounds.maxY },
-    { x: bounds.minX, y: bounds.maxY }
-  ];
-  let minX = Number.POSITIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  let maxX = Number.NEGATIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
-  for (const point of corners) {
-    const mapped = {
-      x: transform.a * point.x + transform.c * point.y + transform.e,
-      y: transform.b * point.x + transform.d * point.y + transform.f
-    };
-    minX = Math.min(minX, mapped.x);
-    minY = Math.min(minY, mapped.y);
-    maxX = Math.max(maxX, mapped.x);
-    maxY = Math.max(maxY, mapped.y);
-  }
-  return { minX, minY, maxX, maxY };
 }
 
 function fmt(value: number): string {

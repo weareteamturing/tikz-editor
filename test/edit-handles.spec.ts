@@ -179,9 +179,9 @@ describe("edit handles", () => {
     // local is the delta vector (1,0)
     expect(h1.local?.x).toBeCloseTo(cm(1));
     expect(h1.local?.y).toBeCloseTo(0);
-    // relativeBaseWorld is the current point at time of evaluation = (1,2)
-    expect(h1.relativeBaseWorld?.x).toBeCloseTo(cm(1));
-    expect(h1.relativeBaseWorld?.y).toBeCloseTo(cm(2));
+    // relativeBase is the current point at time of evaluation = (1,2)
+    expect(h1.relativeBase?.x).toBeCloseTo(cm(1));
+    expect(h1.relativeBase?.y).toBeCloseTo(cm(2));
   });
 
   it("named: handles with unsupported rewrite mode", () => {

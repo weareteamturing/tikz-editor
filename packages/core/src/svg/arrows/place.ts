@@ -1,4 +1,5 @@
-import type { Point, ScenePathCommand } from "../../semantic/types.js";
+import type { ArrowLocalPoint } from "../../coords/points.js";
+import type { ScenePathCommand } from "../../semantic/types.js";
 import { addPoint, scaleVector } from "../../geometry/path-sampler.js";
 import type { Frame } from "./types.js";
 
@@ -21,7 +22,7 @@ export function placeLocalPathsBent(localPaths: ScenePathCommand[][], offset: nu
   );
 }
 
-function transformLocalPath(path: ScenePathCommand[], mapPoint: (point: Point) => Point): ScenePathCommand[] {
+function transformLocalPath(path: ScenePathCommand[], mapPoint: (point: ArrowLocalPoint) => ArrowLocalPoint): ScenePathCommand[] {
   return path.map((command) => {
     if (command.kind === "Z") {
       return { kind: "Z" };

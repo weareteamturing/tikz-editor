@@ -1,12 +1,19 @@
 import { Fragment, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactElement } from "react";
-import type { EditHandle, Point } from "tikz-editor/semantic/types";
+import type { EditHandle } from "tikz-editor/semantic/types";
+import type { WorldPoint } from "../coords/types";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import type { SnapLine } from "tikz-editor/edit/snapping";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 import type { ToolMode } from "../../store/types";
 import type { HitRegion } from "./hit-regions";
 import type { CurveControlLine } from "./curve-controls";
-import type { NodeAnchorOverlayState } from "./types";
+import type {
+  AdornmentConnectorDisplay,
+  AdornmentHighlightBox,
+  HandleDisplay,
+  NodeAnchorOverlayState,
+  SelectionBoxDisplay
+} from "./types";
 import { fmt, worldToSvgPoint } from "./geometry";
 import css from "../CanvasPanel.module.css";
 
@@ -43,74 +50,6 @@ type ToolPreview =
   | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number }
   | { kind: "circle"; cx: number; cy: number; r: number }
   | { kind: "path"; d: string };
-
-type HandleDisplay =
-  | {
-      key: string;
-      x: number;
-      y: number;
-      cursor: string;
-      kind: "move-handle";
-      handle: EditHandle;
-    }
-  | {
-      key: string;
-      x: number;
-      y: number;
-      cursor: string;
-      kind: "move-element";
-      elementId: string;
-    }
-  | {
-      key: string;
-      x: number;
-      y: number;
-      cursor: string;
-      kind: "resize-element";
-      elementId: string;
-      role: ResizeRole;
-      rotationDeg: number;
-    }
-  | {
-      key: string;
-      x: number;
-      y: number;
-      anchorX: number;
-      anchorY: number;
-      centerWorld: Point;
-      cursor: string;
-      kind: "rotate-element";
-      elementId: string;
-    };
-
-type SelectionBoxDisplay =
-  | {
-      key: string;
-      sourceId: string;
-      isAdornment: boolean;
-      dashed?: boolean;
-      kind: "axis-aligned";
-      minX: number;
-      minY: number;
-      maxX: number;
-      maxY: number;
-    }
-  | {
-      key: string;
-      sourceId: string;
-      isAdornment: boolean;
-      dashed?: boolean;
-      kind: "polygon";
-      points: ReadonlyArray<{ x: number; y: number }>;
-    };
-
-type AdornmentHighlightBox = {
-  key: string;
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-};
 
 export function SnapOverlay({
   snapLines,
@@ -794,17 +733,10 @@ export function SelectionOverlay({
   adornmentConnectors,
   selectionStrokeWidth
 }: {
-  marqueeBounds: { minX: number; minY: number; maxX: number; maxY: number } | null;
+  marqueeBounds: AdornmentHighlightBox["bounds"] | null;
   selectionBoxes: ReadonlyArray<SelectionBoxDisplay>;
   adornmentHighlightBoxes: ReadonlyArray<AdornmentHighlightBox>;
-  adornmentConnectors: ReadonlyArray<{
-    key: string;
-    kind: "label" | "pin";
-    x1: number;
-    y1: number;
-    x2: number;
-    y2: number;
-  }>;
+  adornmentConnectors: ReadonlyArray<AdornmentConnectorDisplay>;
   selectionStrokeWidth: number;
 }) {
   return (
@@ -814,10 +746,10 @@ export function SelectionOverlay({
           <rect
             key={bounds.key}
             className={css.adornmentSelectionRect}
-            x={bounds.minX}
-            y={bounds.minY}
-            width={Math.max(0.001, bounds.maxX - bounds.minX)}
-            height={Math.max(0.001, bounds.maxY - bounds.minY)}
+            x={bounds.bounds.minX}
+            y={bounds.bounds.minY}
+            width={Math.max(0.001, bounds.bounds.maxX - bounds.bounds.minX)}
+            height={Math.max(0.001, bounds.bounds.maxY - bounds.bounds.minY)}
             strokeWidth={selectionStrokeWidth}
           />
         ))}
@@ -842,10 +774,10 @@ export function SelectionOverlay({
                   ? css.adornmentSelectionRect
                   : [css.selectionRect, bounds.dashed ? css.selectionRectDashed : ""].filter(Boolean).join(" ")
               }
-              x={bounds.minX}
-              y={bounds.minY}
-              width={Math.max(0.001, bounds.maxX - bounds.minX)}
-              height={Math.max(0.001, bounds.maxY - bounds.minY)}
+              x={bounds.bounds.minX}
+              y={bounds.bounds.minY}
+              width={Math.max(0.001, bounds.bounds.maxX - bounds.bounds.minX)}
+              height={Math.max(0.001, bounds.bounds.maxY - bounds.bounds.minY)}
               strokeWidth={selectionStrokeWidth}
               data-selection-overlay-box-source-id={bounds.sourceId}
             />
@@ -857,10 +789,10 @@ export function SelectionOverlay({
             className={
               connector.kind === "pin" ? css.pinSelectionConnector : css.labelSelectionConnector
             }
-            x1={connector.x1}
-            y1={connector.y1}
-            x2={connector.x2}
-            y2={connector.y2}
+            x1={connector.from.x}
+            y1={connector.from.y}
+            x2={connector.to.x}
+            y2={connector.to.y}
             strokeWidth={selectionStrokeWidth}
           />
         ))}
@@ -924,10 +856,10 @@ export function SelectionDragLayer({
           <rect
             key={`${bounds.key}:drag`}
             className={css.selectionDragStroke}
-            x={bounds.minX}
-            y={bounds.minY}
-            width={Math.max(0.001, bounds.maxX - bounds.minX)}
-            height={Math.max(0.001, bounds.maxY - bounds.minY)}
+            x={bounds.bounds.minX}
+            y={bounds.bounds.minY}
+            width={Math.max(0.001, bounds.bounds.maxX - bounds.bounds.minX)}
+            height={Math.max(0.001, bounds.bounds.maxY - bounds.bounds.minY)}
             strokeWidth={dragStrokeWidth}
             onPointerDown={(event) => onElementPointerDown(event, bounds.sourceId)}
             onContextMenu={(event) => onElementContextMenu(event, bounds.sourceId)}
@@ -969,7 +901,7 @@ export function HandleOverlay({
   onRotateHandlePointerDown: (
     event: ReactPointerEvent<SVGElement>,
     sourceId: string,
-    centerWorld: Point,
+    centerWorld: WorldPoint,
     cursor: string
   ) => void;
 }) {
@@ -1009,10 +941,10 @@ export function HandleOverlay({
             <g key={display.key}>
               <line
                 className={`${css.rotateHandleStem} ${rotateCursorClass}`}
-                x1={display.anchorX}
-                y1={display.anchorY}
-                x2={display.x}
-                y2={display.y}
+                x1={display.anchor.x}
+                y1={display.anchor.y}
+                x2={display.point.x}
+                y2={display.point.y}
                 strokeWidth={handleStrokeWidth}
                 onPointerDown={onPointerDown}
                 onContextMenu={onContextMenu}
@@ -1021,8 +953,8 @@ export function HandleOverlay({
               />
               <circle
                 className={`${css.handle} ${css.rotateHandleCircle} ${rotateCursorClass}`}
-                cx={display.x}
-                cy={display.y}
+                cx={display.point.x}
+                cy={display.point.y}
                 r={rotateRadius}
                 strokeWidth={handleStrokeWidth*0.75}
                 onPointerDown={onPointerDown}
@@ -1033,7 +965,7 @@ export function HandleOverlay({
               />
               <g
                 className={css.rotateHandleGlyph}
-                transform={`translate(${fmt(display.x)} ${fmt(display.y)}) scale(${fmt(glyphScale)}) translate(-8 -8)`}
+                transform={`translate(${fmt(display.point.x)} ${fmt(display.point.y)}) scale(${fmt(glyphScale)}) translate(-8 -8)`}
               >
                 <path d={ROTATE_GLYPH_PATH_1} />
                 <path d={ROTATE_GLYPH_PATH_2} />
@@ -1050,8 +982,8 @@ export function HandleOverlay({
             <circle
               key={display.key}
               className={`${css.handle} ${css.handleControl}`}
-              cx={display.x}
-              cy={display.y}
+              cx={display.point.x}
+              cy={display.point.y}
               r={handleHalfSize}
               strokeWidth={handleStrokeWidth}
               style={{ cursor: display.cursor }}
@@ -1067,14 +999,14 @@ export function HandleOverlay({
           <rect
             key={display.key}
             className={css.handle}
-            x={display.x - handleHalfSize}
-            y={display.y - handleHalfSize}
+            x={display.point.x - handleHalfSize}
+            y={display.point.y - handleHalfSize}
             width={handleHalfSize * 2}
             height={handleHalfSize * 2}
             strokeWidth={handleStrokeWidth}
             transform={
               display.kind === "resize-element" && Math.abs(display.rotationDeg) > 1e-6
-                ? `rotate(${fmt(display.rotationDeg)} ${fmt(display.x)} ${fmt(display.y)})`
+                ? `rotate(${fmt(display.rotationDeg)} ${fmt(display.point.x)} ${fmt(display.point.y)})`
                 : undefined
             }
             style={{ cursor: display.cursor }}
@@ -1115,7 +1047,7 @@ export function NodeAnchorOverlay({
         return (
           <circle
             key={`${anchor.nodeName}:${anchor.anchor}`}
-            className={`${css.nodeAnchorPoint} ${snapped ? css.nodeAnchorPointSnapped : ""}`}
+            className={`${css.nodeAnchorWorldPoint} ${snapped ? css.nodeAnchorWorldPointSnapped : ""}`}
             cx={point.x}
             cy={point.y}
             r={snapped ? radius * 1.1 : radius * 0.85}

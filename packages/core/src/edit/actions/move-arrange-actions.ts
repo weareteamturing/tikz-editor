@@ -1,7 +1,8 @@
 import type { CoordinateItem, NodeItem, PathStatement, Span, Statement } from "../../ast/types.js";
 import type { OptionEntry } from "../../options/types.js";
 import { evaluateTikzFigure } from "../../semantic/evaluate.js";
-import type { EditHandle, Point } from "../../semantic/types.js";
+import type { WorldPoint } from "../../coords/points.js";
+import type { EditHandle } from "../../semantic/types.js";
 import { collectSourceWorldBounds } from "../snapping/index.js";
 import { localToSourceUnits, worldToLocal } from "../coords.js";
 import { CM_PER_PT, formatNumber } from "../format.js";
@@ -43,7 +44,7 @@ export function applyMoveElementsAction(
   source: string,
   editHandles: EditHandle[],
   elementIds: readonly string[],
-  delta: Point,
+  delta: WorldPoint,
   parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
   const normalizedIds = normalizeElementIds(elementIds);
@@ -255,7 +256,7 @@ function applyMoveElementsUsingHandleRewrites(
   source: string,
   editHandles: EditHandle[],
   elementIds: readonly string[],
-  delta: Point
+  delta: WorldPoint
 ): EditActionResultLike {
   const sourceIdSet = new Set(elementIds);
   const elementHandles = editHandles.filter((handle) => sourceIdSet.has(handle.sourceRef.sourceId));
@@ -286,7 +287,7 @@ function applyMoveElementsUsingHandleRewrites(
       continue;
     }
 
-    const newWorld: Point = { x: handle.world.x + delta.x, y: handle.world.y + delta.y };
+    const newWorld: WorldPoint = { x: handle.world.x + delta.x, y: handle.world.y + delta.y };
     const text = rewriteCoordinate(newWorld, handle, source);
     if (text != null) {
       pending.push({ span: handle.sourceRef.sourceSpan, text });
@@ -334,7 +335,7 @@ function applyMoveElementsUsingHandleRewrites(
 function applyMoveMatrixElementsWithPlacementRewrite(
   source: string,
   elementIds: readonly string[],
-  delta: Point,
+  delta: WorldPoint,
   placementHandlesBySource: ReadonlyMap<string, EditHandle>,
   parseOptions: EditParseOptions
 ): EditActionResultLike {
@@ -385,7 +386,7 @@ function applyMoveMatrixElementsWithPlacementRewrite(
 function applyMoveScopeElementsWithTransformRewrite(
   source: string,
   elementIds: readonly string[],
-  delta: Point,
+  delta: WorldPoint,
   parseOptions: EditParseOptions
 ): EditActionResultLike {
   let currentSource = source;
@@ -436,7 +437,7 @@ type ScopeTransformRewriteResult =
 function rewriteSingleScopeTransform(
   source: string,
   elementId: string,
-  delta: Point,
+  delta: WorldPoint,
   parseOptions: EditParseOptions
 ): ScopeTransformRewriteResult {
   const resolved = resolvePropertyTarget(source, elementId, parseOptions);
@@ -484,7 +485,7 @@ function rewriteSingleScopeShiftInPlace(
   source: string,
   target: PropertyTarget,
   elementId: string,
-  delta: Point,
+  delta: WorldPoint,
   parseOptions: EditParseOptions
 ): ScopeTransformRewriteResult | null {
   if (!target.options) {
@@ -593,7 +594,7 @@ function targetOptionsEntries(target: PropertyTarget): readonly OptionEntry[] {
   return target.options?.entries ?? [];
 }
 
-function resolveDeltaUsingFullLinear(entries: readonly OptionEntry[], delta: Point): Point | null {
+function resolveDeltaUsingFullLinear(entries: readonly OptionEntry[], delta: WorldPoint): WorldPoint | null {
   const fullLinear = resolvePrefixLinearTransform(entries, entries.length);
   if (!fullLinear) {
     return null;
@@ -660,7 +661,7 @@ function multiplyLinear(left: LinearTransform, right: LinearTransform): LinearTr
   };
 }
 
-function applyInverseLinear(linear: LinearTransform, point: Point): Point | null {
+function applyInverseLinear(linear: LinearTransform, point: WorldPoint): WorldPoint | null {
   const det = linear.a * linear.d - linear.b * linear.c;
   if (!Number.isFinite(det) || Math.abs(det) <= 1e-12) {
     return null;
@@ -679,7 +680,7 @@ type MatrixPlacementRewriteResult =
 function applyMoveTreeRootElementsWithPlacementRewrite(
   source: string,
   elementIds: readonly string[],
-  delta: Point,
+  delta: WorldPoint,
   parseOptions: EditParseOptions
 ): EditActionResultLike {
   let currentSource = source;
@@ -726,7 +727,7 @@ function applyMoveTreeRootElementsWithPlacementRewrite(
 function rewriteSingleMatrixPlacement(
   source: string,
   elementId: string,
-  delta: Point,
+  delta: WorldPoint,
   placementHandle: EditHandle | undefined,
   parseOptions: EditParseOptions
 ): MatrixPlacementRewriteResult {
@@ -753,7 +754,7 @@ function rewriteSingleMatrixPlacement(
     return { kind: "unsupported", reason: `Could not resolve semantic bounds for matrix ${elementId}` };
   }
 
-  const nextCenterWorld: Point = {
+  const nextCenterWorld: WorldPoint = {
     x: (bounds.minX + bounds.maxX) / 2 + delta.x,
     y: (bounds.minY + bounds.maxY) / 2 + delta.y
   };
@@ -830,7 +831,7 @@ function rewriteSingleMatrixPlacement(
 function rewriteSingleTreeRootPlacement(
   source: string,
   elementId: string,
-  delta: Point,
+  delta: WorldPoint,
   parseOptions: EditParseOptions
 ): MatrixPlacementRewriteResult {
   const parsed = parseTikzForEdit(source, {
@@ -864,12 +865,12 @@ function rewriteSingleTreeRootPlacement(
       return {
         x: (bounds.minX + bounds.maxX) / 2,
         y: (bounds.minY + bounds.maxY) / 2
-      } satisfies Point;
+      } satisfies WorldPoint;
     })();
   if (!currentPlacementWorld) {
     return { kind: "unsupported", reason: `Could not resolve semantic placement for tree root ${elementId}` };
   }
-  const nextPlacementWorld: Point = {
+  const nextPlacementWorld: WorldPoint = {
     x: currentPlacementWorld.x + delta.x,
     y: currentPlacementWorld.y + delta.y
   };
@@ -915,7 +916,7 @@ function applyElementDeltaMapStrict(
   source: string,
   editHandles: EditHandle[],
   elementIds: readonly string[],
-  deltasBySource: ReadonlyMap<string, Point>
+  deltasBySource: ReadonlyMap<string, WorldPoint>
 ): EditActionResultLike {
   const normalizedIds = normalizeElementIds(elementIds);
   if (normalizedIds.length === 0) {
@@ -1058,7 +1059,7 @@ function buildMatrixInlineAtInsertion(source: string, bodyOpenOffset: number, ne
   return `${needsLeadingSpace ? " " : ""}at ${nextCoordinate} `;
 }
 
-function formatPlacementCoordinateFromWorld(world: Point, transform?: EditHandle["transform"]): string {
+function formatPlacementCoordinateFromWorld(world: WorldPoint, transform?: EditHandle["transform"]): string {
   if (transform) {
     const local = worldToLocal(world, transform);
     if (local) {

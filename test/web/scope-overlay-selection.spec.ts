@@ -3,7 +3,7 @@ import { parseTikz } from "../../packages/core/src/parser/index.js";
 import {
   augmentScopeOverlayWithMatrices,
   buildScopeOverlayIndex,
-  isWorldPointWithinScopeBounds,
+  isSvgPointWithinScopeBounds,
   resolveFocusedScopeIdForSelection,
   resolveScopeAwareMarqueeSelection,
   resolveScopeAwareContextMenuTarget,
@@ -97,8 +97,8 @@ describe("scope overlay selection resolver", () => {
   });
 
   it("supports focused-scope outside-click reset checks via bounds", () => {
-    expect(isWorldPointWithinScopeBounds("scope:1", { x: 0.5, y: 1.5 }, overlay)).toBe(true);
-    expect(isWorldPointWithinScopeBounds("scope:1", { x: 2, y: 2 }, overlay)).toBe(false);
+    expect(isSvgPointWithinScopeBounds("scope:1", { x: 0.5, y: 1.5 }, overlay)).toBe(true);
+    expect(isSvgPointWithinScopeBounds("scope:1", { x: 2, y: 2 }, overlay)).toBe(false);
   });
 
   it("marquee selects unscoped elements and only the outermost fully-contained scopes", () => {

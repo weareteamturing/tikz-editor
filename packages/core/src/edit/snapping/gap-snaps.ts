@@ -1,3 +1,5 @@
+import { unsafePoint } from "../../coords/points.js";
+import type { WorldBounds, WorldPoint } from "../../coords/points.js";
 import { roundSnapValue } from "./point-snaps.js";
 import {
   SNAP_EPSILON,
@@ -45,12 +47,12 @@ export function buildVisibleGaps(
         startBounds: start,
         endBounds: end,
         startSide: [
-          { x: start.maxX, y: start.minY },
-          { x: start.maxX, y: start.maxY }
+          unsafePoint<WorldPoint>(start.maxX, start.minY),
+          unsafePoint<WorldPoint>(start.maxX, start.maxY)
         ],
         endSide: [
-          { x: end.minX, y: end.minY },
-          { x: end.minX, y: end.maxY }
+          unsafePoint<WorldPoint>(end.minX, end.minY),
+          unsafePoint<WorldPoint>(end.minX, end.maxY)
         ],
         overlap,
         length: end.minX - start.maxX
@@ -82,12 +84,12 @@ export function buildVisibleGaps(
         startBounds: start,
         endBounds: end,
         startSide: [
-          { x: start.minX, y: start.maxY },
-          { x: start.maxX, y: start.maxY }
+          unsafePoint<WorldPoint>(start.minX, start.maxY),
+          unsafePoint<WorldPoint>(start.maxX, start.maxY)
         ],
         endSide: [
-          { x: end.minX, y: end.minY },
-          { x: end.maxX, y: end.minY }
+          unsafePoint<WorldPoint>(end.minX, end.minY),
+          unsafePoint<WorldPoint>(end.maxX, end.minY)
         ],
         overlap,
         length: end.minY - start.maxY
@@ -105,7 +107,7 @@ export function collectGapSnaps({
   nearest,
   enabledAxis
 }: {
-  selectionBounds: { minX: number; minY: number; maxX: number; maxY: number };
+  selectionBounds: WorldBounds;
   visibleGaps: { horizontal: Gap[]; vertical: Gap[] };
   minOffset: AxisMinOffset;
   nearest: AxisSnapBuckets;
@@ -204,7 +206,7 @@ export function collectGapSnaps({
 }
 
 export function createGapSnapLines(
-  selectionBounds: { minX: number; minY: number; maxX: number; maxY: number },
+  selectionBounds: WorldBounds,
   candidates: readonly GapSnapCandidate[]
 ): SnapLine[] {
   const lines: SnapLine[] = [];
@@ -276,23 +278,11 @@ function pushGapCandidate({
 }
 
 function segmentsForGapCandidate(
-  selectionBounds: { minX: number; minY: number; maxX: number; maxY: number },
+  selectionBounds: WorldBounds,
   candidate: GapSnapCandidate
-): Array<[{
-  x: number;
-  y: number;
-}, {
-  x: number;
-  y: number;
-}]> {
+): Array<[WorldPoint, WorldPoint]> {
   const { gap } = candidate;
-  const segments: Array<[{
-    x: number;
-    y: number;
-  }, {
-    x: number;
-    y: number;
-  }]> = [];
+  const segments: Array<[WorldPoint, WorldPoint]> = [];
 
   const verticalIntersection = rangeIntersection(
     [selectionBounds.minY, selectionBounds.maxY],
@@ -310,12 +300,12 @@ function segmentsForGapCandidate(
       const y = (verticalIntersection[0] + verticalIntersection[1]) / 2;
       segments.push(
         [
-          { x: gap.startSide[0].x, y },
-          { x: selectionBounds.minX, y }
+          unsafePoint<WorldPoint>(gap.startSide[0].x, y),
+          unsafePoint<WorldPoint>(selectionBounds.minX, y)
         ],
         [
-          { x: selectionBounds.maxX, y },
-          { x: gap.endSide[0].x, y }
+          unsafePoint<WorldPoint>(selectionBounds.maxX, y),
+          unsafePoint<WorldPoint>(gap.endSide[0].x, y)
         ]
       );
       return segments;
@@ -326,12 +316,12 @@ function segmentsForGapCandidate(
       const x = (horizontalIntersection[0] + horizontalIntersection[1]) / 2;
       segments.push(
         [
-          { x, y: gap.startSide[0].y },
-          { x, y: selectionBounds.minY }
+          unsafePoint<WorldPoint>(x, gap.startSide[0].y),
+          unsafePoint<WorldPoint>(x, selectionBounds.minY)
         ],
         [
-          { x, y: selectionBounds.maxY },
-          { x, y: gap.endSide[0].y }
+          unsafePoint<WorldPoint>(x, selectionBounds.maxY),
+          unsafePoint<WorldPoint>(x, gap.endSide[0].y)
         ]
       );
       return segments;
@@ -342,12 +332,12 @@ function segmentsForGapCandidate(
       const y = (verticalIntersection[0] + verticalIntersection[1]) / 2;
       segments.push(
         [
-          { x: gap.startBounds.maxX, y },
-          { x: gap.endBounds.minX, y }
+          unsafePoint<WorldPoint>(gap.startBounds.maxX, y),
+          unsafePoint<WorldPoint>(gap.endBounds.minX, y)
         ],
         [
-          { x: gap.endBounds.maxX, y },
-          { x: selectionBounds.minX, y }
+          unsafePoint<WorldPoint>(gap.endBounds.maxX, y),
+          unsafePoint<WorldPoint>(selectionBounds.minX, y)
         ]
       );
       return segments;
@@ -358,12 +348,12 @@ function segmentsForGapCandidate(
       const y = (verticalIntersection[0] + verticalIntersection[1]) / 2;
       segments.push(
         [
-          { x: selectionBounds.maxX, y },
-          { x: gap.startBounds.minX, y }
+          unsafePoint<WorldPoint>(selectionBounds.maxX, y),
+          unsafePoint<WorldPoint>(gap.startBounds.minX, y)
         ],
         [
-          { x: gap.startBounds.maxX, y },
-          { x: gap.endBounds.minX, y }
+          unsafePoint<WorldPoint>(gap.startBounds.maxX, y),
+          unsafePoint<WorldPoint>(gap.endBounds.minX, y)
         ]
       );
       return segments;
@@ -374,12 +364,12 @@ function segmentsForGapCandidate(
       const x = (horizontalIntersection[0] + horizontalIntersection[1]) / 2;
       segments.push(
         [
-          { x, y: selectionBounds.maxY },
-          { x, y: gap.startBounds.minY }
+          unsafePoint<WorldPoint>(x, selectionBounds.maxY),
+          unsafePoint<WorldPoint>(x, gap.startBounds.minY)
         ],
         [
-          { x, y: gap.startBounds.maxY },
-          { x, y: gap.endBounds.minY }
+          unsafePoint<WorldPoint>(x, gap.startBounds.maxY),
+          unsafePoint<WorldPoint>(x, gap.endBounds.minY)
         ]
       );
       return segments;
@@ -390,12 +380,12 @@ function segmentsForGapCandidate(
       const x = (horizontalIntersection[0] + horizontalIntersection[1]) / 2;
       segments.push(
         [
-          { x, y: gap.startBounds.maxY },
-          { x, y: gap.endBounds.minY }
+          unsafePoint<WorldPoint>(x, gap.startBounds.maxY),
+          unsafePoint<WorldPoint>(x, gap.endBounds.minY)
         ],
         [
-          { x, y: gap.endBounds.maxY },
-          { x, y: selectionBounds.minY }
+          unsafePoint<WorldPoint>(x, gap.endBounds.maxY),
+          unsafePoint<WorldPoint>(x, selectionBounds.minY)
         ]
       );
       return segments;
@@ -425,8 +415,8 @@ function dedupeGapLines(lines: SnapLine[]): SnapLine[] {
         const [ax, ay] = a.split(",").map(Number);
         const [bx, by] = b.split(",").map(Number);
         return [
-          { x: ax, y: ay },
-          { x: bx, y: by }
+          unsafePoint<WorldPoint>(ax, ay),
+          unsafePoint<WorldPoint>(bx, by)
         ];
       })
     });
@@ -435,13 +425,7 @@ function dedupeGapLines(lines: SnapLine[]): SnapLine[] {
   return deduped;
 }
 
-function normalizeSegment(segment: [{
-  x: number;
-  y: number;
-}, {
-  x: number;
-  y: number;
-}]): string {
+function normalizeSegment(segment: [WorldPoint, WorldPoint]): string {
   const a = `${roundSnapValue(segment[0].x)},${roundSnapValue(segment[0].y)}`;
   const b = `${roundSnapValue(segment[1].x)},${roundSnapValue(segment[1].y)}`;
   return a <= b ? `${a};${b}` : `${b};${a}`;

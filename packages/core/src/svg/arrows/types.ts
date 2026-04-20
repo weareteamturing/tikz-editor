@@ -1,4 +1,4 @@
-import type { ArrowTip, Point, ScenePath, ScenePathCommand } from "../../semantic/types.js";
+import type { ArrowTip, ScenePath, ScenePathCommand } from "../../semantic/types.js";
 
 export type { Frame } from "../../geometry/path-sampler.js";
 

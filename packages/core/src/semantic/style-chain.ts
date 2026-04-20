@@ -1,6 +1,7 @@
+import type { WorldTransform } from "../coords/transforms.js";
 import type { Span } from "../ast/types.js";
 import type { OptionListAst } from "../options/types.js";
-import type { Matrix2D, ResolvedStyle } from "./types.js";
+import type { ResolvedStyle } from "./types.js";
 
 export type StyleChainKind = "global" | "named-style" | "every-node" | "every-shape" | "scope" | "command";
 
@@ -54,7 +55,7 @@ export type StyleTraceLayerInput =
 
 export type ResolvedStyleTrace = {
   style: ResolvedStyle;
-  transform: Matrix2D;
+  transform: WorldTransform;
   diagnostics: string[];
   expandedOptionLists: OptionListAst[];
   chain: StyleChainEntry[];

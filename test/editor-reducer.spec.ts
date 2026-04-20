@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { editorReducer, makeInitialState, DEFAULT_SOURCE } from "../packages/app/src/store/reducer.js";
 import type { EditorAction, EditorState } from "../packages/app/src/store/types.js";
 import { makeEmptySnapshot } from "../packages/app/src/compute.js";
-import type { EditHandle, Point } from "../packages/core/src/semantic/types.js";
+import type { WorldPoint } from "../packages/core/src/coords/points.js";
+import type { EditHandle } from "../packages/core/src/semantic/types.js";
 import { identityMatrix } from "../packages/core/src/semantic/transform.js";
 import { computeSourceFingerprint } from "../packages/core/src/utils/source-fingerprint.js";
 import { PT_PER_CM } from "../packages/core/src/edit/format.js";
@@ -21,13 +22,16 @@ const cm = (v: number) => v * PT_PER_CM;
 function makeHandle(
   source: string,
   overrides: Partial<EditHandle> & {
-    world: Point;
+    world: WorldPoint;
     sourceSpan: { from: number; to: number };
     sourceId?: string;
   }
 ): EditHandle {
   const { world, sourceSpan, sourceId, ...rest } = overrides;
   const span = sourceSpan;
+  const transform = rest.transform ?? identityMatrix();
+  const kind = rest.kind ?? "path-point";
+  const rewriteMode = rest.rewriteMode ?? "direct";
   return {
     id: `handle-${span.from}-${span.to}`,
     runtimeId: `runtime:handle-${span.from}-${span.to}`,
@@ -36,14 +40,18 @@ function makeHandle(
       sourceSpan: span,
       sourceFingerprint: computeSourceFingerprint(source)
     },
-    kind: "path-point",
+    handleType: "coordinate",
+    coordinateSpace: "frame-local",
+    kind,
     world: world,
-    transform: identityMatrix(),
+    local: rest.local ?? world,
+    frame: rest.frame ?? transform,
+    transform,
     sourceText: source.slice(span.from, span.to),
     coordinateForm: overrides.coordinateForm ?? "cartesian",
-    rewriteMode: overrides.rewriteMode ?? "direct",
+    rewriteMode,
     ...rest
-  };
+  } as EditHandle;
 }
 
 function makeStateWithHandle(source: string = "\\draw (1,2) -- (3,4);"): { state: EditorState; handle: EditHandle } {

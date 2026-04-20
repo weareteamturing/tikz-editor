@@ -6,7 +6,7 @@ import {
   type AnchorReference,
   type ComplexPathSegment
 } from "tikz-editor/edit/element-templates";
-import type { Point } from "tikz-editor/semantic/types";
+import type { WorldPoint } from "../coords/types";
 
 import { resolveBezierControlsFromBend } from "./interaction-helpers";
 
@@ -20,21 +20,21 @@ export type PathAppendTarget = {
 };
 
 export type PathToolDraft = {
-  startWorld: Point;
+  startWorld: WorldPoint;
   startAnchor?: AnchorReference;
   segments: ComplexPathSegment[];
   appendTarget?: PathAppendTarget;
 };
 
 export type PathToolGestureSegment = {
-  endWorld: Point;
+  endWorld: WorldPoint;
   endAnchor?: AnchorReference;
-  bendWorld: Point;
+  bendWorld: WorldPoint;
   asBezier: boolean;
 };
 
 export function createPathToolDraft(
-  startWorld: Point,
+  startWorld: WorldPoint,
   appendTarget?: PathAppendTarget,
   startAnchor?: AnchorReference
 ): PathToolDraft {
@@ -46,7 +46,7 @@ export function createPathToolDraft(
   };
 }
 
-export function pathToolCurrentPoint(draft: PathToolDraft): Point {
+export function pathToolCurrentPoint(draft: PathToolDraft): WorldPoint {
   const lastSegment = draft.segments[draft.segments.length - 1];
   return lastSegment ? { ...lastSegment.to } : { ...draft.startWorld };
 }
@@ -63,20 +63,20 @@ export function pathToolCloseRadiusWorld(zoom: number): number {
   return PATH_TOOL_CLOSE_RADIUS_PX / Math.max(zoom, 1e-3);
 }
 
-export function pathToolWouldCreateDegenerateSegment(draft: PathToolDraft, endWorld: Point): boolean {
+export function pathToolWouldCreateDegenerateSegment(draft: PathToolDraft, endWorld: WorldPoint): boolean {
   const from = pathToolCurrentPoint(draft);
   return distanceSquared(from, endWorld) <= MIN_SEGMENT_LENGTH_PT * MIN_SEGMENT_LENGTH_PT;
 }
 
-export function pathToolIsPointNearStart(draft: PathToolDraft, point: Point, radiusWorld: number): boolean {
+export function pathToolIsWorldPointNearStart(draft: PathToolDraft, point: WorldPoint, radiusWorld: number): boolean {
   return distanceSquared(draft.startWorld, point) <= radiusWorld * radiusWorld;
 }
 
-export function pathToolShouldClose(draft: PathToolDraft, point: Point, radiusWorld: number): boolean {
-  return pathToolCanClose(draft) && pathToolIsPointNearStart(draft, point, radiusWorld);
+export function pathToolShouldClose(draft: PathToolDraft, point: WorldPoint, radiusWorld: number): boolean {
+  return pathToolCanClose(draft) && pathToolIsWorldPointNearStart(draft, point, radiusWorld);
 }
 
-export function appendPathToolLineSegment(draft: PathToolDraft, endWorld: Point): PathToolDraft {
+export function appendPathToolLineSegment(draft: PathToolDraft, endWorld: WorldPoint): PathToolDraft {
   if (pathToolWouldCreateDegenerateSegment(draft, endWorld)) {
     return draft;
   }
@@ -89,8 +89,8 @@ export function appendPathToolLineSegment(draft: PathToolDraft, endWorld: Point)
 
 export function appendPathToolBezierSegment(
   draft: PathToolDraft,
-  endWorld: Point,
-  bendWorld: Point
+  endWorld: WorldPoint,
+  bendWorld: WorldPoint
 ): PathToolDraft {
   if (pathToolWouldCreateDegenerateSegment(draft, endWorld)) {
     return draft;
@@ -171,7 +171,7 @@ export function generateAppendSegmentSource(draft: PathToolDraft): string | null
   return generateComplexPathPrependSource(newStart, revSegs, newStartAnchor);
 }
 
-function distanceSquared(a: Point, b: Point): number {
+function distanceSquared(a: WorldPoint, b: WorldPoint): number {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return dx * dx + dy * dy;

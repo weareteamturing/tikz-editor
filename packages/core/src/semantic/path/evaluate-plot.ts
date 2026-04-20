@@ -1,3 +1,4 @@
+import type { WorldPoint } from "../../coords/points.js";
 import type { PlotOperationItem } from "../../ast/types.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings } from "../../macros/index.js";
 import type { MacroBinding } from "../../macros/index.js";
@@ -5,7 +6,7 @@ import type { SemanticContext } from "../context.js";
 import { deleteContextMacroBinding, readContextMacroBinding, writeContextMacroBinding } from "../context.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import { parseLength } from "../coords/parse-length.js";
-import type { Point, ResolvedStyle, SceneElement, ScenePath } from "../types.js";
+import type { ResolvedStyle, SceneElement, ScenePath } from "../types.js";
 import type { StyleChainEntry } from "../style-chain.js";
 import { appendCircleSubpath, appendRectangleSubpath, hasDrawablePathSegments, makePath } from "./elements.js";
 import { formatPlotSampleValue, resolvePlotSampleValues, type PlotSettings } from "./plot.js";
@@ -79,19 +80,19 @@ export function evaluatePlotCoordinatePoints(params: {
   entries: Array<{ raw: string; relativePrefix?: "+" | "++" }>;
   span: { from: number; to: number };
   issuePrefix: string;
-  currentPoint: Point | null;
-  setCurrentPoint: (point: Point | null) => void;
+  currentPoint: WorldPoint | null;
+  setCurrentPoint: (point: WorldPoint | null) => void;
   pushDiagnostic: DiagnosticPushFn;
   evaluateCoordinateRaw: (raw: string, relativePrefix?: "+" | "++") => {
-    world: Point | null;
+    world: WorldPoint | null;
     diagnostics: string[];
     advancesCurrentPoint?: boolean;
   };
-}): Point[] {
+}): WorldPoint[] {
   const { entries, span, issuePrefix, currentPoint, setCurrentPoint, pushDiagnostic, evaluateCoordinateRaw } = params;
   const savedCurrentPoint = currentPoint;
   let iterationCurrentPoint = currentPoint;
-  const points: Point[] = [];
+  const points: WorldPoint[] = [];
   for (const entry of entries) {
     setCurrentPoint(iterationCurrentPoint);
     const evaluated = evaluateCoordinateRaw(entry.raw, entry.relativePrefix);
@@ -110,7 +111,7 @@ export function evaluatePlotCoordinatePoints(params: {
   return points;
 }
 
-function appendPlotXMarks(commands: ScenePath["commands"], points: Point[]): void {
+function appendPlotXMarks(commands: ScenePath["commands"], points: WorldPoint[]): void {
   const halfSize = parseLength("1.5pt", "pt") ?? 1.5;
   for (const point of points) {
     commands.push({
@@ -132,7 +133,7 @@ function appendPlotXMarks(commands: ScenePath["commands"], points: Point[]): voi
   }
 }
 
-function appendPlotPlusMarks(commands: ScenePath["commands"], points: Point[]): void {
+function appendPlotPlusMarks(commands: ScenePath["commands"], points: WorldPoint[]): void {
   const halfSize = parseLength("2pt", "pt") ?? 2;
   for (const point of points) {
     commands.push({
@@ -154,30 +155,30 @@ function appendPlotPlusMarks(commands: ScenePath["commands"], points: Point[]): 
   }
 }
 
-function appendPlotAsteriskMarks(commands: ScenePath["commands"], points: Point[]): void {
+function appendPlotAsteriskMarks(commands: ScenePath["commands"], points: WorldPoint[]): void {
   const radius = parseLength("2pt", "pt") ?? 2;
   for (const point of points) {
     appendCircleSubpath(commands, point, radius);
   }
 }
 
-function pointsClose(left: Point, right: Point): boolean {
+function pointsClose(left: WorldPoint, right: WorldPoint): boolean {
   return Math.hypot(left.x - right.x, left.y - right.y) <= 1e-6;
 }
 
 export function emitPlotPath(params: {
   statementId: string;
   item: PlotOperationItem;
-  points: Point[];
+  points: WorldPoint[];
   settings: PlotSettings;
-  connectFrom: Point | null;
+  connectFrom: WorldPoint | null;
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
   geometryElements: SceneElement[];
   markFeature: FeatureMarkFn;
   activeRoundedCorners: number | null;
-  setCurrentPoint: (point: Point) => void;
-  setPathStartPoint: (point: Point | null) => void;
+  setCurrentPoint: (point: WorldPoint) => void;
+  setPathStartPoint: (point: WorldPoint | null) => void;
 }): { lastPlacementSegment: PlacementSegment | null; previousSegmentRoundedCorners: number | null } {
   const {
     statementId,
@@ -198,11 +199,11 @@ export function emitPlotPath(params: {
   }
 
   const commands: ScenePath["commands"] = [];
-  let lastSegment: { from: Point; to: Point } | null = null;
-  const markPoints: Point[] = [];
+  let lastSegment: { from: WorldPoint; to: WorldPoint } | null = null;
+  const markPoints: WorldPoint[] = [];
   const tensionFactor = 0.2775 * settings.tension;
 
-  const addConnectionToFirstPoint = (target: Point): void => {
+  const addConnectionToFirstPoint = (target: WorldPoint): void => {
     if (!connectFrom) {
       return;
     }
@@ -213,14 +214,14 @@ export function emitPlotPath(params: {
     }
   };
 
-  const addLine = (from: Point, to: Point): void => {
+  const addLine = (from: WorldPoint, to: WorldPoint): void => {
     commands.push({ kind: "L", to });
     if (!pointsClose(from, to)) {
       lastSegment = { from, to };
     }
   };
 
-  const addCurve = (from: Point, c1: Point, c2: Point, to: Point): void => {
+  const addCurve = (from: WorldPoint, c1: WorldPoint, c2: WorldPoint, to: WorldPoint): void => {
     commands.push({ kind: "C", c1, c2, to });
     if (!pointsClose(from, to)) {
       lastSegment = { from, to };
@@ -576,8 +577,8 @@ export function buildPlotExpressionEntries(params: {
 
 export function defaultEvaluateCoordinateRaw(
   raw: string,
-  contextCurrentPoint: Point | null,
-  setContextCurrentPoint: (point: Point | null) => void,
+  contextCurrentPoint: WorldPoint | null,
+  setContextCurrentPoint: (point: WorldPoint | null) => void,
   context: Parameters<typeof evaluateRawCoordinate>[1],
   relativePrefix?: "+" | "++"
 ): ReturnType<typeof evaluateRawCoordinate> {

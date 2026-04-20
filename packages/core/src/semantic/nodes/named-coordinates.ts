@@ -5,7 +5,7 @@ import {
   type NamedNodeGeometry,
   type SemanticContext
 } from "../context.js";
-import type { Point } from "../types.js";
+import type { WorldPoint } from "../../coords/points.js";
 import { intersectRayWithPolygon } from "./shape-geometry.js";
 import { applyMatrixToVector, inverseMatrix } from "../transform.js";
 
@@ -75,89 +75,89 @@ export function applyNameScope(name: string, context: SemanticContext): string {
 
 export function maybeResolveNamedCoordinateBorderPoint(
   coordinate: Pick<CoordinateItem, "form" | "x">,
-  fallbackPoint: Point,
-  fromPoint: Point | null,
+  fallbackWorldPoint: WorldPoint,
+  fromWorldPoint: WorldPoint | null,
   context: SemanticContext
-): Point {
+): WorldPoint {
   if (coordinate.form !== "named") {
-    return fallbackPoint;
+    return fallbackWorldPoint;
   }
-  return maybeResolveNamedNodeBorderPoint(coordinate.x, fallbackPoint, fromPoint, context);
+  return maybeResolveNamedNodeBorderWorldPoint(coordinate.x, fallbackWorldPoint, fromWorldPoint, context);
 }
 
 export function maybeResolveNamedCoordinateBorderPointFromRaw(
   rawCoordinate: string,
-  fallbackPoint: Point,
-  fromPoint: Point | null,
+  fallbackWorldPoint: WorldPoint,
+  fromWorldPoint: WorldPoint | null,
   context: SemanticContext
-): Point {
+): WorldPoint {
   const parsed = parseCoordinate(rawCoordinate);
   if (parsed.form !== "named") {
-    return fallbackPoint;
+    return fallbackWorldPoint;
   }
-  return maybeResolveNamedNodeBorderPoint(parsed.x, fallbackPoint, fromPoint, context);
+  return maybeResolveNamedNodeBorderWorldPoint(parsed.x, fallbackWorldPoint, fromWorldPoint, context);
 }
 
 export function maybeResolveNamedCoordinateBorderPointFromRawAlongAngle(
   rawCoordinate: string,
-  fallbackPoint: Point,
+  fallbackWorldPoint: WorldPoint,
   angleDegrees: number,
   context: SemanticContext
-): Point {
+): WorldPoint {
   const parsed = parseCoordinate(rawCoordinate);
   if (parsed.form !== "named") {
-    return fallbackPoint;
+    return fallbackWorldPoint;
   }
-  return maybeResolveNamedNodeBorderPointAlongAngle(parsed.x, fallbackPoint, angleDegrees, context);
+  return maybeResolveNamedNodeBorderWorldPointAlongAngle(parsed.x, fallbackWorldPoint, angleDegrees, context);
 }
 
-function maybeResolveNamedNodeBorderPoint(
+function maybeResolveNamedNodeBorderWorldPoint(
   rawName: string,
-  fallbackPoint: Point,
-  fromPoint: Point | null,
+  fallbackWorldPoint: WorldPoint,
+  fromWorldPoint: WorldPoint | null,
   context: SemanticContext
-): Point {
-  if (!fromPoint) {
-    return fallbackPoint;
+): WorldPoint {
+  if (!fromWorldPoint) {
+    return fallbackWorldPoint;
   }
 
   const trimmed = rawName.trim();
   if (trimmed.length === 0 || trimmed.includes(".")) {
-    return fallbackPoint;
+    return fallbackWorldPoint;
   }
 
   const geometry = resolveNamedNodeGeometry(trimmed, context);
   if (!geometry || geometry.shape === "coordinate") {
-    return fallbackPoint;
+    return fallbackWorldPoint;
   }
 
-  const borderPoint = intersectNodeBorder(geometry, fromPoint);
-  return borderPoint ?? fallbackPoint;
+  const borderWorldPoint = intersectNodeBorder(geometry, fromWorldPoint);
+  return borderWorldPoint ?? fallbackWorldPoint;
 }
 
-function maybeResolveNamedNodeBorderPointAlongAngle(
+function maybeResolveNamedNodeBorderWorldPointAlongAngle(
   rawName: string,
-  fallbackPoint: Point,
+  fallbackWorldPoint: WorldPoint,
   angleDegrees: number,
   context: SemanticContext
-): Point {
+): WorldPoint {
   const trimmed = rawName.trim();
   if (trimmed.length === 0 || trimmed.includes(".")) {
-    return fallbackPoint;
+    return fallbackWorldPoint;
   }
 
   const geometry = resolveNamedNodeGeometry(trimmed, context);
   if (!geometry || geometry.shape === "coordinate") {
-    return fallbackPoint;
+    return fallbackWorldPoint;
   }
 
   const radians = (angleDegrees * Math.PI) / 180;
-  const probePoint = {
+  const probeWorldPoint = {
     x: geometry.center.x + Math.cos(radians),
     y: geometry.center.y + Math.sin(radians)
   };
-  const borderPoint = intersectNodeBorder(geometry, probePoint);
-  return borderPoint ?? fallbackPoint;
+  const borderWorldPoint = intersectNodeBorder(geometry, probeWorldPoint);
+  return borderWorldPoint ?? fallbackWorldPoint;
 }
 
 function resolveNamedNodeGeometry(rawName: string, context: SemanticContext): NamedNodeGeometry | null {
@@ -174,10 +174,10 @@ function resolveNamedNodeGeometry(rawName: string, context: SemanticContext): Na
 
 function intersectNodeBorder(
   geometry: NamedNodeGeometry,
-  fromPoint: Point
-): Point | null {
-  const dx = fromPoint.x - geometry.center.x;
-  const dy = fromPoint.y - geometry.center.y;
+  fromWorldPoint: WorldPoint
+): WorldPoint | null {
+  const dx = fromWorldPoint.x - geometry.center.x;
+  const dy = fromWorldPoint.y - geometry.center.y;
   const len = Math.hypot(dx, dy);
   if (!Number.isFinite(len) || len <= 1e-9) {
     return null;
@@ -211,17 +211,17 @@ function intersectNodeBorder(
       return null;
     }
     const scale = radius / localLen;
-    const localPoint = {
+    const localWorldPoint = {
       x: localDirection.x * scale,
       y: localDirection.y * scale
     };
     if (!transform) {
       return {
-        x: geometry.center.x + localPoint.x,
-        y: geometry.center.y + localPoint.y
+        x: geometry.center.x + localWorldPoint.x,
+        y: geometry.center.y + localWorldPoint.y
       };
     }
-    const mapped = applyMatrixToVector(transform, localPoint);
+    const mapped = applyMatrixToVector(transform, localWorldPoint);
     return {
       x: geometry.center.x + mapped.x,
       y: geometry.center.y + mapped.y
@@ -242,17 +242,17 @@ function intersectNodeBorder(
       return null;
     }
     const scale = 1 / Math.max(Math.abs(localDirection.x) / hw, Math.abs(localDirection.y) / hh);
-    const localPoint = {
+    const localWorldPoint = {
       x: localDirection.x * scale,
       y: localDirection.y * scale
     };
     if (!transform) {
       return {
-        x: geometry.center.x + localPoint.x,
-        y: geometry.center.y + localPoint.y
+        x: geometry.center.x + localWorldPoint.x,
+        y: geometry.center.y + localWorldPoint.y
       };
     }
-    const mapped = applyMatrixToVector(transform, localPoint);
+    const mapped = applyMatrixToVector(transform, localWorldPoint);
     return {
       x: geometry.center.x + mapped.x,
       y: geometry.center.y + mapped.y
@@ -276,17 +276,17 @@ function intersectNodeBorder(
     if (!Number.isFinite(scale)) {
       return null;
     }
-    const localPoint = {
+    const localWorldPoint = {
       x: localDirection.x * scale,
       y: localDirection.y * scale
     };
     if (!transform) {
       return {
-        x: geometry.center.x + localPoint.x,
-        y: geometry.center.y + localPoint.y
+        x: geometry.center.x + localWorldPoint.x,
+        y: geometry.center.y + localWorldPoint.y
       };
     }
-    const mapped = applyMatrixToVector(transform, localPoint);
+    const mapped = applyMatrixToVector(transform, localWorldPoint);
     return {
       x: geometry.center.x + mapped.x,
       y: geometry.center.y + mapped.y

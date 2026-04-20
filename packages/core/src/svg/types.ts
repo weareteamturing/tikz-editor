@@ -1,4 +1,6 @@
 import type { NodeTextEngine } from "../text/types.js";
+import type { SvgBounds, SvgPoint } from "../coords/points.js";
+import type { SvgTransform } from "../coords/transforms.js";
 
 export type SvgViewBox = {
   x: number;
@@ -6,6 +8,10 @@ export type SvgViewBox = {
   width: number;
   height: number;
 };
+
+export type SvgPoint2D = SvgPoint;
+export type SvgBounds2D = SvgBounds;
+export type SvgTransform2D = SvgTransform;
 
 export type SvgRenderPart = {
   partId: string;

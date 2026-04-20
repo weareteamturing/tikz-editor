@@ -1,4 +1,5 @@
-import type { Point, ResolvedStyle, SceneElement, ScenePath } from "../types.js";
+import type { WorldPoint } from "../../coords/points.js";
+import type { ResolvedStyle, SceneElement, ScenePath } from "../types.js";
 import type { StyleChainEntry } from "../style-chain.js";
 import { applyMatrixToVector } from "../transform.js";
 import {
@@ -88,7 +89,7 @@ function normalizeDegrees(degrees: number): number {
 
 export function emitCircleOrEllipse(params: {
   geometry: CircleOrEllipseGeometry;
-  center: Point;
+  center: WorldPoint;
   statementId: string;
   itemId: string;
   span: { from: number; to: number };

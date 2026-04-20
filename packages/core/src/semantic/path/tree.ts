@@ -1,3 +1,4 @@
+import type { WorldPoint } from "../../coords/points.js";
 import type { ChildOperationItem, NodeItem, PathItem, Span } from "../../ast/types.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionListAst } from "../../options/types.js";
@@ -5,7 +6,6 @@ import type { ProvenanceOptionList, SemanticContextFrame } from "../context.js";
 import type { SemanticContext } from "../context.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import { maybeResolveNamedCoordinateBorderPointFromRaw } from "../nodes/evaluate.js";
-import type { Point } from "../types.js";
 
 export type TreeChildCluster = {
   children: ChildOperationItem[];
@@ -138,14 +138,14 @@ export function resolveTreeLevelStyleLayers(frame: SemanticContextFrame, level: 
 }
 
 export function computeTreeChildOrigin(
-  parentOrigin: Point,
+  parentOrigin: WorldPoint,
   levelDistancePt: number,
   siblingDistancePt: number,
   childIndexOneBased: number,
   childCount: number,
   growDirectionDegrees: number,
   growReverse: boolean
-): Point {
+): WorldPoint {
   const radians = (growDirectionDegrees * Math.PI) / 180;
   const forward = { x: Math.cos(radians), y: Math.sin(radians) };
   const perpendicular = { x: -forward.y, y: forward.x };
@@ -163,9 +163,9 @@ export function resolveNamedTreeAnchorPoint(
   context: SemanticContext,
   nameRaw: string,
   anchorRaw: string,
-  fallbackPoint: Point,
-  towardPoint: Point
-): Point {
+  fallbackPoint: WorldPoint,
+  towardPoint: WorldPoint
+): WorldPoint {
   const normalizedAnchor = normalizeAnchor(anchorRaw);
   const coordinateRaw = `(${nameRaw})`;
 

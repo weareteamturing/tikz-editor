@@ -8,15 +8,18 @@ import {
   type NamedNodeGeometry,
   type SemanticContext
 } from "../context.js";
-import type { Matrix2D, Point } from "../types.js";
+import type { FrameLocalPoint, WorldPoint } from "../../coords/points.js";
+import type { FrameTransform } from "../../coords/transforms.js";
 import { applyMatrix, applyMatrixToVector, identityMatrix, inverseMatrix } from "../transform.js";
 import { parseLength, parseQuantityExpression } from "./parse-length.js";
 import { intersectRayWithPolygon } from "../nodes/shape-geometry.js";
 
 export type EvaluatedCoordinate = {
-  world: Point | null;       // renamed from `point`
-  local?: Point | null;      // pre-transform value
-  transform: Matrix2D;       // the transform in effect
+  kind: "transformed" | "world-only" | "invalid";
+  world: WorldPoint | null;
+  local?: FrameLocalPoint;
+  frame?: FrameTransform;
+  origin?: "named" | "calc" | "perpendicular" | "intersection" | "numeric-anchor";
   coordinateForm: CoordinateForm;
   relativePrefix?: "+" | "++";
   diagnostics: string[];
@@ -41,58 +44,30 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
   if (item.form === "named") {
     const rawName = expandCoordinateComponent(item.x.trim(), frame.macroBindings, traceCollector).trim();
     const perpendicular = tryEvaluatePerpendicularCoordinate(rawName, context);
-    if (perpendicular) {
+    if (perpendicular?.point) {
       diagnostics.push(...perpendicular.diagnostics);
-      return {
-        world: perpendicular.point,
-        local: undefined,
-        transform: identityMatrix(),
-        coordinateForm: "named",
-        diagnostics,
-        advancesCurrentPoint: item.relativePrefix === "++"
-      };
+      return worldOnlyCoordinate("named", perpendicular.point, diagnostics, item.relativePrefix === "++", "perpendicular");
     }
 
     const intersection = tryEvaluateIntersectionCoordinate(rawName, context);
-    if (intersection) {
+    if (intersection?.point) {
       diagnostics.push(...intersection.diagnostics);
-      return {
-        world: intersection.point,
-        local: undefined,
-        transform: identityMatrix(),
-        coordinateForm: "named",
-        diagnostics,
-        advancesCurrentPoint: item.relativePrefix === "++"
-      };
+      return worldOnlyCoordinate("named", intersection.point, diagnostics, item.relativePrefix === "++", "intersection");
     }
 
     const candidates = scopedNameCandidates(rawName, frame.namePrefix, frame.nameSuffix);
     const named = candidates.map((candidate) => readNamedCoordinate(context, candidate)).find((candidate) => candidate != null) ?? null;
     if (named) {
-      return {
-        world: named,
-        local: undefined,
-        transform: identityMatrix(),
-        coordinateForm: "named",
-        diagnostics,
-        advancesCurrentPoint: item.relativePrefix === "++"
-      };
+      return worldOnlyCoordinate("named", named, diagnostics, item.relativePrefix === "++", "named");
     }
 
     const numericNodeAnchor = tryResolveNumericNodeAnchor(rawName, context, frame.namePrefix, frame.nameSuffix);
     if (numericNodeAnchor) {
-      return {
-        world: numericNodeAnchor,
-        local: undefined,
-        transform: identityMatrix(),
-        coordinateForm: "named",
-        diagnostics,
-        advancesCurrentPoint: item.relativePrefix === "++"
-      };
+      return worldOnlyCoordinate("named", numericNodeAnchor, diagnostics, item.relativePrefix === "++", "numeric-anchor");
     }
 
     diagnostics.push(`unknown-named-coordinate:${rawName}`);
-    return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "named", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+    return invalidCoordinate("named", diagnostics, item.relativePrefix === "++");
   }
 
   if (item.form === "calc") {
@@ -101,39 +76,27 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
       context,
       frame.transform
     );
-    return {
-      world: evaluatedCalc.point,
-      local: undefined,
-      transform: identityMatrix(),
-      coordinateForm: "calc",
-      diagnostics: evaluatedCalc.diagnostics,
-      advancesCurrentPoint: item.relativePrefix === "++"
-    };
+    return evaluatedCalc.point
+      ? worldOnlyCoordinate("calc", evaluatedCalc.point, evaluatedCalc.diagnostics, item.relativePrefix === "++", "calc")
+      : invalidCoordinate("calc", evaluatedCalc.diagnostics, item.relativePrefix === "++");
   }
 
   if (item.form === "explicit") {
     const parsed = parseExplicitCoordinate(expandCoordinateComponent(item.x, frame.macroBindings, traceCollector));
     if (!parsed) {
       diagnostics.push(`unsupported-coordinate-form:${item.form}`);
-      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "explicit", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      return invalidCoordinate("explicit", diagnostics, item.relativePrefix === "++");
     }
     if (parsed.kind === "canvas") {
       const x = parseLength(parsed.x, "cm");
       const y = parseLength(parsed.y, "cm");
       if (x == null || y == null) {
         diagnostics.push(`invalid-explicit-coordinate:${item.raw}`);
-        return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "explicit", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+        return invalidCoordinate("explicit", diagnostics, item.relativePrefix === "++");
       }
 
       const localPt = { x, y };
-      return {
-        world: applyMatrix(frame.transform, localPt),
-        local: localPt,
-        transform: frame.transform,
-        coordinateForm: "explicit",
-        diagnostics,
-        advancesCurrentPoint: item.relativePrefix === "++"
-      };
+      return transformedCoordinate("explicit", localPt, applyMatrix(frame.transform, localPt), frame.transform, diagnostics, item.relativePrefix === "++");
     }
 
     if (parsed.kind === "perpendicular") {
@@ -142,16 +105,15 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
       diagnostics.push(...horizontal.diagnostics, ...vertical.diagnostics);
       if (!horizontal.world || !vertical.world) {
         diagnostics.push(`invalid-explicit-coordinate:${item.raw}`);
-        return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "explicit", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+        return invalidCoordinate("explicit", diagnostics, item.relativePrefix === "++");
       }
-      return {
-        world: { x: vertical.world.x, y: horizontal.world.y },
-        local: undefined,
-        transform: identityMatrix(),
-        coordinateForm: "explicit",
+      return worldOnlyCoordinate(
+        "explicit",
+        { x: vertical.world.x, y: horizontal.world.y },
         diagnostics,
-        advancesCurrentPoint: item.relativePrefix === "++"
-      };
+        item.relativePrefix === "++",
+        "perpendicular"
+      );
     }
 
     const firstStart = evaluateRawCoordinate(parsed.firstLine.startRaw, context);
@@ -161,7 +123,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     diagnostics.push(...firstStart.diagnostics, ...firstEnd.diagnostics, ...secondStart.diagnostics, ...secondEnd.diagnostics);
     if (!firstStart.world || !firstEnd.world || !secondStart.world || !secondEnd.world) {
       diagnostics.push(`invalid-explicit-coordinate:${item.raw}`);
-      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "explicit", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      return invalidCoordinate("explicit", diagnostics, item.relativePrefix === "++");
     }
 
     const intersection = intersectInfiniteLines(
@@ -170,22 +132,15 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     );
     if (!intersection) {
       diagnostics.push(`invalid-explicit-coordinate:${item.raw}`);
-      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "explicit", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      return invalidCoordinate("explicit", diagnostics, item.relativePrefix === "++");
     }
 
     if (parsed.solution !== 1) {
       diagnostics.push(`invalid-intersection-solution:${parsed.solution}`);
-      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "explicit", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      return invalidCoordinate("explicit", diagnostics, item.relativePrefix === "++");
     }
 
-    return {
-      world: intersection,
-      local: undefined,
-      transform: identityMatrix(),
-      coordinateForm: "explicit",
-      diagnostics,
-      advancesCurrentPoint: item.relativePrefix === "++"
-    };
+    return worldOnlyCoordinate("explicit", intersection, diagnostics, item.relativePrefix === "++", "intersection");
   }
 
   if (item.form === "xyz") {
@@ -194,36 +149,29 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     const z = item.z ? parseLength(expandCoordinateComponent(item.z, frame.macroBindings, traceCollector), "cm") : 0;
     if (x == null || y == null || z == null) {
       diagnostics.push(`invalid-xyz-coordinate:${item.raw}`);
-      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "xyz", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      return invalidCoordinate("xyz", diagnostics, item.relativePrefix === "++");
     }
 
     if (Math.abs(z) > 1e-9) {
       diagnostics.push("unsupported-coordinate-z-component");
     }
 
-    return {
-      world: applyMatrix(frame.transform, { x, y }),
-      local: { x, y },
-      transform: frame.transform,
-      coordinateForm: "xyz",
-      diagnostics,
-      advancesCurrentPoint: item.relativePrefix === "++"
-    };
+    return transformedCoordinate("xyz", { x, y }, applyMatrix(frame.transform, { x, y }), frame.transform, diagnostics, item.relativePrefix === "++");
   }
 
   if (item.form === "unknown") {
     diagnostics.push(`unsupported-coordinate-form:${item.form}`);
-    return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "unknown", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+    return invalidCoordinate("unknown", diagnostics, item.relativePrefix === "++");
   }
 
-  let localPoint: Point | null = null;
+  let localPoint: WorldPoint | null = null;
 
   if (item.form === "polar") {
     const angleQuantity = parseQuantityExpression(expandCoordinateComponent(item.x.trim(), frame.macroBindings, traceCollector));
     const radius = parseLength(expandCoordinateComponent(item.y, frame.macroBindings, traceCollector), "cm");
     if (!angleQuantity || radius == null) {
       diagnostics.push(`invalid-polar-coordinate:${item.raw}`);
-      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "polar", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      return invalidCoordinate("polar", diagnostics, item.relativePrefix === "++");
     }
 
     // PGF/TikZ accepts both dimensionless angles and dimension-valued angles here.
@@ -239,7 +187,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     const y = parseLength(expandCoordinateComponent(item.y, frame.macroBindings, traceCollector), "cm");
     if (x == null || y == null) {
       diagnostics.push(`invalid-cartesian-coordinate:${item.raw}`);
-      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "cartesian", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      return invalidCoordinate("cartesian", diagnostics, item.relativePrefix === "++");
     }
 
     localPoint = { x, y };
@@ -247,7 +195,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
 
   if (!localPoint) {
     const form: CoordinateForm = item.form === "polar" ? "polar" : "cartesian";
-    return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: form, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+    return invalidCoordinate(form, diagnostics, item.relativePrefix === "++");
   }
 
   if (item.relativePrefix) {
@@ -255,32 +203,78 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     if (!current) {
       diagnostics.push("relative-coordinate-without-current-point");
       const form: CoordinateForm = item.form === "polar" ? "polar" : "cartesian";
-      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: form, relativePrefix: item.relativePrefix, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      return invalidCoordinate(form, diagnostics, item.relativePrefix === "++", item.relativePrefix);
     }
     const delta = applyMatrixToVector(frame.transform, localPoint);
     const form: CoordinateForm = item.form === "polar" ? "polar" : "cartesian";
-    return {
-      world: {
-        x: current.x + delta.x,
-        y: current.y + delta.y
-      },
-      local: localPoint,
-      transform: frame.transform,
-      coordinateForm: form,
-      relativePrefix: item.relativePrefix,
+    return transformedCoordinate(
+      form,
+      localPoint,
+      { x: current.x + delta.x, y: current.y + delta.y },
+      frame.transform,
       diagnostics,
-      advancesCurrentPoint: item.relativePrefix === "++"
-    };
+      item.relativePrefix === "++",
+      item.relativePrefix
+    );
   }
 
   const coordinateForm: CoordinateForm = item.form === "polar" ? "polar" : "cartesian";
+  return transformedCoordinate(coordinateForm, localPoint, applyMatrix(frame.transform, localPoint), frame.transform, diagnostics, true);
+}
+
+function transformedCoordinate(
+  coordinateForm: CoordinateForm,
+  local: FrameLocalPoint,
+  world: WorldPoint,
+  frame: FrameTransform,
+  diagnostics: string[],
+  advancesCurrentPoint: boolean,
+  relativePrefix?: "+" | "++"
+): EvaluatedCoordinate {
   return {
-    world: applyMatrix(frame.transform, localPoint),
-    local: localPoint,
-    transform: frame.transform,
+    kind: "transformed",
     coordinateForm,
+    local,
+    world,
+    frame,
     diagnostics,
-    advancesCurrentPoint: true
+    advancesCurrentPoint,
+    relativePrefix
+  };
+}
+
+function worldOnlyCoordinate(
+  coordinateForm: CoordinateForm,
+  world: WorldPoint,
+  diagnostics: string[],
+  advancesCurrentPoint: boolean,
+  origin: NonNullable<EvaluatedCoordinate["origin"]>,
+  relativePrefix?: "+" | "++"
+): EvaluatedCoordinate {
+  return {
+    kind: "world-only",
+    coordinateForm,
+    world,
+    origin,
+    diagnostics,
+    advancesCurrentPoint,
+    relativePrefix
+  };
+}
+
+function invalidCoordinate(
+  coordinateForm: CoordinateForm,
+  diagnostics: string[],
+  advancesCurrentPoint: boolean,
+  relativePrefix?: "+" | "++"
+): EvaluatedCoordinate {
+  return {
+    kind: "invalid",
+    coordinateForm,
+    world: null,
+    diagnostics,
+    advancesCurrentPoint,
+    relativePrefix
   };
 }
 
@@ -351,7 +345,7 @@ function tryResolveNumericNodeAnchor(
   context: SemanticContext,
   prefix: string,
   suffix: string
-): Point | null {
+): WorldPoint | null {
   const parsed = parseNumericNodeAnchor(rawName);
   if (!parsed) {
     return null;
@@ -400,7 +394,7 @@ function normalizeDegrees(value: number): number {
   return normalized;
 }
 
-function resolveNumericAnchorPoint(geometry: NamedNodeGeometry, degrees: number): Point | null {
+function resolveNumericAnchorPoint(geometry: NamedNodeGeometry, degrees: number): WorldPoint | null {
   const radians = (degrees * Math.PI) / 180;
   const direction = {
     x: Math.cos(radians),
@@ -409,7 +403,7 @@ function resolveNumericAnchorPoint(geometry: NamedNodeGeometry, degrees: number)
   return intersectNamedGeometryBorder(geometry, direction);
 }
 
-function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: Point): Point | null {
+function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: WorldPoint): WorldPoint | null {
   const dx = direction.x;
   const dy = direction.y;
   const len = Math.hypot(dx, dy);
@@ -438,7 +432,7 @@ function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: Po
   if (!Number.isFinite(localLen) || localLen <= 1e-9) {
     return geometry.center;
   }
-  const fromLocal = (point: Point): Point => {
+  const fromLocal = (point: WorldPoint): WorldPoint => {
     if (!transform) {
       return {
         x: geometry.center.x + point.x,
@@ -509,7 +503,7 @@ function evaluateCalcCoordinate(
   calcRaw: string,
   context: SemanticContext,
   frame: { a: number; b: number; c: number; d: number; e: number; f: number }
-): { point: Point | null; diagnostics: string[] } {
+): { point: WorldPoint | null; diagnostics: string[] } {
   const diagnostics: string[] = [];
   const trimmed = calcRaw.trim();
   if (!trimmed.startsWith("$") || !trimmed.endsWith("$")) {
@@ -607,7 +601,7 @@ function tokenizeCalcTerms(input: string): Array<{ op: "+" | "-"; term: string }
   return terms;
 }
 
-function evaluateCalcTerm(term: string, context: SemanticContext): { point: Point | null; diagnostics: string[] } {
+function evaluateCalcTerm(term: string, context: SemanticContext): { point: WorldPoint | null; diagnostics: string[] } {
   const diagnostics: string[] = [];
   const interpolation = tryParseCalcInterpolation(term);
   if (interpolation) {
@@ -653,7 +647,7 @@ function tryParseCalcInterpolation(term: string): { left: string; right: string;
 function tryEvaluatePerpendicularCoordinate(
   raw: string,
   context: SemanticContext
-): { point: Point | null; diagnostics: string[] } | null {
+): { point: WorldPoint | null; diagnostics: string[] } | null {
   const parsed = parsePerpendicularCoordinate(raw);
   if (!parsed) {
     return null;
@@ -719,7 +713,7 @@ function parsePerpendicularCoordinate(raw: string): { operator: "|-" | "-|"; lef
 function tryEvaluateIntersectionCoordinate(
   raw: string,
   context: SemanticContext
-): { point: Point | null; diagnostics: string[] } | null {
+): { point: WorldPoint | null; diagnostics: string[] } | null {
   const trimmed = raw.trim();
   const candidates = [trimmed];
   const unwrapped = unwrapOuterBraces(trimmed);
@@ -990,9 +984,9 @@ function unwrapOuterBraces(raw: string): string {
 }
 
 function intersectInfiniteLines(
-  first: { start: Point; end: Point },
-  second: { start: Point; end: Point }
-): Point | null {
+  first: { start: WorldPoint; end: WorldPoint },
+  second: { start: WorldPoint; end: WorldPoint }
+): WorldPoint | null {
   const firstDirection = {
     x: first.end.x - first.start.x,
     y: first.end.y - first.start.y
@@ -1017,7 +1011,7 @@ function intersectInfiniteLines(
   };
 }
 
-function cross(left: Point, right: Point): number {
+function cross(left: WorldPoint, right: WorldPoint): number {
   return left.x * right.y - left.y * right.x;
 }
 

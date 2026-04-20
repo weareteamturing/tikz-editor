@@ -1,7 +1,9 @@
+import type { WorldTransform } from "../coords/transforms.js";
+import type { WorldPoint, WorldBounds } from "../coords/points.js";
 import type { OptionListAst } from "../options/types.js";
 import type { NodeTextEngine } from "../text/types.js";
 import type { MacroBinding, MacroExpansionTraceEvent } from "../macros/index.js";
-import type { Bounds, EditHandle, Point, Matrix2D, ResolvedStyle, SceneClipPath, SceneElement } from "./types.js";
+import type { EditHandle, ResolvedStyle, SceneClipPath, SceneElement } from "./types.js";
 import type { CustomStyleRegistry } from "./style/custom-styles.js";
 import { createDefaultCustomStyleRegistry } from "./style/custom-styles.js";
 import { computeSourceFingerprint } from "../utils/source-fingerprint.js";
@@ -91,8 +93,8 @@ export type NamedNodeGeometry = {
     | "single arrow"
     | "double arrow"
     | "coordinate";
-  center: Point;
-  anchorTransform?: Matrix2D;
+  center: WorldPoint;
+  anchorTransform?: WorldTransform;
   anchorHalfWidth: number;
   anchorHalfHeight: number;
   anchorRadius: number;
@@ -102,7 +104,7 @@ export type NamedNodeGeometry = {
   shapeBorderRotate?: number;
   trapeziumStretches?: boolean;
   trapeziumStretchesBody?: boolean;
-  anchorPolygon?: Point[];
+  anchorPolygon?: WorldPoint[];
 };
 
 export type ProvenanceOptionList = {
@@ -113,7 +115,7 @@ export type ProvenanceOptionList = {
 export type SemanticContextFrame = {
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
-  transform: Matrix2D;
+  transform: WorldTransform;
   clipChain: SceneClipPath[];
   pictureSizeRelevant: boolean;
   customStyles: CustomStyleRegistry;
@@ -175,14 +177,14 @@ export type SemanticContext = {
   stack: SemanticContextFrame[];
   source: string;
   sourceFingerprint: string;
-  pictureBounds: Bounds | null;
-  namedCoordinates: PersistentMap<string, Point>;
+  pictureBounds: WorldBounds | null;
+  namedCoordinates: PersistentMap<string, WorldPoint>;
   namedNodeSets: PersistentMap<string, Set<string>>;
   namedCoordinateRewriteHandles: PersistentMap<string, string>;
   namedNodeGeometries: PersistentMap<string, NamedNodeGeometry>;
   namedPaths: PersistentMap<string, SceneElement[]>;
-  currentPoint: Point | null;
-  pathStartPoint: Point | null;
+  currentPoint: WorldPoint | null;
+  pathStartPoint: WorldPoint | null;
   textEngine: NodeTextEngine | null;
   macroTraceCollector: MacroExpansionTraceEvent[] | null;
   editHandles: EditHandle[];
@@ -205,14 +207,14 @@ export type SemanticStatementSuffixSkipKind =
   | "unsafe";
 
 export type SemanticStatementEffectSummary = {
-  producesNamedCoordinates: Array<{ key: string; point: Point }>;
+  producesNamedCoordinates: Array<{ key: string; point: WorldPoint }>;
   producesNamedNodeGeometries: Array<{ key: string; geometry: NamedNodeGeometry }>;
   producesNamedPaths: string[];
   consumesNamedResources: SemanticStatementConsumedResource[];
   mutatesCurrentPoint: boolean;
-  nextCurrentPoint: Point | null;
+  nextCurrentPoint: WorldPoint | null;
   mutatesPathStartPoint: boolean;
-  nextPathStartPoint: Point | null;
+  nextPathStartPoint: WorldPoint | null;
   requiresSequentialContext: boolean;
   suffixSkipKind: SemanticStatementSuffixSkipKind;
   opaque: boolean;
@@ -221,14 +223,14 @@ export type SemanticStatementEffectSummary = {
 
 export type SemanticContextSnapshot = {
   stack: SemanticContextFrame[];
-  pictureBounds: Bounds | null;
-  namedCoordinatesState: PersistentMapSnapshot<string, Point>;
+  pictureBounds: WorldBounds | null;
+  namedCoordinatesState: PersistentMapSnapshot<string, WorldPoint>;
   namedNodeSetsState: PersistentMapSnapshot<string, Set<string>>;
   namedCoordinateRewriteHandlesState: PersistentMapSnapshot<string, string>;
   namedNodeGeometriesState: PersistentMapSnapshot<string, NamedNodeGeometry>;
   namedPathsState: PersistentMapSnapshot<string, SceneElement[]>;
-  currentPoint: Point | null;
-  pathStartPoint: Point | null;
+  currentPoint: WorldPoint | null;
+  pathStartPoint: WorldPoint | null;
   editHandles: EditHandle[] | null;
   editHandlesLength: number;
   dependencyBuilderState: SemanticDependencyGraphBuilderState;
@@ -246,7 +248,7 @@ export type RestoreSemanticContextOptions = {
 };
 
 type SemanticStatementEffectTracker = {
-  producedNamedCoordinates: Map<string, Point>;
+  producedNamedCoordinates: Map<string, WorldPoint>;
   producedNamedNodeGeometries: Map<string, NamedNodeGeometry>;
   producedNamedPaths: Set<string>;
   consumedNamedResources: Map<string, SemanticStatementConsumedResource>;
@@ -255,7 +257,7 @@ type SemanticStatementEffectTracker = {
 
 export function createSemanticContext(
   initialStyle: ResolvedStyle,
-  initialTransform: Matrix2D,
+  initialTransform: WorldTransform,
   textEngine: NodeTextEngine | null = null,
   source = ""
 ): SemanticContext {
@@ -346,7 +348,7 @@ export function createSemanticContext(
     source,
     sourceFingerprint: computeSourceFingerprint(source),
     pictureBounds: null,
-    namedCoordinates: new PersistentMap<string, Point>(),
+    namedCoordinates: new PersistentMap<string, WorldPoint>(),
     namedNodeSets: new PersistentMap<string, Set<string>>(),
     namedCoordinateRewriteHandles: new PersistentMap<string, string>(),
     namedNodeGeometries: new PersistentMap<string, NamedNodeGeometry>(),
@@ -683,7 +685,7 @@ export function markDependencyOpaque(
 export function writeNamedCoordinate(
   context: SemanticContext,
   name: string,
-  point: Point,
+  point: WorldPoint,
   explicitSourceId?: string
 ): void {
   context.namedCoordinates.set(name, point);
@@ -698,7 +700,7 @@ export function readNamedCoordinate(
   context: SemanticContext,
   name: string,
   explicitSourceId?: string
-): Point | undefined {
+): WorldPoint | undefined {
   const point = context.namedCoordinates.get(name);
   if (point != null) {
     recordDependencyConsumer(context, "named-coordinate", name, explicitSourceId);
@@ -763,7 +765,7 @@ export function readNamedPath(
 
 export function beginStatementEffectTracking(context: SemanticContext): void {
   context.statementEffectTracker = {
-    producedNamedCoordinates: new Map<string, Point>(),
+    producedNamedCoordinates: new Map<string, WorldPoint>(),
     producedNamedNodeGeometries: new Map<string, NamedNodeGeometry>(),
     producedNamedPaths: new Set<string>(),
     consumedNamedResources: new Map<string, SemanticStatementConsumedResource>(),
@@ -774,8 +776,8 @@ export function beginStatementEffectTracking(context: SemanticContext): void {
 export function endStatementEffectTracking(
   context: SemanticContext,
   options: {
-    beforeCurrentPoint: Point | null;
-    beforePathStartPoint: Point | null;
+    beforeCurrentPoint: WorldPoint | null;
+    beforePathStartPoint: WorldPoint | null;
     requiresSequentialContext: boolean;
   }
 ): SemanticStatementEffectSummary {
@@ -837,7 +839,7 @@ export function applyStatementEffectSummary(
   context.pathStartPoint = summary.nextPathStartPoint ? { ...summary.nextPathStartPoint } : null;
 }
 
-function pointsDiffer(left: Point | null, right: Point | null): boolean {
+function pointsDiffer(left: WorldPoint | null, right: WorldPoint | null): boolean {
   if (left == null || right == null) {
     return left !== right;
   }

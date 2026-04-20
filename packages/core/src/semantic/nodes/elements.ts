@@ -1,7 +1,8 @@
 import type { PathOptionItem } from "../../ast/types.js";
 import type { NodeTextRenderInfo } from "../../text/types.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "../path/segments.js";
-import type { Point, ResolvedStyle, SceneAdornment, SceneCircle, SceneEllipse, ScenePath, ScenePathCommand, SceneText } from "../types.js";
+import type { WorldPoint } from "../../coords/points.js";
+import type { ResolvedStyle, SceneAdornment, SceneCircle, SceneEllipse, ScenePath, ScenePathCommand, SceneText } from "../types.js";
 import type { StyleChainEntry } from "../style-chain.js";
 import { cloneStyleChain } from "../style-chain.js";
 import {
@@ -34,7 +35,7 @@ import { normalizeOptionValue } from "./utils.js";
 
 export function makeCircleElement(
   sourceId: string,
-  center: Point,
+  center: WorldPoint,
   radius: number,
   style: ResolvedStyle,
   span: { from: number; to: number },
@@ -58,7 +59,7 @@ export function makeCircleElement(
 export function makeTextElement(
   sourceId: string,
   itemId: string,
-  position: Point,
+  position: WorldPoint,
   style: ResolvedStyle,
   span: { from: number; to: number },
   text: string,
@@ -177,7 +178,7 @@ export function applyNodeBoxPaintMode(style: ResolvedStyle, paintMode: { draw: b
 export function makeNodeBoxElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   width: number,
   height: number,
   style: ResolvedStyle,
@@ -232,7 +233,7 @@ export function makeNodeBoxElement(
 export function makeNodeEllipseElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   width: number,
   height: number,
   style: ResolvedStyle,
@@ -258,7 +259,7 @@ export function makeNodeEllipseElement(
 export function makeNodeDiamondElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   width: number,
   height: number,
   aspect: number,
@@ -276,7 +277,7 @@ export function makeNodeDiamondElement(
 export function makeNodeRoundedRectangleElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   width: number,
   height: number,
   arcLength: number,
@@ -296,7 +297,7 @@ export function makeNodeRoundedRectangleElement(
 export function makeNodeChamferedRectangleElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   width: number,
   height: number,
   chamferX: number,
@@ -317,8 +318,8 @@ export function makeNodeChamferedRectangleElement(
 export function makeNodeLineElement(
   sourceId: string,
   itemId: string,
-  from: Point,
-  to: Point,
+  from: WorldPoint,
+  to: WorldPoint,
   style: ResolvedStyle,
   span: { from: number; to: number },
   styleChain: StyleChainEntry[] = []
@@ -341,7 +342,7 @@ export function makeNodeLineElement(
 export function makeNodeMagnifyingHandleElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   radius: number,
   angleDegrees: number,
   aspect: number,
@@ -364,7 +365,7 @@ export function makeNodeMagnifyingHandleElement(
 export function makeNodeTrapeziumElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -400,7 +401,7 @@ export function makeNodeTrapeziumElement(
 export function makeNodeIsoscelesTriangleElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -432,7 +433,7 @@ export function makeNodeIsoscelesTriangleElement(
 export function makeNodeKiteElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -464,7 +465,7 @@ export function makeNodeKiteElement(
 export function makeNodeDartElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -496,7 +497,7 @@ export function makeNodeDartElement(
 export function makeNodeSemicircleElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -526,7 +527,7 @@ export function makeNodeSemicircleElement(
 export function makeNodeCircularSectorElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -558,7 +559,7 @@ export function makeNodeCircularSectorElement(
 export function makeNodeRegularPolygonElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -588,7 +589,7 @@ export function makeNodeRegularPolygonElement(
 export function makeNodeCylinderElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -620,7 +621,7 @@ export function makeNodeCylinderElement(
 export function makeNodeStarElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -657,7 +658,7 @@ export function makeNodeStarElement(
 export function makeNodeCloudElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -694,7 +695,7 @@ export function makeNodeCloudElement(
 export function makeNodeStarburstElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -729,7 +730,7 @@ export function makeNodeStarburstElement(
 export function makeNodeSignalElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -762,7 +763,7 @@ export function makeNodeSignalElement(
 export function makeNodeTapeElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -795,12 +796,12 @@ export function makeNodeTapeElement(
 export function makeNodeRectangleCalloutElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
   minimumHeight: number,
-  pointerOffset: Point,
+  pointerOffset: WorldPoint,
   pointerWidthPt: number,
   pointerIsAbsolute: boolean,
   pointerShortenPt: number,
@@ -830,12 +831,12 @@ export function makeNodeRectangleCalloutElement(
 export function makeNodeEllipseCalloutElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
   minimumHeight: number,
-  pointerOffset: Point,
+  pointerOffset: WorldPoint,
   pointerArc: number,
   pointerIsAbsolute: boolean,
   pointerShortenPt: number,
@@ -865,7 +866,7 @@ export function makeNodeEllipseCalloutElement(
 export function makeNodeCloudCalloutElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -875,7 +876,7 @@ export function makeNodeCloudCalloutElement(
   aspect: number,
   ignoresAspect: boolean,
   rotation: number,
-  pointerOffset: Point,
+  pointerOffset: WorldPoint,
   pointerStartSizeRaw: string,
   pointerEndSizeRaw: string,
   pointerSegments: number,
@@ -918,7 +919,7 @@ export function makeNodeCloudCalloutElement(
 export function makeNodeSingleArrowElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -953,7 +954,7 @@ export function makeNodeSingleArrowElement(
 export function makeNodeDoubleArrowElement(
   sourceId: string,
   itemId: string,
-  center: Point,
+  center: WorldPoint,
   naturalWidth: number,
   naturalHeight: number,
   minimumWidth: number,
@@ -988,7 +989,7 @@ export function makeNodeDoubleArrowElement(
 function makeNodePolygonElement(
   sourceId: string,
   itemId: string,
-  corners: Point[],
+  corners: WorldPoint[],
   style: ResolvedStyle,
   span: { from: number; to: number },
   styleChain: StyleChainEntry[] = []
@@ -1016,7 +1017,7 @@ function makeNodePolygonElement(
 function makeNodeMultiPolygonElement(
   sourceId: string,
   itemId: string,
-  polygons: Point[][],
+  polygons: WorldPoint[][],
   style: ResolvedStyle,
   span: { from: number; to: number },
   styleChain: StyleChainEntry[] = []

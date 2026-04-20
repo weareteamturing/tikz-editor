@@ -1,9 +1,9 @@
-import type { Point } from "tikz-editor/semantic/types";
+import type { SvgPoint, WorldPoint } from "../coords/types";
 import type { ResizeFrame } from "./resize-frames";
 
 const EPSILON = 1e-9;
 
-export function angleDeg(center: Point, point: Point): number {
+export function angleDeg(center: WorldPoint, point: WorldPoint): number {
   const dx = point.x - center.x;
   const dy = point.y - center.y;
   if (Math.abs(dx) <= EPSILON && Math.abs(dy) <= EPSILON) {
@@ -78,7 +78,7 @@ export function resolveRotateHandlePosition(
   frame: ResizeFrame,
   scale: number,
   offsetPx: number
-): { anchorSvg: Point; handleSvg: Point } {
+): { anchorSvg: SvgPoint; handleSvg: SvgPoint } {
   const topLeft = frame.cornersByRole["top-left"].svg;
   const topRight = frame.cornersByRole["top-right"].svg;
   const anchorSvg = {

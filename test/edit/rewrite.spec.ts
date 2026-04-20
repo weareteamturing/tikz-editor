@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { EditHandle, Point } from "../../packages/core/src/semantic/types.js";
+import type { WorldPoint } from "../../packages/core/src/coords/points.js";
+import type { EditHandle } from "../../packages/core/src/semantic/types.js";
 import { identityMatrix, scaleMatrix, rotationMatrix, multiplyMatrix, translationMatrix } from "../../packages/core/src/semantic/transform.js";
 import { rewriteCoordinate } from "../../packages/core/src/edit/rewrite.js";
 import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
@@ -11,7 +12,7 @@ const cm = (value: number): number => value * PT_PER_CM;
 function makeHandle(
   overrides: Omit<Partial<EditHandle>, "sourceRef" | "runtimeId"> & {
     runtimeId?: string;
-    world: Point;
+    world: WorldPoint;
     sourceRef?: Partial<SourceRef> & { sourceSpan: { from: number; to: number } };
   }
 ): EditHandle {
@@ -22,17 +23,73 @@ function makeHandle(
     sourceFingerprint: sourceRefOverrides.sourceFingerprint ?? "test"
   };
   const { sourceRef: _unusedSourceRef, runtimeId, ...rest } = overrides;
+  const transform = rest.transform ?? identityMatrix();
+  const kind = rest.kind ?? "path-point";
+  if ("positioningContext" in rest && rest.positioningContext) {
+    return {
+      id: "test-handle",
+      runtimeId: runtimeId ?? "runtime:test-handle",
+      handleType: "node-positioning",
+      kind: "node-position",
+      sourceText: "",
+      coordinateForm: "cartesian",
+      transform,
+      rewriteMode: "positioning",
+      ...rest,
+      sourceRef: mergedSourceRef
+    } as EditHandle;
+  }
+
+  if ("pathAttachmentContext" in rest && rest.pathAttachmentContext) {
+    return {
+      id: "test-handle",
+      runtimeId: runtimeId ?? "runtime:test-handle",
+      handleType: "path-attachment",
+      kind: "node-position",
+      sourceText: "",
+      coordinateForm: "cartesian",
+      transform,
+      rewriteMode: "positioning",
+      ...rest,
+      sourceRef: mergedSourceRef
+    } as EditHandle;
+  }
+
+  if ("curveEdit" in rest && rest.curveEdit) {
+    return {
+      id: "test-handle",
+      runtimeId: runtimeId ?? "runtime:test-handle",
+      handleType: "curve-control",
+      kind,
+      sourceText: "",
+      coordinateForm: "cartesian",
+      transform,
+      rewriteMode: "direct",
+      ...rest,
+      sourceRef: mergedSourceRef
+    } as EditHandle;
+  }
+
+  const rewriteMode = rest.rewriteMode ?? "direct";
+  const coordinateSpace =
+    rewriteMode === "unsupported" && rest.coordinateForm === "named" && !("local" in rest) && !("frame" in rest)
+      ? "world-only"
+      : "frame-local";
   return {
     id: "test-handle",
     runtimeId: runtimeId ?? "runtime:test-handle",
-    kind: "path-point",
+    handleType: "coordinate",
+    coordinateSpace,
+    kind,
     sourceText: "",
     coordinateForm: "cartesian",
-    transform: identityMatrix(),
-    rewriteMode: "direct",
+    transform,
+    rewriteMode,
+    local: coordinateSpace === "frame-local" ? (rest.local ?? rest.world) : undefined,
+    frame: coordinateSpace === "frame-local" ? (rest.frame ?? transform) : undefined,
     ...rest,
     sourceRef: mergedSourceRef
-  };
+  } as EditHandle;
 }
 
 describe("rewriteCoordinate", () => {
@@ -180,7 +237,7 @@ describe("rewriteCoordinate", () => {
         coordinateForm: "cartesian",
         rewriteMode: "delta",
         relativePrefix: "++",
-        relativeBaseWorld: { x: 0, y: 0 }
+        relativeBase: { x: 0, y: 0 }
       });
       // Move to (2cm, 3cm) → delta from base (0,0) = (2,3)
       const result = rewriteCoordinate({ x: cm(2), y: cm(3) }, handle, source);
@@ -196,7 +253,7 @@ describe("rewriteCoordinate", () => {
         coordinateForm: "cartesian",
         rewriteMode: "delta",
         relativePrefix: "+",
-        relativeBaseWorld: { x: 0, y: 0 }
+        relativeBase: { x: 0, y: 0 }
       });
       const result = rewriteCoordinate({ x: cm(3), y: cm(1) }, handle, source);
       // Relative prefix is outside the source span and must not be duplicated.
@@ -214,13 +271,13 @@ describe("rewriteCoordinate", () => {
         coordinateForm: "cartesian",
         rewriteMode: "delta",
         relativePrefix: "++",
-        relativeBaseWorld: { x: cm(1), y: cm(1) }
+        relativeBase: { x: cm(1), y: cm(1) }
       });
       const result = rewriteCoordinate({ x: cm(3), y: cm(2) }, handle, source);
       expect(result).toBe("([xshift=3pt] 2, 1)");
     });
 
-    it("returns null when relativeBaseWorld is missing", () => {
+    it("returns null when relativeBase is missing", () => {
       const source = "\\draw ++(1,1);";
       const handle = makeHandle({
         world: { x: cm(1), y: cm(1) },
@@ -228,7 +285,7 @@ describe("rewriteCoordinate", () => {
         coordinateForm: "cartesian",
         rewriteMode: "delta",
         relativePrefix: "++"
-        // no relativeBaseWorld
+        // no relativeBase
       });
       const result = rewriteCoordinate({ x: cm(2), y: cm(2) }, handle, source);
       expect(result).toBeNull();

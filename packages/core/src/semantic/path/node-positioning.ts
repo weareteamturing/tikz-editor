@@ -1,3 +1,5 @@
+import type { WorldTransform } from "../../coords/transforms.js";
+import type { WorldPoint } from "../../coords/points.js";
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import type { Span } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
@@ -5,7 +7,6 @@ import type { NodeDistanceSpec, NodeDistanceValue, SemanticContext } from "../co
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import { parseLength, parseQuantityExpression } from "../coords/parse-length.js";
 import { applyMatrixToVector } from "../transform.js";
-import type { Matrix2D, Point } from "../types.js";
 import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 import { normalizeOptionValue } from "./shared.js";
 
@@ -66,7 +67,7 @@ const DIRECTION_META: Record<PositioningDirection, DirectionMeta> = {
   "mid right": { xSign: 1, ySign: 0, currentAnchor: "mid west", targetAnchor: "mid east", singleFactor: 1 }
 };
 
-const IDENTITY_MATRIX: Matrix2D = {
+const IDENTITY_MATRIX: WorldTransform = {
   a: 1,
   b: 0,
   c: 0,
@@ -86,14 +87,14 @@ type RelativePlacementSpec = {
 };
 
 export type NodePositioningResolution = {
-  anchorPoint: Point;
+  anchorPoint: WorldPoint;
   anchorOverride?: string;
   diagnostics: string[];
   relativePlacement?: {
     direction: PositioningDirection;
     targetNodeName: string;
-    targetWorld: Point;
-    targetCenter: Point;
+    targetWorld: WorldPoint;
+    targetCenter: WorldPoint;
     legacyOf: boolean;
     span: Span;
   };
@@ -164,7 +165,7 @@ export function parseNodeDistance(raw: string, opts: { allowNegative?: boolean }
 export function resolveNodePositioningTarget(
   options: OptionListAst | undefined,
   context: SemanticContext,
-  fallbackTarget: Point
+  fallbackTarget: WorldPoint
 ): NodePositioningResolution {
   if (!options) {
     return { anchorPoint: fallbackTarget, diagnostics: [] };
@@ -180,7 +181,7 @@ export function resolveNodePositioningTarget(
     horizontal: { kind: "dimension", value: PT_PER_CM }
   };
   let relativePlacement: RelativePlacementSpec | null = null;
-  let additiveOffset: Point = { x: 0, y: 0 };
+  let additiveOffset: WorldPoint = { x: 0, y: 0 };
 
   for (const entry of options.entries) {
     if (entry.kind === "flag") {
@@ -319,7 +320,7 @@ export function resolveNodePositioningTarget(
   return { anchorPoint, anchorOverride, diagnostics, relativePlacement: relativePlacementResult };
 }
 
-function parseDirectionalOffset(direction: PositioningDirection, raw: string, transform: Matrix2D): Point | null {
+function parseDirectionalOffset(direction: PositioningDirection, raw: string, transform: WorldTransform): WorldPoint | null {
   const normalized = normalizeOptionValue(raw);
   const shift =
     normalized.length === 0
@@ -354,8 +355,8 @@ function resolveRelativePlacement(
   context: SemanticContext,
   onGrid: boolean,
   defaultNodeDistance: NodeDistanceSpec,
-  transform: Matrix2D
-): { anchorPoint: Point | null; targetWorld?: Point; targetCenter?: Point; anchorOverride?: string; diagnostics: string[] } {
+  transform: WorldTransform
+): { anchorPoint: WorldPoint | null; targetWorld?: WorldPoint; targetCenter?: WorldPoint; anchorOverride?: string; diagnostics: string[] } {
   const diagnostics: string[] = [];
   const meta = DIRECTION_META[spec.direction];
   const resolvedReference = resolveReferencePoint(spec, context, onGrid);
@@ -405,7 +406,7 @@ function resolveReferencePoint(
   spec: RelativePlacementSpec,
   context: SemanticContext,
   onGrid: boolean
-): { point: Point | null; usesBareNodeName: boolean; diagnostics: string[] } {
+): { point: WorldPoint | null; usesBareNodeName: boolean; diagnostics: string[] } {
   const diagnostics: string[] = [];
   const meta = DIRECTION_META[spec.direction];
   const targetRaw = normalizeOptionValue(spec.targetRaw).trim();
@@ -436,7 +437,7 @@ function resolveReferencePoint(
   return { point: evaluated.world, usesBareNodeName, diagnostics };
 }
 
-function shiftVectorForDirection(direction: PositioningDirection, shift: NodeDistanceSpec, transform: Matrix2D): Point {
+function shiftVectorForDirection(direction: PositioningDirection, shift: NodeDistanceSpec, transform: WorldTransform): WorldPoint {
   const meta = DIRECTION_META[direction];
 
   const horizontalComponent = shift.kind === "single" ? shift.value : shift.horizontal;
@@ -467,7 +468,7 @@ function shiftVectorForDirection(direction: PositioningDirection, shift: NodeDis
   };
 }
 
-function horizontalPositioningVector(component: NodeDistanceValue, transform: Matrix2D): Point {
+function horizontalPositioningVector(component: NodeDistanceValue, transform: WorldTransform): WorldPoint {
   if (component.kind === "dimension") {
     return { x: component.value, y: 0 };
   }
@@ -478,7 +479,7 @@ function horizontalPositioningVector(component: NodeDistanceValue, transform: Ma
   });
 }
 
-function verticalPositioningVector(component: NodeDistanceValue, transform: Matrix2D): Point {
+function verticalPositioningVector(component: NodeDistanceValue, transform: WorldTransform): WorldPoint {
   if (component.kind === "dimension") {
     return { x: 0, y: component.value };
   }

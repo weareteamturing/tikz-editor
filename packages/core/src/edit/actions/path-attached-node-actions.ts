@@ -13,7 +13,8 @@ import {
   resolvePathPositionPreset,
   resolveDraggedPathAttachedNodeDirection as resolveDraggedDirectionFromRegime
 } from "../../semantic/path/path-attached.js";
-import type { PathAttachedNodePlacementRegime, Point } from "../../semantic/types.js";
+import type { WorldPoint } from "../../coords/points.js";
+import type { PathAttachedNodePlacementRegime } from "../../semantic/types.js";
 
 type EditActionResultLike =
   | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[]; changedSourceIds?: string[] }
@@ -170,11 +171,11 @@ export function applyPathAttachedNodeInspectorAction(
 }
 
 export function resolveDraggedPathAttachedNodeDirection(
-  anchorPoint: Point,
-  desiredCenter: Point,
+  anchorWorldPoint: WorldPoint,
+  desiredCenter: WorldPoint,
   regime: Extract<PathAttachedNodePlacementRegime, { kind: "explicit-direction" }>
 ): string {
-  return resolveDraggedDirectionFromRegime(anchorPoint, desiredCenter, regime);
+  return resolveDraggedDirectionFromRegime(anchorWorldPoint, desiredCenter, regime);
 }
 
 function applyPositionMutations(

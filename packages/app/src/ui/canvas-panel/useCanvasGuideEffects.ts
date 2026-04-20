@@ -1,5 +1,7 @@
 import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import { unsafePoint } from "tikz-editor/coords/index";
 import { addGuide, moveGuide, removeGuide } from "./panel-helpers";
+import type { ClientPoint } from "../coords/types";
 import type { GuideDragState, GuideOrientation, GuidePreview, GuidesState } from "./types";
 
 export type UseCanvasGuideEffectsArgs = {
@@ -7,13 +9,11 @@ export type UseCanvasGuideEffectsArgs = {
   setGuidePreview: Dispatch<SetStateAction<GuidePreview | null>>;
   resolveGuideFromClient: (
     orientation: GuideOrientation,
-    clientX: number,
-    clientY: number
+    clientPoint: ClientPoint
   ) => { value: number; overViewport: boolean } | null;
   isPointerOverGuideDeleteZone: (
     orientation: GuideOrientation,
-    clientX: number,
-    clientY: number
+    clientPoint: ClientPoint
   ) => boolean;
   setGuides: Dispatch<SetStateAction<GuidesState>>;
   showGuides: boolean;
@@ -46,10 +46,11 @@ export function useCanvasGuideEffects(args: UseCanvasGuideEffectsArgs) {
         return;
       }
 
-      const guide = resolveGuideFromClient(drag.orientation, event.clientX, event.clientY);
+      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const guide = resolveGuideFromClient(drag.orientation, clientPoint);
       if (!guide) {
         drag.overViewport = false;
-        drag.overDeleteZone = isPointerOverGuideDeleteZone(drag.orientation, event.clientX, event.clientY);
+        drag.overDeleteZone = isPointerOverGuideDeleteZone(drag.orientation, clientPoint);
         setGuidePreview(
           drag.source === "guide"
             ? {
@@ -64,7 +65,7 @@ export function useCanvasGuideEffects(args: UseCanvasGuideEffectsArgs) {
       }
       drag.value = guide.value;
       drag.overViewport = guide.overViewport;
-      drag.overDeleteZone = isPointerOverGuideDeleteZone(drag.orientation, event.clientX, event.clientY);
+      drag.overDeleteZone = isPointerOverGuideDeleteZone(drag.orientation, clientPoint);
       setGuidePreview(
         drag.source === "guide"
           ? {
@@ -88,14 +89,15 @@ export function useCanvasGuideEffects(args: UseCanvasGuideEffectsArgs) {
         return;
       }
 
-      const guide = resolveGuideFromClient(drag.orientation, event.clientX, event.clientY);
+      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const guide = resolveGuideFromClient(drag.orientation, clientPoint);
       if (guide) {
         drag.value = guide.value;
         drag.overViewport = guide.overViewport;
       } else {
         drag.overViewport = false;
       }
-      drag.overDeleteZone = isPointerOverGuideDeleteZone(drag.orientation, event.clientX, event.clientY);
+      drag.overDeleteZone = isPointerOverGuideDeleteZone(drag.orientation, clientPoint);
 
       if (drag.source === "ruler") {
         if (drag.overViewport) {

@@ -1,5 +1,7 @@
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
-import type { Matrix2D, Point, ResolvedStyle } from "../types.js";
+import type { WorldPoint } from "../../coords/points.js";
+import type { WorldTransform } from "../../coords/transforms.js";
+import type { ResolvedStyle } from "../types.js";
 import {
   cloneResolvedStyle,
   cloneStyleChain,
@@ -27,11 +29,11 @@ import { parseStyleValueAsOptionList } from "./option-utils.js";
 
 export type ResolvedContextDelta = ResolvedStyleTrace;
 
-export type CoordinateResolver = (raw: string) => Point | null;
+export type CoordinateResolver = (raw: string) => WorldPoint | null;
 
 export function resolveContextDelta(
   baseStyle: ResolvedStyle,
-  baseTransform: Matrix2D,
+  baseTransform: WorldTransform,
   optionLayers: StyleTraceLayerInput[],
   customStyles: CustomStyleRegistry = new Map(),
   resolveCoordinate?: CoordinateResolver,
@@ -198,7 +200,7 @@ function deriveStyleSourceRef(
 function applyOptionEntry(
   entry: OptionEntry,
   style: ResolvedStyle,
-  transform: Matrix2D,
+  transform: WorldTransform,
   resolveCoordinate?: CoordinateResolver,
   resolveColorAlias?: ColorAliasResolver
 ): ApplyOutcome {

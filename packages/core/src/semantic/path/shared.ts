@@ -1,4 +1,4 @@
-import type { Point } from "../types.js";
+import type { WorldPoint } from "../../coords/points.js";
 import { normalizeOptionValue, isWrappedBySingleBracePair } from "../shared/option-value.js";
 
 export { normalizeOptionValue, isWrappedBySingleBracePair };
@@ -19,7 +19,7 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-export function interpolate(from: Point, to: Point, t: number): Point {
+export function interpolate(from: WorldPoint, to: WorldPoint, t: number): WorldPoint {
   return {
     x: from.x + (to.x - from.x) * t,
     y: from.y + (to.y - from.y) * t

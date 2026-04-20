@@ -1,6 +1,8 @@
 import { useEffect } from "react";
+import { unsafePoint } from "tikz-editor/coords/index";
 import { clamp, distanceSquared, viewportToSvgPoint } from "./geometry";
 import { resolveToolCreateCurrentWorld } from "./interaction-helpers";
+import type { ClientPoint, SvgPoint, ViewportPoint } from "../coords/types";
 import type { PendingTouchViewport } from "./types";
 
 export type UseCanvasViewportEffectsArgs = {
@@ -151,11 +153,11 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
     const viewport = viewportRef.current;
     if (!viewport) return;
 
-    const activeTouchPointers = new Map<number, { clientX: number; clientY: number }>();
+    const activeTouchPointers = new Map<number, ClientPoint>();
     let pinchGesture:
       | {
           baseScale: number;
-          baseSvgPoint: { x: number; y: number };
+          baseSvgPoint: SvgPoint;
           baseDistance: number;
         }
       | null = null;
@@ -269,7 +271,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
       if (event.pointerType !== "touch") {
         return;
       }
-      activeTouchPointers.set(event.pointerId, { clientX: event.clientX, clientY: event.clientY });
+      activeTouchPointers.set(event.pointerId, unsafePoint<ClientPoint>(event.clientX, event.clientY));
       if (activeTouchPointers.size < 2) {
         return;
       }
@@ -286,7 +288,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
       if (event.pointerType !== "touch" || !activeTouchPointers.has(event.pointerId)) {
         return;
       }
-      activeTouchPointers.set(event.pointerId, { clientX: event.clientX, clientY: event.clientY });
+      activeTouchPointers.set(event.pointerId, unsafePoint<ClientPoint>(event.clientX, event.clientY));
       if (!pinchGesture) {
         return;
       }
@@ -338,20 +340,20 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
 }
 
 function midpointLocal(
-  first: { clientX: number; clientY: number },
-  second: { clientX: number; clientY: number },
+  first: ClientPoint,
+  second: ClientPoint,
   viewport: HTMLDivElement
-): { x: number; y: number } {
+): ViewportPoint {
   const rect = viewport.getBoundingClientRect();
-  return {
-    x: (first.clientX + second.clientX) / 2 - rect.left,
-    y: (first.clientY + second.clientY) / 2 - rect.top
-  };
+  return unsafePoint<ViewportPoint>(
+    (first.x + second.x) / 2 - rect.left,
+    (first.y + second.y) / 2 - rect.top
+  );
 }
 
 function touchDistance(
-  first: { clientX: number; clientY: number },
-  second: { clientX: number; clientY: number }
+  first: ClientPoint,
+  second: ClientPoint
 ): number {
-  return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+  return Math.hypot(second.x - first.x, second.y - first.y);
 }

@@ -1,4 +1,4 @@
-import type { Point } from "../../semantic/types.js";
+import type { WorldPoint } from "../../coords/points.js";
 import { extractNodeAdornmentPlan } from "../../semantic/path/label-quotes.js";
 import { replaceSpan } from "../patch.js";
 import { resolvePropertyTarget } from "../property-target.js";
@@ -22,8 +22,8 @@ type EditActionResultLike =
 
 export type MoveAdornmentAction = {
   targetId: string;
-  ownerPoint: Point;
-  newWorld: Point;
+  ownerPoint: WorldPoint;
+  newWorld: WorldPoint;
   angleRaw?: string;
   distancePt?: number;
 };

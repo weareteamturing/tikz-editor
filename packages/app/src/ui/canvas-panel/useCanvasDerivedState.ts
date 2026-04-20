@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { PT_PER_CM } from "tikz-editor/edit/format";
-import type { Point, ScenePathCommand } from "tikz-editor/semantic/types";
+import type { ScenePathCommand } from "tikz-editor/semantic/types";
+import type { WorldPoint } from "../coords/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 import { distanceSquared, fmt, worldToSvgPoint, worldToSvgY } from "./geometry";
 import { resolveBezierControlsFromBend } from "./interaction-helpers";
@@ -124,7 +125,7 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
       return { kind: "freehand", segments };
     }
 
-    const makeBezierPreview = (startWorld: Point, endWorld: Point, bendWorld: Point): ToolPreview => {
+    const makeBezierPreview = (startWorld: WorldPoint, endWorld: WorldPoint, bendWorld: WorldPoint): ToolPreview => {
       const controls = resolveBezierControlsFromBend(startWorld, endWorld, bendWorld);
       const start = worldToSvgPoint(startWorld, svgResult.viewBox);
       const end = worldToSvgPoint(controls.endWorld, svgResult.viewBox);
@@ -153,9 +154,9 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
       }
 
       const segments: Extract<ToolPreview, { kind: "complex-path" }>["segments"] = [];
-      let currentPoint = pathDraft.startWorld;
+      let currentWorldPoint = pathDraft.startWorld;
       for (const segment of pathDraft.segments) {
-        const from = worldToSvgPoint(currentPoint, svgResult.viewBox);
+        const from = worldToSvgPoint(currentWorldPoint, svgResult.viewBox);
         if (segment.kind === "line") {
           const to = worldToSvgPoint(segment.to, svgResult.viewBox);
           segments.push({
@@ -165,7 +166,7 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
             x2: to.x,
             y2: to.y
           });
-          currentPoint = segment.to;
+          currentWorldPoint = segment.to;
           continue;
         }
 
@@ -183,7 +184,7 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
           x2: to.x,
           y2: to.y
         });
-        currentPoint = segment.to;
+        currentWorldPoint = segment.to;
       }
       if (pathSegmentDraft) {
         if (pathSegmentDraft.isBending) {
@@ -225,8 +226,8 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
           pathToolCloseRadiusWorld(canvasTransform.scale)
         );
         const candidateTarget = closeCandidate ? pathDraft.startWorld : toolCursorWorld;
-        if (distanceSquared(currentPoint, candidateTarget) > 1e-6) {
-          const from = worldToSvgPoint(currentPoint, svgResult.viewBox);
+        if (distanceSquared(currentWorldPoint, candidateTarget) > 1e-6) {
+          const from = worldToSvgPoint(currentWorldPoint, svgResult.viewBox);
           const to = worldToSvgPoint(candidateTarget, svgResult.viewBox);
           segments.push({
             kind: "line",

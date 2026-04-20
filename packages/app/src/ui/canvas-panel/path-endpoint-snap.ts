@@ -1,4 +1,5 @@
-import type { EditHandle, Point } from "tikz-editor/semantic/types";
+import type { EditHandle } from "tikz-editor/semantic/types";
+import type { WorldPoint } from "../coords/types";
 import { analyzeExplicitPathStatement, type ExplicitPathAnalysis } from "tikz-editor/edit/path-editing";
 import type { PathStatement } from "tikz-editor/ast/types";
 import { parseTikzForEdit, type EditParseOptions } from "tikz-editor/edit/parse-options";
@@ -8,7 +9,7 @@ const ENDPOINT_SNAP_RADIUS_PX = 10;
 export type PathEndpointSnap = {
   elementId: string;
   end: "start" | "end";
-  world: Point;
+  world: WorldPoint;
 };
 
 /**
@@ -16,7 +17,7 @@ export type PathEndpointSnap = {
  * Returns the nearest matching endpoint, or null.
  */
 export function resolvePathEndpointSnap(input: {
-  pointerWorld: Point;
+  pointerWorld: WorldPoint;
   zoom: number;
   editHandles: readonly EditHandle[];
   source: string;

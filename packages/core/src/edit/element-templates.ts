@@ -1,4 +1,4 @@
-import type { Point } from "../semantic/types.js";
+import type { WorldPoint } from "../coords/points.js";
 import { CM_PER_PT, PT_PER_CM, formatNumber } from "./format.js";
 
 export type AnchorReference = {
@@ -9,17 +9,17 @@ export type AnchorReference = {
 export type ElementTemplate =
   | { kind: "node"; text?: string; shape?: string; minimumWidthPt?: number; minimumHeightPt?: number; strokeColor?: string; fillColor?: string }
   | { kind: "matrix"; rows?: number; columns?: number; matrixKind?: "plain" | "nodes" | "math-nodes"; cells?: string[][] }
-  | { kind: "line"; hasArrow?: boolean; to?: Point; fromAnchor?: AnchorReference; toAnchor?: AnchorReference; strokeColor?: string }
-  | { kind: "bezier"; to?: Point; control1?: Point; control2?: Point; strokeColor?: string }
-  | { kind: "grid"; corner?: Point; strokeColor?: string }
-  | { kind: "rectangle"; corner?: Point; strokeColor?: string; fillColor?: string }
-  | { kind: "ellipse"; corner?: Point; strokeColor?: string; fillColor?: string }
-  | { kind: "circle"; edge?: Point; strokeColor?: string; fillColor?: string }
-  | { kind: "filledCircle"; edge?: Point };
+  | { kind: "line"; hasArrow?: boolean; to?: WorldPoint; fromAnchor?: AnchorReference; toAnchor?: AnchorReference; strokeColor?: string }
+  | { kind: "bezier"; to?: WorldPoint; control1?: WorldPoint; control2?: WorldPoint; strokeColor?: string }
+  | { kind: "grid"; corner?: WorldPoint; strokeColor?: string }
+  | { kind: "rectangle"; corner?: WorldPoint; strokeColor?: string; fillColor?: string }
+  | { kind: "ellipse"; corner?: WorldPoint; strokeColor?: string; fillColor?: string }
+  | { kind: "circle"; edge?: WorldPoint; strokeColor?: string; fillColor?: string }
+  | { kind: "filledCircle"; edge?: WorldPoint };
 
 export type ComplexPathSegment =
-  | { kind: "line"; to: Point; toAnchor?: AnchorReference }
-  | { kind: "bezier"; to: Point; control1: Point; control2: Point; toAnchor?: AnchorReference };
+  | { kind: "line"; to: WorldPoint; toAnchor?: AnchorReference }
+  | { kind: "bezier"; to: WorldPoint; control1: WorldPoint; control2: WorldPoint; toAnchor?: AnchorReference };
 
 const DEFAULT_NODE_TEXT = "node";
 const SHAPE_TOOL_DEFAULT_MINIMUM_WIDTH_CM = 2.2;
@@ -30,7 +30,7 @@ const DEFAULT_RECT_HEIGHT_PT = 1.4 * PT_PER_CM;
 const DEFAULT_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
 const DEFAULT_BEZIER_CONTROL_OFFSET_PT = 0;
 
-export function generateElementSource(template: ElementTemplate, at: Point): string {
+export function generateElementSource(template: ElementTemplate, at: WorldPoint): string {
   const atCoord = formatPointCm(at);
 
   switch (template.kind) {
@@ -162,7 +162,7 @@ export function insertElementIntoSource(source: string, snippet: string): string
 }
 
 export function generateComplexPathSource(
-  start: Point,
+  start: WorldPoint,
   segments: readonly ComplexPathSegment[],
   options: { closed?: boolean; startAnchor?: AnchorReference } = {}
 ): string | null {
@@ -217,10 +217,10 @@ export function generateComplexPathSegmentSource(
  * `fromWorld` is the start point of the original (unreversed) segment sequence.
  */
 export function reverseComplexPathSegments(
-  fromWorld: Point,
+  fromWorld: WorldPoint,
   segments: readonly ComplexPathSegment[],
   fromAnchor?: AnchorReference
-): { startWorld: Point; startAnchor?: AnchorReference; segments: ComplexPathSegment[] } {
+): { startWorld: WorldPoint; startAnchor?: AnchorReference; segments: ComplexPathSegment[] } {
   if (segments.length === 0) {
     return { startWorld: fromWorld, startAnchor: fromAnchor, segments: [] };
   }
@@ -265,7 +265,7 @@ export function reverseComplexPathSegments(
  * segment's target is the existing path's old start (which will be omitted).
  */
 export function generateComplexPathPrependSource(
-  startWorld: Point,
+  startWorld: WorldPoint,
   segments: readonly ComplexPathSegment[],
   startAnchor?: AnchorReference
 ): string | null {
@@ -294,7 +294,7 @@ export function generateComplexPathPrependSource(
   return parts.join(" ");
 }
 
-function formatPointCm(point: Point): string {
+function formatPointCm(point: WorldPoint): string {
   const x = formatNumber(point.x * CM_PER_PT);
   const y = formatNumber(point.y * CM_PER_PT);
   return `(${x},${y})`;
@@ -304,7 +304,7 @@ function formatLineEndpoint(anchor: AnchorReference | undefined, fallbackCoord: 
   return formatAnchorReference(anchor, fallbackCoord);
 }
 
-function formatPathEndpoint(anchor: AnchorReference | undefined, fallbackPoint: Point): string {
+function formatPathEndpoint(anchor: AnchorReference | undefined, fallbackPoint: WorldPoint): string {
   return formatAnchorReference(anchor, formatPointCm(fallbackPoint));
 }
 
@@ -322,7 +322,7 @@ function formatAnchorReference(anchor: AnchorReference | undefined, fallbackCoor
     : `(${nodeName}.${normalizedAnchor})`;
 }
 
-function circleRadiusPt(center: Point, edge: Point | undefined): number {
+function circleRadiusPt(center: WorldPoint, edge: WorldPoint | undefined): number {
   if (!edge) {
     return DEFAULT_CIRCLE_RADIUS_PT;
   }
@@ -333,7 +333,7 @@ function circleRadiusPt(center: Point, edge: Point | undefined): number {
   return radius > 1e-4 ? radius : DEFAULT_CIRCLE_RADIUS_PT;
 }
 
-function ellipseFromCorner(anchor: Point, corner: Point | undefined): { center: Point; xRadiusPt: number; yRadiusPt: number } {
+function ellipseFromCorner(anchor: WorldPoint, corner: WorldPoint | undefined): { center: WorldPoint; xRadiusPt: number; yRadiusPt: number } {
   const resolvedCorner = corner ?? {
     x: anchor.x + DEFAULT_RECT_WIDTH_PT,
     y: anchor.y + DEFAULT_RECT_HEIGHT_PT
@@ -377,11 +377,11 @@ function spreadsheetLabel(index: number): string {
 }
 
 function resolveBezierControls(
-  from: Point,
-  to: Point,
-  control1: Point | undefined,
-  control2: Point | undefined
-): { control1: Point; control2: Point } {
+  from: WorldPoint,
+  to: WorldPoint,
+  control1: WorldPoint | undefined,
+  control2: WorldPoint | undefined
+): { control1: WorldPoint; control2: WorldPoint } {
   if (control1 && control2) {
     return { control1, control2 };
   }

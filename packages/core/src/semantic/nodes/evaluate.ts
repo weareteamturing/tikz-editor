@@ -26,7 +26,9 @@ import {
   resolvePathPositionFraction
 } from "../path/path-attached.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "../path/types.js";
-import type { Matrix2D, Point, ResolvedStyle, SceneAdornment, SceneElement, ScenePath, ScenePathAttachment, ScenePathCommand } from "../types.js";
+import type { WorldPoint } from "../../coords/points.js";
+import type { WorldTransform } from "../../coords/transforms.js";
+import type { ResolvedStyle, SceneAdornment, SceneElement, ScenePath, ScenePathAttachment, ScenePathCommand } from "../types.js";
 import { cloneCustomStyleRegistry, walkOptionEntriesWithCustomStyles } from "../style/custom-styles.js";
 import { expandOptionListMacros } from "../style/macro-options.js";
 import { resolveContextDelta } from "../style/resolve.js";
@@ -123,15 +125,15 @@ export type NodeAnchorExtents = {
 
 function computePositioningAnchorOffsetsByDirection(params: {
   targetNodeName: string;
-  targetCenter: Point;
-  currentCenter: Point;
+  targetCenter: WorldPoint;
+  currentCenter: WorldPoint;
   context: SemanticContext;
   legacyOf: boolean;
   nodeShape: NodeShape;
   nodeLayout: ReturnType<typeof adjustNodeLayoutForShape>;
   nodeOptions: OptionListAst | undefined;
-  nodeTransform: Matrix2D;
-}): Record<string, { targetAnchor: Point; currentAnchor: Point }> {
+  nodeTransform: WorldTransform;
+}): Record<string, { targetAnchor: WorldPoint; currentAnchor: WorldPoint }> {
   const {
     targetNodeName,
     targetCenter,
@@ -143,24 +145,24 @@ function computePositioningAnchorOffsetsByDirection(params: {
     nodeOptions,
     nodeTransform
   } = params;
-  const offsets: Record<string, { targetAnchor: Point; currentAnchor: Point }> = {};
+  const offsets: Record<string, { targetAnchor: WorldPoint; currentAnchor: WorldPoint }> = {};
 
   for (const direction of CONTINUOUS_POSITIONING_DIRECTIONS) {
     const currentAnchor = applyMatrixToVector(
       nodeTransform,
       nodeAnchorOffset(nodeShape, nodeLayout, currentAnchorForDirection(direction), nodeOptions)
     );
-    let targetAnchor: Point = { x: 0, y: 0 };
+    let targetAnchor: WorldPoint = { x: 0, y: 0 };
 
     if (!legacyOf) {
-      const targetAnchorPoint = evaluateRawCoordinate(
+      const targetAnchorWorldPoint = evaluateRawCoordinate(
         `(${targetNodeName}.${targetAnchorForDirection(direction)})`,
         context
       ).world;
-      if (targetAnchorPoint) {
+      if (targetAnchorWorldPoint) {
         targetAnchor = {
-          x: targetAnchorPoint.x - targetCenter.x,
-          y: targetAnchorPoint.y - targetCenter.y
+          x: targetAnchorWorldPoint.x - targetCenter.x,
+          y: targetAnchorWorldPoint.y - targetCenter.y
         };
       }
     }
@@ -308,7 +310,7 @@ export function evaluateNodeItem(
   segment: PlacementSegment | null,
   forcedName?: string,
   defaultPositionFraction?: number,
-  defaultTargetPoint?: Point,
+  defaultTargetWorldPoint?: WorldPoint,
   baseStyleChain?: StyleChainEntry[],
   placementOptions: { allowImplicitOriginHandle?: boolean; explicitAtSyntax?: boolean; textMode?: "text" | "math" } = {}
 ): {
@@ -517,7 +519,7 @@ export function evaluateNodeItem(
     pushDiagnostic,
     expandedNodeOptions,
     segment,
-    defaultTargetPoint,
+    defaultTargetWorldPoint,
     placementOptions
   );
   const resolvedPositioning = resolveNodePositioningTarget(expandedNodeOptions, context, target);
@@ -581,7 +583,7 @@ export function evaluateNodeItem(
       inheritedTransformScale: 1,
       resolvedPositioning,
       fallbackAnchor: resolvedPositioning.anchorOverride ?? anchor,
-      evaluateNestedNode: (matrixCellItem, defaultTargetPoint) =>
+      evaluateNestedNode: (matrixCellItem, defaultTargetWorldPoint) =>
         evaluateNodeItem(
           matrixCellItem,
           statement,
@@ -592,7 +594,7 @@ export function evaluateNodeItem(
           null,
           undefined,
           undefined,
-          defaultTargetPoint,
+          defaultTargetWorldPoint,
           effectiveBaseStyleChain,
           { allowImplicitOriginHandle: false, textMode: matrixMode.textMode }
         )
@@ -635,7 +637,7 @@ export function evaluateNodeItem(
     : adjustedNodeLayout;
   const shapeGeometry = resolveNodeShapeGeometryParams(expandedNodeOptions, () => context.mathRandom.nextRaw());
   const slopedRotation = resolveSlopedNodeRotation(expandedNodeOptions, segment, effectiveBaseStyleChain);
-  const inheritedNodeTransform: Matrix2D = frame.transformShape
+  const inheritedNodeTransform: WorldTransform = frame.transformShape
     ? { a: frame.transform.a, b: frame.transform.b, c: frame.transform.c, d: frame.transform.d, e: 0, f: 0 }
     : identityMatrix();
   const nodeOptionTransform = resolveNodeOptionTransform(expandedNodeLocalOptions, style, context);
@@ -678,6 +680,7 @@ export function evaluateNodeItem(
           sourceSpan: rp.span,
           sourceFingerprint: context.sourceFingerprint
         },
+        handleType: "node-positioning",
         kind: "node-position",
         world: center,
         transform: frame?.transform ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
@@ -735,17 +738,18 @@ export function evaluateNodeItem(
 
   if (pathAttachmentMetadata) {
     const sourceText = context.source.slice(item.span.from, item.span.to);
-    context.editHandles.push({
-      id: `handle:${nodeHandleSourceId}:node-position:${context.editHandles.length}`,
-      runtimeId: `handle:${nodeHandleSourceId}:node-position:${context.editHandles.length}`,
+      context.editHandles.push({
+        id: `handle:${nodeHandleSourceId}:node-position:${context.editHandles.length}`,
+        runtimeId: `handle:${nodeHandleSourceId}:node-position:${context.editHandles.length}`,
       sourceRef: {
         sourceId: nodeHandleSourceId,
         sourceSpan: item.optionsSpan ?? item.span,
         sourceFingerprint: context.sourceFingerprint
       },
-      kind: "node-position",
-      world: center,
-      transform: frame?.transform ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
+        handleType: "path-attachment",
+        kind: "node-position",
+        world: center,
+        transform: frame?.transform ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
       sourceText,
       coordinateForm: "cartesian",
       rewriteMode: "positioning",
@@ -796,7 +800,7 @@ export function evaluateNodeItem(
       doubleStroke: false,
       doubleDistance: 0
     };
-    const calloutPointerOffset = resolveCalloutPointerOffset(shapeGeometry, context, center);
+    const calloutWorldPointerOffset = resolveCalloutPointerOffset(shapeGeometry, context, center);
     if (nodeShape === "rounded rectangle") {
       pushNodeElement(
         makeNodeRoundedRectangleElement(
@@ -1339,7 +1343,7 @@ export function evaluateNodeItem(
           nodeLayout.naturalHeight,
           nodeLayout.minimumWidth,
           nodeLayout.minimumHeight,
-          calloutPointerOffset,
+          calloutWorldPointerOffset,
           shapeGeometry.calloutPointerWidthPt,
           shapeGeometry.calloutPointerIsAbsolute,
           shapeGeometry.calloutPointerShortenPt,
@@ -1359,7 +1363,7 @@ export function evaluateNodeItem(
           nodeLayout.naturalHeight,
           nodeLayout.minimumWidth,
           nodeLayout.minimumHeight,
-          calloutPointerOffset,
+          calloutWorldPointerOffset,
           shapeGeometry.calloutPointerArc,
           shapeGeometry.calloutPointerIsAbsolute,
           shapeGeometry.calloutPointerShortenPt,
@@ -1384,7 +1388,7 @@ export function evaluateNodeItem(
           shapeGeometry.diamondAspect,
           shapeGeometry.cloudIgnoresAspect,
           shapeGeometry.shapeBorderRotate,
-          calloutPointerOffset,
+          calloutWorldPointerOffset,
           shapeGeometry.calloutPointerStartSizeRaw,
           shapeGeometry.calloutPointerEndSizeRaw,
           shapeGeometry.calloutPointerSegments,
@@ -1686,7 +1690,7 @@ export function evaluateNodeItem(
 function attachAdornmentMetadata(
   element: SceneElement,
   adornment: NonNullable<NodeItem["adornment"]>,
-  ownerPoint: Point
+  ownerPoint: WorldPoint
 ): SceneElement {
   const metadata: SceneAdornment = {
     targetId: makeNodeAdornmentTargetId(adornment.ownerNodeId, adornment.adornmentIndex, adornment.kind),
@@ -2221,8 +2225,8 @@ function expandNodePlacementOptions(options: OptionListAst | undefined, context:
   };
 }
 
-function segmentTangent(segment: PlacementSegment): Point | null {
-  let tangent: Point;
+function segmentTangent(segment: PlacementSegment): WorldPoint | null {
+  let tangent: WorldPoint;
   if (segment.kind === "line") {
     tangent = {
       x: segment.to.x - segment.from.x,
@@ -2261,7 +2265,7 @@ function segmentTangent(segment: PlacementSegment): Point | null {
   };
 }
 
-function directionToAnchor(direction: Point): string {
+function directionToAnchor(direction: WorldPoint): string {
   const len = Math.hypot(direction.x, direction.y);
   if (!Number.isFinite(len) || len <= 1e-9) {
     return "center";
@@ -2316,7 +2320,7 @@ function replaceColorCommandAliases(
   });
 }
 
-function resolveNodeElementTransform(center: Point, nodeTransform: Matrix2D): Matrix2D | undefined {
+function resolveNodeElementTransform(center: WorldPoint, nodeTransform: WorldTransform): WorldTransform | undefined {
   const hasLinear =
     Math.abs(nodeTransform.a - 1) > 1e-9 ||
     Math.abs(nodeTransform.b) > 1e-9 ||
@@ -2339,7 +2343,7 @@ function resolveNodeElementTransform(center: Point, nodeTransform: Matrix2D): Ma
   };
 }
 
-function rotateNodeElementGeometry(element: SceneElement, center: Point, rotation: number): SceneElement {
+function rotateNodeElementGeometry(element: SceneElement, center: WorldPoint, rotation: number): SceneElement {
   if (Math.abs(rotation) <= 1e-6 || element.kind === "Text") {
     return element;
   }
@@ -2354,19 +2358,19 @@ function rotateNodeElementGeometry(element: SceneElement, center: Point, rotatio
   if (element.kind === "Circle") {
     return {
       ...element,
-      center: rotatePointAround(element.center, center, rotation)
+      center: rotateWorldPointAround(element.center, center, rotation)
     };
   }
 
   const rotated = normalizeRotationDegrees((element.rotation ?? 0) + rotation);
   return {
     ...element,
-    center: rotatePointAround(element.center, center, rotation),
+    center: rotateWorldPointAround(element.center, center, rotation),
     rotation: Math.abs(rotated) > 1e-6 ? rotated : undefined
   };
 }
 
-function rotateScenePathCommand(command: ScenePathCommand, center: Point, rotation: number): ScenePathCommand {
+function rotateScenePathCommand(command: ScenePathCommand, center: WorldPoint, rotation: number): ScenePathCommand {
   if (command.kind === "Z") {
     return { kind: "Z" };
   }
@@ -2374,16 +2378,16 @@ function rotateScenePathCommand(command: ScenePathCommand, center: Point, rotati
   if (command.kind === "M" || command.kind === "L") {
     return {
       kind: command.kind,
-      to: rotatePointAround(command.to, center, rotation)
+      to: rotateWorldPointAround(command.to, center, rotation)
     };
   }
 
   if (command.kind === "C") {
     return {
       kind: "C",
-      c1: rotatePointAround(command.c1, center, rotation),
-      c2: rotatePointAround(command.c2, center, rotation),
-      to: rotatePointAround(command.to, center, rotation)
+      c1: rotateWorldPointAround(command.c1, center, rotation),
+      c2: rotateWorldPointAround(command.c2, center, rotation),
+      to: rotateWorldPointAround(command.to, center, rotation)
     };
   }
 
@@ -2394,11 +2398,11 @@ function rotateScenePathCommand(command: ScenePathCommand, center: Point, rotati
     xAxisRotation: normalizeRotationDegrees(command.xAxisRotation + rotation),
     largeArc: command.largeArc,
     sweep: command.sweep,
-    to: rotatePointAround(command.to, center, rotation)
+    to: rotateWorldPointAround(command.to, center, rotation)
   };
 }
 
-function rotatePointAround(point: Point, center: Point, degrees: number): Point {
+function rotateWorldPointAround(point: WorldPoint, center: WorldPoint, degrees: number): WorldPoint {
   const radians = (degrees * Math.PI) / 180;
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
@@ -2672,8 +2676,8 @@ function resolveFitOverrides(options: OptionListAst | undefined, context: Semant
     return { hasFit: false, overrideOptions: null, diagnostics };
   }
 
-  const fitPoints = collectFitSamplePoints(fitEntry.valueRaw, context);
-  if (fitPoints.length === 0) {
+  const fitWorldPoints = collectFitSampleWorldPoints(fitEntry.valueRaw, context);
+  if (fitWorldPoints.length === 0) {
     diagnostics.push({
       code: "unsupported-fit-targets",
       message: "Node fit issue: unsupported-fit-targets"
@@ -2681,7 +2685,7 @@ function resolveFitOverrides(options: OptionListAst | undefined, context: Semant
     return { hasFit: true, overrideOptions: null, diagnostics };
   }
 
-  const bounds = computeFitBounds(fitPoints, rotateFitDegrees);
+  const bounds = computeFitWorldBounds(fitWorldPoints, rotateFitDegrees);
   if (!bounds) {
     diagnostics.push({
       code: "unsupported-fit-targets",
@@ -2700,16 +2704,16 @@ function resolveFitOverrides(options: OptionListAst | undefined, context: Semant
   return { hasFit: true, overrideOptions, diagnostics };
 }
 
-function collectFitSamplePoints(fitRaw: string, context: SemanticContext): Point[] {
+function collectFitSampleWorldPoints(fitRaw: string, context: SemanticContext): WorldPoint[] {
   const normalized = stripWrappingBraces(fitRaw).trim();
   if (normalized.length === 0) {
     return [];
   }
 
   const tokens = extractTopLevelCoordinateTokens(normalized);
-  const points: Point[] = [];
+  const points: WorldPoint[] = [];
   for (const token of tokens) {
-    for (const point of resolveFitTokenPoints(token, context)) {
+    for (const point of resolveFitTokenWorldPoints(token, context)) {
       points.push(point);
     }
   }
@@ -2749,7 +2753,7 @@ function extractTopLevelCoordinateTokens(raw: string): string[] {
   return tokens;
 }
 
-function resolveFitTokenPoints(tokenRaw: string, context: SemanticContext): Point[] {
+function resolveFitTokenWorldPoints(tokenRaw: string, context: SemanticContext): WorldPoint[] {
   const coordinate = evaluateRawCoordinate(tokenRaw, context);
   if (!coordinate.world) {
     return [];
@@ -2766,7 +2770,7 @@ function resolveFitTokenPoints(tokenRaw: string, context: SemanticContext): Poin
     return [coordinate.world];
   }
 
-  const anchors: Point[] = [];
+  const anchors: WorldPoint[] = [];
   for (const anchor of ["west", "east", "north", "south"]) {
     const resolved = evaluateRawCoordinate(`(${maybeName}.${anchor})`, context);
     if (resolved.world) {
@@ -2817,16 +2821,16 @@ function applyRawNameScope(name: string, prefix: string, suffix: string): string
   return `${prefix}${base}${suffix}${anchor}`;
 }
 
-function computeFitBounds(
-  points: Point[],
+function computeFitWorldBounds(
+  points: WorldPoint[],
   rotateFitDegrees: number | null
-): { center: Point; width: number; height: number } | null {
+): { center: WorldPoint; width: number; height: number } | null {
   if (points.length === 0) {
     return null;
   }
 
   const hasRotate = rotateFitDegrees != null && Number.isFinite(rotateFitDegrees);
-  const sampled = hasRotate ? points.map((point) => rotatePoint(point, -rotateFitDegrees!)) : points;
+  const sampled = hasRotate ? points.map((point) => rotateWorldPoint(point, -rotateFitDegrees!)) : points;
   const minX = Math.min(...sampled.map((point) => point.x));
   const maxX = Math.max(...sampled.map((point) => point.x));
   const minY = Math.min(...sampled.map((point) => point.y));
@@ -2840,7 +2844,7 @@ function computeFitBounds(
     x: (minX + maxX) / 2,
     y: (minY + maxY) / 2
   };
-  const center = hasRotate ? rotatePoint(centerRotated, rotateFitDegrees!) : centerRotated;
+  const center = hasRotate ? rotateWorldPoint(centerRotated, rotateFitDegrees!) : centerRotated;
   return {
     center,
     width: Math.max(0, maxX - minX),
@@ -2848,7 +2852,7 @@ function computeFitBounds(
   };
 }
 
-function rotatePoint(point: Point, degrees: number): Point {
+function rotateWorldPoint(point: WorldPoint, degrees: number): WorldPoint {
   const radians = (degrees * Math.PI) / 180;
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
@@ -2953,7 +2957,7 @@ function splitTopLevelCommas(raw: string): string[] {
 }
 
 type RectangleSplitSegment = {
-  center: Point;
+  center: WorldPoint;
   minX: number;
   maxX: number;
   minY: number;
@@ -3100,8 +3104,8 @@ function resolveRectangleSplitPartAlignments(
 function resolveRectangleSplitPartTextPosition(params: {
   splitLayout: RectangleSplitLayoutGeometry;
   index: number;
-  center: Point;
-}): Point {
+  center: WorldPoint;
+}): WorldPoint {
   const segment = params.splitLayout.segments[params.index];
   const part = params.splitLayout.parts[params.index];
   if (!segment || !part) {
@@ -3290,7 +3294,7 @@ function resolveRectangleSplitEmptyPartMetrics(options: OptionListAst | undefine
 }
 
 function computeRectangleSplitSegments(params: {
-  center: Point;
+  center: WorldPoint;
   width: number;
   height: number;
   horizontal: boolean;

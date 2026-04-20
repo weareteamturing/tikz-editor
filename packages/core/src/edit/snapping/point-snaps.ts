@@ -1,3 +1,5 @@
+import { unsafePoint } from "../../coords/points.js";
+import type { WorldPoint } from "../../coords/points.js";
 import type {
   Axis,
   AxisMinOffset,
@@ -16,8 +18,8 @@ export function collectPointSnaps({
   kind,
   enabledAxis
 }: {
-  selectionPoints: readonly { x: number; y: number }[];
-  referencePoints: readonly (SnapPoint | { x: number; y: number })[];
+  selectionPoints: readonly WorldPoint[];
+  referencePoints: readonly (SnapPoint | WorldPoint)[];
   minOffset: AxisMinOffset;
   nearest: AxisSnapBuckets;
   kind: "point" | "grid";
@@ -38,8 +40,8 @@ export function collectPointSnaps({
           nearest.x.push({
             kind,
             axis: "x",
-            from: { x: from.x, y: from.y },
-            to: { x: to.x, y: to.y },
+            from: unsafePoint<WorldPoint>(from.x, from.y),
+            to: unsafePoint<WorldPoint>(to.x, to.y),
             offset: offsetX,
             key: roundSnapValue(to.x)
           });
@@ -57,8 +59,8 @@ export function collectPointSnaps({
           nearest.y.push({
             kind,
             axis: "y",
-            from: { x: from.x, y: from.y },
-            to: { x: to.x, y: to.y },
+            from: unsafePoint<WorldPoint>(from.x, from.y),
+            to: unsafePoint<WorldPoint>(to.x, to.y),
             offset: offsetY,
             key: roundSnapValue(to.y)
           });
@@ -76,7 +78,7 @@ export function collectGuideSnaps({
   nearest,
   enabledAxis
 }: {
-  selectionPoints: readonly { x: number; y: number }[];
+  selectionPoints: readonly WorldPoint[];
   guides: { x: readonly number[]; y: readonly number[] };
   minOffset: AxisMinOffset;
   nearest: AxisSnapBuckets;
@@ -95,8 +97,8 @@ export function collectGuideSnaps({
           nearest.x.push({
             kind: "guide",
             axis: "x",
-            from: { x: from.x, y: from.y },
-            to: { x: guideX, y: from.y },
+            from: unsafePoint<WorldPoint>(from.x, from.y),
+            to: unsafePoint<WorldPoint>(guideX, from.y),
             offset: offsetX,
             key: roundSnapValue(guideX)
           });
@@ -117,8 +119,8 @@ export function collectGuideSnaps({
           nearest.y.push({
             kind: "guide",
             axis: "y",
-            from: { x: from.x, y: from.y },
-            to: { x: from.x, y: guideY },
+            from: unsafePoint<WorldPoint>(from.x, from.y),
+            to: unsafePoint<WorldPoint>(from.x, guideY),
             offset: offsetY,
             key: roundSnapValue(guideY)
           });
@@ -129,14 +131,11 @@ export function collectGuideSnaps({
   }
 }
 
-export function pointSnapOffset(nearest: AxisSnapBuckets): { x: number; y: number } {
+export function pointSnapOffset(nearest: AxisSnapBuckets): WorldPoint {
   const xSnap = nearest.x.find((snap): snap is PointSnapCandidate => snap.kind !== "gap");
   const ySnap = nearest.y.find((snap): snap is PointSnapCandidate => snap.kind !== "gap");
 
-  return {
-    x: xSnap?.offset ?? 0,
-    y: ySnap?.offset ?? 0
-  };
+  return unsafePoint<WorldPoint>(xSnap?.offset ?? 0, ySnap?.offset ?? 0);
 }
 
 export function createPointSnapLines(nearest: AxisSnapBuckets): SnapLine[] {
@@ -147,8 +146,8 @@ export function createPointSnapLines(nearest: AxisSnapBuckets): SnapLine[] {
     if (snap.kind !== "point") {
       continue;
     }
-    const from = { x: snap.to.x, y: snap.from.y };
-    const to = { x: snap.to.x, y: snap.to.y };
+    const from = unsafePoint<WorldPoint>(snap.to.x, snap.from.y);
+    const to = unsafePoint<WorldPoint>(snap.to.x, snap.to.y);
     const key = makeLineKey("x", from, to);
     if (seen.has(key)) {
       continue;
@@ -165,8 +164,8 @@ export function createPointSnapLines(nearest: AxisSnapBuckets): SnapLine[] {
     if (snap.kind !== "point") {
       continue;
     }
-    const from = { x: snap.from.x, y: snap.to.y };
-    const to = { x: snap.to.x, y: snap.to.y };
+    const from = unsafePoint<WorldPoint>(snap.from.x, snap.to.y);
+    const to = unsafePoint<WorldPoint>(snap.to.x, snap.to.y);
     const key = makeLineKey("y", from, to);
     if (seen.has(key)) {
       continue;
@@ -182,7 +181,7 @@ export function createPointSnapLines(nearest: AxisSnapBuckets): SnapLine[] {
   return lines;
 }
 
-export function createPointerLinesForPointSnap(nearest: AxisSnapBuckets, snappedPoint: { x: number; y: number }): SnapLine[] {
+export function createPointerLinesForPointSnap(nearest: AxisSnapBuckets, snappedPoint: WorldPoint): SnapLine[] {
   const lines: SnapLine[] = [];
 
   const xSnap = nearest.x.find((snap): snap is PointSnapCandidate => snap.kind === "point");
@@ -190,8 +189,8 @@ export function createPointerLinesForPointSnap(nearest: AxisSnapBuckets, snapped
     lines.push({
       type: "pointer",
       axis: "x",
-      from: { x: xSnap.to.x, y: xSnap.to.y },
-      to: { x: xSnap.to.x, y: snappedPoint.y }
+      from: unsafePoint<WorldPoint>(xSnap.to.x, xSnap.to.y),
+      to: unsafePoint<WorldPoint>(xSnap.to.x, snappedPoint.y)
     });
   }
 
@@ -200,8 +199,8 @@ export function createPointerLinesForPointSnap(nearest: AxisSnapBuckets, snapped
     lines.push({
       type: "pointer",
       axis: "y",
-      from: { x: ySnap.to.x, y: ySnap.to.y },
-      to: { x: snappedPoint.x, y: ySnap.to.y }
+      from: unsafePoint<WorldPoint>(ySnap.to.x, ySnap.to.y),
+      to: unsafePoint<WorldPoint>(snappedPoint.x, ySnap.to.y)
     });
   }
 
@@ -228,8 +227,8 @@ export function roundSnapValue(value: number): number {
 
 function makeLineKey(
   axis: Axis,
-  from: { x: number; y: number },
-  to: { x: number; y: number }
+  from: WorldPoint,
+  to: WorldPoint
 ): string {
   const ax = roundSnapValue(from.x);
   const ay = roundSnapValue(from.y);

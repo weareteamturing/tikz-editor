@@ -21,6 +21,7 @@ function makePath(sourceId: string, commands: ScenePath["commands"]): SceneEleme
 
 function makeControlHandle(id: string, sourceId: string): EditHandle {
   return {
+    handleType: "curve-control",
     id,
     runtimeId: `runtime:handle:${id}`,
     sourceRef: {
@@ -34,7 +35,7 @@ function makeControlHandle(id: string, sourceId: string): EditHandle {
     sourceText: "(0,0)",
     coordinateForm: "cartesian",
     rewriteMode: "direct"
-  };
+  } as EditHandle;
 }
 
 function makeBendHandle(id: string, sourceId: string): EditHandle {
@@ -49,7 +50,7 @@ function makeBendHandle(id: string, sourceId: string): EditHandle {
       endWorld: { x: 3, y: 0 },
       baseHeading: 0
     }
-  };
+  } as EditHandle;
 }
 
 describe("deriveCurveControlLines", () => {
@@ -101,8 +102,10 @@ describe("deriveCurveControlLines", () => {
       makeControlHandle("h0", "path:0"),
       {
         ...makeControlHandle("h1", "path:1"),
+        handleType: "coordinate",
+        coordinateSpace: "frame-local",
         kind: "path-point"
-      }
+      } as EditHandle
     ];
 
     const lines = deriveCurveControlLines(elements, new Set(["path:0", "path:1"]), handles);

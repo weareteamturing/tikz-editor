@@ -1,3 +1,4 @@
+import type { WorldPoint } from "../../coords/points.js";
 import type { EdgeOperationItem, ToOperationItem, PathStatement } from "../../ast/types.js";
 import { currentFrame, type SemanticContext } from "../context.js";
 import { parseLength, parseQuantityExpression } from "../coords/parse-length.js";
@@ -8,7 +9,7 @@ import {
   maybeResolveNamedCoordinateBorderPointFromRawAlongAngle
 } from "../nodes/evaluate.js";
 import type { FeatureId } from "../../capabilities/feature-ids.js";
-import type { Point, ResolvedStyle, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
+import type { ResolvedStyle, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.js";
 import { makePath } from "./elements.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
@@ -65,7 +66,7 @@ export function applyEdgeOperation(
   styleChain: StyleChainEntry[],
   markFeature: FeatureMarkFn,
   pushDiagnostic: DiagnosticPushFn,
-  startPoint: Point | null,
+  startPoint: WorldPoint | null,
   startCoordinateRaw: string | null = null
 ): {
   activePath: ScenePath | null;
@@ -322,8 +323,8 @@ function parseToTarget(
 
 function extractToCurveOptions(
   options: ToOperationItem["options"],
-  from: Point,
-  to: Point
+  from: WorldPoint,
+  to: WorldPoint
 ): {
   out: number;
   in: number;
@@ -599,8 +600,8 @@ function extractToCurveOptions(
 
 function appendToCurve(
   commands: ScenePathCommand[],
-  from: Point,
-  to: Point,
+  from: WorldPoint,
+  to: WorldPoint,
   options: {
     out: number;
     in: number;
@@ -651,8 +652,8 @@ function appendToCurve(
 function appendToLikeCurveEditHandles(args: {
   itemId: string;
   statementId: string;
-  start: Point;
-  end: Point;
+  start: WorldPoint;
+  end: WorldPoint;
   curve: {
     out: number;
     in: number;
@@ -722,22 +723,22 @@ function pushSyntheticCurveHandle(args: {
   context: SemanticContext;
   statementId: string;
   kind: "path-control" | "path-bend";
-  world: Point;
+  world: WorldPoint;
   curveEdit:
     | {
         kind: "to-angle";
         operationItemId: string;
         role: "out" | "in";
-        startWorld: Point;
-        endWorld: Point;
+        startWorld: WorldPoint;
+        endWorld: WorldPoint;
         relative: boolean;
         baseHeading: number;
       }
     | {
         kind: "to-bend";
         operationItemId: string;
-        startWorld: Point;
-        endWorld: Point;
+        startWorld: WorldPoint;
+        endWorld: WorldPoint;
         baseHeading: number;
       };
 }): void {
@@ -750,6 +751,7 @@ function pushSyntheticCurveHandle(args: {
       sourceSpan: syntheticSpan,
       sourceFingerprint: args.context.sourceFingerprint
     },
+    handleType: "curve-control",
     kind: args.kind,
     world: { ...args.world },
     transform: currentFrame(args.context).transform,
@@ -768,7 +770,7 @@ function makeSyntheticHandleSpan(context: SemanticContext): { from: number; to: 
   };
 }
 
-function bendHandlePoint(start: Point, end: Point, signedBendAngle: number): Point {
+function bendHandlePoint(start: WorldPoint, end: WorldPoint, signedBendAngle: number): WorldPoint {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const length = Math.hypot(dx, dy);
@@ -854,7 +856,7 @@ function normalizeSignedDegrees(value: number): number {
   return Math.abs(wrapped) < 1e-9 ? 0 : wrapped;
 }
 
-function alignPathToStart(commands: ScenePathCommand[], start: Point): boolean {
+function alignPathToStart(commands: ScenePathCommand[], start: WorldPoint): boolean {
   const lastPoint = commandEndpoint(commands[commands.length - 1]);
   if (lastPoint && Math.hypot(lastPoint.x - start.x, lastPoint.y - start.y) <= 1e-6) {
     return false;
@@ -870,7 +872,7 @@ function alignPathToStart(commands: ScenePathCommand[], start: Point): boolean {
   return true;
 }
 
-function commandEndpoint(command: ScenePathCommand | undefined): Point | null {
+function commandEndpoint(command: ScenePathCommand | undefined): WorldPoint | null {
   if (!command) {
     return null;
   }

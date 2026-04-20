@@ -1,3 +1,4 @@
+import type { WorldPoint } from "../../coords/points.js";
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import type { Span } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
@@ -9,11 +10,11 @@ import {
   writeNamedCoordinate
 } from "../context.js";
 import { applyNameScope } from "../nodes/named-coordinates.js";
-import type { Point, SceneElement, SceneEllipse, ScenePath } from "../types.js";
+import type { SceneElement, SceneEllipse, ScenePath } from "../types.js";
 
 type SampledSegment = {
-  from: Point;
-  to: Point;
+  from: WorldPoint;
+  to: WorldPoint;
   paramStart: number;
   paramEnd: number;
 };
@@ -25,7 +26,7 @@ type SampledPath = {
 };
 
 type IntersectionPoint = {
-  point: Point;
+  point: WorldPoint;
   firstParam: number;
   secondParam: number;
   discoveryOrder: number;
@@ -396,7 +397,7 @@ function resolveNamedPath(rawName: string, context: SemanticContext): { name: st
 }
 
 function sampleSceneElements(elements: SceneElement[]): SampledPath {
-  const rawSegments: Array<{ from: Point; to: Point }> = [];
+  const rawSegments: Array<{ from: WorldPoint; to: WorldPoint }> = [];
   let hasCubic = false;
 
   for (const element of elements) {
@@ -441,10 +442,10 @@ function pathHasCubicSegments(path: ScenePath): boolean {
   return path.commands.some((command) => command.kind === "C");
 }
 
-function samplePathElementSegments(path: ScenePath): Array<{ from: Point; to: Point }> {
-  const segments: Array<{ from: Point; to: Point }> = [];
-  let current: Point | null = null;
-  let subpathStart: Point | null = null;
+function samplePathElementSegments(path: ScenePath): Array<{ from: WorldPoint; to: WorldPoint }> {
+  const segments: Array<{ from: WorldPoint; to: WorldPoint }> = [];
+  let current: WorldPoint | null = null;
+  let subpathStart: WorldPoint | null = null;
 
   for (const command of path.commands) {
     if (command.kind === "M") {
@@ -493,12 +494,12 @@ function samplePathElementSegments(path: ScenePath): Array<{ from: Point; to: Po
   return segments;
 }
 
-function sampleCircleSegments(center: Point, radius: number, steps: number): Array<{ from: Point; to: Point }> {
+function sampleCircleSegments(center: WorldPoint, radius: number, steps: number): Array<{ from: WorldPoint; to: WorldPoint }> {
   if (!Number.isFinite(radius) || radius <= 1e-9) {
     return [];
   }
 
-  const segments: Array<{ from: Point; to: Point }> = [];
+  const segments: Array<{ from: WorldPoint; to: WorldPoint }> = [];
   for (let i = 0; i < steps; i += 1) {
     const start = (2 * Math.PI * i) / steps;
     const end = (2 * Math.PI * (i + 1)) / steps;
@@ -515,7 +516,7 @@ function sampleCircleSegments(center: Point, radius: number, steps: number): Arr
   return segments;
 }
 
-function sampleEllipseSegments(ellipse: SceneEllipse, steps: number): Array<{ from: Point; to: Point }> {
+function sampleEllipseSegments(ellipse: SceneEllipse, steps: number): Array<{ from: WorldPoint; to: WorldPoint }> {
   if (!Number.isFinite(ellipse.rx) || !Number.isFinite(ellipse.ry) || ellipse.rx <= 1e-9 || ellipse.ry <= 1e-9) {
     return [];
   }
@@ -524,7 +525,7 @@ function sampleEllipseSegments(ellipse: SceneEllipse, steps: number): Array<{ fr
   const cosRotation = Math.cos(rotationRadians);
   const sinRotation = Math.sin(rotationRadians);
 
-  const segments: Array<{ from: Point; to: Point }> = [];
+  const segments: Array<{ from: WorldPoint; to: WorldPoint }> = [];
   for (let i = 0; i < steps; i += 1) {
     const start = (2 * Math.PI * i) / steps;
     const end = (2 * Math.PI * (i + 1)) / steps;
@@ -536,13 +537,13 @@ function sampleEllipseSegments(ellipse: SceneEllipse, steps: number): Array<{ fr
 }
 
 function ellipsePoint(
-  center: Point,
+  center: WorldPoint,
   rx: number,
   ry: number,
   cosRotation: number,
   sinRotation: number,
   angle: number
-): Point {
+): WorldPoint {
   const ux = rx * Math.cos(angle);
   const uy = ry * Math.sin(angle);
   return {
@@ -551,7 +552,7 @@ function ellipsePoint(
   };
 }
 
-function cubicBezierPoint(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point {
+function cubicBezierPoint(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, t: number): WorldPoint {
   const mt = 1 - t;
   const mt2 = mt * mt;
   const t2 = t * t;
@@ -605,7 +606,7 @@ function intersectSampledPaths(first: SampledPath, second: SampledPath): Interse
 
 function findIndexedIntersection(
   index: IntersectionBucketIndex,
-  point: Point,
+  point: WorldPoint,
   tolerance: number
 ): IntersectionPoint | undefined {
   const originX = quantizeBucket(point.x, index.bucketSize);
@@ -690,11 +691,11 @@ function sortIntersections(
 }
 
 function intersectSegments(
-  p1: Point,
-  p2: Point,
-  q1: Point,
-  q2: Point
-): { point: Point; t: number; u: number } | null {
+  p1: WorldPoint,
+  p2: WorldPoint,
+  q1: WorldPoint,
+  q2: WorldPoint
+): { point: WorldPoint; t: number; u: number } | null {
   const r = { x: p2.x - p1.x, y: p2.y - p1.y };
   const s = { x: q2.x - q1.x, y: q2.y - q1.y };
   const denominator = cross(r, s);
@@ -776,10 +777,10 @@ function isGeometricElement(element: SceneElement): boolean {
   return element.kind === "Path" || element.kind === "Circle" || element.kind === "Ellipse";
 }
 
-function distance(a: Point, b: Point): number {
+function distance(a: WorldPoint, b: WorldPoint): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function cross(a: Point, b: Point): number {
+function cross(a: WorldPoint, b: WorldPoint): number {
   return a.x * b.y - a.y * b.x;
 }

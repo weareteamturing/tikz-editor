@@ -1,11 +1,12 @@
+import type { WorldPoint } from "../../coords/points.js";
 import type { PlacementSegment } from "./types.js";
-import type { Point, ScenePathCommand } from "../types.js";
+import type { ScenePathCommand } from "../types.js";
 
 export function appendPathPoint(
   commands: ScenePathCommand[],
   operator: "--" | "-|" | "|-" | null,
-  current: Point | null,
-  next: Point,
+  current: WorldPoint | null,
+  next: WorldPoint,
   previousSegmentRoundedCorners: number | null,
   currentSegmentRoundedCorners: number | null
 ): { segment: PlacementSegment | null; nextRoundedCorners: number | null } {
@@ -45,7 +46,7 @@ export function appendPathPoint(
   return { segment: null, nextRoundedCorners: currentSegmentRoundedCorners };
 }
 
-function appendSingleLine(commands: ScenePathCommand[], from: Point, to: Point, cornerRoundedCorners: number | null): void {
+function appendSingleLine(commands: ScenePathCommand[], from: WorldPoint, to: WorldPoint, cornerRoundedCorners: number | null): void {
   if (!cornerRoundedCorners || cornerRoundedCorners <= 0) {
     commands.push({ kind: "L", to });
     return;
@@ -75,8 +76,8 @@ function appendSingleLine(commands: ScenePathCommand[], from: Point, to: Point, 
 
 export function roundClosedPathStartCorner(
   commands: ScenePathCommand[],
-  closingFrom: Point,
-  start: Point,
+  closingFrom: WorldPoint,
+  start: WorldPoint,
   cornerRoundedCorners: number | null
 ): void {
   if (!cornerRoundedCorners || cornerRoundedCorners <= 0) {
@@ -117,7 +118,7 @@ export function roundClosedPathStartCorner(
   commands.push({ kind: "C", c1: rounded.c1, c2: rounded.c2, to: rounded.exit });
 }
 
-function extractPreviousCorner(commands: ScenePathCommand[]): Point | null {
+function extractPreviousCorner(commands: ScenePathCommand[]): WorldPoint | null {
   if (commands.length < 2) {
     return null;
   }
@@ -134,11 +135,11 @@ function extractPreviousCorner(commands: ScenePathCommand[]): Point | null {
   return null;
 }
 
-function computeRoundedCorner(prev: Point, corner: Point, next: Point, requestedDistance: number): {
-  entry: Point;
-  exit: Point;
-  c1: Point;
-  c2: Point;
+function computeRoundedCorner(prev: WorldPoint, corner: WorldPoint, next: WorldPoint, requestedDistance: number): {
+  entry: WorldPoint;
+  exit: WorldPoint;
+  c1: WorldPoint;
+  c2: WorldPoint;
 } | null {
   const incoming = normalize({ x: corner.x - prev.x, y: corner.y - prev.y });
   const outgoing = normalize({ x: next.x - corner.x, y: next.y - corner.y });
@@ -174,7 +175,7 @@ function computeRoundedCorner(prev: Point, corner: Point, next: Point, requested
   return { entry, exit, c1, c2 };
 }
 
-function normalize(vector: Point): Point | null {
+function normalize(vector: WorldPoint): WorldPoint | null {
   const len = Math.hypot(vector.x, vector.y);
   if (!Number.isFinite(len) || len <= 1e-9) {
     return null;
@@ -182,6 +183,6 @@ function normalize(vector: Point): Point | null {
   return { x: vector.x / len, y: vector.y / len };
 }
 
-function distance(a: Point, b: Point): number {
+function distance(a: WorldPoint, b: WorldPoint): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }

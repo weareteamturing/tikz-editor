@@ -1,4 +1,5 @@
-import type { NodeAnchorTarget, Point } from "tikz-editor/semantic/types";
+import type { NodeAnchorTarget } from "tikz-editor/semantic/types";
+import type { WorldPoint } from "../coords/types";
 
 const NODE_REVEAL_RADIUS_PX = 44;
 const SNAP_RADIUS_PX = 12;
@@ -17,7 +18,7 @@ export type MatrixCellAnchorHint = {
 };
 
 export function resolveEndpointAnchorSnap(input: {
-  pointerWorld: Point;
+  pointerWorld: WorldPoint;
   zoom: number;
   nodeAnchorTargets: readonly NodeAnchorTarget[];
   matrixCellAnchorHints?: readonly MatrixCellAnchorHint[];
@@ -133,7 +134,7 @@ export function resolveEndpointAnchorSnap(input: {
 }
 
 function resolveNearestMatrixCellHint(
-  pointerWorld: Point,
+  pointerWorld: WorldPoint,
   hints: readonly MatrixCellAnchorHint[]
 ): MatrixCellAnchorHint | null {
   let nearest: MatrixCellAnchorHint | null = null;
@@ -153,7 +154,7 @@ function resolvePreferredMatrixCellAnchors(
   anchorsByNode: ReadonlyMap<string, NodeAnchorTarget[]>,
   row: number,
   column: number,
-  pointerWorld: Point
+  pointerWorld: WorldPoint
 ): { anchors: NodeAnchorTarget[]; distanceSq: number } | null {
   let best: { anchors: NodeAnchorTarget[]; distanceSq: number } | null = null;
   for (const [nodeName, anchors] of anchorsByNode.entries()) {
@@ -176,7 +177,7 @@ function resolvePreferredMatrixCellAnchors(
 function resolveRelatedMatrixNodeAnchors(
   anchorsByNode: ReadonlyMap<string, NodeAnchorTarget[]>,
   preferredCellAnchors: readonly NodeAnchorTarget[],
-  pointerWorld: Point
+  pointerWorld: WorldPoint
 ): { anchors: NodeAnchorTarget[]; distanceSq: number } | null {
   let best: { anchors: NodeAnchorTarget[]; distanceSq: number } | null = null;
   for (const anchor of preferredCellAnchors) {
@@ -217,7 +218,7 @@ function parseTrailingMatrixCellIndices(nodeName: string): { row: number; column
   return { row, column, suffixStart: match.index };
 }
 
-function distanceSquared(a: Point, b: Point): number {
+function distanceSquared(a: WorldPoint, b: WorldPoint): number {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return dx * dx + dy * dy;
@@ -251,7 +252,7 @@ function deriveNodeExtent(
 }
 
 function distanceSquaredToBounds(
-  point: Point,
+  point: WorldPoint,
   bounds: { minX: number; minY: number; maxX: number; maxY: number }
 ): number {
   const clampedX = Math.min(bounds.maxX, Math.max(bounds.minX, point.x));

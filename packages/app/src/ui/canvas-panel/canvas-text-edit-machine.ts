@@ -1004,10 +1004,10 @@ export function reduceCanvasTextEdit(
         session.renderSourceText === nextRenderSourceText &&
         session.layoutKind === nextLayoutKind &&
         sameRegion(session.region, nextRegion) &&
-        session.popupAnchorBox?.x === nextPopupAnchorBox?.x &&
-        session.popupAnchorBox?.y === nextPopupAnchorBox?.y &&
-        session.popupAnchorBox?.width === nextPopupAnchorBox?.width &&
-        session.popupAnchorBox?.height === nextPopupAnchorBox?.height
+        session.popupAnchorBox?.minX === nextPopupAnchorBox?.minX &&
+        session.popupAnchorBox?.minY === nextPopupAnchorBox?.minY &&
+        session.popupAnchorBox?.maxX === nextPopupAnchorBox?.maxX &&
+        session.popupAnchorBox?.maxY === nextPopupAnchorBox?.maxY
       ) {
         return { state, effects: [] };
       }

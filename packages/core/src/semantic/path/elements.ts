@@ -1,14 +1,6 @@
-import type {
-  Point,
-  ResolvedStyle,
-  SceneCircle,
-  SceneElement,
-  SceneEllipse,
-  ScenePath,
-  ScenePathCommand,
-  ScenePathShapeHint
-} from "../types.js";
-import type { Matrix2D } from "../types.js";
+import type { WorldTransform } from "../../coords/transforms.js";
+import type { WorldPoint } from "../../coords/points.js";
+import type { ResolvedStyle, SceneCircle, SceneElement, SceneEllipse, ScenePath, ScenePathCommand, ScenePathShapeHint } from "../types.js";
 import { applyMatrix, inverseMatrix } from "../transform.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
 import type { StyleChainEntry } from "../style-chain.js";
@@ -68,10 +60,10 @@ export function markPathShapeHint(path: ScenePath, hint: ScenePathShapeHint): vo
 
 export function appendRectangleSubpath(
   commands: ScenePathCommand[],
-  from: Point,
-  to: Point,
+  from: WorldPoint,
+  to: WorldPoint,
   roundedCorners: number | null = null,
-  transform?: Matrix2D
+  transform?: WorldTransform
 ): void {
   const corners = resolveRectangleCorners(from, to, transform);
   const start = corners[0];
@@ -119,11 +111,11 @@ export function appendRectangleSubpath(
   commands.push({ kind: "Z" });
 }
 
-export function appendCircleSubpath(commands: ScenePathCommand[], center: Point, radius: number): void {
+export function appendCircleSubpath(commands: ScenePathCommand[], center: WorldPoint, radius: number): void {
   appendEllipseSubpath(commands, center, radius, radius, 0);
 }
 
-export function appendEllipseSubpath(commands: ScenePathCommand[], center: Point, rx: number, ry: number, rotation: number): void {
+export function appendEllipseSubpath(commands: ScenePathCommand[], center: WorldPoint, rx: number, ry: number, rotation: number): void {
   const theta = (rotation * Math.PI) / 180;
   const cos = Math.cos(theta);
   const sin = Math.sin(theta);
@@ -175,13 +167,13 @@ export function flushDrawableActivePath(elements: SceneElement[], path: ScenePat
 export function makeRectangleElement(
   sourceId: string,
   itemId: string,
-  from: Point,
-  to: Point,
+  from: WorldPoint,
+  to: WorldPoint,
   style: ResolvedStyle,
   styleChain: StyleChainEntry[],
   span: { from: number; to: number },
   roundedCorners: number | null = style.roundedCorners,
-  transform?: Matrix2D
+  transform?: WorldTransform
 ): ScenePath {
   const commands: ScenePathCommand[] = [];
   appendRectangleSubpath(commands, from, to, roundedCorners, transform);
@@ -203,7 +195,7 @@ export function makeRectangleElement(
   };
 }
 
-function resolveRectangleCorners(from: Point, to: Point, transform?: Matrix2D): [Point, Point, Point, Point] {
+function resolveRectangleCorners(from: WorldPoint, to: WorldPoint, transform?: WorldTransform): [WorldPoint, WorldPoint, WorldPoint, WorldPoint] {
   if (!transform) {
     return [from, { x: to.x, y: from.y }, to, { x: from.x, y: to.y }];
   }
@@ -224,7 +216,7 @@ function resolveRectangleCorners(from: Point, to: Point, transform?: Matrix2D): 
   ];
 }
 
-function applyInverseMatrix(matrix: Matrix2D, point: Point): Point | null {
+function applyInverseMatrix(matrix: WorldTransform, point: WorldPoint): WorldPoint | null {
   const inv = inverseMatrix(matrix);
   if (!inv) {
     return null;
@@ -234,7 +226,7 @@ function applyInverseMatrix(matrix: Matrix2D, point: Point): Point | null {
 
 export function makeCircleElement(
   sourceId: string,
-  center: Point,
+  center: WorldPoint,
   radius: number,
   style: ResolvedStyle,
   styleChain: StyleChainEntry[],
@@ -259,7 +251,7 @@ export function makeCircleElement(
 
 export function makeEllipseElement(
   sourceId: string,
-  center: Point,
+  center: WorldPoint,
   rx: number,
   ry: number,
   style: ResolvedStyle,

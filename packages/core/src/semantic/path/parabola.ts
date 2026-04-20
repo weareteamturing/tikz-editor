@@ -1,8 +1,9 @@
+import type { WorldPoint } from "../../coords/points.js";
 import type { PathItem, PathOptionItem } from "../../ast/types.js";
 import type { SemanticContext } from "../context.js";
 import { evaluateCoordinate, evaluateRawCoordinate } from "../coords/evaluate.js";
 import { parseLength } from "../coords/parse-length.js";
-import type { Point, ScenePathCommand } from "../types.js";
+import type { ScenePathCommand } from "../types.js";
 import { clamp, interpolate, normalizeOptionValue } from "./shared.js";
 import { expandPathMacroBindings } from "./macro-expansion.js";
 
@@ -10,7 +11,7 @@ export function parseParabolaFromItems(
   items: PathItem[],
   startIndex: number,
   context: SemanticContext
-): { consumedIndex: number; commands: ScenePathCommand[]; endPoint: Point } | null {
+): { consumedIndex: number; commands: ScenePathCommand[]; endPoint: WorldPoint } | null {
   const start = context.currentPoint;
   if (!start) {
     return null;
@@ -44,7 +45,7 @@ export function parseParabolaFromItems(
   }
 
   const targetItem = items[cursor];
-  let endPoint: Point | null = null;
+  let endPoint: WorldPoint | null = null;
   if (targetItem?.kind === "Coordinate") {
     const evaluated = evaluateCoordinate(targetItem, context);
     endPoint = evaluated.world;
@@ -62,7 +63,7 @@ export function parseParabolaFromItems(
   bendPos = clamp(bendPos, 0, 1);
   const savedPoint = interpolate(start, endPoint, bendPos);
 
-  let bendPoint: Point | null = null;
+  let bendPoint: WorldPoint | null = null;
   if (bendSpec.kind === "saved") {
     bendPoint = savedPoint;
   } else if (bendSpec.kind === "height") {
@@ -179,9 +180,9 @@ function parseBendCoordinateValue(raw: string): { raw: string; relativePrefix?: 
 function evaluateParabolaBendCoordinate(
   raw: string,
   context: SemanticContext,
-  savedPoint: Point,
+  savedPoint: WorldPoint,
   relativePrefix?: "+" | "++"
-): Point | null {
+): WorldPoint | null {
   if (!relativePrefix) {
     return evaluateRawCoordinate(raw, context).world;
   }
@@ -193,7 +194,7 @@ function evaluateParabolaBendCoordinate(
   return evaluated.world;
 }
 
-function buildParabolaCommands(start: Point, toBend: Point, toEnd: Point): ScenePathCommand[] {
+function buildParabolaCommands(start: WorldPoint, toBend: WorldPoint, toEnd: WorldPoint): ScenePathCommand[] {
   const commands: ScenePathCommand[] = [];
 
   const hasBendSegment = Math.abs(toBend.x) > 1e-9 || Math.abs(toBend.y) > 1e-9;

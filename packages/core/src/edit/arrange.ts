@@ -1,21 +1,21 @@
-import type { Bounds, Point } from "../semantic/types.js";
+import type { WorldBounds, WorldPoint } from "../coords/points.js";
 
 export type AlignMode = "left" | "center" | "right" | "top" | "middle" | "bottom";
 
 export type DistributeAxis = "horizontal" | "vertical";
 
-export type SourceBounds = Bounds & {
+export type SourceBounds = WorldBounds & {
   sourceId: string;
 };
 
 export type ArrangePlanResult =
-  | { kind: "success"; deltas: Map<string, Point> }
+  | { kind: "success"; deltas: Map<string, WorldPoint> }
   | { kind: "unsupported"; reason: string };
 
 const DEFAULT_EPSILON = 1e-6;
 
 export function planAlignDeltas(
-  boundsBySource: ReadonlyMap<string, Bounds>,
+  boundsBySource: ReadonlyMap<string, WorldBounds>,
   selectedSourceIds: readonly string[],
   mode: AlignMode,
   epsilon: number = DEFAULT_EPSILON
@@ -31,7 +31,7 @@ export function planAlignDeltas(
   }
 
   const selectionBounds = mergeSourceBounds(selectedBounds.value);
-  const deltas = new Map<string, Point>();
+  const deltas = new Map<string, WorldPoint>();
 
   for (const entry of selectedBounds.value) {
     const centerX = (entry.minX + entry.maxX) / 2;
@@ -84,7 +84,7 @@ export function planAlignDeltas(
 }
 
 export function planDistributeDeltas(
-  boundsBySource: ReadonlyMap<string, Bounds>,
+  boundsBySource: ReadonlyMap<string, WorldBounds>,
   selectedSourceIds: readonly string[],
   axis: DistributeAxis,
   epsilon: number = DEFAULT_EPSILON
@@ -120,7 +120,7 @@ export function planDistributeDeltas(
     return (order.get(left.sourceId) ?? 0) - (order.get(right.sourceId) ?? 0);
   });
 
-  const deltas = new Map<string, Point>();
+  const deltas = new Map<string, WorldPoint>();
 
   if (axis === "horizontal") {
     const first = sorted[0]!;
@@ -183,7 +183,7 @@ export function planDistributeDeltas(
 }
 
 function resolveSelectedBounds(
-  boundsBySource: ReadonlyMap<string, Bounds>,
+  boundsBySource: ReadonlyMap<string, WorldBounds>,
   selectedSourceIds: readonly string[]
 ): { kind: "success"; value: SourceBounds[] } | { kind: "unsupported"; reason: string } {
   const selected: SourceBounds[] = [];
@@ -206,7 +206,7 @@ function resolveSelectedBounds(
   return { kind: "success", value: selected };
 }
 
-function mergeSourceBounds(boundsList: readonly SourceBounds[]): Bounds {
+function mergeSourceBounds(boundsList: readonly SourceBounds[]): WorldBounds {
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
@@ -238,7 +238,7 @@ function normalizeSourceIds(sourceIds: readonly string[]): string[] {
   return normalized;
 }
 
-function allZeroDeltas(deltas: ReadonlyMap<string, Point>, epsilon: number): boolean {
+function allZeroDeltas(deltas: ReadonlyMap<string, WorldPoint>, epsilon: number): boolean {
   for (const delta of deltas.values()) {
     if (Math.abs(delta.x) > epsilon || Math.abs(delta.y) > epsilon) {
       return false;

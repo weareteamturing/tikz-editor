@@ -1,16 +1,5 @@
-import type {
-  CoordinateForm,
-  CoordinateItem,
-  EdgeFromParentOperationItem,
-  EdgeOperationItem,
-  GraphOperationItem,
-  NodeItem,
-  PathItem,
-  PathStatement,
-  PlotOperationItem,
-  Span,
-  ToOperationItem
-} from "../../ast/types.js";
+import type { WorldPoint, WorldBounds } from "../../coords/points.js";
+import type { CoordinateForm, CoordinateItem, EdgeFromParentOperationItem, EdgeOperationItem, GraphOperationItem, NodeItem, PathItem, PathStatement, PlotOperationItem, Span, ToOperationItem } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
 import { parseTikz } from "../../parser/index.js";
 import { parseOptionListRaw } from "../../options/parse.js";
@@ -32,7 +21,7 @@ import {
 import { pointAtPlacementSegment, resolveNodePositionFraction } from "../nodes/placement.js";
 import { evaluateCoordinate, evaluateRawCoordinate } from "../coords/evaluate.js";
 import type { EvaluatedCoordinate } from "../coords/evaluate.js";
-import type { Bounds, Point, ResolvedStyle, SceneClipPath, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
+import type { ResolvedStyle, SceneClipPath, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
 import { appendArcCommand, extractArcParameters, parseArcShorthand } from "./arc.js";
 import { DEFAULT_GRID_STEP } from "./constants.js";
 import { appendSinCosSegment, parseBezierFromItems } from "./curves.js";
@@ -109,8 +98,8 @@ export function evaluatePathStatement(
   let activePath: ScenePath | null = null;
   let currentOperator: "--" | "-|" | "|-" | null = null;
   let activeRoundedCorners = style.roundedCorners;
-  let pendingRectangleFrom: Point | null = null;
-  let pendingCircleCenter: Point | null = null;
+  let pendingRectangleFrom: WorldPoint | null = null;
+  let pendingCircleCenter: WorldPoint | null = null;
   let pendingCircleRadius: { value: number; applyFrameTransform: boolean } | null = null;
   let pendingCircleRadii:
     | {
@@ -119,15 +108,15 @@ export function evaluatePathStatement(
       }
     | null = null;
   let pendingCircleRotation = 0;
-  let pendingEllipseCenter: Point | null = null;
+  let pendingEllipseCenter: WorldPoint | null = null;
   let pendingEllipseRadii:
     | {
         rx: { value: number; applyFrameTransform: boolean };
         ry: { value: number; applyFrameTransform: boolean };
       }
     | null = null;
-  let pendingArc: { from: Point } | null = null;
-  let pendingGrid: { from: Point; stepX: number; stepY: number } | null = null;
+  let pendingArc: { from: WorldPoint } | null = null;
+  let pendingGrid: { from: WorldPoint; stepX: number; stepY: number } | null = null;
   let pendingNamedCoordinate: { name: string } | null = null;
   let pendingSegmentPlacements: Array<{ name: string; fraction: number }> = [];
   let pendingSegmentNodes: NodeItem[] = [];
@@ -135,11 +124,11 @@ export function evaluatePathStatement(
   let lastPlacementSegment: PlacementSegment | null = null;
   let previousSegmentRoundedCorners: number | null = null;
   let leadingToLikeOptions: OptionListAst | undefined;
-  let currentPointLogical: Point | null = context.currentPoint;
+  let currentPointLogical: WorldPoint | null = context.currentPoint;
   let currentPointCoordinate: Pick<CoordinateItem, "form" | "x"> | null = null;
   let pendingEdgeStartCoordinateRaw: string | null = null;
-  let edgeOperationStart: { point: Point; coordinateRaw: string | null } | null = null;
-  let treeParentCandidate: { nameRaw: string | null; point: Point; span: { from: number; to: number } } | null = null;
+  let edgeOperationStart: { point: WorldPoint; coordinateRaw: string | null } | null = null;
+  let treeParentCandidate: { nameRaw: string | null; point: WorldPoint; span: { from: number; to: number } } | null = null;
   let sawNonLeadingPathItem = false;
   const emittedTreeHookDiagnostics = new Set<string>();
   const honorInitialCurrentPoint = options.honorInitialCurrentPoint === true;
@@ -159,11 +148,11 @@ export function evaluatePathStatement(
     statementStyleChain,
     treeFrameState.macroBindings
   );
-  const pointsClose = (left: Point, right: Point): boolean => Math.hypot(left.x - right.x, left.y - right.y) <= 1e-6;
+  const pointsClose = (left: WorldPoint, right: WorldPoint): boolean => Math.hypot(left.x - right.x, left.y - right.y) <= 1e-6;
   const defaultPathOrigin = applyMatrix(frameTransform, { x: 0, y: 0 });
   const setCurrentPoint = (
-    point: Point | null,
-    logicalPoint: Point | null = point,
+    point: WorldPoint | null,
+    logicalPoint: WorldPoint | null = point,
     coordinate: Pick<CoordinateItem, "form" | "x"> | null = null
   ): void => {
     context.currentPoint = point;
@@ -809,7 +798,7 @@ export function evaluatePathStatement(
         const declaredNodeName = pendingNodeNameForNodeCommand ?? item.name ?? null;
         const hasFollowingTreeChildren = hasFollowingChildOperation(statement.items, currentItemIndex + 1);
         const existingTreeParent = treeParentCandidate as
-          | { nameRaw: string | null; point: Point; span: { from: number; to: number } }
+          | { nameRaw: string | null; point: WorldPoint; span: { from: number; to: number } }
           | null;
         const synthesizedTreeNodeName: string | null =
           hasFollowingTreeChildren && !declaredNodeName
@@ -866,7 +855,7 @@ export function evaluatePathStatement(
         const treeParentNameCandidate: string | null = forcedMainNodeName ?? declaredNodeName;
         if (treeParentNameCandidate && treeParentNameCandidate.trim().length > 0) {
           const scopedTreeParentName = applyNameScope(treeParentNameCandidate, context);
-          const treeParentPoint: Point | undefined =
+          const treeParentPoint: WorldPoint | undefined =
             readNamedCoordinate(context, scopedTreeParentName) ??
             readNamedCoordinate(context, treeParentNameCandidate) ??
             existingTreeParent?.point;
@@ -1154,7 +1143,7 @@ export function evaluatePathStatement(
           return;
         }
 
-        const emitCoordinateAdornmentLabels = (basePoint: Point | null): void => {
+        const emitCoordinateAdornmentLabels = (basePoint: WorldPoint | null): void => {
           if (!basePoint || !item.options) {
             return;
           }
@@ -2523,7 +2512,7 @@ function attachClipChainToElements(elements: readonly SceneElement[], clipChain:
   }));
 }
 
-function extendPictureBounds(context: SemanticContext, bounds: Bounds | undefined): void {
+function extendPictureBounds(context: SemanticContext, bounds: WorldBounds | undefined): void {
   if (!bounds) {
     return;
   }

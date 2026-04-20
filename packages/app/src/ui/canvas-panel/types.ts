@@ -2,21 +2,15 @@ import type { AdornmentOwnerGeometry, Span, Statement } from "tikz-editor/ast/ty
 import type { ComplexPathSegment } from "tikz-editor/edit/element-templates";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import type { SelectionGeometry, SnapContext, SnapLine } from "tikz-editor/edit/snapping";
-import type { EditHandle, NodeAnchorTarget, Point, SceneElement, SceneText } from "tikz-editor/semantic/types";
+import type { EditHandle, NodeAnchorTarget, SceneElement, SceneText } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/index";
 import type { NodeTextLayoutKind } from "tikz-editor/text/types";
 
 import type { CanvasTransform } from "../../store/types";
 import type { ToolCreateMode } from "../tool-config";
+import type { ClientPoint, SvgBounds, SvgPoint, ViewportBounds, ViewportPoint, WorldBounds, WorldPoint } from "../coords/types";
 import type { HitRegion } from "./hit-regions";
 import type { ResizeFrame } from "./resize-frames";
-
-export type Bounds = {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-};
 
 export type GuideOrientation = "vertical" | "horizontal";
 
@@ -43,7 +37,7 @@ export type GuideDragState = {
 };
 
 export type GridResizeSnapConfig = {
-  anchorWorld: Point;
+  anchorWorld: WorldPoint;
   stepX: number;
   stepY: number;
   transform: EditHandle["transform"];
@@ -56,10 +50,7 @@ export type DragTooltipRow = {
 
 export type DragTooltipState = {
   kind: "resize" | "rotate" | "tool-create";
-  anchor: {
-    x: number;
-    y: number;
-  };
+  anchor: ClientPoint;
   rows: DragTooltipRow[];
 };
 
@@ -77,16 +68,16 @@ export type DragState =
       kind: "element";
       pointerId: number;
       elementIds: string[];
-      startWorld: Point;
+      startWorld: WorldPoint;
       adornmentDragFromText?: boolean;
-      lastAppliedTotalDelta: Point;
+      lastAppliedTotalDelta: WorldPoint;
       adornmentDrag?: {
-        ownerPoint: Point;
+        ownerPoint: WorldPoint;
         ownerGeometry?: AdornmentOwnerGeometry;
         allowCenter: boolean;
-        pointerOffsetFromReference: Point;
+        pointerOffsetFromReference: WorldPoint;
         textDrag?: {
-          pointerOffsetFromCenter: Point;
+          pointerOffsetFromCenter: WorldPoint;
           halfWidth: number;
           halfHeight: number;
         };
@@ -94,15 +85,15 @@ export type DragState =
       pathAttachedNodeDrag?: {
         nodeId: string;
         hostPathSourceId: string;
-        pointerOffsetFromCenter: Point;
-        initialCenter: Point;
-        initialAnchorPoint: Point;
-        initialAnchorOffset: Point;
+        pointerOffsetFromCenter: WorldPoint;
+        initialCenter: WorldPoint;
+        initialAnchorPoint: WorldPoint;
+        initialAnchorOffset: WorldPoint;
         initialDistancePt: number;
         initialDirectionalAnchorPt: number;
         segment: NonNullable<EditHandle["pathAttachmentContext"]>["segment"];
         regime: NonNullable<EditHandle["pathAttachmentContext"]>["regime"];
-        lastPreviewDelta?: Point;
+        lastPreviewDelta?: WorldPoint;
         lastAppliedPlacementKey?: string;
       };
       snapContext: SnapContext | null;
@@ -135,7 +126,7 @@ export type DragState =
       pointerId: number;
       elementId: string;
       cursor: string;
-      centerWorld: Point;
+      centerWorld: WorldPoint;
       startPointerAngleDeg: number;
       baseRotateDeg: number;
       lastAppliedRotateDeg: number;
@@ -148,7 +139,7 @@ export type DragState =
       sourceId: string;
       handleKind: EditHandle["kind"];
       cursor: string;
-      lastKnownWorld: Point;
+      lastKnownWorld: WorldPoint;
       snapContext: SnapContext | null;
       gridResizeSnap: GridResizeSnapConfig | null;
       historyMergeKey: string;
@@ -164,8 +155,8 @@ export type DragState =
   | {
       kind: "marquee";
       pointerId: number;
-      startWorld: Point;
-      currentWorld: Point;
+      startWorld: WorldPoint;
+      currentWorld: WorldPoint;
       additive: boolean;
       baseSelectedIds: string[];
     }
@@ -173,51 +164,51 @@ export type DragState =
       kind: "tool-create";
       pointerId: number;
       toolMode: ToolCreateMode;
-      startWorld: Point;
+      startWorld: WorldPoint;
       startEndpointAnchor: NodeAnchorTarget | null;
-      rawCurrentWorld: Point;
-      currentWorld: Point;
+      rawCurrentWorld: WorldPoint;
+      currentWorld: WorldPoint;
       activeEndpointAnchor: NodeAnchorTarget | null;
       snapContext: SnapContext | null;
     }
   | {
       kind: "tool-bezier-bend";
       pointerId: number;
-      startWorld: Point;
-      endWorld: Point;
-      rawCurrentWorld: Point;
-      currentWorld: Point;
+      startWorld: WorldPoint;
+      endWorld: WorldPoint;
+      rawCurrentWorld: WorldPoint;
+      currentWorld: WorldPoint;
       snapContext: SnapContext | null;
     }
   | {
       kind: "tool-path-segment";
       pointerId: number;
-      startWorld: Point;
-      endWorld: Point;
+      startWorld: WorldPoint;
+      endWorld: WorldPoint;
       endEndpointAnchor: NodeAnchorTarget | null;
-      startPointerWorld: Point;
-      rawBendWorld: Point;
-      bendWorld: Point;
+      startPointerWorld: WorldPoint;
+      rawBendWorld: WorldPoint;
+      bendWorld: WorldPoint;
       isBending: boolean;
       snapContext: SnapContext | null;
     }
   | {
       kind: "tool-freehand";
       pointerId: number;
-      points: Point[];
+      points: WorldPoint[];
       minSampleDistanceWorld: number;
     }
   ;
 
 export type PendingAddedSelection = {
   beforeIds: Set<string>;
-  preferredWorld: Point;
+  preferredWorld: WorldPoint;
   preferredSourceId?: string;
 };
 
 export type PendingBezier = {
-  startWorld: Point;
-  endWorld: Point;
+  startWorld: WorldPoint;
+  endWorld: WorldPoint;
 };
 
 export type PathAppendTarget = {
@@ -226,13 +217,13 @@ export type PathAppendTarget = {
 };
 
 export type PathToolDraft = {
-  startWorld: Point;
+  startWorld: WorldPoint;
   segments: ComplexPathSegment[];
   appendTarget?: PathAppendTarget;
 };
 
 export type FreehandToolDraft = {
-  points: Point[];
+  points: WorldPoint[];
   minSampleDistanceWorld: number;
 };
 
@@ -240,25 +231,14 @@ export type TextSelectionOverlay = {
   sourceId: string;
   selectionStart: number;
   selectionEnd: number;
-  caret:
-    | {
-        left: number;
-        top: number;
-        height: number;
-        centerX?: number;
-        centerY?: number;
-        rotationDeg?: number;
-      }
-    | null;
-  rects: Array<{
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-    centerX?: number;
-    centerY?: number;
-    rotationDeg?: number;
-  }>;
+  caret: TextSelectionOverlayBox | null;
+  rects: TextSelectionOverlayBox[];
+};
+
+export type TextSelectionOverlayBox = {
+  bounds: ViewportBounds;
+  center?: ViewportPoint;
+  rotationDeg?: number;
 };
 
 export type TextEditingSession = {
@@ -274,12 +254,7 @@ export type TextEditingSession = {
   renderSourceText: string;
   layoutKind: NodeTextLayoutKind;
   region: Extract<HitRegion, { shape: "rect" }>;
-  popupAnchorBox?: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
+  popupAnchorBox?: SvgBounds;
 };
 
 export type NodeAnchorOverlayState = {
@@ -298,12 +273,7 @@ export type EditableTextTarget = {
   style: SceneText["style"];
   totalWidth: number;
   region: Extract<HitRegion, { shape: "rect" }>;
-  popupAnchorBox?: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
+  popupAnchorBox?: SvgBounds;
 };
 
 export type SnapDebugLogInput = {
@@ -312,11 +282,11 @@ export type SnapDebugLogInput = {
   snapshotMatchesSource: boolean;
   dragKind: DragState["kind"] | null;
   context?: SnapContext | null;
-  rawPoint?: Point | null;
-  rawDelta?: Point | null;
-  snappedPoint?: Point | null;
-  snappedDelta?: Point | null;
-  offset?: Point | null;
+  rawPoint?: WorldPoint | null;
+  rawDelta?: WorldPoint | null;
+  snappedPoint?: WorldPoint | null;
+  snappedDelta?: WorldPoint | null;
+  offset?: WorldPoint | null;
   lines?: readonly SnapLine[];
 };
 
@@ -326,10 +296,92 @@ export type ApplyActionFeedback = {
 
 export type SelectionBounds = {
   sourceId: string;
-  bounds: Bounds;
+  bounds: SvgBounds;
 };
 
-export type SourceBoundsMap = ReadonlyMap<string, Bounds>;
+export type SourceBoundsMap = ReadonlyMap<string, SvgBounds>;
+
+export type ScopeHitBounds = {
+  scopeId: string;
+  bounds: SvgBounds;
+};
+
+export type SelectionBoxDisplay =
+  | {
+      key: string;
+      sourceId: string;
+      isAdornment: boolean;
+      dashed?: boolean;
+      kind: "axis-aligned";
+      bounds: SvgBounds;
+    }
+  | {
+      key: string;
+      sourceId: string;
+      isAdornment: boolean;
+      dashed?: boolean;
+      kind: "polygon";
+      points: ReadonlyArray<SvgPoint>;
+    };
+
+export type AdornmentConnectorDisplay = {
+  key: string;
+  kind: "label" | "pin";
+  from: SvgPoint;
+  to: SvgPoint;
+};
+
+export type AdornmentHighlightBox = {
+  key: string;
+  bounds: SvgBounds;
+};
+
+export type HandleDisplay =
+  | {
+      key: string;
+      point: SvgPoint;
+      cursor: string;
+      kind: "move-handle";
+      handle: EditHandle;
+    }
+  | {
+      key: string;
+      point: SvgPoint;
+      cursor: string;
+      kind: "move-element";
+      elementId: string;
+    }
+  | {
+      key: string;
+      point: SvgPoint;
+      cursor: string;
+      kind: "resize-element";
+      elementId: string;
+      role: ResizeRole;
+      rotationDeg: number;
+    }
+  | {
+      key: string;
+      point: SvgPoint;
+      anchor: SvgPoint;
+      centerWorld: WorldPoint;
+      cursor: string;
+      kind: "rotate-element";
+      elementId: string;
+    };
+
+export type OverlaySelectionState = {
+  selectionBounds: SelectionBounds[];
+  selectionBoundsBySource: ReadonlyMap<string, SvgBounds>;
+  interactionBoundsSvgBySource: ReadonlyMap<string, SvgBounds>;
+  selectedScopeHitBounds: ScopeHitBounds[];
+  selectionBoxes: SelectionBoxDisplay[];
+  selectedAdornmentConnectors: AdornmentConnectorDisplay[];
+  adornmentHighlightBoxes: AdornmentHighlightBox[];
+  marqueeBounds: SvgBounds | null;
+  handleDisplays: HandleDisplay[];
+  viewportWorldBounds: WorldBounds | null;
+};
 
 export type SceneSnapshot = { elements: SceneElement[] } | null;
 

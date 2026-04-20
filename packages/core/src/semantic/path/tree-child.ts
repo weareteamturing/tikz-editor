@@ -1,5 +1,5 @@
+import type { WorldPoint } from "../../coords/points.js";
 import type { EdgeFromParentOperationItem, PathItem } from "../../ast/types.js";
-import type { Point } from "../types.js";
 
 export function hasFollowingChildOperation(items: PathItem[], startIndex: number): boolean {
   for (let index = startIndex; index < items.length; index += 1) {
@@ -76,7 +76,7 @@ export function splitChildBodyAndTrailingEdgeFromParent(
   };
 }
 
-export function formatPointCoordinateRaw(point: Point): string {
+export function formatPointCoordinateRaw(point: WorldPoint): string {
   const x = Number.isFinite(point.x) ? Number(point.x.toFixed(6)) : point.x;
   const y = Number.isFinite(point.y) ? Number(point.y.toFixed(6)) : point.y;
   return `(${x}pt,${y}pt)`;

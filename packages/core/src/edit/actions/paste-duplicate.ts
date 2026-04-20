@@ -1,4 +1,5 @@
-import type { EditHandle, Point } from "../../semantic/types.js";
+import type { WorldPoint } from "../../coords/points.js";
+import type { EditHandle } from "../../semantic/types.js";
 import type { Span } from "../../ast/types.js";
 import { evaluateTikzFigure } from "../../semantic/evaluate.js";
 import {
@@ -21,12 +22,12 @@ import { parseTikzForEdit, type EditParseOptions } from "../parse-options.js";
 export type PasteStatementsAction = {
   snippets: string[];
   anchorElementId?: string;
-  delta?: Point;
+  delta?: WorldPoint;
 };
 
 export type DuplicateElementsAction = {
   elementIds: string[];
-  delta?: Point;
+  delta?: WorldPoint;
 };
 
 type EditActionResultLike =
@@ -53,7 +54,7 @@ type PasteDuplicateDeps = {
     source: string,
     editHandles: EditHandle[],
     elementIds: readonly string[],
-    delta: Point,
+    delta: WorldPoint,
     parseOptions?: EditParseOptions
   ) => MoveElementsResultLike;
   normalizeElementIds: (elementIds: readonly string[]) => string[];
@@ -100,16 +101,16 @@ export function applyPasteStatementsAction(
   const anchorId = action.anchorElementId?.trim();
   const anchorRef = anchorId ? snapshot.byId.get(anchorId) : undefined;
 
-  const insertionPoint = anchorRef
+  const insertionWorldPoint = anchorRef
     ? {
         offset: anchorRef.span.to,
         indent: lineIndentAtOffset(source, anchorRef.span.from)
       }
     : resolveRootInsertionPoint(source);
 
-  const insertion = formatSnippetsForInsertion(renamedSnippets, insertionPoint.indent, {
+  const insertion = formatSnippetsForInsertion(renamedSnippets, insertionWorldPoint.indent, {
     trailingNewline: !anchorRef,
-    newline: detectPreferredNewline(source, insertionPoint.offset)
+    newline: detectPreferredNewline(source, insertionWorldPoint.offset)
   });
   if (insertion.text.length === 0 || insertion.snippetSpans.length === 0) {
     return { kind: "unsupported", reason: "No non-empty statements were available to paste." };
@@ -117,7 +118,7 @@ export function applyPasteStatementsAction(
 
   const applied = applyTextReplacements(source, [
     {
-      span: { from: insertionPoint.offset, to: insertionPoint.offset },
+      span: { from: insertionWorldPoint.offset, to: insertionWorldPoint.offset },
       text: insertion.text
     }
   ]);
@@ -266,7 +267,7 @@ export function applyDuplicateElementsAction(
 
 function offsetSnippetsByDelta(
   snippets: readonly string[],
-  delta: Point,
+  delta: WorldPoint,
   deps: PasteDuplicateDeps,
   parseOptions: EditParseOptions,
   caches: PasteDuplicateCaches
@@ -434,7 +435,7 @@ function mapSpansToStatementIdsWithSnapshot(snapshot: StatementSnapshot, spans: 
   return ids;
 }
 
-function normalizeDuplicateDelta(delta: Point | undefined, defaultDuplicateOffsetPt: number): Point {
+function normalizeDuplicateDelta(delta: WorldPoint | undefined, defaultDuplicateOffsetPt: number): WorldPoint {
   if (!delta) {
     return { x: defaultDuplicateOffsetPt, y: -defaultDuplicateOffsetPt };
   }

@@ -1,12 +1,13 @@
+import type { WorldPoint } from "../../coords/points.js";
 import type { NodeItem, PathStatement } from "../../ast/types.js";
-import type { Point, ResolvedStyle } from "../types.js";
+import type { ResolvedStyle } from "../types.js";
 import type { SemanticContext } from "../context.js";
 import { measureNodeAnchorExtents } from "../nodes/evaluate.js";
 import type { GraphPlacementHint } from "./graph.js";
 
 export type RuntimeGraphNode = {
   syntheticNode: NodeItem;
-  defaultPoint: Point;
+  defaultPoint: WorldPoint;
   placementHint?: GraphPlacementHint;
   nodeIndex: number;
 };
@@ -21,8 +22,8 @@ export function resolveSizeAwareGraphNodePoints(
   statement: PathStatement,
   context: SemanticContext,
   style: ResolvedStyle
-): Map<number, Point> {
-  const resolved = new Map<number, Point>();
+): Map<number, WorldPoint> {
+  const resolved = new Map<number, WorldPoint>();
   if (runtimeNodes.length === 0) {
     return resolved;
   }
@@ -114,7 +115,7 @@ function placementHintsCompatible(left: GraphPlacementHint, right: GraphPlacemen
   );
 }
 
-function normalizeVector(vector: Point): Point | null {
+function normalizeVector(vector: WorldPoint): WorldPoint | null {
   const length = Math.hypot(vector.x, vector.y);
   if (length <= 1e-6) {
     return null;
@@ -126,7 +127,7 @@ function normalizeVector(vector: Point): Point | null {
 }
 
 function projectedAxisSupport(
-  axis: Point,
+  axis: WorldPoint,
   extents: { left: number; right: number; up: number; down: number }
 ): AxisSupport {
   const absX = Math.abs(axis.x);

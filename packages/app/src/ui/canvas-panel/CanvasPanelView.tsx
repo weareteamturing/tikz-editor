@@ -9,6 +9,7 @@ import {
   SnapOverlay,
   ToolPreviewOverlay
 } from "./overlays";
+import type { TextSelectionOverlayBox } from "./types";
 import { fmt, worldToSvgY } from "./geometry";
 import { CanvasContextMenu } from "../CanvasContextMenu";
 import { RenderedTooltip } from "../RenderedTooltip";
@@ -482,19 +483,20 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
 
           {textSelectionOverlay ? (
             <div className={css.textSelectionViewportOverlay} aria-hidden="true" data-testid="canvas-text-selection-overlay">
-              {textSelectionOverlay.rects.map((rect: any, index: number) => {
-                const hasRotatedPlacement =
-                  Number.isFinite(rect.rotationDeg) && rect.centerX != null && rect.centerY != null;
+              {textSelectionOverlay.rects.map((rect: TextSelectionOverlayBox, index: number) => {
+                const width = rect.bounds.maxX - rect.bounds.minX;
+                const height = rect.bounds.maxY - rect.bounds.minY;
+                const hasRotatedPlacement = Number.isFinite(rect.rotationDeg) && rect.center != null;
                 return (
                   <div
-                    key={`${textSelectionOverlay.sourceId}:rect:${index}:${rect.left}:${rect.top}:${rect.width}:${rect.height}:${rect.centerX ?? ""}:${rect.centerY ?? ""}:${rect.rotationDeg ?? ""}`}
+                    key={`${textSelectionOverlay.sourceId}:rect:${index}:${rect.bounds.minX}:${rect.bounds.minY}:${rect.bounds.maxX}:${rect.bounds.maxY}:${rect.center?.x ?? ""}:${rect.center?.y ?? ""}:${rect.rotationDeg ?? ""}`}
                     className={css.textSelectionViewportRect}
                     data-testid="canvas-text-selection-rect"
                     style={{
-                      left: hasRotatedPlacement ? rect.centerX : rect.left,
-                      top: hasRotatedPlacement ? rect.centerY : rect.top,
-                      width: rect.width,
-                      height: rect.height,
+                      left: hasRotatedPlacement ? rect.center!.x : rect.bounds.minX,
+                      top: hasRotatedPlacement ? rect.center!.y : rect.bounds.minY,
+                      width,
+                      height,
                       transform: hasRotatedPlacement ? `translate(-50%, -50%) rotate(${rect.rotationDeg}deg)` : undefined,
                       transformOrigin: "center"
                     }}
@@ -504,8 +506,8 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
               {textSelectionOverlay.caret ? (
                 (() => {
                   const caret = textSelectionOverlay.caret;
-                  const hasRotatedPlacement =
-                    Number.isFinite(caret.rotationDeg) && caret.centerX != null && caret.centerY != null;
+                  const hasRotatedPlacement = Number.isFinite(caret.rotationDeg) && caret.center != null;
+                  const height = caret.bounds.maxY - caret.bounds.minY;
                   return (
                     <div
                       key={textCaretBlinkSyncKey ?? `${textSelectionOverlay.sourceId}:${textSelectionOverlay.selectionStart}:${textSelectionOverlay.selectionEnd}`}
@@ -517,9 +519,9 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                         .join(" ")}
                       data-testid="canvas-text-selection-caret"
                       style={{
-                        left: hasRotatedPlacement ? caret.centerX : caret.left,
-                        top: hasRotatedPlacement ? caret.centerY : caret.top,
-                        height: caret.height,
+                        left: hasRotatedPlacement ? caret.center!.x : caret.bounds.minX,
+                        top: hasRotatedPlacement ? caret.center!.y : caret.bounds.minY,
+                        height,
                         transform: hasRotatedPlacement
                           ? `translate(-50%, -50%) rotate(${caret.rotationDeg}deg)`
                           : undefined,
@@ -631,8 +633,8 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
             <CanvasContextMenu
               open={contextMenuState != null}
               anchor={{
-                x: contextMenuState?.anchorX ?? 0,
-                y: contextMenuState?.anchorY ?? 0
+                x: contextMenuState?.anchor.x ?? 0,
+                y: contextMenuState?.anchor.y ?? 0
               }}
               target={contextMenuState?.target ?? "canvas-empty"}
               bindings={commandRuntimeBindings}

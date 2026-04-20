@@ -11,7 +11,7 @@ import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 import type { NodeLayer, NodeShape } from "./types.js";
 import { normalizeOptionValue } from "./utils.js";
 import { identityMatrix, inverseMatrix, multiplyMatrix } from "../transform.js";
-import type { Matrix2D } from "../types.js";
+import type { WorldTransform } from "../../coords/transforms.js";
 import { defaultStyle } from "../style/defaults.js";
 
 export function withDefaultNodePosition(options: OptionListAst | undefined, defaultPos: number | undefined): OptionListAst | undefined {
@@ -151,7 +151,7 @@ export function resolveNodeOptionTransform(
   options: PathOptionItem["options"] | undefined,
   baseStyle: ResolvedStyle,
   context: SemanticContext
-): Matrix2D {
+): WorldTransform {
   if (!options) {
     return identityMatrix();
   }
@@ -432,7 +432,7 @@ function computeRelativeTransformScale(
   return resolved / base;
 }
 
-function computeRelativeTransformMatrix(baseTransform: Matrix2D, resolvedTransform: Matrix2D): Matrix2D {
+function computeRelativeTransformMatrix(baseTransform: WorldTransform, resolvedTransform: WorldTransform): WorldTransform {
   const inverseBase = inverseMatrix(baseTransform);
   if (!inverseBase) {
     return resolvedTransform;

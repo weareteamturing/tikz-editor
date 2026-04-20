@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyAdornmentPointerOffset,
+  applyAdornmentWorldPointerOffset,
   resolveAdornmentDragPlacement
 } from "../../packages/app/src/ui/canvas-panel/useCanvasDragController.js";
 import type { AdornmentOwnerGeometry } from "../../packages/core/src/ast/types.js";
 import type { SceneAdornment } from "../../packages/core/src/semantic/types.js";
-import type { Point } from "../../packages/core/src/semantic/types.js";
+import type { WorldPoint } from "../../packages/core/src/coords/points.js";
 
 describe("adornment drag placement", () => {
   it("keeps dragged adornment distance continuous", () => {
@@ -80,7 +80,7 @@ describe("adornment drag placement", () => {
   });
 
   it("preserves pointer grab offset while dragging", () => {
-    const adjusted = applyAdornmentPointerOffset(
+    const adjusted = applyAdornmentWorldPointerOffset(
       { x: 12, y: 6 },
       { x: 2.5, y: -1.5 }
     );
@@ -129,7 +129,7 @@ describe("adornment drag placement", () => {
       x: fakeTextCenter.x - reference.x,
       y: fakeTextCenter.y - reference.y
     };
-    const afterPickup = applyAdornmentPointerOffset(fakeTextCenter, offset);
+    const afterPickup = applyAdornmentWorldPointerOffset(fakeTextCenter, offset);
 
     const placement = resolveAdornmentDragPlacement(afterPickup, ownerCenter, ownerGeometry, { allowCenter: false });
     expect(placement).not.toBeNull();
@@ -228,13 +228,13 @@ describe("adornment drag placement", () => {
       x: -39,
       y: -9
     };
-    const movedPointer = {
+    const movedWorldPointer = {
       x: initialPlacement.center.x + pointerOffsetFromCenter.x + 60,
       y: initialPlacement.center.y + pointerOffsetFromCenter.y
     };
 
     const placement = resolveAdornmentDragPlacement(
-      movedPointer,
+      movedWorldPointer,
       ownerCenter,
       ownerGeometry,
       {
@@ -268,22 +268,22 @@ describe("adornment drag placement", () => {
 });
 
 function resolveBodyCenterFromPlacement(input: {
-  ownerCenter: Point;
+  ownerCenter: WorldPoint;
   ownerGeometry: AdornmentOwnerGeometry;
   angleDeg: number;
   distancePt: number;
   halfWidth: number;
   halfHeight: number;
-}): { center: Point; anchor: string; referencePoint: Point } {
+}): { center: WorldPoint; anchor: string; referenceWorldPoint: WorldPoint } {
   const direction = pointOnUnitCircle(input.angleDeg);
   const borderDistance = resolveOwnerBorderDistance(input.ownerGeometry, direction);
-  const borderPoint = {
+  const borderWorldPoint = {
     x: input.ownerCenter.x + direction.x * borderDistance,
     y: input.ownerCenter.y + direction.y * borderDistance
   };
   const centerToBorder = {
-    x: borderPoint.x - input.ownerCenter.x,
-    y: borderPoint.y - input.ownerCenter.y
+    x: borderWorldPoint.x - input.ownerCenter.x,
+    y: borderWorldPoint.y - input.ownerCenter.y
   };
   const centerToBorderLength = Math.hypot(centerToBorder.x, centerToBorder.y);
   const shiftDirection = centerToBorderLength <= 1e-6
@@ -292,9 +292,9 @@ function resolveBodyCenterFromPlacement(input: {
         x: centerToBorder.x / centerToBorderLength,
         y: centerToBorder.y / centerToBorderLength
       };
-  const referencePoint = {
-    x: borderPoint.x + shiftDirection.x * input.distancePt,
-    y: borderPoint.y + shiftDirection.y * input.distancePt
+  const referenceWorldPoint = {
+    x: borderWorldPoint.x + shiftDirection.x * input.distancePt,
+    y: borderWorldPoint.y + shiftDirection.y * input.distancePt
   };
   const anchor = centerToBorderLength <= 1e-6
     ? anchorFacingAway(input.angleDeg)
@@ -302,15 +302,15 @@ function resolveBodyCenterFromPlacement(input: {
   const centerOffset = anchorOffsetFromCenter(anchor, input.halfWidth, input.halfHeight);
   return {
     center: {
-      x: referencePoint.x - centerOffset.x,
-      y: referencePoint.y - centerOffset.y
+      x: referenceWorldPoint.x - centerOffset.x,
+      y: referenceWorldPoint.y - centerOffset.y
     },
     anchor,
-    referencePoint
+    referenceWorldPoint
   };
 }
 
-function resolveOwnerBorderDistance(ownerGeometry: AdornmentOwnerGeometry, direction: Point): number {
+function resolveOwnerBorderDistance(ownerGeometry: AdornmentOwnerGeometry, direction: WorldPoint): number {
   if (ownerGeometry.shape === "rectangle") {
     return 1 / Math.max(
       Math.abs(direction.x) / Math.max(ownerGeometry.anchorHalfWidth, 1e-6),
@@ -328,7 +328,7 @@ function resolveOwnerBorderDistance(ownerGeometry: AdornmentOwnerGeometry, direc
   return 0;
 }
 
-function pointOnUnitCircle(angleDeg: number): Point {
+function pointOnUnitCircle(angleDeg: number): WorldPoint {
   const radians = (angleDeg * Math.PI) / 180;
   return { x: Math.cos(radians), y: Math.sin(radians) };
 }
@@ -345,7 +345,7 @@ function anchorFacingAway(degrees: number): string {
   return "north west";
 }
 
-function autoAnchorFromVector(vector: Point): string {
+function autoAnchorFromVector(vector: WorldPoint): string {
   if (vector.x > 0.05) {
     if (vector.y > 0.05) return "south east";
     if (vector.y < -0.05) return "south west";
@@ -359,7 +359,7 @@ function autoAnchorFromVector(vector: Point): string {
   return vector.y > 0 ? "east" : "west";
 }
 
-function anchorOffsetFromCenter(anchor: string, halfWidth: number, halfHeight: number): Point {
+function anchorOffsetFromCenter(anchor: string, halfWidth: number, halfHeight: number): WorldPoint {
   switch (anchor) {
     case "west":
       return { x: -halfWidth, y: 0 };

@@ -1,5 +1,5 @@
 import { parseLength } from "../coords/parse-length.js";
-import type { Point } from "../types.js";
+import type { WorldPoint } from "../../coords/points.js";
 import type { OptionListAst } from "../../options/types.js";
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
@@ -84,100 +84,100 @@ export type TapeBendStyle = "in and out" | "out and in" | "none";
 export type RoundedRectangleArcType = "convex" | "concave" | "none";
 
 export type SemicircleGeometry = {
-  center: Point;
+  center: WorldPoint;
   radius: number;
   rotation: number;
-  apex: Point;
-  arcStart: Point;
-  arcEnd: Point;
-  chordCenter: Point;
-  polygon: Point[];
+  apex: WorldPoint;
+  arcStart: WorldPoint;
+  arcEnd: WorldPoint;
+  chordCenter: WorldPoint;
+  polygon: WorldPoint[];
 };
 
 export type CircularSectorGeometry = {
-  sectorCenter: Point;
-  arcStart: Point;
-  arcEnd: Point;
-  arcCenter: Point;
+  sectorCenter: WorldPoint;
+  arcStart: WorldPoint;
+  arcEnd: WorldPoint;
+  arcCenter: WorldPoint;
   radius: number;
   rotation: number;
-  polygon: Point[];
+  polygon: WorldPoint[];
 };
 
 export type CylinderGeometry = {
-  shapeCenter: Point;
-  beforeTop: Point;
-  top: Point;
-  afterTop: Point;
-  beforeBottom: Point;
-  bottom: Point;
-  afterBottom: Point;
-  polygon: Point[];
+  shapeCenter: WorldPoint;
+  beforeTop: WorldPoint;
+  top: WorldPoint;
+  afterTop: WorldPoint;
+  beforeBottom: WorldPoint;
+  bottom: WorldPoint;
+  afterBottom: WorldPoint;
+  polygon: WorldPoint[];
 };
 
 export type CloudGeometry = {
-  polygon: Point[];
-  puffs: Point[];
+  polygon: WorldPoint[];
+  puffs: WorldPoint[];
 };
 
 export type StarburstGeometry = {
-  polygon: Point[];
-  outer: Point[];
-  inner: Point[];
+  polygon: WorldPoint[];
+  outer: WorldPoint[];
+  inner: WorldPoint[];
 };
 
 export type SignalGeometry = {
-  polygon: Point[];
+  polygon: WorldPoint[];
 };
 
 export type TapeGeometry = {
-  polygon: Point[];
+  polygon: WorldPoint[];
 };
 
 export type RectangleCalloutGeometry = {
-  polygon: Point[];
-  pointer: Point;
-  pointerAnchor: Point;
+  polygon: WorldPoint[];
+  pointer: WorldPoint;
+  pointerAnchor: WorldPoint;
 };
 
 export type EllipseCalloutGeometry = {
-  polygon: Point[];
-  pointer: Point;
-  pointerAnchor: Point;
+  polygon: WorldPoint[];
+  pointer: WorldPoint;
+  pointerAnchor: WorldPoint;
 };
 
 export type CloudCalloutGeometry = {
-  polygon: Point[];
-  pointerPolygon: Point[];
-  pointer: Point;
-  pointerAnchor: Point;
-  puffs: Point[];
+  polygon: WorldPoint[];
+  pointerPolygon: WorldPoint[];
+  pointer: WorldPoint;
+  pointerAnchor: WorldPoint;
+  puffs: WorldPoint[];
 };
 
 export type SingleArrowGeometry = {
-  polygon: Point[];
-  tip: Point;
-  beforeTip: Point;
-  afterTip: Point;
-  beforeHead: Point;
-  afterHead: Point;
-  beforeTail: Point;
-  afterTail: Point;
-  tail: Point;
+  polygon: WorldPoint[];
+  tip: WorldPoint;
+  beforeTip: WorldPoint;
+  afterTip: WorldPoint;
+  beforeHead: WorldPoint;
+  afterHead: WorldPoint;
+  beforeTail: WorldPoint;
+  afterTail: WorldPoint;
+  tail: WorldPoint;
 };
 
 export type DoubleArrowGeometry = {
-  polygon: Point[];
-  tip1: Point;
-  beforeTip1: Point;
-  afterTip1: Point;
-  beforeHead1: Point;
-  afterHead1: Point;
-  tip2: Point;
-  beforeTip2: Point;
-  afterTip2: Point;
-  beforeHead2: Point;
-  afterHead2: Point;
+  polygon: WorldPoint[];
+  tip1: WorldPoint;
+  beforeTip1: WorldPoint;
+  afterTip1: WorldPoint;
+  beforeHead1: WorldPoint;
+  afterHead1: WorldPoint;
+  tip2: WorldPoint;
+  beforeTip2: WorldPoint;
+  afterTip2: WorldPoint;
+  beforeHead2: WorldPoint;
+  afterHead2: WorldPoint;
 };
 
 const DEFAULT_DIAMOND_ASPECT = 1;
@@ -869,12 +869,12 @@ export function makeRoundedRectanglePolygon(
   arcLength: number,
   westArc: RoundedRectangleArcType,
   eastArc: RoundedRectangleArcType
-): Point[] {
+): WorldPoint[] {
   const halfWidth = Math.max(EPSILON, width / 2);
   const halfHeight = Math.max(EPSILON, height / 2);
   const arcFactor = Math.max(0, Math.min(1, Math.abs(arcLength) / 180));
   const bulgeX = Math.min(halfWidth, halfHeight) * arcFactor;
-  const points: Point[] = [];
+  const points: WorldPoint[] = [];
 
   const westJoinX = westArc === "none" ? -halfWidth : -halfWidth + bulgeX;
   const eastJoinX = eastArc === "none" ? halfWidth : halfWidth - bulgeX;
@@ -925,7 +925,7 @@ export function makeChamferedRectanglePolygon(
   chamferY: number,
   chamferAngle: number,
   cornersRaw: string
-): Point[] {
+): WorldPoint[] {
   const halfWidth = Math.max(EPSILON, width / 2);
   const halfHeight = Math.max(EPSILON, height / 2);
   const cy = Math.max(0, Math.min(halfHeight * 0.8, chamferY));
@@ -962,14 +962,14 @@ export function makeMagnifyingGlassHandle(
   radius: number,
   angleDegrees: number,
   aspect: number
-): { from: Point; to: Point } {
+): { from: WorldPoint; to: WorldPoint } {
   const safeAspect = Math.max(0.1, aspect);
   const from = pointPolar(angleDegrees, radius);
   const to = pointPolar(angleDegrees, radius * (1 + safeAspect));
   return { from, to };
 }
 
-export function makeDiamondPolygon(halfWidth: number, halfHeight: number, aspect: number): Point[] {
+export function makeDiamondPolygon(halfWidth: number, halfHeight: number, aspect: number): WorldPoint[] {
   const safeHalfWidth = Math.max(0, halfWidth);
   const safeHalfHeight = Math.max(0, halfHeight);
   const safeAspect = normalizeAspect(aspect);
@@ -988,7 +988,7 @@ export function makeIsoscelesTrianglePolygon(
   apexAngleRaw: number,
   rotation: number,
   stretches: boolean
-): Point[] {
+): WorldPoint[] {
   const apexAngle = normalizeAcuteAngle(apexAngleRaw, DEFAULT_ISOSCELES_TRIANGLE_APEX_ANGLE);
   const halfAngleRadians = toRadians(apexAngle / 2);
   const tangent = Math.tan(halfAngleRadians);
@@ -1024,7 +1024,7 @@ export function makeKitePolygon(
   upperAngleRaw: number,
   lowerAngleRaw: number,
   rotation: number
-): Point[] {
+): WorldPoint[] {
   const upperAngle = normalizeAcuteAngle(upperAngleRaw, DEFAULT_KITE_UPPER_VERTEX_ANGLE);
   const lowerAngle = normalizeAcuteAngle(lowerAngleRaw, DEFAULT_KITE_LOWER_VERTEX_ANGLE);
   const targetWidth = Math.max(0, Math.max(sizing.naturalWidth, sizing.minimumWidth));
@@ -1059,7 +1059,7 @@ export function makeDartPolygon(
   tipAngleRaw: number,
   tailAngleRaw: number,
   rotation: number
-): Point[] {
+): WorldPoint[] {
   const tipAngle = normalizeAcuteAngle(tipAngleRaw, DEFAULT_DART_TIP_ANGLE);
   const tailAngle = normalizeTailAngle(tailAngleRaw);
   const targetWidth = Math.max(0, Math.max(sizing.naturalWidth, sizing.minimumWidth));
@@ -1096,7 +1096,7 @@ export function makeTrapeziumPolygon(
   rotation: number,
   stretches: boolean,
   stretchesBody: boolean
-): Point[] {
+): WorldPoint[] {
   const resolved = resolveTrapeziumDimensions(
     sizing.naturalHalfWidth,
     sizing.naturalHalfHeight,
@@ -1131,14 +1131,14 @@ export function makeTrapeziumPolygon(
     return polygon;
   }
 
-  return polygon.map((point) => rotatePoint(point, rotation));
+  return polygon.map((point) => rotateWorldPoint(point, rotation));
 }
 
 export function makeRegularPolygon(
   sizing: CircularSizingInput,
   sidesRaw: number,
   rotation: number
-): Point[] {
+): WorldPoint[] {
   const sides = normalizeInteger(Math.round(sidesRaw), 3, 360, DEFAULT_REGULAR_POLYGON_SIDES);
   const diagonalHalf = Math.hypot(sizing.naturalWidth / 2, sizing.naturalHeight / 2);
   const minRadius = Math.max(sizing.minimumWidth, sizing.minimumHeight) / 2;
@@ -1146,7 +1146,7 @@ export function makeRegularPolygon(
   const circumRadius = cosine <= 1e-6 ? minRadius : Math.max(diagonalHalf / cosine, minRadius);
   const startAngle = regularPolygonStartAngle(sides, rotation);
 
-  const vertices: Point[] = [];
+  const vertices: WorldPoint[] = [];
   const step = 360 / sides;
   for (let index = 0; index < sides; index += 1) {
     vertices.push(pointPolar(startAngle + index * step, circumRadius));
@@ -1161,7 +1161,7 @@ export function makeStar(
   pointHeightPt: number,
   useRatio: boolean,
   rotation: number
-): { polygon: Point[]; outer: Point[]; inner: Point[] } {
+): { polygon: WorldPoint[]; outer: WorldPoint[]; inner: WorldPoint[] } {
   const points = normalizeInteger(Math.round(pointsRaw), 2, 360, DEFAULT_STAR_POINTS);
   const safeRatio = normalizeRatio(ratioRaw);
   const innerBase = Math.hypot(sizing.naturalWidth / 2, sizing.naturalHeight / 2);
@@ -1178,18 +1178,18 @@ export function makeStar(
 
   const startAngle = 90 + rotation;
   const step = 180 / points;
-  const polygon: Point[] = [];
-  const outer: Point[] = [];
-  const inner: Point[] = [];
+  const polygon: WorldPoint[] = [];
+  const outer: WorldPoint[] = [];
+  const inner: WorldPoint[] = [];
 
   for (let index = 0; index < points; index += 1) {
     const outerAngle = startAngle + index * 2 * step;
     const innerAngle = outerAngle + step;
-    const outerPoint = pointPolar(outerAngle, outerRadius);
-    const innerPoint = pointPolar(innerAngle, innerRadius);
-    outer.push(outerPoint);
-    inner.push(innerPoint);
-    polygon.push(outerPoint, innerPoint);
+    const outerWorldPoint = pointPolar(outerAngle, outerRadius);
+    const innerWorldPoint = pointPolar(innerAngle, innerRadius);
+    outer.push(outerWorldPoint);
+    inner.push(innerWorldPoint);
+    polygon.push(outerWorldPoint, innerWorldPoint);
   }
 
   return { polygon, outer, inner };
@@ -1223,7 +1223,7 @@ export function makeSemicircle(
   const arcEndUnrotated = { x: -anchorRadius, y: chordY };
   const chordCenterUnrotated = { x: 0, y: chordY };
 
-  const polygonUnrotated: Point[] = [];
+  const polygonUnrotated: WorldPoint[] = [];
   const steps = Math.max(8, sampleSteps);
   for (let index = 0; index <= steps; index += 1) {
     const t = index / steps;
@@ -1235,12 +1235,12 @@ export function makeSemicircle(
   }
   polygonUnrotated.push(arcEndUnrotated, arcStartUnrotated);
 
-  const center = rotatePoint(centerUnrotated, rotation);
-  const apex = rotatePoint(apexUnrotated, rotation);
-  const arcStart = rotatePoint(arcStartUnrotated, rotation);
-  const arcEnd = rotatePoint(arcEndUnrotated, rotation);
-  const chordCenter = rotatePoint(chordCenterUnrotated, rotation);
-  const polygon = polygonUnrotated.map((point) => rotatePoint(point, rotation));
+  const center = rotateWorldPoint(centerUnrotated, rotation);
+  const apex = rotateWorldPoint(apexUnrotated, rotation);
+  const arcStart = rotateWorldPoint(arcStartUnrotated, rotation);
+  const arcEnd = rotateWorldPoint(arcEndUnrotated, rotation);
+  const chordCenter = rotateWorldPoint(chordCenterUnrotated, rotation);
+  const polygon = polygonUnrotated.map((point) => rotateWorldPoint(point, rotation));
 
   return {
     center,
@@ -1277,7 +1277,7 @@ export function makeCircularSector(
   const arcStartUnrotated = pointPolarOffset(startAngle, radius, sectorCenterUnrotated);
   const arcEndUnrotated = pointPolarOffset(endAngle, radius, sectorCenterUnrotated);
 
-  const polygonUnrotated: Point[] = [sectorCenterUnrotated];
+  const polygonUnrotated: WorldPoint[] = [sectorCenterUnrotated];
   const steps = Math.max(8, sampleSteps);
   for (let index = 0; index <= steps; index += 1) {
     const t = index / steps;
@@ -1285,13 +1285,13 @@ export function makeCircularSector(
   }
 
   return {
-    sectorCenter: rotatePoint(sectorCenterUnrotated, rotation),
-    arcStart: rotatePoint(arcStartUnrotated, rotation),
-    arcEnd: rotatePoint(arcEndUnrotated, rotation),
-    arcCenter: rotatePoint(arcCenterUnrotated, rotation),
+    sectorCenter: rotateWorldPoint(sectorCenterUnrotated, rotation),
+    arcStart: rotateWorldPoint(arcStartUnrotated, rotation),
+    arcEnd: rotateWorldPoint(arcEndUnrotated, rotation),
+    arcCenter: rotateWorldPoint(arcCenterUnrotated, rotation),
     radius,
     rotation,
-    polygon: polygonUnrotated.map((point) => rotatePoint(point, rotation))
+    polygon: polygonUnrotated.map((point) => rotateWorldPoint(point, rotation))
   };
 }
 
@@ -1320,7 +1320,7 @@ export function makeCylinder(
   const afterBottomUnrotated = { x: leftCenter.x, y: capRadiusY };
   const shapeCenterUnrotated = { x: capRadiusX / 2, y: 0 };
 
-  const polygonUnrotated: Point[] = [];
+  const polygonUnrotated: WorldPoint[] = [];
   const rightArcSteps = Math.max(8, sampleSteps);
   const leftArcSteps = Math.max(8, sampleSteps);
 
@@ -1334,14 +1334,14 @@ export function makeCylinder(
   }
 
   return {
-    shapeCenter: rotatePoint(shapeCenterUnrotated, rotation),
-    beforeTop: rotatePoint(beforeTopUnrotated, rotation),
-    top: rotatePoint(topUnrotated, rotation),
-    afterTop: rotatePoint(afterTopUnrotated, rotation),
-    beforeBottom: rotatePoint(beforeBottomUnrotated, rotation),
-    bottom: rotatePoint(bottomUnrotated, rotation),
-    afterBottom: rotatePoint(afterBottomUnrotated, rotation),
-    polygon: polygonUnrotated.map((point) => rotatePoint(point, rotation))
+    shapeCenter: rotateWorldPoint(shapeCenterUnrotated, rotation),
+    beforeTop: rotateWorldPoint(beforeTopUnrotated, rotation),
+    top: rotateWorldPoint(topUnrotated, rotation),
+    afterTop: rotateWorldPoint(afterTopUnrotated, rotation),
+    beforeBottom: rotateWorldPoint(beforeBottomUnrotated, rotation),
+    bottom: rotateWorldPoint(bottomUnrotated, rotation),
+    afterBottom: rotateWorldPoint(afterBottomUnrotated, rotation),
+    polygon: polygonUnrotated.map((point) => rotateWorldPoint(point, rotation))
   };
 }
 
@@ -1370,8 +1370,8 @@ export function makeCloud(
   const step = 360 / puffs;
   const depth = Math.max(0, Math.min(rx, ry) * (0.12 + (puffArc / 180) * 0.2));
   const valleyDepth = depth * 0.28;
-  const polygon: Point[] = [];
-  const peaks: Point[] = [];
+  const polygon: WorldPoint[] = [];
+  const peaks: WorldPoint[] = [];
   for (let index = 0; index < puffs; index += 1) {
     const peakAngle = 90 + rotation - index * step;
     const valleyAngle = peakAngle - step / 2;
@@ -1408,20 +1408,20 @@ export function makeStarburst(
   const innerRy = Math.max(EPSILON, targetHeight / 2 - pointHeight);
   const step = 180 / points;
   const rng = makeSeededRng(randomSeedRaw);
-  const polygon: Point[] = [];
-  const outer: Point[] = [];
-  const inner: Point[] = [];
+  const polygon: WorldPoint[] = [];
+  const outer: WorldPoint[] = [];
+  const inner: WorldPoint[] = [];
 
   for (let index = 0; index < points; index += 1) {
     const outerAngle = 90 + rotation - index * 2 * step;
     const innerAngle = outerAngle - step;
     const outerScale = randomSeedRaw === 0 ? 1 : 0.25 + 0.75 * rng();
     const delta = pointHeight * outerScale;
-    const outerPoint = pointEllipsePolar(outerAngle, innerRx + delta, innerRy + delta);
-    const innerPoint = pointEllipsePolar(innerAngle, innerRx, innerRy);
-    outer.push(outerPoint);
-    inner.push(innerPoint);
-    polygon.push(outerPoint, innerPoint);
+    const outerWorldPoint = pointEllipsePolar(outerAngle, innerRx + delta, innerRy + delta);
+    const innerWorldPoint = pointEllipsePolar(innerAngle, innerRx, innerRy);
+    outer.push(outerWorldPoint);
+    inner.push(innerWorldPoint);
+    polygon.push(outerWorldPoint, innerWorldPoint);
   }
 
   return { polygon, outer, inner };
@@ -1491,7 +1491,7 @@ export function makeTape(
   const halfHeight = Math.max(EPSILON, Math.max(sizing.naturalHeight, sizing.minimumHeight) / 2);
   const halfBend = Math.max(0, bendHeightPt) / 2;
   const samples = 18;
-  const polygon: Point[] = [];
+  const polygon: WorldPoint[] = [];
 
   for (let index = 0; index <= samples; index += 1) {
     const t = index / samples;
@@ -1516,8 +1516,8 @@ export function resolveCalloutPointerOffset(
     "calloutPointerIsAbsolute" | "calloutRelativePointerRaw" | "calloutAbsolutePointerRaw" | "calloutPointerShortenPt"
   >,
   context: SemanticContext | null,
-  center: Point | null
-): Point {
+  center: WorldPoint | null
+): WorldPoint {
   let pointer =
     parseCalloutCoordinateVector(shapeGeometry.calloutRelativePointerRaw) ??
     parseCalloutCoordinateVector(DEFAULT_CALLOUT_RELATIVE_POINTER_RAW) ?? { x: 0, y: 0 };
@@ -1537,19 +1537,19 @@ export function resolveCalloutPointerOffset(
 
 export function makeRectangleCallout(
   sizing: CircularSizingInput,
-  pointerOffset: Point,
+  pointerOffset: WorldPoint,
   pointerWidthPt: number,
   pointerIsAbsolute: boolean,
   pointerShortenPt: number
 ): RectangleCalloutGeometry {
   const halfWidth = Math.max(EPSILON, Math.max(sizing.naturalWidth, sizing.minimumWidth) / 2);
   const halfHeight = Math.max(EPSILON, Math.max(sizing.naturalHeight, sizing.minimumHeight) / 2);
-  const relativePointer = Math.hypot(pointerOffset.x, pointerOffset.y) > EPSILON ? pointerOffset : { x: halfWidth, y: 0 };
-  const relativeSide = rectanglePointerSide(relativePointer, halfWidth, halfHeight);
-  const relativeBorder = rectangleBorderPoint(relativePointer, halfWidth, halfHeight, relativeSide);
+  const relativeWorldPointer = Math.hypot(pointerOffset.x, pointerOffset.y) > EPSILON ? pointerOffset : { x: halfWidth, y: 0 };
+  const relativeSide = rectanglePointerSide(relativeWorldPointer, halfWidth, halfHeight);
+  const relativeBorder = rectangleBorderPoint(relativeWorldPointer, halfWidth, halfHeight, relativeSide);
   let pointer = pointerIsAbsolute
-    ? relativePointer
-    : resolveRelativeCalloutPointer(relativePointer, relativeBorder);
+    ? relativeWorldPointer
+    : resolveRelativeCalloutPointer(relativeWorldPointer, relativeBorder);
   pointer = shortenCalloutPointer(pointer, pointerShortenPt);
   if (Math.hypot(pointer.x, pointer.y) <= EPSILON) {
     pointer = { x: halfWidth, y: 0 };
@@ -1565,7 +1565,7 @@ export function makeRectangleCallout(
   const bottomRight = { x: halfWidth, y: -halfHeight };
   const bottomLeft = { x: -halfWidth, y: -halfHeight };
 
-  let polygon: Point[];
+  let polygon: WorldPoint[];
   if (side === "east") {
     const top = clamp(border.y + halfBase, -halfHeight, halfHeight);
     const bottom = clamp(border.y - halfBase, -halfHeight, halfHeight);
@@ -1601,7 +1601,7 @@ export function makeRectangleCallout(
 
 export function makeEllipseCallout(
   sizing: CircularSizingInput,
-  pointerOffset: Point,
+  pointerOffset: WorldPoint,
   pointerArcRaw: number,
   pointerIsAbsolute: boolean,
   pointerShortenPt: number,
@@ -1609,11 +1609,11 @@ export function makeEllipseCallout(
 ): EllipseCalloutGeometry {
   const rx = Math.max(EPSILON, Math.max(sizing.naturalWidth, sizing.minimumWidth) / 2);
   const ry = Math.max(EPSILON, Math.max(sizing.naturalHeight, sizing.minimumHeight) / 2);
-  const relativePointer = Math.hypot(pointerOffset.x, pointerOffset.y) > EPSILON ? pointerOffset : { x: rx, y: 0 };
-  const relativeBorder = ellipseBorderPoint(relativePointer, rx, ry);
+  const relativeWorldPointer = Math.hypot(pointerOffset.x, pointerOffset.y) > EPSILON ? pointerOffset : { x: rx, y: 0 };
+  const relativeBorder = ellipseBorderPoint(relativeWorldPointer, rx, ry);
   let pointer = pointerIsAbsolute
-    ? relativePointer
-    : resolveRelativeCalloutPointer(relativePointer, relativeBorder);
+    ? relativeWorldPointer
+    : resolveRelativeCalloutPointer(relativeWorldPointer, relativeBorder);
   pointer = shortenCalloutPointer(pointer, pointerShortenPt);
   if (Math.hypot(pointer.x, pointer.y) <= EPSILON) {
     pointer = { x: rx, y: 0 };
@@ -1626,9 +1626,9 @@ export function makeEllipseCallout(
   const beforeAngle = pointerAngle + halfArc;
   const afterAngle = pointerAngle - halfArc;
 
-  const arcPoints = sampleEllipseArc(afterAngle, beforeAngle, rx, ry, sampleSteps);
+  const arcWorldPoints = sampleEllipseArc(afterAngle, beforeAngle, rx, ry, sampleSteps);
   return {
-    polygon: [pointer, ...arcPoints],
+    polygon: [pointer, ...arcWorldPoints],
     pointer,
     pointerAnchor: pointer
   };
@@ -1641,7 +1641,7 @@ export function makeCloudCallout(
   aspectRaw: number,
   ignoreAspect: boolean,
   rotation: number,
-  pointerOffset: Point,
+  pointerOffset: WorldPoint,
   startSizeRaw: string,
   endSizeRaw: string,
   segmentsRaw: number,
@@ -1649,11 +1649,11 @@ export function makeCloudCallout(
   pointerShortenPt: number
 ): CloudCalloutGeometry {
   const cloud = makeCloud(sizing, puffsRaw, puffArcRaw, aspectRaw, ignoreAspect, rotation);
-  const relativePointer = Math.hypot(pointerOffset.x, pointerOffset.y) > EPSILON ? pointerOffset : { x: 0, y: 0 };
-  const relativeBorder = intersectRayWithPolygon({ x: 0, y: 0 }, relativePointer, cloud.polygon) ?? { x: 0, y: 0 };
+  const relativeWorldPointer = Math.hypot(pointerOffset.x, pointerOffset.y) > EPSILON ? pointerOffset : { x: 0, y: 0 };
+  const relativeBorder = intersectRayWithPolygon({ x: 0, y: 0 }, relativeWorldPointer, cloud.polygon) ?? { x: 0, y: 0 };
   let pointer = pointerIsAbsolute
-    ? relativePointer
-    : resolveRelativeCalloutPointer(relativePointer, relativeBorder);
+    ? relativeWorldPointer
+    : resolveRelativeCalloutPointer(relativeWorldPointer, relativeBorder);
   pointer = shortenCalloutPointer(pointer, pointerShortenPt);
   const border = intersectRayWithPolygon({ x: 0, y: 0 }, pointer, cloud.polygon) ?? { x: 0, y: 0 };
 
@@ -1704,14 +1704,14 @@ export function makeSingleArrow(
 
   return {
     polygon,
-    tip: rotatePoint(tipUnrotated, rotation),
-    beforeTip: rotatePoint(beforeTipUnrotated, rotation),
-    afterTip: rotatePoint(afterTipUnrotated, rotation),
-    beforeHead: rotatePoint(beforeHeadUnrotated, rotation),
-    afterHead: rotatePoint(afterHeadUnrotated, rotation),
-    beforeTail: rotatePoint(beforeTailUnrotated, rotation),
-    afterTail: rotatePoint(afterTailUnrotated, rotation),
-    tail: rotatePoint(tailUnrotated, rotation)
+    tip: rotateWorldPoint(tipUnrotated, rotation),
+    beforeTip: rotateWorldPoint(beforeTipUnrotated, rotation),
+    afterTip: rotateWorldPoint(afterTipUnrotated, rotation),
+    beforeHead: rotateWorldPoint(beforeHeadUnrotated, rotation),
+    afterHead: rotateWorldPoint(afterHeadUnrotated, rotation),
+    beforeTail: rotateWorldPoint(beforeTailUnrotated, rotation),
+    afterTail: rotateWorldPoint(afterTailUnrotated, rotation),
+    tail: rotateWorldPoint(tailUnrotated, rotation)
   };
 }
 
@@ -1753,16 +1753,16 @@ export function makeDoubleArrow(
 
   return {
     polygon,
-    tip1: rotatePoint(tip1Unrotated, rotation),
-    beforeTip1: rotatePoint(beforeTip1Unrotated, rotation),
-    afterTip1: rotatePoint(afterTip1Unrotated, rotation),
-    beforeHead1: rotatePoint(beforeHead1Unrotated, rotation),
-    afterHead1: rotatePoint(afterHead1Unrotated, rotation),
-    tip2: rotatePoint(tip2Unrotated, rotation),
-    beforeTip2: rotatePoint(beforeTip2Unrotated, rotation),
-    afterTip2: rotatePoint(afterTip2Unrotated, rotation),
-    beforeHead2: rotatePoint(beforeHead2Unrotated, rotation),
-    afterHead2: rotatePoint(afterHead2Unrotated, rotation)
+    tip1: rotateWorldPoint(tip1Unrotated, rotation),
+    beforeTip1: rotateWorldPoint(beforeTip1Unrotated, rotation),
+    afterTip1: rotateWorldPoint(afterTip1Unrotated, rotation),
+    beforeHead1: rotateWorldPoint(beforeHead1Unrotated, rotation),
+    afterHead1: rotateWorldPoint(afterHead1Unrotated, rotation),
+    tip2: rotateWorldPoint(tip2Unrotated, rotation),
+    beforeTip2: rotateWorldPoint(beforeTip2Unrotated, rotation),
+    afterTip2: rotateWorldPoint(afterTip2Unrotated, rotation),
+    beforeHead2: rotateWorldPoint(beforeHead2Unrotated, rotation),
+    afterHead2: rotateWorldPoint(afterHead2Unrotated, rotation)
   };
 }
 
@@ -1774,7 +1774,7 @@ export function regularPolygonStartAngle(sidesRaw: number, rotation: number): nu
   return 90 - 180 / sides + rotation;
 }
 
-export function intersectRayWithPolygon(reference: Point, direction: Point, polygon: Point[]): Point | null {
+export function intersectRayWithPolygon(reference: WorldPoint, direction: WorldPoint, polygon: WorldPoint[]): WorldPoint | null {
   if (polygon.length < 2) {
     return null;
   }
@@ -1792,7 +1792,7 @@ export function intersectRayWithPolygon(reference: Point, direction: Point, poly
     y: reference.y + (direction.y / directionLength) * rayLength
   };
 
-  let best: { point: Point; t: number } | null = null;
+  let best: { point: WorldPoint; t: number } | null = null;
   for (let index = 0; index < polygon.length; index += 1) {
     const edgeStart = polygon[index];
     const edgeEnd = polygon[(index + 1) % polygon.length];
@@ -1811,7 +1811,7 @@ export function intersectRayWithPolygon(reference: Point, direction: Point, poly
   return best?.point ?? null;
 }
 
-export function midpoint(from: Point, to: Point): Point {
+export function midpoint(from: WorldPoint, to: WorldPoint): WorldPoint {
   return {
     x: (from.x + to.x) / 2,
     y: (from.y + to.y) / 2
@@ -1958,7 +1958,7 @@ function parseChamferedCorners(raw: string): Set<"north west" | "north east" | "
   return corners;
 }
 
-function parseCalloutCoordinateVector(raw: string): Point | null {
+function parseCalloutCoordinateVector(raw: string): WorldPoint | null {
   const coordinate = parseCoordinate(ensureCoordinateRaw(raw));
   if (coordinate.form === "cartesian") {
     const x = parseLength(coordinate.x, "cm");
@@ -2142,7 +2142,7 @@ function resolveArrowCore(
   };
 }
 
-function rectanglePointerSide(pointer: Point, halfWidth: number, halfHeight: number): "east" | "west" | "north" | "south" {
+function rectanglePointerSide(pointer: WorldPoint, halfWidth: number, halfHeight: number): "east" | "west" | "north" | "south" {
   const rx = halfWidth > EPSILON ? Math.abs(pointer.x) / halfWidth : Number.POSITIVE_INFINITY;
   const ry = halfHeight > EPSILON ? Math.abs(pointer.y) / halfHeight : Number.POSITIVE_INFINITY;
   if (rx >= ry) {
@@ -2152,11 +2152,11 @@ function rectanglePointerSide(pointer: Point, halfWidth: number, halfHeight: num
 }
 
 function rectangleBorderPoint(
-  pointer: Point,
+  pointer: WorldPoint,
   halfWidth: number,
   halfHeight: number,
   side: "east" | "west" | "north" | "south"
-): Point {
+): WorldPoint {
   if (side === "east" || side === "west") {
     const x = side === "east" ? halfWidth : -halfWidth;
     const yScale = Math.abs(pointer.x) > EPSILON ? x / pointer.x : 0;
@@ -2174,7 +2174,7 @@ function rectangleBorderPoint(
   };
 }
 
-function ellipseBorderPoint(pointer: Point, rx: number, ry: number): Point {
+function ellipseBorderPoint(pointer: WorldPoint, rx: number, ry: number): WorldPoint {
   const px = pointer.x;
   const py = pointer.y;
   const norm = Math.hypot(px / Math.max(rx, EPSILON), py / Math.max(ry, EPSILON));
@@ -2188,19 +2188,19 @@ function ellipseBorderPoint(pointer: Point, rx: number, ry: number): Point {
   };
 }
 
-function resolveRelativeCalloutPointer(relativePointer: Point, borderPoint: Point): Point {
-  const length = Math.hypot(relativePointer.x, relativePointer.y);
+function resolveRelativeCalloutPointer(relativeWorldPointer: WorldPoint, borderWorldPoint: WorldPoint): WorldPoint {
+  const length = Math.hypot(relativeWorldPointer.x, relativeWorldPointer.y);
   if (length <= EPSILON) {
-    return borderPoint;
+    return borderWorldPoint;
   }
-  const angle = Math.atan2(borderPoint.y, borderPoint.x);
+  const angle = Math.atan2(borderWorldPoint.y, borderWorldPoint.x);
   return {
-    x: borderPoint.x + Math.cos(angle) * length,
-    y: borderPoint.y + Math.sin(angle) * length
+    x: borderWorldPoint.x + Math.cos(angle) * length,
+    y: borderWorldPoint.y + Math.sin(angle) * length
   };
 }
 
-function shortenCalloutPointer(pointer: Point, shortenPt: number): Point {
+function shortenCalloutPointer(pointer: WorldPoint, shortenPt: number): WorldPoint {
   const distance = Math.hypot(pointer.x, pointer.y);
   if (distance <= EPSILON || shortenPt <= 0) {
     return pointer;
@@ -2213,7 +2213,7 @@ function shortenCalloutPointer(pointer: Point, shortenPt: number): Point {
   };
 }
 
-function sampleEllipseArc(startRadians: number, endRadians: number, rx: number, ry: number, steps: number): Point[] {
+function sampleEllipseArc(startRadians: number, endRadians: number, rx: number, ry: number, steps: number): WorldPoint[] {
   const tau = 2 * Math.PI;
   const normalizedStart = ((startRadians % tau) + tau) % tau;
   const normalizedEnd = ((endRadians % tau) + tau) % tau;
@@ -2223,7 +2223,7 @@ function sampleEllipseArc(startRadians: number, endRadians: number, rx: number, 
   }
 
   const count = Math.max(8, steps);
-  const points: Point[] = [];
+  const points: WorldPoint[] = [];
   for (let index = 0; index <= count; index += 1) {
     const t = index / count;
     const angle = normalizedStart + sweep * t;
@@ -2235,7 +2235,7 @@ function sampleEllipseArc(startRadians: number, endRadians: number, rx: number, 
   return points;
 }
 
-function polygonSize(points: Point[]): { width: number; height: number } {
+function polygonSize(points: WorldPoint[]): { width: number; height: number } {
   if (points.length === 0) {
     return { width: 0, height: 0 };
   }
@@ -2292,15 +2292,15 @@ function resolveCloudCalloutPointerSize(
 }
 
 function makeCloudCalloutPointerPolygon(
-  borderPoint: Point,
-  pointer: Point,
+  borderWorldPoint: WorldPoint,
+  pointer: WorldPoint,
   startSize: { xDiameter: number; yDiameter: number },
   endSize: { xDiameter: number; yDiameter: number },
   segments: number
-): Point[] {
+): WorldPoint[] {
   const direction = {
-    x: pointer.x - borderPoint.x,
-    y: pointer.y - borderPoint.y
+    x: pointer.x - borderWorldPoint.x,
+    y: pointer.y - borderWorldPoint.y
   };
   const length = Math.hypot(direction.x, direction.y);
   if (length <= EPSILON) {
@@ -2312,14 +2312,14 @@ function makeCloudCalloutPointerPolygon(
   const nx = -uy;
   const ny = ux;
   const segmentCount = Math.max(1, segments);
-  const left: Point[] = [];
-  const right: Point[] = [];
+  const left: WorldPoint[] = [];
+  const right: WorldPoint[] = [];
 
   for (let index = 0; index <= segmentCount; index += 1) {
     const t = index / segmentCount;
     const center = {
-      x: borderPoint.x + direction.x * t,
-      y: borderPoint.y + direction.y * t
+      x: borderWorldPoint.x + direction.x * t,
+      y: borderWorldPoint.y + direction.y * t
     };
     const diameterX = lerp(startSize.xDiameter, endSize.xDiameter, t);
     const diameterY = lerp(startSize.yDiameter, endSize.yDiameter, t);
@@ -2341,7 +2341,7 @@ function lerp(from: number, to: number, t: number): number {
   return from + (to - from) * t;
 }
 
-function pointPolar(degrees: number, radius: number): Point {
+function pointPolar(degrees: number, radius: number): WorldPoint {
   const radians = toRadians(degrees);
   return {
     x: radius * Math.cos(radians),
@@ -2349,7 +2349,7 @@ function pointPolar(degrees: number, radius: number): Point {
   };
 }
 
-function pointPolarOffset(degrees: number, radius: number, center: Point): Point {
+function pointPolarOffset(degrees: number, radius: number, center: WorldPoint): WorldPoint {
   const point = pointPolar(degrees, radius);
   return {
     x: center.x + point.x,
@@ -2357,7 +2357,7 @@ function pointPolarOffset(degrees: number, radius: number, center: Point): Point
   };
 }
 
-function pointEllipsePolar(degrees: number, rx: number, ry: number): Point {
+function pointEllipsePolar(degrees: number, rx: number, ry: number): WorldPoint {
   const radians = toRadians(degrees);
   return {
     x: rx * Math.cos(radians),
@@ -2365,7 +2365,7 @@ function pointEllipsePolar(degrees: number, rx: number, ry: number): Point {
   };
 }
 
-function ellipseOutwardUnit(point: Point, rx: number, ry: number): Point {
+function ellipseOutwardUnit(point: WorldPoint, rx: number, ry: number): WorldPoint {
   const gx = point.x / Math.max(rx * rx, EPSILON);
   const gy = point.y / Math.max(ry * ry, EPSILON);
   const norm = Math.hypot(gx, gy);
@@ -2379,7 +2379,7 @@ function ellipseOutwardUnit(point: Point, rx: number, ry: number): Point {
   return { x: 1, y: 0 };
 }
 
-function pointEllipsePolarOffset(degrees: number, rx: number, ry: number, center: Point): Point {
+function pointEllipsePolarOffset(degrees: number, rx: number, ry: number, center: WorldPoint): WorldPoint {
   const radians = toRadians(degrees);
   return {
     x: center.x + rx * Math.cos(radians),
@@ -2489,7 +2489,7 @@ function resolveTrapeziumDimensions(
   };
 }
 
-function rotatePoint(point: Point, degrees: number): Point {
+function rotateWorldPoint(point: WorldPoint, degrees: number): WorldPoint {
   const radians = toRadians(degrees);
   const cosine = Math.cos(radians);
   const sine = Math.sin(radians);
@@ -2499,11 +2499,11 @@ function rotatePoint(point: Point, degrees: number): Point {
   };
 }
 
-function rotatePolygon(points: Point[], rotation: number): Point[] {
+function rotatePolygon(points: WorldPoint[], rotation: number): WorldPoint[] {
   if (Math.abs(rotation) <= 1e-6) {
     return points;
   }
-  return points.map((point) => rotatePoint(point, rotation));
+  return points.map((point) => rotateWorldPoint(point, rotation));
 }
 
 function toRadians(degrees: number): number {
@@ -2511,11 +2511,11 @@ function toRadians(degrees: number): number {
 }
 
 function intersectSegments(
-  firstFrom: Point,
-  firstTo: Point,
-  secondFrom: Point,
-  secondTo: Point
-): { point: Point; t: number } | null {
+  firstFrom: WorldPoint,
+  firstTo: WorldPoint,
+  secondFrom: WorldPoint,
+  secondTo: WorldPoint
+): { point: WorldPoint; t: number } | null {
   const firstDirection = { x: firstTo.x - firstFrom.x, y: firstTo.y - firstFrom.y };
   const secondDirection = { x: secondTo.x - secondFrom.x, y: secondTo.y - secondFrom.y };
   const denominator = cross(firstDirection, secondDirection);
@@ -2554,6 +2554,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function cross(left: Point, right: Point): number {
+function cross(left: WorldPoint, right: WorldPoint): number {
   return left.x * right.y - left.y * right.x;
 }

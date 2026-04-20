@@ -1,4 +1,5 @@
-import type { Point, ScenePathCommand } from "tikz-editor/semantic/types";
+import type { ScenePathCommand } from "tikz-editor/semantic/types";
+import type { WorldPoint } from "../coords/types";
 import type { NodeShape } from "tikz-editor/semantic/nodes/types";
 import {
   makeCircularSector,
@@ -47,9 +48,9 @@ export type AddShapeDraftResolution = {
 
 export function resolveAddShapeOriginFromDrag(
   shapeRaw: string,
-  startWorld: Point,
-  endWorld: Point
-): Point {
+  startWorld: WorldPoint,
+  endWorld: WorldPoint
+): WorldPoint {
   const draft = resolveAddShapeDraft(
     shapeRaw,
     Math.abs(endWorld.x - startWorld.x),

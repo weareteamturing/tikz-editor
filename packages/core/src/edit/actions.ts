@@ -1,13 +1,13 @@
 import type {
   EditHandle,
   EvaluateOptions,
-  Point,
   SceneCircle,
   SceneElement,
   SceneEllipse,
   ScenePath,
   ScenePathShapeHint
 } from "../semantic/types.js";
+import type { WorldPoint, WorldBounds } from "../coords/points.js";
 import type { CoordinateItem, NodeItem, PathItem, PathOptionItem, PathStatement, Statement, Span } from "../ast/types.js";
 import type { SourcePatch } from "./types.js";
 import { applyEditIntent } from "./apply.js";
@@ -121,11 +121,11 @@ export { ADORNMENT_EDIT_NOOP_REASON } from "./actions/adornment-set-property.js"
 export { PATH_ATTACHED_NODE_EDIT_NOOP_REASON } from "./actions/path-attached-node-actions.js";
 
 export type EditAction =
-  | { kind: "moveElement"; elementId: string; delta: Point }
-  | { kind: "moveElements"; elementIds: string[]; delta: Point }
+  | { kind: "moveElement"; elementId: string; delta: WorldPoint }
+  | { kind: "moveElements"; elementIds: string[]; delta: WorldPoint }
   | { kind: "alignElements"; elementIds: string[]; mode: AlignMode }
   | { kind: "distributeElements"; elementIds: string[]; axis: DistributeAxis }
-  | { kind: "moveHandle"; handleId: string; newWorld: Point }
+  | { kind: "moveHandle"; handleId: string; newWorld: WorldPoint }
   | { kind: "connectHandle"; handleId: string; nodeName: string; anchor: string }
   | { kind: "splitPath"; elementId: string; handleId: string }
   | { kind: "joinPaths"; elementIds: [string, string] }
@@ -134,7 +134,7 @@ export type EditAction =
   | { kind: "deletePathPoint"; elementId: string; handleId: string }
   | { kind: "setPathPointKind"; elementId: string; handleId: string; pointKind: PathPointKind }
   | { kind: "appendToPath"; elementId: string; end: "start" | "end"; segmentSource: string }
-  | { kind: "insertPathPoint"; elementId: string; segmentIndex: number; point: Point }
+  | { kind: "insertPathPoint"; elementId: string; segmentIndex: number; point: WorldPoint }
   | {
       kind: "setProperty";
       elementId: string;
@@ -146,14 +146,14 @@ export type EditAction =
       commentSourceText?: string;
     }
   | { kind: "updateNodeText"; elementId: string; text: string }
-  | { kind: "addElement"; template: ElementTemplate; at: Point }
+  | { kind: "addElement"; template: ElementTemplate; at: WorldPoint }
   | { kind: "deleteElement"; elementId: string }
   | { kind: "deleteElements"; elementIds: string[] }
   | { kind: "deleteAdornment"; targetId: string }
-  | { kind: "pasteStatements"; snippets: string[]; anchorElementId?: string; delta?: Point }
-  | { kind: "duplicateElements"; elementIds: string[]; delta?: Point }
+  | { kind: "pasteStatements"; snippets: string[]; anchorElementId?: string; delta?: WorldPoint }
+  | { kind: "duplicateElements"; elementIds: string[]; delta?: WorldPoint }
   | { kind: "duplicateAdornment"; targetId: string }
-  | { kind: "moveAdornment"; targetId: string; ownerPoint: Point; newWorld: Point; angleRaw?: string; distancePt?: number }
+  | { kind: "moveAdornment"; targetId: string; ownerPoint: WorldPoint; newWorld: WorldPoint; angleRaw?: string; distancePt?: number }
   | MovePathAttachedNodeAction
   | { kind: "addNodeAdornment"; nodeId: string; adornmentKind: "label" | "pin"; angle: string; text: string }
   | { kind: "reorderElements"; elementIds: string[]; direction: ReorderDirection }
@@ -179,15 +179,10 @@ export type EditAction =
       kind: "resizeElement";
       elementId: string;
       role: ResizeRole;
-      newWorld: Point;
+      newWorld: WorldPoint;
       preserveAspect?: boolean;
       preserveAspectRatio?: number;
-      referenceBounds?: {
-        minX: number;
-        minY: number;
-        maxX: number;
-        maxY: number;
-      };
+      referenceBounds?: WorldBounds;
       referenceScopeTransform?: {
         xscale: number;
         yscale: number;
@@ -332,7 +327,7 @@ function applyMoveHandle(
   source: string,
   editHandles: EditHandle[],
   handleId: string,
-  newWorld: Point,
+  newWorld: WorldPoint,
   parseOptions: EditParseOptions
 ): EditActionResult {
   const result = applyEditIntent(source, editHandles, { kind: "move", handleId, newWorld }, parseOptions);
@@ -499,7 +494,7 @@ function applyMoveElements(
   source: string,
   editHandles: EditHandle[],
   elementIds: readonly string[],
-  delta: Point,
+  delta: WorldPoint,
   parseOptions: EditParseOptions = {}
 ): EditActionResult {
   return applyMoveElementsAction(source, editHandles, elementIds, delta, parseOptions);
@@ -997,7 +992,7 @@ function applyResizeElement(
 function applyAddElement(
   source: string,
   template: ElementTemplate,
-  at: Point
+  at: WorldPoint
 ): EditActionResult {
   const beforeStatements = parseStatementSnapshot(source);
   const snippet = generateElementSource(template, at);

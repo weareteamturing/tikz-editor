@@ -1,5 +1,5 @@
 import { CM_PER_PT, formatNumber } from "tikz-editor/edit/format";
-import type { Point } from "tikz-editor/semantic/types";
+import type { WorldPoint } from "../coords/types";
 
 const MIN_WORLD_DISTANCE_PT = 1e-3;
 
@@ -10,24 +10,24 @@ export const FREEHAND_SMOOTHING_MAX_PX = 32;
 export const FREEHAND_SMOOTHING_DEFAULT_PX = 16;
 
 export type FreehandToolDraft = {
-  points: Point[];
+  points: WorldPoint[];
   minSampleDistanceWorld: number;
 };
 
 export type FreehandBezierSegment = {
-  control1: Point;
-  control2: Point;
-  to: Point;
+  control1: WorldPoint;
+  control2: WorldPoint;
+  to: WorldPoint;
 };
 
-export function createFreehandToolDraft(startWorld: Point, zoom: number): FreehandToolDraft {
+export function createFreehandToolDraft(startWorld: WorldPoint, zoom: number): FreehandToolDraft {
   return {
     points: [{ ...startWorld }],
     minSampleDistanceWorld: FREEHAND_LIVE_POINT_SPACING_PX / Math.max(zoom, 1e-3)
   };
 }
 
-export function appendFreehandToolPoint(draft: FreehandToolDraft, point: Point): FreehandToolDraft {
+export function appendFreehandToolPoint(draft: FreehandToolDraft, point: WorldPoint): FreehandToolDraft {
   const last = draft.points[draft.points.length - 1];
   if (last && distanceSquared(last, point) < draft.minSampleDistanceWorld * draft.minSampleDistanceWorld) {
     return draft;
@@ -38,13 +38,13 @@ export function appendFreehandToolPoint(draft: FreehandToolDraft, point: Point):
   };
 }
 
-export function simplifyFreehandPoints(points: readonly Point[], toleranceWorld: number): Point[] {
+export function simplifyFreehandPoints(points: readonly WorldPoint[], toleranceWorld: number): WorldPoint[] {
   if (points.length <= 2) {
     return points.map((point) => ({ ...point }));
   }
 
   const toleranceSq = toleranceWorld * toleranceWorld;
-  const simplified: Point[] = [{ ...points[0]! }];
+  const simplified: WorldPoint[] = [{ ...points[0]! }];
   let lastKept = points[0]!;
 
   for (let i = 1; i < points.length - 1; i += 1) {
@@ -64,7 +64,7 @@ export function simplifyFreehandPoints(points: readonly Point[], toleranceWorld:
   return simplified;
 }
 
-export function catmullRomToBezierSegments(points: readonly Point[]): FreehandBezierSegment[] {
+export function catmullRomToBezierSegments(points: readonly WorldPoint[]): FreehandBezierSegment[] {
   if (points.length < 2) {
     return [];
   }
@@ -97,14 +97,14 @@ export function resolveFreehandPreviewSegments(
   smoothingTolerancePx = FREEHAND_SMOOTHING_DEFAULT_PX,
   zoom = 1
 ): Array<
-  | { kind: "line"; from: Point; to: Point }
-  | { kind: "bezier"; from: Point; control1: Point; control2: Point; to: Point }
+  | { kind: "line"; from: WorldPoint; to: WorldPoint }
+  | { kind: "bezier"; from: WorldPoint; control1: WorldPoint; control2: WorldPoint; to: WorldPoint }
 > {
   const smoothingToleranceWorld = clampSmoothingTolerancePx(smoothingTolerancePx) / Math.max(zoom, 1e-3);
   const previewPoints = simplifyFreehandPoints(draft.points, smoothingToleranceWorld);
 
   if (previewPoints.length < FREEHAND_MIN_POINTS) {
-    const previewSegments: Array<{ kind: "line"; from: Point; to: Point }> = [];
+    const previewSegments: Array<{ kind: "line"; from: WorldPoint; to: WorldPoint }> = [];
     for (let i = 1; i < previewPoints.length; i += 1) {
       previewSegments.push({
         kind: "line",
@@ -116,7 +116,7 @@ export function resolveFreehandPreviewSegments(
   }
 
   const curves = catmullRomToBezierSegments(previewPoints);
-  const previewSegments: Array<{ kind: "bezier"; from: Point; control1: Point; control2: Point; to: Point }> = [];
+  const previewSegments: Array<{ kind: "bezier"; from: WorldPoint; control1: WorldPoint; control2: WorldPoint; to: WorldPoint }> = [];
   let current = previewPoints[0]!;
   for (const segment of curves) {
     previewSegments.push({
@@ -160,7 +160,7 @@ export function generateFreehandToolSource(
   return `\\draw ${parts.join(" ")};`;
 }
 
-function polylineLength(points: readonly Point[]): number {
+function polylineLength(points: readonly WorldPoint[]): number {
   let length = 0;
   for (let i = 1; i < points.length; i += 1) {
     length += Math.sqrt(distanceSquared(points[i - 1]!, points[i]!));
@@ -168,11 +168,11 @@ function polylineLength(points: readonly Point[]): number {
   return length;
 }
 
-function formatPointCm(point: Point): string {
+function formatPointCm(point: WorldPoint): string {
   return `(${formatNumber(point.x * CM_PER_PT)},${formatNumber(point.y * CM_PER_PT)})`;
 }
 
-function distanceSquared(a: Point, b: Point): number {
+function distanceSquared(a: WorldPoint, b: WorldPoint): number {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return dx * dx + dy * dy;

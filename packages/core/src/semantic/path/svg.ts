@@ -1,4 +1,6 @@
-import type { Matrix2D, Point, ScenePathCommand } from "../types.js";
+import type { WorldTransform } from "../../coords/transforms.js";
+import type { WorldPoint } from "../../coords/points.js";
+import type { ScenePathCommand } from "../types.js";
 import { applyMatrix, inverseMatrix } from "../transform.js";
 import type { PlacementSegment } from "./types.js";
 import { isWrappedBySingleBracePair, toRadians } from "./shared.js";
@@ -21,34 +23,34 @@ type SvgToken =
 
 export type SvgPathParseResult = {
   commands: ScenePathCommand[];
-  endPoint: Point;
-  subpathStartPoint: Point | null;
+  endPoint: WorldPoint;
+  subpathStartPoint: WorldPoint | null;
   lastSegment: PlacementSegment | null;
   diagnostics: string[];
 };
 
 export function parseSvgPathOperation(args: {
   payloadRaw: string;
-  transform: Matrix2D;
-  startPoint: Point;
-  subpathStartPoint: Point | null;
+  transform: WorldTransform;
+  startPoint: WorldPoint;
+  subpathStartPoint: WorldPoint | null;
 }): SvgPathParseResult {
   const payload = unwrapSvgPayload(args.payloadRaw);
   const { tokens, diagnostics } = tokenizeSvgPathData(payload);
 
   const worldToLocal = makeWorldToLocal(args.transform, diagnostics);
-  const localToWorld = (point: Point): Point => applyMatrix(args.transform, point);
+  const localToWorld = (point: WorldPoint): WorldPoint => applyMatrix(args.transform, point);
 
   const commands: ScenePathCommand[] = [];
   let lastSegment: PlacementSegment | null = null;
   let currentLocal = worldToLocal(args.startPoint);
   let subpathStartLocal = worldToLocal(args.subpathStartPoint ?? args.startPoint);
-  let lastCubicControlLocal: Point | null = null;
-  let lastQuadraticControlLocal: Point | null = null;
+  let lastCubicControlLocal: WorldPoint | null = null;
+  let lastQuadraticControlLocal: WorldPoint | null = null;
   let activeCommand: string | null = null;
   let cursor = 0;
 
-  const emitMove = (targetLocal: Point): void => {
+  const emitMove = (targetLocal: WorldPoint): void => {
     commands.push({ kind: "M", to: localToWorld(targetLocal) });
     currentLocal = targetLocal;
     subpathStartLocal = targetLocal;
@@ -57,7 +59,7 @@ export function parseSvgPathOperation(args: {
     lastSegment = null;
   };
 
-  const emitLine = (targetLocal: Point): void => {
+  const emitLine = (targetLocal: WorldPoint): void => {
     const fromLocal = currentLocal;
     const fromWorld = localToWorld(fromLocal);
     const toWorldPoint = localToWorld(targetLocal);
@@ -74,7 +76,7 @@ export function parseSvgPathOperation(args: {
     lastQuadraticControlLocal = null;
   };
 
-  const emitCubic = (c1Local: Point, c2Local: Point, targetLocal: Point): void => {
+  const emitCubic = (c1Local: WorldPoint, c2Local: WorldPoint, targetLocal: WorldPoint): void => {
     const fromLocal = currentLocal;
     const fromWorld = localToWorld(fromLocal);
     const c1World = localToWorld(c1Local);
@@ -168,7 +170,7 @@ export function parseSvgPathOperation(args: {
       let consumed = false;
       while (hasNumberGroup(tokens, cursor, 1)) {
         const rawX = getNumber(tokens[cursor]);
-        const target: Point = relative
+        const target: WorldPoint = relative
           ? {
               x: currentLocal.x + rawX,
               y: currentLocal.y
@@ -192,7 +194,7 @@ export function parseSvgPathOperation(args: {
       let consumed = false;
       while (hasNumberGroup(tokens, cursor, 1)) {
         const rawY = getNumber(tokens[cursor]);
-        const target: Point = relative
+        const target: WorldPoint = relative
           ? {
               x: currentLocal.x,
               y: currentLocal.y + rawY
@@ -446,7 +448,7 @@ function hasNumberGroup(tokens: SvgToken[], start: number, size: number): boolea
   return true;
 }
 
-function readPointPair(tokens: SvgToken[], start: number, current: Point, relative: boolean): Point {
+function readPointPair(tokens: SvgToken[], start: number, current: WorldPoint, relative: boolean): WorldPoint {
   const x = getNumber(tokens[start]);
   const y = getNumber(tokens[start + 1]);
   if (relative) {
@@ -473,7 +475,7 @@ function skipNumberSequence(tokens: SvgToken[], cursor: number): number {
   return index;
 }
 
-function reflectControlPoint(control: Point | null, current: Point): Point {
+function reflectControlPoint(control: WorldPoint | null, current: WorldPoint): WorldPoint {
   if (!control) {
     return current;
   }
@@ -483,14 +485,14 @@ function reflectControlPoint(control: Point | null, current: Point): Point {
   };
 }
 
-function makeWorldToLocal(transform: Matrix2D, diagnostics: string[]): (point: Point) => Point {
+function makeWorldToLocal(transform: WorldTransform, diagnostics: string[]): (point: WorldPoint) => WorldPoint {
   const inverse = inverseMatrix(transform);
   if (inverse) {
-    return (point: Point): Point => applyMatrix(inverse, point);
+    return (point: WorldPoint): WorldPoint => applyMatrix(inverse, point);
   }
 
   diagnostics.push("SVG operation transform is not invertible; interpreting SVG data in world coordinates.");
-  return (point: Point): Point => point;
+  return (point: WorldPoint): WorldPoint => point;
 }
 
 function readArcFlag(raw: number): { value: boolean; valid: boolean; raw: number } {
@@ -508,14 +510,14 @@ function readArcFlag(raw: number): { value: boolean; valid: boolean; raw: number
 }
 
 function arcToCubicSegments(args: {
-  from: Point;
-  to: Point;
+  from: WorldPoint;
+  to: WorldPoint;
   rx: number;
   ry: number;
   xAxisRotation: number;
   largeArc: boolean;
   sweep: boolean;
-}): Array<{ c1: Point; c2: Point; to: Point }> | null {
+}): Array<{ c1: WorldPoint; c2: WorldPoint; to: WorldPoint }> | null {
   if (pointsClose(args.from, args.to)) {
     return [];
   }
@@ -578,7 +580,7 @@ function arcToCubicSegments(args: {
   const segmentCount = Math.max(1, Math.ceil(Math.abs(delta) / MAX_ARC_SEGMENT_ANGLE));
   const step = delta / segmentCount;
 
-  const segments: Array<{ c1: Point; c2: Point; to: Point }> = [];
+  const segments: Array<{ c1: WorldPoint; c2: WorldPoint; to: WorldPoint }> = [];
   for (let index = 0; index < segmentCount; index += 1) {
     const theta1 = startAngle + step * index;
     const theta2 = theta1 + step;
@@ -620,20 +622,20 @@ function mapArcUnitPoint(
   ry: number,
   cosPhi: number,
   sinPhi: number,
-  point: Point
-): Point {
+  point: WorldPoint
+): WorldPoint {
   return {
     x: cx + rx * cosPhi * point.x - ry * sinPhi * point.y,
     y: cy + rx * sinPhi * point.x + ry * cosPhi * point.y
   };
 }
 
-function signedAngle(from: Point, to: Point): number {
+function signedAngle(from: WorldPoint, to: WorldPoint): number {
   const cross = from.x * to.y - from.y * to.x;
   const dot = from.x * to.x + from.y * to.y;
   return Math.atan2(cross, dot);
 }
 
-function pointsClose(left: Point, right: Point): boolean {
+function pointsClose(left: WorldPoint, right: WorldPoint): boolean {
   return Math.abs(left.x - right.x) <= EPSILON && Math.abs(left.y - right.y) <= EPSILON;
 }

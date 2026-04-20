@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { EditHandle, Point } from "../packages/core/src/semantic/types.js";
+import type { WorldPoint } from "../packages/core/src/coords/points.js";
+import type { EditHandle } from "../packages/core/src/semantic/types.js";
 import type { NodeTextEngine } from "../packages/core/src/text/types.js";
 import { identityMatrix } from "../packages/core/src/semantic/transform.js";
 import { applyEditAction, PATH_ATTACHED_NODE_EDIT_NOOP_REASON } from "../packages/core/src/edit/actions.js";
@@ -50,13 +51,16 @@ function scopeBodyBounds(source: string): { minX: number; minY: number; maxX: nu
 function makeHandle(
   source: string,
   overrides: Partial<EditHandle> & {
-    world: Point;
+    world: WorldPoint;
     sourceSpan: { from: number; to: number };
     sourceId?: string;
   }
 ): EditHandle {
   const { world, sourceSpan, sourceId, ...rest } = overrides;
   const span = sourceSpan;
+  const transform = rest.transform ?? identityMatrix();
+  const kind = rest.kind ?? "path-point";
+  const rewriteMode = rest.rewriteMode ?? "direct";
   return {
     id: `handle-${span.from}-${span.to}`,
     runtimeId: `runtime:handle-${span.from}-${span.to}`,
@@ -65,14 +69,18 @@ function makeHandle(
       sourceSpan: span,
       sourceFingerprint: computeSourceFingerprint(source)
     },
-    kind: "path-point",
+    handleType: "coordinate",
+    coordinateSpace: "frame-local",
+    kind,
     world: world,
-    transform: identityMatrix(),
+    local: rest.local ?? world,
+    frame: rest.frame ?? transform,
+    transform,
     sourceText: source.slice(span.from, span.to),
     coordinateForm: overrides.coordinateForm ?? "cartesian",
-    rewriteMode: overrides.rewriteMode ?? "direct",
+    rewriteMode,
     ...rest
-  };
+  } as EditHandle;
 }
 
 function expectPatchesReconstructSource(

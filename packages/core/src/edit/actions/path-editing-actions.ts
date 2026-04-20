@@ -1,4 +1,5 @@
-import type { EditHandle, Point } from "../../semantic/types.js";
+import type { WorldPoint } from "../../coords/points.js";
+import type { EditHandle } from "../../semantic/types.js";
 import type { PathStatement, Span } from "../../ast/types.js";
 import { rewriteCoordinate } from "../rewrite.js";
 import { replaceSpan } from "../patch.js";
@@ -32,10 +33,10 @@ export type SplitPathAction = { elementId: string; handleId: string };
 export type JoinPathsAction = { elementIds: [string, string] };
 export type ReversePathAction = { elementId: string };
 export type ToggleClosedPathAction = { elementId: string; closed: boolean };
-export type DeletePathPointAction = { elementId: string; handleId: string };
+export type DeletePathWorldPointAction = { elementId: string; handleId: string };
 export type SetPathPointKindAction = { elementId: string; handleId: string; pointKind: PathPointKind };
 export type AppendToPathAction = { elementId: string; end: "start" | "end"; segmentSource: string };
-export type InsertPathPointAction = { elementId: string; segmentIndex: number; point: Point };
+export type InsertPathWorldPointAction = { elementId: string; segmentIndex: number; point: WorldPoint };
 
 type PathEditingDeps = {
   normalizeElementIds: (elementIds: readonly string[]) => string[];
@@ -265,7 +266,7 @@ export function applyToggleClosedPathAction(
 export function applyDeletePathPointAction(
   source: string,
   editHandles: EditHandle[],
-  action: DeletePathPointAction,
+  action: DeletePathWorldPointAction,
   parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
   const resolved = resolveEligibleExplicitPath(source, action.elementId, parseOptions);
@@ -287,7 +288,7 @@ export function applyDeletePathPointAction(
   if (!previousSegment || !nextSegment) {
     return { kind: "unsupported", reason: "Could not resolve the segments around the selected point." };
   }
-  const replacementSegment = buildDeletedPointReplacement(source, analysis, previousSegment, nextSegment);
+  const replacementSegment = buildDeletedWorldPointReplacement(source, analysis, previousSegment, nextSegment);
   if (!replacementSegment) {
     return { kind: "unsupported", reason: "Deleting this point would require unsupported segment conversion." };
   }
@@ -557,7 +558,7 @@ function buildReversedPathBody(source: string, analysis: ExplicitPathAnalysis): 
   return parts.join(" ");
 }
 
-function buildDeletedPointReplacement(
+function buildDeletedWorldPointReplacement(
   source: string,
   analysis: ExplicitPathAnalysis,
   previousSegment: ExplicitPathAnalysis["segments"][number],
@@ -593,9 +594,9 @@ function buildLineSegmentsSmoothReplacement(
   analysis: ExplicitPathAnalysis,
   previousSegment: ExplicitPathAnalysis["segments"][number],
   nextSegment: ExplicitPathAnalysis["segments"][number],
-  beforeAnchor: Point,
-  anchor: Point,
-  afterAnchor: Point
+  beforeAnchor: WorldPoint,
+  anchor: WorldPoint,
+  afterAnchor: WorldPoint
 ): [string, string] | null {
   if (previousSegment.kind !== "line" || nextSegment.kind !== "line") {
     return null;
@@ -634,7 +635,7 @@ function buildLineSegmentsSmoothReplacement(
     y: afterAnchor.y - (afterAnchor.y - anchor.y) / 3
   };
 
-  const formatRawCoordinate = (world: Point): string =>
+  const formatRawCoordinate = (world: WorldPoint): string =>
     `(${formatNumber(world.x * CM_PER_PT)},${formatNumber(world.y * CM_PER_PT)})`;
 
   return [
@@ -701,7 +702,7 @@ function resolveAnchorWorld(
   sourceId: string,
   anchor: ExplicitPathAnalysis["anchors"][number],
   source: string
-): Point | null {
+): WorldPoint | null {
   const handle = editHandles.find(
     (candidate) =>
       candidate.sourceRef.sourceId === sourceId &&
@@ -716,7 +717,7 @@ function resolveAnchorWorld(
   return currentSourceText === handle.sourceText ? handle.world : null;
 }
 
-function smoothControlPositions(anchor: Point, previousControl: Point, nextControl: Point): { prev: Point; next: Point } {
+function smoothControlPositions(anchor: WorldPoint, previousControl: WorldPoint, nextControl: WorldPoint): { prev: WorldPoint; next: WorldPoint } {
   const prevLength = Math.hypot(anchor.x - previousControl.x, anchor.y - previousControl.y);
   const nextLength = Math.hypot(nextControl.x - anchor.x, nextControl.y - anchor.y);
   let direction = normalizeVector({
@@ -733,12 +734,12 @@ function smoothControlPositions(anchor: Point, previousControl: Point, nextContr
 }
 
 function cornerControlPositions(
-  beforeAnchor: Point,
-  anchor: Point,
-  afterAnchor: Point,
-  previousControl: Point,
-  nextControl: Point
-): { prev: Point; next: Point } {
+  beforeAnchor: WorldPoint,
+  anchor: WorldPoint,
+  afterAnchor: WorldPoint,
+  previousControl: WorldPoint,
+  nextControl: WorldPoint
+): { prev: WorldPoint; next: WorldPoint } {
   const prevLength = Math.hypot(anchor.x - previousControl.x, anchor.y - previousControl.y);
   const nextLength = Math.hypot(nextControl.x - anchor.x, nextControl.y - anchor.y);
   const prevDirection = normalizeVector({ x: anchor.x - beforeAnchor.x, y: anchor.y - beforeAnchor.y }) ?? { x: 1, y: 0 };
@@ -800,7 +801,7 @@ export function applyAppendToPathAction(
 export function applyInsertPathPointAction(
   source: string,
   editHandles: EditHandle[],
-  action: InsertPathPointAction,
+  action: InsertPathWorldPointAction,
   parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
   const resolved = resolveEligibleExplicitPath(source, action.elementId, parseOptions);
@@ -819,7 +820,7 @@ export function applyInsertPathPointAction(
     return { kind: "unsupported", reason: "Could not resolve segment endpoint positions." };
   }
 
-  const formatPt = (pt: Point): string =>
+  const formatPt = (pt: WorldPoint): string =>
     `(${formatNumber(pt.x * CM_PER_PT)},${formatNumber(pt.y * CM_PER_PT)})`;
 
   let replacementSegments: string;
@@ -889,7 +890,7 @@ function resolveControlWorld(
   sourceId: string,
   coordinate: { span: { from: number; to: number } },
   source: string
-): Point | null {
+): WorldPoint | null {
   const handle = editHandles.find(
     (candidate) =>
       candidate.sourceRef.sourceId === sourceId &&
@@ -904,7 +905,7 @@ function resolveControlWorld(
   return currentSourceText === handle.sourceText ? handle.world : null;
 }
 
-function normalizeVector(vector: Point): Point | null {
+function normalizeVector(vector: WorldPoint): WorldPoint | null {
   const length = Math.hypot(vector.x, vector.y);
   if (length <= 1e-6) {
     return null;

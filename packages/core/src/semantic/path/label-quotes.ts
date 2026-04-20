@@ -1,3 +1,4 @@
+import type { WorldPoint } from "../../coords/points.js";
 import type { AdornmentOwnerGeometry, EdgeOperationItem, NodeItem, Span, ToOperationItem } from "../../ast/types.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
@@ -12,7 +13,6 @@ import { parseLength } from "../coords/parse-length.js";
 import { applyNameScope } from "../nodes/named-coordinates.js";
 import { intersectRayWithPolygon } from "../nodes/shape-geometry.js";
 import { findTopLevelCharacter, readBalancedBlock, parseStyleValueAsOptionList } from "../style/option-utils.js";
-import type { Point } from "../types.js";
 import { applyMatrixToVector, inverseMatrix } from "../transform.js";
 import { stripWrappingBraces } from "../../utils/braces.js";
 
@@ -49,7 +49,7 @@ export type NodeAdornmentDefaults = {
 
 export type MaterializedNodeAdornment = {
   node: NodeItem;
-  mainPoint: Point | null;
+  mainPoint: WorldPoint | null;
   mainGeometry: NamedNodeGeometry | null;
   mainNameRaw: string;
   pinEdgeOptions: OptionListAst | undefined;
@@ -441,7 +441,7 @@ export function materializeNodeAdornment(params: {
   };
 }
 
-function worldPointToLocalPoint(point: Point, transform: { a: number; b: number; c: number; d: number; e: number; f: number }): Point {
+function worldPointToLocalPoint(point: WorldPoint, transform: { a: number; b: number; c: number; d: number; e: number; f: number }): WorldPoint {
   const inverse = inverseMatrix(transform);
   if (!inverse) {
     return point;
@@ -991,8 +991,8 @@ function parseAdornmentAngle(
   rawAngle: string,
   mainNodeNameRaw: string,
   context: SemanticContext,
-  mainPoint: Point | null
-): { kind: "center" } | { kind: "angle"; degrees: number; borderPoint?: Point } {
+  mainPoint: WorldPoint | null
+): { kind: "center" } | { kind: "angle"; degrees: number; borderPoint?: WorldPoint } {
   const normalized = normalizeText(rawAngle);
   if (normalized === "center" || normalized === "centered") {
     return { kind: "center" };
@@ -1028,7 +1028,7 @@ function parseAdornmentAngle(
   return { kind: "angle", degrees: 90 };
 }
 
-function resolveNamedPoint(nameRaw: string, context: SemanticContext): Point | null {
+function resolveNamedPoint(nameRaw: string, context: SemanticContext): WorldPoint | null {
   const scoped = applyNameScope(nameRaw, context);
   const candidates = scoped === nameRaw ? [nameRaw] : [scoped, nameRaw];
   for (const candidate of candidates) {
@@ -1052,7 +1052,7 @@ function resolveNamedGeometry(nameRaw: string, context: SemanticContext): NamedN
   return null;
 }
 
-function intersectNodeBorder(geometry: NamedNodeGeometry | null, direction: Point): Point | null {
+function intersectNodeBorder(geometry: NamedNodeGeometry | null, direction: WorldPoint): WorldPoint | null {
   if (!geometry) {
     return null;
   }
@@ -1165,7 +1165,7 @@ function intersectNodeBorder(geometry: NamedNodeGeometry | null, direction: Poin
   return geometry.center;
 }
 
-function resolveNamedBorderPointByAngle(mainNodeNameRaw: string, angleDegrees: number, context: SemanticContext): Point | null {
+function resolveNamedBorderPointByAngle(mainNodeNameRaw: string, angleDegrees: number, context: SemanticContext): WorldPoint | null {
   const normalized = normalizeDegrees(angleDegrees);
   const octant = Math.round(normalized / 45) % 8;
   const anchorByOctant = ["east", "north east", "north", "north west", "west", "south west", "south", "south east"];
@@ -1199,7 +1199,7 @@ function anchorFacingAway(degrees: number): string {
   return "north west";
 }
 
-function autoAnchorFromVector(vector: Point): string {
+function autoAnchorFromVector(vector: WorldPoint): string {
   if (vector.x > 0.05) {
     if (vector.y > 0.05) {
       return "south east";
@@ -1221,7 +1221,7 @@ function autoAnchorFromVector(vector: Point): string {
   return vector.y > 0 ? "east" : "west";
 }
 
-function pointOnUnitCircle(degrees: number): Point {
+function pointOnUnitCircle(degrees: number): WorldPoint {
   const radians = (degrees * Math.PI) / 180;
   return {
     x: Math.cos(radians),

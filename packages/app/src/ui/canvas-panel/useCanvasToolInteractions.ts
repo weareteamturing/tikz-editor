@@ -1,6 +1,7 @@
 import { useCallback, useEffect, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { buildSnapContext, snapToolPointer, type SnapLine } from "tikz-editor/edit/snapping";
-import { type NodeAnchorTarget, type Point } from "tikz-editor/semantic/types";
+import type { NodeAnchorTarget } from "tikz-editor/semantic/types";
+import type { WorldPoint } from "../coords/types";
 import { resolveEndpointAnchorSnap } from "./endpoint-anchor-snap";
 import { clientToWorldPoint, distanceSquared } from "./geometry";
 import { createPathToolDraft, pathToolCloseRadiusWorld, pathToolCurrentPoint, pathToolShouldClose } from "./path-tool";
@@ -79,7 +80,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
   );
 
   useEffect(() => {
-    function onPointerMove(event: PointerEvent) {
+    function onWorldPointerMove(event: PointerEvent) {
       const pending = pendingTouchViewportRef.current;
       if (!pending || pending.pointerId !== event.pointerId) return;
       const dx = event.clientX - pending.startClientX;
@@ -97,17 +98,17 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       }
     }
 
-    function onPointerUp(event: PointerEvent) {
+    function onWorldPointerUp(event: PointerEvent) {
       finalizePendingTouchViewportTap(event.pointerId);
     }
 
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    window.addEventListener("pointercancel", onPointerUp);
+    window.addEventListener("pointermove", onWorldPointerMove);
+    window.addEventListener("pointerup", onWorldPointerUp);
+    window.addEventListener("pointercancel", onWorldPointerUp);
     return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("pointercancel", onPointerUp);
+      window.removeEventListener("pointermove", onWorldPointerMove);
+      window.removeEventListener("pointerup", onWorldPointerUp);
+      window.removeEventListener("pointercancel", onWorldPointerUp);
       const pending = pendingTouchViewportRef.current;
       if (pending) {
         clearTimeout(pending.timer);
@@ -521,17 +522,17 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
             return;
           }
           // On touch: moving immediately pans the canvas; marquee only opens after a long press.
-          const touchPointerId = event.pointerId;
+          const touchWorldPointerId = event.pointerId;
           const touchClientX = event.clientX;
           const touchClientY = event.clientY;
           const timer = setTimeout(() => {
-            if (pendingTouchViewportRef.current?.pointerId === touchPointerId) {
+            if (pendingTouchViewportRef.current?.pointerId === touchWorldPointerId) {
               pendingTouchViewportRef.current = null;
-              startMarqueeSelection(touchPointerId, touchClientX, touchClientY, additiveSelection);
+              startMarqueeSelection(touchWorldPointerId, touchClientX, touchClientY, additiveSelection);
             }
           }, 400);
           pendingTouchViewportRef.current = {
-            pointerId: touchPointerId,
+            pointerId: touchWorldPointerId,
             startClientX: touchClientX,
             startClientY: touchClientY,
             additiveSelection,
@@ -1008,7 +1009,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
 
 function mergePathEndpointIntoOverlay(
   nodeOverlay: { visibleAnchors: NodeAnchorTarget[]; snappedAnchor: NodeAnchorTarget | null } | null,
-  pathEndpoint: { elementId: string; end: string; world: Point } | null
+  pathEndpoint: { elementId: string; end: string; world: WorldPoint } | null
 ): { visibleAnchors: NodeAnchorTarget[]; snappedAnchor: NodeAnchorTarget | null } | null {
   if (!pathEndpoint && !nodeOverlay) return null;
 

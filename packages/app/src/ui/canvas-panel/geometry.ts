@@ -1,8 +1,17 @@
 import { PT_PER_CM } from "tikz-editor/edit/format";
 import { GRID_MINOR_TARGET_PX } from "tikz-editor/edit/snapping/types";
-import type { Point } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
+import { unsafePoint } from "tikz-editor/coords/index";
 import type { CanvasTransform } from "../../store/types";
+import {
+  clientToSvg as typedClientToSvg,
+  clientToWorld as typedClientToWorld,
+  svgToWorld as typedSvgToWorld,
+  svgToViewport,
+  viewportToSvg as typedViewportToSvg,
+  worldToSvg as typedWorldToSvg
+} from "../coords/convert";
+import type { ClientPoint, SvgPoint, ViewportPoint, WorldPoint } from "../coords/types";
 
 export type RulerTick = {
   viewportPos: number;
@@ -95,37 +104,28 @@ export function clientToWorldPoint(
   clientY: number,
   svgElement: SVGSVGElement | null,
   viewBox: SvgViewBox
-): Point | null {
-  if (!svgElement) return null;
-
-  const ctm = svgElement.getScreenCTM();
-  if (!ctm) return null;
-
-  const point = svgElement.createSVGPoint();
-  point.x = clientX;
-  point.y = clientY;
-
-  const svgPoint = point.matrixTransform(ctm.inverse());
-  return svgToWorldPoint(svgPoint, viewBox);
+): WorldPoint | null {
+  return typedClientToWorld(
+    unsafePoint<ClientPoint>(clientX, clientY),
+    svgElement,
+    null,
+    { translateX: 0, translateY: 0, scale: 1 },
+    viewBox
+  );
 }
 
 export function clientToSvgPoint(
   clientX: number,
   clientY: number,
   svgElement: SVGSVGElement | null
-): { x: number; y: number } | null {
-  if (!svgElement) {
-    return null;
-  }
-  const ctm = svgElement.getScreenCTM();
-  if (!ctm) {
-    return null;
-  }
-  const point = svgElement.createSVGPoint();
-  point.x = clientX;
-  point.y = clientY;
-  const svgPoint = point.matrixTransform(ctm.inverse());
-  return { x: svgPoint.x, y: svgPoint.y };
+): SvgPoint | null {
+  return typedClientToSvg(
+    unsafePoint<ClientPoint>(clientX, clientY),
+    svgElement,
+    null,
+    { translateX: 0, translateY: 0, scale: 1 },
+    { x: 0, y: 0, width: 0, height: 0 }
+  );
 }
 
 export function rotatePointAroundCenter(
@@ -153,12 +153,8 @@ export function viewportToSvgPoint(
   viewportY: number,
   transform: CanvasTransform,
   viewBox: SvgViewBox
-): { x: number; y: number } {
-  const scale = Math.max(transform.scale, 1e-6);
-  return {
-    x: viewBox.x + (viewportX - transform.translateX) / scale,
-    y: viewBox.y + (viewportY - transform.translateY) / scale
-  };
+): SvgPoint {
+  return typedViewportToSvg(unsafePoint<ViewportPoint>(viewportX, viewportY), transform, viewBox) as SvgPoint;
 }
 
 export function viewportToWorldPoint(
@@ -166,35 +162,28 @@ export function viewportToWorldPoint(
   viewportY: number,
   transform: CanvasTransform,
   viewBox: SvgViewBox
-): Point {
-  return svgToWorldPoint(viewportToSvgPoint(viewportX, viewportY, transform, viewBox), viewBox);
+): WorldPoint {
+  return typedSvgToWorld(viewportToSvgPoint(viewportX, viewportY, transform, viewBox), viewBox);
 }
 
 export function toViewportXFromWorld(worldX: number, viewBox: SvgViewBox, transform: CanvasTransform): number {
-  return transform.translateX + (worldX - viewBox.x) * transform.scale;
+  return svgToViewport(unsafePoint<SvgPoint>(worldX, viewBox.y), transform, viewBox).x;
 }
 
 export function toViewportYFromWorld(worldY: number, viewBox: SvgViewBox, transform: CanvasTransform): number {
-  const svgY = worldToSvgY(worldY, viewBox);
-  return transform.translateY + (svgY - viewBox.y) * transform.scale;
+  return svgToViewport(unsafePoint<SvgPoint>(viewBox.x, worldToSvgY(worldY, viewBox)), transform, viewBox).y;
 }
 
-export function worldToSvgPoint(point: { x: number; y: number }, viewBox: Pick<SvgViewBox, "y" | "height">): { x: number; y: number } {
-  return {
-    x: point.x,
-    y: worldToSvgY(point.y, viewBox)
-  };
+export function worldToSvgPoint(point: WorldPoint, viewBox: Pick<SvgViewBox, "y" | "height">): SvgPoint {
+  return typedWorldToSvg(point, viewBox as SvgViewBox);
 }
 
 export function worldToSvgY(worldY: number, viewBox: Pick<SvgViewBox, "y" | "height">): number {
   return viewBox.y + viewBox.height - (worldY - viewBox.y);
 }
 
-export function svgToWorldPoint(point: { x: number; y: number }, viewBox: Pick<SvgViewBox, "y" | "height">): Point {
-  return {
-    x: point.x,
-    y: viewBox.y + viewBox.height - (point.y - viewBox.y)
-  };
+export function svgToWorldPoint(point: SvgPoint, viewBox: Pick<SvgViewBox, "y" | "height">): WorldPoint {
+  return typedSvgToWorld(point, viewBox as SvgViewBox);
 }
 
 export function pickStepPt(scale: number, targetPixels: number): number {
@@ -246,7 +235,7 @@ export function fmt(value: number): string {
   return Number(value.toFixed(4)).toString();
 }
 
-export function resizeCursorForVector(vector: Point): string {
+export function resizeCursorForVector(vector: WorldPoint): string {
   const screenVector = { x: vector.x, y: -vector.y };
   const angle = ((Math.atan2(screenVector.y, screenVector.x) * 180) / Math.PI + 180) % 180;
   const candidates: Array<{ angle: number; cursor: string }> = [
@@ -269,11 +258,11 @@ export function resizeCursorForVector(vector: Point): string {
   return best.cursor;
 }
 
-export function vectorLengthSquared(vector: Point): number {
+export function vectorLengthSquared(vector: WorldPoint): number {
   return vector.x * vector.x + vector.y * vector.y;
 }
 
-export function distanceSquared(a: Point, b: Point): number {
+export function distanceSquared(a: WorldPoint, b: WorldPoint): number {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return dx * dx + dy * dy;

@@ -1,18 +1,19 @@
 import type { Statement } from "tikz-editor/ast/types";
 import type { SceneElement } from "tikz-editor/semantic/types";
-import type { Bounds } from "./types";
+import type { SvgBounds, SvgPoint } from "../coords/types";
+import type { SourceBoundsMap } from "./types";
 
 export type ScopeOverlayNode = {
   scopeId: string;
   parentScopeId: string | null;
   childStatementIds: string[];
-  bounds: Bounds | null;
+  bounds: SvgBounds | null;
 };
 
 export type ScopeOverlayIndex = {
   scopesById: Map<string, ScopeOverlayNode>;
   ancestorScopeIdsBySourceId: Map<string, string[]>;
-  boundsByScopeId: Map<string, Bounds>;
+  boundsByScopeId: Map<string, SvgBounds>;
 };
 
 export type ResolveScopeAwareSelectionTargetInput = {
@@ -24,11 +25,11 @@ export type ResolveScopeAwareSelectionTargetInput = {
 
 export function buildScopeOverlayIndex(
   statements: readonly Statement[] | undefined,
-  boundsBySourceId: ReadonlyMap<string, Bounds>
+  boundsBySourceId: SourceBoundsMap
 ): ScopeOverlayIndex {
   const scopesById = new Map<string, ScopeOverlayNode>();
   const ancestorScopeIdsBySourceId = new Map<string, string[]>();
-  const boundsByScopeId = new Map<string, Bounds>();
+  const boundsByScopeId = new Map<string, SvgBounds>();
 
   if (!statements || statements.length === 0) {
     return {
@@ -42,8 +43,8 @@ export function buildScopeOverlayIndex(
     items: readonly Statement[],
     parentScopeId: string | null,
     ancestors: string[]
-  ): Bounds | null => {
-    let mergedBounds: Bounds | null = null;
+  ): SvgBounds | null => {
+    let mergedBounds: SvgBounds | null = null;
 
     for (const statement of items) {
       ancestorScopeIdsBySourceId.set(statement.id, [...ancestors]);
@@ -84,7 +85,7 @@ export function buildScopeOverlayIndex(
 export function augmentScopeOverlayWithMatrices(
   baseOverlay: ScopeOverlayIndex,
   sceneElements: readonly SceneElement[] | undefined,
-  boundsBySourceId: ReadonlyMap<string, Bounds>
+  boundsBySourceId: SourceBoundsMap
 ): ScopeOverlayIndex {
   if (!sceneElements || sceneElements.length === 0) {
     return baseOverlay;
@@ -223,8 +224,8 @@ export function resolveScopeAwareContextMenuTarget(input: {
 }
 
 export function resolveScopeAwareMarqueeSelection(input: {
-  selectionBounds: Bounds;
-  sourceBoundsById: ReadonlyMap<string, Bounds>;
+  selectionBounds: SvgBounds;
+  sourceBoundsById: SourceBoundsMap;
   scopeOverlay: ScopeOverlayIndex;
 }): string[] {
   const { selectionBounds, sourceBoundsById, scopeOverlay } = input;
@@ -282,9 +283,9 @@ export function isSourceWithinScope(
   return ancestors.includes(scopeId);
 }
 
-export function isWorldPointWithinScopeBounds(
+export function isSvgPointWithinScopeBounds(
   scopeId: string | null | undefined,
-  world: { x: number; y: number },
+  point: SvgPoint,
   scopeOverlay: ScopeOverlayIndex
 ): boolean {
   if (!scopeId) {
@@ -295,10 +296,10 @@ export function isWorldPointWithinScopeBounds(
     return false;
   }
   return (
-    world.x >= bounds.minX &&
-    world.x <= bounds.maxX &&
-    world.y >= bounds.minY &&
-    world.y <= bounds.maxY
+    point.x >= bounds.minX &&
+    point.x <= bounds.maxX &&
+    point.y >= bounds.minY &&
+    point.y <= bounds.maxY
   );
 }
 
@@ -337,7 +338,7 @@ function resolveOutermostScopeUnderFocus(
   return ancestorScopes[focusedIndex + 1] ?? null;
 }
 
-function mergeBounds(a: Bounds, b: Bounds): Bounds {
+function mergeBounds(a: SvgBounds, b: SvgBounds): SvgBounds {
   return {
     minX: Math.min(a.minX, b.minX),
     minY: Math.min(a.minY, b.minY),
@@ -346,7 +347,7 @@ function mergeBounds(a: Bounds, b: Bounds): Bounds {
   };
 }
 
-function boundsContainedWithin(inner: Bounds, outer: Bounds): boolean {
+function boundsContainedWithin(inner: SvgBounds, outer: SvgBounds): boolean {
   return (
     inner.minX >= outer.minX &&
     inner.maxX <= outer.maxX &&

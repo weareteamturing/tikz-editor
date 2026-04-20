@@ -3,7 +3,7 @@ import type { SemanticContext } from "../context.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import { createEditHandle } from "../edit-handles.js";
 import type { DiagnosticPushFn, PlacementSegment } from "../path/types.js";
-import type { Point } from "../types.js";
+import type { WorldPoint } from "../../coords/points.js";
 import { arcCenter, clamp, interpolate, normalizeOptionValue, toRadians } from "./utils.js";
 
 export function resolveNodeTargetPoint(
@@ -14,9 +14,9 @@ export function resolveNodeTargetPoint(
   pushDiagnostic: DiagnosticPushFn,
   options: PathOptionItem["options"] | undefined,
   segment: PlacementSegment | null,
-  defaultPoint?: Point,
+  defaultPoint?: WorldPoint,
   opts: { allowImplicitOriginHandle?: boolean; explicitAtSyntax?: boolean } = {}
-): Point {
+): WorldPoint {
   if (opts.explicitAtSyntax && defaultPoint) {
     return defaultPoint;
   }
@@ -67,7 +67,7 @@ export function resolveNodeTargetPoint(
   if (opts.allowImplicitOriginHandle) {
     const frame = context.stack[context.stack.length - 1];
     const insertionOffset = resolveImplicitNodePlacementInsertionOffset(item, context.source);
-    const implicitPoint = defaultPoint ?? context.currentPoint ?? { x: 0, y: 0 };
+    const implicitWorldPoint = defaultPoint ?? context.currentPoint ?? { x: 0, y: 0 };
     context.editHandles.push({
       id: `handle:${handleSourceId}:node-position:${context.editHandles.length}`,
       runtimeId: `handle:${handleSourceId}:node-position:${context.editHandles.length}`,
@@ -76,9 +76,12 @@ export function resolveNodeTargetPoint(
         sourceSpan: { from: insertionOffset, to: insertionOffset },
         sourceFingerprint: context.sourceFingerprint
       },
+      handleType: "coordinate",
       kind: "node-position",
-      world: implicitPoint,
+      coordinateSpace: "frame-local",
+      world: implicitWorldPoint,
       local: { x: 0, y: 0 },
+      frame: frame?.transform ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
       transform: frame?.transform ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
       sourceText: "",
       coordinateForm: "cartesian",
@@ -140,7 +143,7 @@ export function resolveNodePositionFraction(options: PathOptionItem["options"] |
   return clamp(value, 0, 1);
 }
 
-export function pointAtPlacementSegment(segment: PlacementSegment, t: number): Point {
+export function pointAtPlacementSegment(segment: PlacementSegment, t: number): WorldPoint {
   const clamped = clamp(t, 0, 1);
   if (segment.kind === "line") {
     return interpolate(segment.from, segment.to, clamped);
@@ -154,7 +157,7 @@ export function pointAtPlacementSegment(segment: PlacementSegment, t: number): P
   }
 
   if (segment.kind === "cubic") {
-    return cubicPoint(segment.from, segment.c1, segment.c2, segment.to, clamped);
+    return cubicWorldPoint(segment.from, segment.c1, segment.c2, segment.to, clamped);
   }
 
   const center = arcCenter(segment.from, segment.params);
@@ -166,14 +169,14 @@ export function pointAtPlacementSegment(segment: PlacementSegment, t: number): P
   };
 }
 
-function pointAtSegmentEnd(segment: PlacementSegment): Point {
+function pointAtSegmentEnd(segment: PlacementSegment): WorldPoint {
   if (segment.kind === "line" || segment.kind === "hv" || segment.kind === "cubic" || segment.kind === "arc") {
     return segment.to;
   }
   return pointAtPlacementSegment(segment, 1);
 }
 
-function cubicPoint(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point {
+function cubicWorldPoint(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, t: number): WorldPoint {
   const u = 1 - t;
   const uu = u * u;
   const uuu = uu * u;

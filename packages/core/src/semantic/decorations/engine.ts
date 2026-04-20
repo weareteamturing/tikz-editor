@@ -1,6 +1,8 @@
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
 import { multiplyMatrix, rotationMatrix, scaleMatrix, translationMatrix } from "../transform.js";
-import type { DecorationStyle, Matrix2D, Point, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
+import type { WorldPoint } from "../../coords/points.js";
+import type { WorldTransform } from "../../coords/transforms.js";
+import type { DecorationStyle, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
 import { normalizeColor } from "../style/colors.js";
 import { normalizeOptionValue, parseStyleValueAsOptionList } from "../style/option-utils.js";
 import {
@@ -16,13 +18,13 @@ import {
 import type { PgfRandom } from "../pgfmath/rng.js";
 
 type SampleFrame = {
-  point: Point;
-  tangent: Point;
-  normal: Point;
+  point: WorldPoint;
+  tangent: WorldPoint;
+  normal: WorldPoint;
 };
 
 type DecorationTransformSpec = {
-  matrix: Matrix2D;
+  matrix: WorldTransform;
   shiftOnly: boolean;
 };
 
@@ -516,7 +518,7 @@ function decorateSegments(
   transformSpec: DecorationTransformSpec,
   seedRaw: string,
   rng?: PgfRandom
-): Point[][] {
+): WorldPoint[][] {
   const canonical = canonicalDecorationName(name) ?? "lineto";
 
   switch (canonical) {
@@ -572,11 +574,11 @@ function decorateSegments(
   }
 }
 
-function decorateLineto(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): Point[] {
+function decorateLineto(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): WorldPoint[] {
   return samplePolyline(segments, Math.max(2, getSegmentLength(decoration) / 2), decoration, transformSpec, () => 0);
 }
 
-function decorateMoveto(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): Point[][] {
+function decorateMoveto(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): WorldPoint[][] {
   const total = totalSegmentLength(segments);
   if (total <= 1e-9) {
     return [];
@@ -592,11 +594,11 @@ function decorateMoveto(segments: PathSegment[], decoration: DecorationStyle, tr
   ]];
 }
 
-function decorateZigzag(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): Point[] {
+function decorateZigzag(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): WorldPoint[] {
   const segmentLength = Math.max(0.5, getSegmentLength(decoration));
   const half = segmentLength / 2;
   const total = totalSegmentLength(segments);
-  const points: Point[] = [];
+  const points: WorldPoint[] = [];
 
   const pushAt = (distance: number, offset: number): void => {
     const frame = sampleFrameFromStartExtrapolated(segments, distance);
@@ -616,13 +618,13 @@ function decorateZigzag(segments: PathSegment[], decoration: DecorationStyle, tr
   return points;
 }
 
-function decorateStraightZigzag(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): Point[] {
+function decorateStraightZigzag(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): WorldPoint[] {
   const zigzag = decorateZigzag(segments, decoration, transformSpec);
   if (zigzag.length <= 2) {
     return zigzag;
   }
 
-  const filtered: Point[] = [];
+  const filtered: WorldPoint[] = [];
   for (let index = 0; index < zigzag.length; index += 1) {
     if (index === 0 || index === zigzag.length - 1 || index % 2 === 1) {
       filtered.push(zigzag[index]);
@@ -637,9 +639,9 @@ function decorateRandomSteps(
   transformSpec: DecorationTransformSpec,
   seedRaw: string,
   rng?: PgfRandom
-): Point[] {
+): WorldPoint[] {
   const random = rng ? () => rng.rand() : makeDeterministicRandom(seedRaw);
-  const polylines: Point[][] = [];
+  const polylines: WorldPoint[][] = [];
 
   for (let index = 0; index < segments.length; index += 1) {
     const segmentSeed = `${seedRaw}:segment:${index}`;
@@ -648,9 +650,9 @@ function decorateRandomSteps(
       : index === 0
         ? random
         : makeDeterministicRandom(segmentSeed);
-    const segmentPoints = decorateRandomStepsOnSegment(segments[index], decoration, transformSpec, segmentRandom);
-    if (segmentPoints.length > 0) {
-      polylines.push(segmentPoints);
+    const segmentWorldPoints = decorateRandomStepsOnSegment(segments[index], decoration, transformSpec, segmentRandom);
+    if (segmentWorldPoints.length > 0) {
+      polylines.push(segmentWorldPoints);
     }
   }
 
@@ -662,7 +664,7 @@ function decorateRandomStepsOnSegment(
   decoration: DecorationStyle,
   transformSpec: DecorationTransformSpec,
   random: () => number
-): Point[] {
+): WorldPoint[] {
   const segmentLength = Math.max(1, getSegmentLength(decoration));
   const amplitude = getAmplitude(decoration);
   const total = segment.length;
@@ -670,7 +672,7 @@ function decorateRandomStepsOnSegment(
     return [];
   }
 
-  const points: Point[] = [];
+  const points: WorldPoint[] = [];
   const startFrame = sampleFrameFromStartExtrapolated([segment], 0);
   if (!startFrame) {
     return points;
@@ -691,14 +693,14 @@ function decorateRandomStepsOnSegment(
   if (endFrame) {
     points.push(pointFromFrame(endFrame, 0, 0, decoration, transformSpec));
   }
-  return dedupePoints(points);
+  return dedupeWorldPoints(points);
 }
 
-function decorateSaw(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): Point[] {
+function decorateSaw(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): WorldPoint[] {
   const segmentLength = Math.max(0.5, getSegmentLength(decoration));
   const amplitude = getAmplitude(decoration);
   const total = totalSegmentLength(segments);
-  const points: Point[] = [];
+  const points: WorldPoint[] = [];
 
   const startFrame = sampleFrameFromStartExtrapolated(segments, 0);
   if (!startFrame) {
@@ -722,11 +724,11 @@ function decorateSaw(segments: PathSegment[], decoration: DecorationStyle, trans
   return points;
 }
 
-function decorateBent(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): Point[] {
+function decorateBent(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): WorldPoint[] {
   const total = totalSegmentLength(segments);
   const amplitude = getAmplitude(decoration);
   const aspect = getNumberParam(decoration, "aspect", 0.5);
-  const points: Point[] = [];
+  const points: WorldPoint[] = [];
 
   const startFrame = sampleFrameFromStartExtrapolated(segments, 0);
   const midFrame = sampleFrameFromStartExtrapolated(segments, clampLength(total * aspect, 0, total));
@@ -746,7 +748,7 @@ function decorateWave(
   decoration: DecorationStyle,
   transformSpec: DecorationTransformSpec,
   kind: "bumps" | "coil" | "snake" | "waves" | "expanding waves"
-): Point[] {
+): WorldPoint[] {
   const total = totalSegmentLength(segments);
   if (total <= 1e-9) {
     return [];
@@ -756,7 +758,7 @@ function decorateWave(
   const amplitude = kind === "waves" || kind === "expanding waves" ? getStartRadius(decoration) : getAmplitude(decoration);
   const cycles = Math.max(1, total / segmentLength);
   const samples = Math.max(16, Math.ceil(cycles * 12));
-  const points: Point[] = [];
+  const points: WorldPoint[] = [];
 
   for (let index = 0; index <= samples; index += 1) {
     const t = index / samples;
@@ -791,11 +793,11 @@ function decorateWave(
   return points;
 }
 
-function decorateBumps(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): Point[] {
+function decorateBumps(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): WorldPoint[] {
   const bumpSegmentLength = Math.max(1, getSegmentLength(decoration));
   const stateWidth = 0.5 * bumpSegmentLength;
   const amplitude = getAmplitude(decoration);
-  const polylines: Point[][] = [];
+  const polylines: WorldPoint[][] = [];
 
   for (const segment of segments) {
     const total = segment.length;
@@ -803,7 +805,7 @@ function decorateBumps(segments: PathSegment[], decoration: DecorationStyle, tra
       continue;
     }
 
-    const segmentPolyline: Point[] = [];
+    const segmentPolyline: WorldPoint[] = [];
     const startFrame = sampleFrameFromStartExtrapolated([segment], 0);
     if (startFrame) {
       segmentPolyline.push(pointFromFrame(startFrame, 0, 0, decoration, transformSpec));
@@ -830,8 +832,8 @@ function decorateBumps(segments: PathSegment[], decoration: DecorationStyle, tra
         6
       );
 
-      const localPoints = [...firstCurve, ...secondCurve.slice(1)];
-      for (const local of localPoints) {
+      const localWorldPoints = [...firstCurve, ...secondCurve.slice(1)];
+      for (const local of localWorldPoints) {
         segmentPolyline.push(pointFromFrame(frame, local.x, local.y, decoration, transformSpec));
       }
     }
@@ -841,7 +843,7 @@ function decorateBumps(segments: PathSegment[], decoration: DecorationStyle, tra
       segmentPolyline.push(pointFromFrame(endFrame, 0, 0, decoration, transformSpec));
     }
 
-    const deduped = dedupePoints(segmentPolyline);
+    const deduped = dedupeWorldPoints(segmentPolyline);
     if (deduped.length > 0) {
       polylines.push(deduped);
     }
@@ -855,13 +857,13 @@ function decorateTicksLike(
   decoration: DecorationStyle,
   transformSpec: DecorationTransformSpec,
   kind: "ticks" | "border"
-): Point[][] {
+): WorldPoint[][] {
   const spacing = Math.max(1, getSegmentLength(decoration));
   const total = totalSegmentLength(segments);
   const amplitude = getAmplitude(decoration);
   const angleDegrees = getNumberParam(decoration, "angle", 45);
   const angleRadians = (angleDegrees * Math.PI) / 180;
-  const polylines: Point[][] = [];
+  const polylines: WorldPoint[][] = [];
 
   for (let distance = 0; distance <= total + 1e-6; distance += spacing) {
     const frame = sampleFrameFromStartExtrapolated(segments, Math.min(distance, total));
@@ -891,14 +893,14 @@ function decorateShapeMarks(
   decoration: DecorationStyle,
   transformSpec: DecorationTransformSpec,
   kind: "crosses" | "triangles" | "footprints" | "shape backgrounds"
-): Point[][] {
+): WorldPoint[][] {
   const spacing = getShapeSpacing(decoration);
   const total = totalSegmentLength(segments);
   const width = getShapeWidth(decoration);
   const height = getShapeHeight(decoration);
   const shapeName = canonicalDecorationName(decoration.params["shape"] ?? "circle") ?? "circle";
   const followPath = !transformSpec.shiftOnly;
-  const polylines: Point[][] = [];
+  const polylines: WorldPoint[][] = [];
 
   for (let distance = 0; distance <= total + 1e-6; distance += spacing) {
     const frame = sampleFrameFromStartExtrapolated(segments, Math.min(distance, total));
@@ -951,8 +953,8 @@ function makeShapeBackgroundPolylines(
   decoration: DecorationStyle,
   transformSpec: DecorationTransformSpec,
   followPath: boolean
-): Point[][] {
-  const pointsToPolyline = (entries: Array<{ x: number; y: number }>): Point[] =>
+): WorldPoint[][] {
+  const pointsToPolyline = (entries: Array<{ x: number; y: number }>): WorldPoint[] =>
     entries.map((entry) => pointFromFrame(frame, entry.x, entry.y, decoration, transformSpec, followPath));
 
   if (shapeName === "rectangle") {
@@ -991,7 +993,7 @@ function makeShapeBackgroundPolylines(
   return [pointsToPolyline(points)];
 }
 
-function decorateBrace(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): Point[] {
+function decorateBrace(segments: PathSegment[], decoration: DecorationStyle, transformSpec: DecorationTransformSpec): WorldPoint[] {
   const total = totalSegmentLength(segments);
   if (total <= 1e-9) {
     return [];
@@ -1013,31 +1015,31 @@ function decorateBrace(segments: PathSegment[], decoration: DecorationStyle, tra
     xc = amplitude;
   }
 
-  const localPoints: Array<{ x: number; y: number }> = [];
-  localPoints.push(...sampleCubic(
+  const localWorldPoints: Array<{ x: number; y: number }> = [];
+  localWorldPoints.push(...sampleCubic(
     { x: 0, y: 0 },
     { x: 0.15 * yc, y: 0.3 * amplitude },
     { x: 0.5 * yc, y: 0.5 * amplitude },
     { x: yc, y: 0.5 * amplitude },
     10
   ));
-  localPoints.push({ x: aspect * total - yc, y: 0.5 * amplitude });
-  localPoints.push(...sampleCubic(
+  localWorldPoints.push({ x: aspect * total - yc, y: 0.5 * amplitude });
+  localWorldPoints.push(...sampleCubic(
     { x: aspect * total - yc, y: 0.5 * amplitude },
     { x: aspect * total - 0.5 * yc, y: 0.5 * amplitude },
     { x: aspect * total - 0.15 * yc, y: 0.7 * amplitude },
     { x: aspect * total, y: 1 * amplitude },
     10
   ));
-  localPoints.push(...sampleCubic(
+  localWorldPoints.push(...sampleCubic(
     { x: aspect * total, y: 1 * amplitude },
     { x: aspect * total + 0.15 * xc, y: 0.7 * amplitude },
     { x: aspect * total + 0.5 * xc, y: 0.5 * amplitude },
     { x: aspect * total + xc, y: 0.5 * amplitude },
     10
   ));
-  localPoints.push({ x: total - xc, y: 0.5 * amplitude });
-  localPoints.push(...sampleCubic(
+  localWorldPoints.push({ x: total - xc, y: 0.5 * amplitude });
+  localWorldPoints.push(...sampleCubic(
     { x: total - xc, y: 0.5 * amplitude },
     { x: total - 0.5 * xc, y: 0.5 * amplitude },
     { x: total - 0.15 * xc, y: 0.3 * amplitude },
@@ -1045,8 +1047,8 @@ function decorateBrace(segments: PathSegment[], decoration: DecorationStyle, tra
     10
   ));
 
-  const points: Point[] = [];
-  for (const local of dedupeLocalPoints(localPoints)) {
+  const points: WorldPoint[] = [];
+  for (const local of dedupeLocalWorldPoints(localWorldPoints)) {
     const distance = clampLength(local.x, 0, total);
     const frame = sampleFrameFromStartExtrapolated(segments, distance);
     if (!frame) {
@@ -1063,21 +1065,21 @@ function applyFractal(
   decoration: DecorationStyle,
   transformSpec: DecorationTransformSpec,
   variant: "koch1" | "koch2" | "snowflake" | "cantor"
-): Point[][] {
+): WorldPoint[][] {
   const base = samplePolyline(segments, Math.max(1, getSegmentLength(decoration) / 2), decoration, transformSpec, () => 0);
   if (base.length < 2) {
     return [base];
   }
 
   if (variant === "cantor") {
-    const polylines: Point[][] = [];
+    const polylines: WorldPoint[][] = [];
     for (let index = 0; index < base.length - 1; index += 1) {
       const from = base[index];
       const to = base[index + 1];
-      const p1 = interpolatePoint(from, to, 0);
-      const p2 = interpolatePoint(from, to, 1 / 3);
-      const p3 = interpolatePoint(from, to, 2 / 3);
-      const p4 = interpolatePoint(from, to, 1);
+      const p1 = interpolateWorldPoint(from, to, 0);
+      const p2 = interpolateWorldPoint(from, to, 1 / 3);
+      const p3 = interpolateWorldPoint(from, to, 2 / 3);
+      const p4 = interpolateWorldPoint(from, to, 1);
       polylines.push([p1, p2]);
       polylines.push([p3, p4]);
     }
@@ -1114,7 +1116,7 @@ function applyFractal(
             { x: 1, y: 0 }
           ];
 
-  const out: Point[] = [];
+  const out: WorldPoint[] = [];
   for (let index = 0; index < base.length - 1; index += 1) {
     const from = base[index];
     const to = base[index + 1];
@@ -1142,13 +1144,13 @@ function samplePolyline(
   decoration: DecorationStyle,
   transformSpec: DecorationTransformSpec,
   offsetAtDistance: (distance: number, total: number) => number
-): Point[] {
+): WorldPoint[] {
   const total = totalSegmentLength(segments);
   if (total <= 1e-9) {
     return [];
   }
 
-  const points: Point[] = [];
+  const points: WorldPoint[] = [];
   const effectiveSpacing = Math.max(0.5, spacing);
   for (let distance = 0; distance <= total + 1e-6; distance += effectiveSpacing) {
     const clampedDistance = Math.min(distance, total);
@@ -1161,10 +1163,10 @@ function samplePolyline(
 
   const endFrame = sampleFrameFromStartExtrapolated(segments, total);
   if (endFrame) {
-    const endPoint = pointFromFrame(endFrame, 0, offsetAtDistance(total, total), decoration, transformSpec);
+    const endWorldPoint = pointFromFrame(endFrame, 0, offsetAtDistance(total, total), decoration, transformSpec);
     const last = points[points.length - 1];
-    if (!last || Math.hypot(last.x - endPoint.x, last.y - endPoint.y) > 1e-9) {
-      points.push(endPoint);
+    if (!last || Math.hypot(last.x - endWorldPoint.x, last.y - endWorldPoint.y) > 1e-9) {
+      points.push(endWorldPoint);
     }
   }
 
@@ -1178,7 +1180,7 @@ function pointFromFrame(
   decoration: DecorationStyle,
   transformSpec: DecorationTransformSpec,
   followPath = true
-): Point {
+): WorldPoint {
   const raisedY = localY + decoration.raise;
   const mirroredY = decoration.mirror ? -raisedY : raisedY;
   const transformed = applyDecorationMatrix(transformSpec.matrix, {
@@ -1197,7 +1199,7 @@ function pointFromFrame(
   };
 }
 
-function applyDecorationMatrix(matrix: Matrix2D, point: Point): Point {
+function applyDecorationMatrix(matrix: WorldTransform, point: WorldPoint): WorldPoint {
   return {
     x: matrix.a * point.x + matrix.c * point.y + matrix.e,
     y: matrix.b * point.x + matrix.d * point.y + matrix.f
@@ -1205,7 +1207,7 @@ function applyDecorationMatrix(matrix: Matrix2D, point: Point): Point {
 }
 
 function parseDecorationTransform(raw: string | null): DecorationTransformSpec {
-  const identity: Matrix2D = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+  const identity: WorldTransform = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
   const defaultSpec: DecorationTransformSpec = {
     matrix: identity,
     shiftOnly: false
@@ -1400,54 +1402,54 @@ function isClosedSubpath(commands: ScenePathCommand[]): boolean {
     return false;
   }
 
-  let lastPoint: Point | null = null;
+  let lastWorldPoint: WorldPoint | null = null;
   for (const command of commands) {
     if (command.kind === "M" || command.kind === "L" || command.kind === "A" || command.kind === "C") {
-      lastPoint = command.to;
+      lastWorldPoint = command.to;
     }
   }
-  if (!lastPoint) {
+  if (!lastWorldPoint) {
     return false;
   }
 
-  return Math.hypot(lastPoint.x - firstMove.to.x, lastPoint.y - firstMove.to.y) <= 1e-6;
+  return Math.hypot(lastWorldPoint.x - firstMove.to.x, lastWorldPoint.y - firstMove.to.y) <= 1e-6;
 }
 
 function expandSubpathForDecoration(commands: ScenePathCommand[]): ScenePathCommand[] {
   const expanded: ScenePathCommand[] = [];
-  let subpathStart: Point | null = null;
-  let currentPoint: Point | null = null;
+  let subpathStart: WorldPoint | null = null;
+  let currentWorldPoint: WorldPoint | null = null;
 
   for (const command of commands) {
     if (command.kind === "M") {
       expanded.push(cloneCommand(command));
       subpathStart = { ...command.to };
-      currentPoint = { ...command.to };
+      currentWorldPoint = { ...command.to };
       continue;
     }
 
     if (command.kind === "Z") {
-      if (subpathStart && currentPoint) {
-        if (Math.hypot(subpathStart.x - currentPoint.x, subpathStart.y - currentPoint.y) > 1e-6) {
+      if (subpathStart && currentWorldPoint) {
+        if (Math.hypot(subpathStart.x - currentWorldPoint.x, subpathStart.y - currentWorldPoint.y) > 1e-6) {
           expanded.push({
             kind: "L",
             to: { ...subpathStart }
           });
         }
-        currentPoint = { ...subpathStart };
+        currentWorldPoint = { ...subpathStart };
       }
       continue;
     }
 
     expanded.push(cloneCommand(command));
-    currentPoint = { ...command.to };
+    currentWorldPoint = { ...command.to };
   }
 
   return expanded;
 }
 
-function sampleCubic(p0: Point, p1: Point, p2: Point, p3: Point, steps: number): Point[] {
-  const points: Point[] = [];
+function sampleCubic(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, steps: number): WorldPoint[] {
+  const points: WorldPoint[] = [];
   const clampedSteps = Math.max(1, steps);
   for (let index = 0; index <= clampedSteps; index += 1) {
     const t = index / clampedSteps;
@@ -1468,7 +1470,7 @@ function sampleCubic(p0: Point, p1: Point, p2: Point, p3: Point, steps: number):
   return points;
 }
 
-function dedupeLocalPoints(points: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
+function dedupeLocalWorldPoints(points: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
   const deduped: Array<{ x: number; y: number }> = [];
   for (const point of points) {
     const last = deduped[deduped.length - 1];
@@ -1479,8 +1481,8 @@ function dedupeLocalPoints(points: Array<{ x: number; y: number }>): Array<{ x: 
   return deduped;
 }
 
-function dedupePoints(points: Point[]): Point[] {
-  const deduped: Point[] = [];
+function dedupeWorldPoints(points: WorldPoint[]): WorldPoint[] {
+  const deduped: WorldPoint[] = [];
   for (const point of points) {
     const last = deduped[deduped.length - 1];
     if (!last || Math.hypot(last.x - point.x, last.y - point.y) > 1e-6) {
@@ -1490,8 +1492,8 @@ function dedupePoints(points: Point[]): Point[] {
   return deduped;
 }
 
-function flattenSegmentPolylines(polylines: Point[][]): Point[] {
-  const output: Point[] = [];
+function flattenSegmentPolylines(polylines: WorldPoint[][]): WorldPoint[] {
+  const output: WorldPoint[] = [];
   for (const polyline of polylines) {
     if (polyline.length === 0) {
       continue;
@@ -1546,7 +1548,7 @@ function makeDeterministicRandom(seedRaw: string): () => number {
   };
 }
 
-function interpolatePoint(from: Point, to: Point, t: number): Point {
+function interpolateWorldPoint(from: WorldPoint, to: WorldPoint, t: number): WorldPoint {
   return {
     x: from.x + (to.x - from.x) * t,
     y: from.y + (to.y - from.y) * t

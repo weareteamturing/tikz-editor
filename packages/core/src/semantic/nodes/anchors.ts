@@ -4,7 +4,8 @@ import {
   writeNamedNodeGeometry,
   type SemanticContext
 } from "../context.js";
-import type { Matrix2D, Point } from "../types.js";
+import type { WorldPoint } from "../../coords/points.js";
+import type { WorldTransform } from "../../coords/transforms.js";
 import { applyMatrix, identityMatrix } from "../transform.js";
 import {
   makeCircularSector,
@@ -37,13 +38,13 @@ import { resolveRectangleSplitHorizontal, resolveRectangleSplitParts } from "./m
 import type { NodeLayout, NodeShape } from "./types.js";
 
 export function placeNodeCenter(
-  target: Point,
+  target: WorldPoint,
   shape: NodeShape,
   layout: NodeLayout,
   anchor: string,
   options: OptionListAst | undefined = undefined,
-  nodeTransform: Matrix2D = identityMatrix()
-): Point {
+  nodeTransform: WorldTransform = identityMatrix()
+): WorldPoint {
   const rawOffset = nodeAnchorOffset(shape, layout, anchor, options);
   const offset = applyMatrix(nodeTransform, rawOffset);
   return {
@@ -57,7 +58,7 @@ export function nodeAnchorOffset(
   layout: NodeLayout,
   anchorRaw: string,
   options: OptionListAst | undefined = undefined
-): Point {
+): WorldPoint {
   const anchor = anchorRaw.trim().toLowerCase().replaceAll("_", " ");
   const shapeGeometry = resolveNodeShapeGeometryParams(options);
 
@@ -534,7 +535,7 @@ export function nodeAnchorOffset(
 function makeTrapeziumAnchorPolygon(
   layout: NodeLayout,
   shapeGeometry: ReturnType<typeof resolveNodeShapeGeometryParams>
-): Point[] {
+): WorldPoint[] {
   return makeTrapeziumPolygon(
     {
       naturalHalfWidth: layout.naturalWidth / 2 + layout.outerXSep,
@@ -554,7 +555,7 @@ function resolveAnchorPolygon(
   shape: NodeShape,
   layout: NodeLayout,
   shapeGeometry: ReturnType<typeof resolveNodeShapeGeometryParams>
-): Point[] | undefined {
+): WorldPoint[] | undefined {
   if (shape === "diamond") {
     return makeDiamondPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight, shapeGeometry.diamondAspect);
   }
@@ -720,8 +721,8 @@ function resolveAnchorPolygon(
   return undefined;
 }
 
-function makeEllipseAnchorPolygon(rx: number, ry: number, steps = 64): Point[] {
-  const points: Point[] = [];
+function makeEllipseAnchorPolygon(rx: number, ry: number, steps = 64): WorldPoint[] {
+  const points: WorldPoint[] = [];
   const count = Math.max(8, steps);
   for (let index = 0; index < count; index += 1) {
     const angle = (2 * Math.PI * index) / count;
@@ -733,7 +734,7 @@ function makeEllipseAnchorPolygon(rx: number, ry: number, steps = 64): Point[] {
   return points;
 }
 
-function trapeziumAnchorOffset(anchor: string, polygon: Point[], baseLineY: number, midLineY: number): Point {
+function trapeziumAnchorOffset(anchor: string, polygon: WorldPoint[], baseLineY: number, midLineY: number): WorldPoint {
   const bottomLeft = polygon[0];
   const topLeft = polygon[1];
   const topRight = polygon[2];
@@ -770,7 +771,7 @@ function trapeziumAnchorOffset(anchor: string, polygon: Point[], baseLineY: numb
   return polygonShapeAnchorOffset(anchor, polygon, baseLineY, midLineY);
 }
 
-function isoscelesTriangleSpecialAnchor(anchor: string, polygon: Point[]): Point | null {
+function isoscelesTriangleSpecialAnchor(anchor: string, polygon: WorldPoint[]): WorldPoint | null {
   const apex = polygon[0];
   const leftCorner = polygon[1];
   const rightCorner = polygon[2];
@@ -800,7 +801,7 @@ function isoscelesTriangleSpecialAnchor(anchor: string, polygon: Point[]): Point
   return null;
 }
 
-function kiteSpecialAnchor(anchor: string, polygon: Point[]): Point | null {
+function kiteSpecialAnchor(anchor: string, polygon: WorldPoint[]): WorldPoint | null {
   const upper = polygon[0];
   const left = polygon[1];
   const lower = polygon[2];
@@ -837,7 +838,7 @@ function kiteSpecialAnchor(anchor: string, polygon: Point[]): Point | null {
   return null;
 }
 
-function dartSpecialAnchor(anchor: string, polygon: Point[]): Point | null {
+function dartSpecialAnchor(anchor: string, polygon: WorldPoint[]): WorldPoint | null {
   const tip = polygon[0];
   const leftTail = polygon[1];
   const tailCenter = polygon[2];
@@ -868,7 +869,7 @@ function dartSpecialAnchor(anchor: string, polygon: Point[]): Point | null {
   return null;
 }
 
-function regularPolygonSpecialAnchor(anchor: string, polygon: Point[]): Point | null {
+function regularPolygonSpecialAnchor(anchor: string, polygon: WorldPoint[]): WorldPoint | null {
   const cornerMatch = anchor.match(/^corner\s+(\d+)$/);
   if (cornerMatch) {
     const index = Number(cornerMatch[1]);
@@ -893,12 +894,12 @@ function regularPolygonSpecialAnchor(anchor: string, polygon: Point[]): Point | 
   return null;
 }
 
-function starSpecialAnchor(anchor: string, outerPoints: Point[], innerPoints: Point[]): Point | null {
+function starSpecialAnchor(anchor: string, outerWorldPoints: WorldPoint[], innerWorldPoints: WorldPoint[]): WorldPoint | null {
   const outerMatch = anchor.match(/^(?:outer\s+)?point\s+(\d+)$/);
   if (outerMatch) {
     const index = Number(outerMatch[1]);
     if (Number.isFinite(index) && index >= 1) {
-      return outerPoints[(index - 1) % outerPoints.length] ?? null;
+      return outerWorldPoints[(index - 1) % outerWorldPoints.length] ?? null;
     }
   }
 
@@ -906,14 +907,14 @@ function starSpecialAnchor(anchor: string, outerPoints: Point[], innerPoints: Po
   if (innerMatch) {
     const index = Number(innerMatch[1]);
     if (Number.isFinite(index) && index >= 1) {
-      return innerPoints[(index - 1) % innerPoints.length] ?? null;
+      return innerWorldPoints[(index - 1) % innerWorldPoints.length] ?? null;
     }
   }
 
   return null;
 }
 
-function cloudSpecialAnchor(anchor: string, puffs: Point[]): Point | null {
+function cloudSpecialAnchor(anchor: string, puffs: WorldPoint[]): WorldPoint | null {
   const match = anchor.match(/^puff\s+(\d+)$/);
   if (!match) {
     return null;
@@ -925,14 +926,14 @@ function cloudSpecialAnchor(anchor: string, puffs: Point[]): Point | null {
   return puffs[(index - 1) % puffs.length] ?? null;
 }
 
-function starburstSpecialAnchor(anchor: string, outerPoints: Point[], innerPoints: Point[]): Point | null {
-  return starSpecialAnchor(anchor, outerPoints, innerPoints);
+function starburstSpecialAnchor(anchor: string, outerWorldPoints: WorldPoint[], innerWorldPoints: WorldPoint[]): WorldPoint | null {
+  return starSpecialAnchor(anchor, outerWorldPoints, innerWorldPoints);
 }
 
 function singleArrowSpecialAnchor(
   anchor: string,
   geometry: ReturnType<typeof makeSingleArrow>
-): Point | null {
+): WorldPoint | null {
   if (anchor === "tip") {
     return geometry.tip;
   }
@@ -963,7 +964,7 @@ function singleArrowSpecialAnchor(
 function doubleArrowSpecialAnchor(
   anchor: string,
   geometry: ReturnType<typeof makeDoubleArrow>
-): Point | null {
+): WorldPoint | null {
   if (anchor === "tip 1") {
     return geometry.tip1;
   }
@@ -997,7 +998,7 @@ function doubleArrowSpecialAnchor(
   return null;
 }
 
-function polygonShapeAnchorOffset(anchor: string, polygon: Point[], baseLineY: number, midLineY: number): Point {
+function polygonShapeAnchorOffset(anchor: string, polygon: WorldPoint[], baseLineY: number, midLineY: number): WorldPoint {
   if (anchor === "center") {
     return { x: 0, y: 0 };
   }
@@ -1027,7 +1028,7 @@ function polygonShapeAnchorOffset(anchor: string, polygon: Point[], baseLineY: n
   return polygonDirectionalOffset(polygon, { x: 0, y: 0 }, direction);
 }
 
-function polygonDirectionalOffset(polygon: Point[], reference: Point, direction: Point): Point {
+function polygonDirectionalOffset(polygon: WorldPoint[], reference: WorldPoint, direction: WorldPoint): WorldPoint {
   const hit = intersectRayWithPolygon(reference, direction, polygon);
   if (!hit) {
     return { x: 0, y: 0 };
@@ -1035,7 +1036,7 @@ function polygonDirectionalOffset(polygon: Point[], reference: Point, direction:
   return hit;
 }
 
-function anchorDirection(anchor: string): Point | null {
+function anchorDirection(anchor: string): WorldPoint | null {
   switch (anchor) {
     case "north":
       return { x: 0, y: 1 };
@@ -1058,7 +1059,7 @@ function anchorDirection(anchor: string): Point | null {
   }
 }
 
-function ellipseCompassOffset(rx: number, ry: number, xSign: -1 | 1, ySign: -1 | 1): Point {
+function ellipseCompassOffset(rx: number, ry: number, xSign: -1 | 1, ySign: -1 | 1): WorldPoint {
   if (!Number.isFinite(rx) || !Number.isFinite(ry) || rx <= 1e-9 || ry <= 1e-9) {
     return { x: 0, y: 0 };
   }
@@ -1096,11 +1097,11 @@ function anchorSizingWithOuter(layout: NodeLayout): {
 export function registerNamedNodeAnchors(
   context: SemanticContext,
   name: string,
-  center: Point,
+  center: WorldPoint,
   shape: NodeShape,
   layout: NodeLayout,
   options: OptionListAst | undefined = undefined,
-  nodeTransform: Matrix2D = identityMatrix(),
+  nodeTransform: WorldTransform = identityMatrix(),
   producerSourceId?: string
 ): void {
   const shapeGeometry = resolveNodeShapeGeometryParams(options);
@@ -1160,7 +1161,7 @@ export function registerNamedNodeAnchors(
     producerSourceId
   );
 
-  const offsets: Record<string, Point> = {
+  const offsets: Record<string, WorldPoint> = {
     center: nodeAnchorOffset(shape, layout, "center", options),
     text: nodeAnchorOffset(shape, layout, "text", options),
     base: nodeAnchorOffset(shape, layout, "base", options),

@@ -1,5 +1,6 @@
 import { parseLength } from "../coords/parse-length.js";
-import type { Matrix2D, ResolvedStyle } from "../types.js";
+import type { WorldTransform } from "../../coords/transforms.js";
+import type { ResolvedStyle } from "../types.js";
 import { parseArrowSpecification } from "./arrows.js";
 import type { ApplyOutcome } from "./apply-types.js";
 import { normalizeColor, type ColorAliasResolver } from "./colors.js";
@@ -10,7 +11,7 @@ export function applyFlagEntry(
   key: string,
   raw: string,
   style: ResolvedStyle,
-  transform: Matrix2D,
+  transform: WorldTransform,
   resolveColorAlias?: ColorAliasResolver
 ): ApplyOutcome {
   const currentColor = style.textColor ?? style.stroke ?? style.fill ?? "black";
@@ -251,7 +252,7 @@ export function applyFlagEntry(
   };
 }
 
-function applyOpacityAlias(opacity: number, style: ResolvedStyle, transform: Matrix2D): ApplyOutcome {
+function applyOpacityAlias(opacity: number, style: ResolvedStyle, transform: WorldTransform): ApplyOutcome {
   return {
     style: {
       ...style,

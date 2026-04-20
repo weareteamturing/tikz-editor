@@ -5,7 +5,8 @@ import { FIT_DIRECT_MANIPULATION_BLOCK_REASON, sourceUsesFitNodeFromParseResult 
 import { resolvePropertyTargetFromParseResult } from "tikz-editor/edit/property-target";
 import { resolveTransformInspectorMutationContextFromOptionEntries } from "tikz-editor/edit/inspector";
 import { collectSourceWorldBounds } from "tikz-editor/edit/snapping";
-import type { NodeAnchorTarget, SceneElement, ScenePath, SceneText } from "tikz-editor/semantic/types";
+import type { EditHandle, NodeAnchorTarget, SceneElement, ScenePath, SceneText } from "tikz-editor/semantic/types";
+import type { SvgBounds, SvgPoint, WorldBounds, WorldPoint } from "../coords/types";
 import {
   computeVisibleRanges,
   resizeCursorForVector,
@@ -23,6 +24,15 @@ import { RESIZE_FRAME_CORNER_ROLES } from "./resize-frames";
 import { resolveRotateHandlePosition } from "./rotate-handle";
 import { augmentScopeOverlayWithMatrices, buildScopeOverlayIndex } from "./scope-overlay";
 import type { MatrixCellAnchorHint } from "./endpoint-anchor-snap";
+import type {
+  AdornmentConnectorDisplay,
+  AdornmentHighlightBox,
+  HandleDisplay,
+  ScopeHitBounds,
+  SelectionBounds,
+  SelectionBoxDisplay,
+  SourceBoundsMap
+} from "./types";
 import {
   collectMatrixStatementSourceIds,
   collectSourceBounds,
@@ -55,13 +65,13 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     ROTATE_HANDLE_OFFSET_PX
   } = args;
 
-  const selectedHandles = useMemo(
-    () => snapshot.editHandles.filter((handle: any) => selectedElementIds.has(handle.sourceRef.sourceId)),
+  const selectedHandles = useMemo<EditHandle[]>(
+    () => snapshot.editHandles.filter((handle: EditHandle) => selectedElementIds.has(handle.sourceRef.sourceId)),
     [snapshot.editHandles, selectedElementIds]
   );
   const selectedNodeSourceIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const handle of selectedHandles as any[]) {
+    for (const handle of selectedHandles) {
       if (handle.kind === "node-position") {
         ids.add(handle.sourceRef.sourceId);
       }
@@ -166,9 +176,9 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     return byRegionKey;
   }, [snapshot.scene]);
 
-  const sourceBoundsSvg = useMemo(() => {
+  const sourceBoundsSvg = useMemo<SourceBoundsMap>(() => {
     if (!snapshot.scene || !svgResult) {
-      return new Map<string, any>();
+      return new Map<string, SvgBounds>();
     }
     return collectSourceBounds(snapshot.scene.elements, svgResult.viewBox);
   }, [snapshot.scene, svgResult]);
@@ -262,8 +272,8 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     return ids;
   }, [adornmentTargetIds, dragCapability.draggableSourceIds, fitNodeSourceIds, matrixCellSourceIds, matrixSourceIds, movableScopeSourceIds, pathAttachedNodeSourceIds, treeChildSourceIds, treeRootSourceIds]);
 
-  const selectionBounds = useMemo(() => {
-    const selected: Array<{ sourceId: string; bounds: any }> = [];
+  const selectionBounds = useMemo<SelectionBounds[]>(() => {
+    const selected: SelectionBounds[] = [];
     for (const sourceId of selectedElementIds) {
       const fallbackBounds = sourceBoundsSvg.get(sourceId) ?? scopeOverlay.boundsByScopeId.get(sourceId);
       const bounds =
@@ -282,24 +292,24 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     return selected;
   }, [scopeOverlay.boundsByScopeId, selectedElementIds, selectedNodeSourceIds, snapshot.scene, sourceBoundsSvg, svgResult, treeChildSourceIds, treeRootSourceIds]);
 
-  const selectedScopeHitBounds = useMemo(() => {
+  const selectedScopeHitBounds = useMemo<ScopeHitBounds[]>(() => {
     return selectionBounds
       .filter((entry) => movableScopeSourceIds.has(entry.sourceId) && scopeOverlay.scopesById.has(entry.sourceId))
       .map((entry) => ({ scopeId: entry.sourceId, bounds: entry.bounds }));
   }, [movableScopeSourceIds, scopeOverlay.scopesById, selectionBounds]);
 
-  const selectionBoundsBySource = useMemo(() => {
-    const bySource = new Map<string, any>();
-    for (const entry of selectionBounds as any[]) {
+  const selectionBoundsBySource = useMemo<ReadonlyMap<string, SvgBounds>>(() => {
+    const bySource = new Map<string, SvgBounds>();
+    for (const entry of selectionBounds) {
       bySource.set(entry.sourceId, entry.bounds);
     }
     return bySource;
   }, [selectionBounds]);
 
-  const interactionBoundsSvgBySource = useMemo(() => {
-    const bySource = new Map<string, any>(sourceBoundsSvg);
+  const interactionBoundsSvgBySource = useMemo<ReadonlyMap<string, SvgBounds>>(() => {
+    const bySource = new Map<string, SvgBounds>(sourceBoundsSvg);
     for (const [scopeId, bounds] of scopeOverlay.boundsByScopeId) {
-      bySource.set(scopeId, { ...bounds, sourceId: scopeId });
+      bySource.set(scopeId, bounds);
     }
     return bySource;
   }, [scopeOverlay.boundsByScopeId, sourceBoundsSvg]);
@@ -330,7 +340,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
 
   const nodeResizeSourceIds = useMemo(() => {
     const sourceIds = new Set<string>();
-    for (const handle of selectedHandles as any[]) {
+    for (const handle of selectedHandles) {
       if (
         handle.kind === "node-position"
         && !matrixSourceIds.has(handle.sourceRef.sourceId)
@@ -471,7 +481,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     return frames;
   }, [resizeFrameSourceIds, scopeOverlay.boundsByScopeId, scopeResizeSourceIds, snapshot.editHandles, snapshot.parseResult, snapshot.scene, svgResult]);
 
-  const selectionBoxes = useMemo(() => {
+  const selectionBoxes = useMemo<SelectionBoxDisplay[]>(() => {
     const textOnlyNodeSelectionSourceIds = new Set<string>();
     if (snapshot.scene) {
       for (const sourceId of selectedNodeSourceIds) {
@@ -502,7 +512,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
               isAdornment: sourceId.startsWith("node-adornment:"),
               dashed: textOnlyNodeSelectionSourceIds.has(sourceId),
               kind: "axis-aligned" as const,
-              ...bounds
+              bounds
             }
           : null;
       })
@@ -510,7 +520,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     return boxes;
   }, [resizeFramesBySource, selectedNodeSourceIds, selectionBoundsBySource, selectionBoxSourceIds, snapshot.scene]);
 
-  const selectedAdornmentConnectors = useMemo(() => {
+  const selectedAdornmentConnectors = useMemo<AdornmentConnectorDisplay[]>(() => {
     if (!snapshot.scene || !svgResult) {
       return [];
     }
@@ -524,7 +534,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
         highlightedAdornmentTargetIds.add(adornment.targetId);
       }
     }
-    const connectors: Array<{ key: string; kind: "label" | "pin"; x1: number; y1: number; x2: number; y2: number }> = [];
+    const connectors: AdornmentConnectorDisplay[] = [];
     const seen = new Set<string>();
     for (const element of snapshot.scene.elements) {
       const adornment = element.adornment;
@@ -541,7 +551,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       if (!bounds) {
         continue;
       }
-      const labelCenterWorld = {
+      const labelCenterWorld: WorldPoint = {
         x: (bounds.minX + bounds.maxX) / 2,
         y: svgResult.viewBox.y + svgResult.viewBox.height - (((bounds.minY + bounds.maxY) / 2) - svgResult.viewBox.y)
       };
@@ -555,21 +565,19 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       connectors.push({
         key: `adornment-connector:${adornment.targetId}`,
         kind: adornment.kind,
-        x1: owner.x,
-        y1: owner.y,
-        x2: labelEdge.x,
-        y2: labelEdge.y
+        from: owner,
+        to: labelEdge
       });
       seen.add(adornment.targetId);
     }
     return connectors;
   }, [selectedElementIds, selectionBoundsBySource, snapshot.scene, svgResult]);
 
-  const adornmentHighlightBoxes = useMemo(() => {
+  const adornmentHighlightBoxes = useMemo<AdornmentHighlightBox[]>(() => {
     if (!snapshot.scene) {
       return [];
     }
-    const boxes: Array<{ key: string; minX: number; minY: number; maxX: number; maxY: number }> = [];
+    const boxes: AdornmentHighlightBox[] = [];
     const seen = new Set<string>();
     for (const element of snapshot.scene.elements) {
       const targetId = element.adornment?.targetId;
@@ -585,7 +593,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       }
       boxes.push({
         key: `adornment-highlight:${targetId}`,
-        ...bounds
+        bounds
       });
       seen.add(targetId);
     }
@@ -611,7 +619,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
   }, [marqueeDraft, svgResult]);
 
   const collapsedDensePathEndpointsBySource = useMemo(() => {
-    const endpointsBySource = new Map<string, { start: { x: number; y: number }; end: { x: number; y: number } }>();
+    const endpointsBySource = new Map<string, { start: WorldPoint; end: WorldPoint }>();
     if (!snapshot.scene || collapsedDensePathSourceIds.size === 0) {
       return endpointsBySource;
     }
@@ -619,8 +627,8 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       if (element.kind !== "Path" || !collapsedDensePathSourceIds.has(element.sourceRef.sourceId)) {
         continue;
       }
-      let start: { x: number; y: number } | null = null;
-      let end: { x: number; y: number } | null = null;
+      let start: WorldPoint | null = null;
+      let end: WorldPoint | null = null;
       for (const command of element.commands) {
         if (command.kind === "M") {
           if (!start) {
@@ -643,10 +651,10 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     return endpointsBySource;
   }, [collapsedDensePathSourceIds, snapshot.scene]);
 
-  const handleDisplays = useMemo((): any[] => {
+  const handleDisplays = useMemo<HandleDisplay[]>(() => {
     if (!svgResult) return [];
 
-    const displays: any[] = [];
+    const displays: HandleDisplay[] = [];
     const resizeHandleSourceIds = new Set<string>(resizeFrameSourceIds);
     const singleSelectedSourceId =
       selectedElementIds.size === 1
@@ -663,7 +671,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
         ? singleSelectedSourceId
         : null;
 
-    for (const handle of selectedHandles as any[]) {
+    for (const handle of selectedHandles) {
       if (handle.kind === "node-position") {
         continue;
       }
@@ -684,8 +692,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
         const point = worldToSvgPoint(handle.world, svgResult.viewBox);
         displays.push({
           key: `dense-endpoint:${handle.sourceRef.sourceId}:${handle.id}`,
-          x: point.x,
-          y: point.y,
+          point,
           cursor: draggableSourceIds.has(handle.sourceRef.sourceId) ? "move" : "not-allowed",
           kind: "move-element",
           elementId: handle.sourceRef.sourceId
@@ -705,8 +712,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       const isDraggable = dragCapability.draggableHandleIds.has(handle.id);
       displays.push({
         key: `handle:${handle.id}`,
-        x: point.x,
-        y: point.y,
+        point,
         cursor: isDraggable ? getHandleCursor(handle, snapshot.scene, snapshot.editHandles) : "not-allowed",
         kind: "move-handle",
         handle
@@ -743,13 +749,15 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
         if (resizablePathShapeSourceIds.has(sourceId)) {
           continue;
         }
-        const fallback = (selectedHandles as any[]).find((handle) => handle.sourceRef.sourceId === sourceId && handle.kind === "node-position");
+        const fallback = selectedHandles.find(
+          (handle): handle is Extract<EditHandle, { kind: "node-position" }> =>
+            handle.sourceRef.sourceId === sourceId && handle.kind === "node-position"
+        );
         if (!fallback) continue;
         const point = worldToSvgPoint(fallback.world, svgResult.viewBox);
         displays.push({
           key: `node-handle:${sourceId}:center`,
-          x: point.x,
-          y: point.y,
+          point,
           cursor: draggableSourceIds.has(sourceId) ? "move" : "not-allowed",
           kind: "move-element",
           elementId: sourceId
@@ -782,10 +790,8 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
         );
         displays.push({
           key: `node-handle:${rotateHandleSourceId}:rotate`,
-          x: rotateHandlePosition.handleSvg.x,
-          y: rotateHandlePosition.handleSvg.y,
-          anchorX: rotateHandlePosition.anchorSvg.x,
-          anchorY: rotateHandlePosition.anchorSvg.y,
+          point: rotateHandlePosition.handleSvg,
+          anchor: rotateHandlePosition.anchorSvg,
           centerWorld: { ...rotateFrame.centerWorld },
           cursor: "grab",
           kind: "rotate-element",
@@ -810,7 +816,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     return computeVisibleRanges(svgResult.viewBox, canvasTransform, viewportSize.width, viewportSize.height);
   }, [svgResult, canvasTransform, viewportSize]);
 
-  const viewportWorldBounds = useMemo(
+  const viewportWorldBounds = useMemo<WorldBounds | null>(
     () =>
       visibleRanges
         ? {
@@ -901,7 +907,7 @@ function collectPathAttachedNodeSourceIds(statements: readonly Statement[]): Set
 }
 
 function shouldShowSideResizeHandles(
-  boundsSvg: { minX: number; minY: number; maxX: number; maxY: number },
+  boundsSvg: SvgBounds,
   canvasScale: number
 ): boolean {
   const widthPx = Math.max(0, boundsSvg.maxX - boundsSvg.minX) * Math.max(canvasScale, 1e-6);
@@ -909,11 +915,11 @@ function shouldShowSideResizeHandles(
   return Math.min(widthPx, heightPx) >= SIDE_RESIZE_HANDLE_MIN_DIMENSION_PX;
 }
 
-function midpoint(a: { x: number; y: number }, b: { x: number; y: number }): { x: number; y: number } {
+function midpoint<TPoint extends { x: number; y: number }>(a: TPoint, b: TPoint): TPoint {
   return {
     x: (a.x + b.x) / 2,
     y: (a.y + b.y) / 2
-  };
+  } as TPoint;
 }
 
 function buildResizeHandleDisplaysForFrame({
@@ -924,14 +930,14 @@ function buildResizeHandleDisplaysForFrame({
 }: {
   sourceId: string;
   resizeFrame: {
-    centerWorld: { x: number; y: number };
-    boundsSvg: { minX: number; minY: number; maxX: number; maxY: number };
-    cornersByRole: Record<"top-left" | "top-right" | "bottom-right" | "bottom-left", { world: { x: number; y: number }; svg: { x: number; y: number } }>;
+    centerWorld: WorldPoint;
+    boundsSvg: SvgBounds;
+    cornersByRole: Record<"top-left" | "top-right" | "bottom-right" | "bottom-left", { world: WorldPoint; svg: SvgPoint }>;
   };
   canvasScale: number;
   resizeDisabled: boolean;
-}): any[] {
-  const displays: any[] = [];
+}): HandleDisplay[] {
+  const displays: HandleDisplay[] = [];
   const topLeft = resizeFrame.cornersByRole["top-left"].svg;
   const topRight = resizeFrame.cornersByRole["top-right"].svg;
   const frameRotationDeg = (Math.atan2(topRight.y - topLeft.y, topRight.x - topLeft.x) * 180) / Math.PI;
@@ -943,8 +949,7 @@ function buildResizeHandleDisplaysForFrame({
     };
     displays.push({
       key: `node-handle:${sourceId}:${role}`,
-      x: corner.svg.x,
-      y: corner.svg.y,
+      point: corner.svg,
       cursor:
         resizeDisabled
           ? "not-allowed"
@@ -966,8 +971,8 @@ function buildResizeHandleDisplaysForFrame({
 
   const edgeHandles: Array<{
     role: Extract<ResizeRole, "top" | "right" | "bottom" | "left">;
-    svg: { x: number; y: number };
-    world: { x: number; y: number };
+    svg: SvgPoint;
+    world: WorldPoint;
   }> = [
     {
       role: "top",
@@ -997,8 +1002,7 @@ function buildResizeHandleDisplaysForFrame({
     };
     displays.push({
       key: `node-handle:${sourceId}:${edgeHandle.role}`,
-      x: edgeHandle.svg.x,
-      y: edgeHandle.svg.y,
+      point: edgeHandle.svg,
       cursor:
         resizeDisabled
           ? "not-allowed"
@@ -1024,11 +1028,11 @@ function buildResizeHandleDisplaysForBounds({
   resizeDisabled
 }: {
   sourceId: string;
-  bounds: { minX: number; minY: number; maxX: number; maxY: number };
+  bounds: SvgBounds;
   canvasScale: number;
   resizeDisabled: boolean;
-}): any[] {
-  const displays: any[] = [];
+}): HandleDisplay[] {
+  const displays: HandleDisplay[] = [];
   const cornerRoles: Array<{
     role: Extract<ResizeRole, "top-left" | "top-right" | "bottom-left" | "bottom-right">;
     x: number;
@@ -1042,8 +1046,7 @@ function buildResizeHandleDisplaysForBounds({
   for (const corner of cornerRoles) {
     displays.push({
       key: `node-handle:${sourceId}:${corner.role}`,
-      x: corner.x,
-      y: corner.y,
+      point: { x: corner.x, y: corner.y },
       cursor: resizeDisabled ? "not-allowed" : resizeCursorForRole(corner.role),
       kind: "resize-element",
       elementId: sourceId,
@@ -1072,8 +1075,7 @@ function buildResizeHandleDisplaysForBounds({
   for (const edge of edgeRoles) {
     displays.push({
       key: `node-handle:${sourceId}:${edge.role}`,
-      x: edge.x,
-      y: edge.y,
+      point: { x: edge.x, y: edge.y },
       cursor: resizeDisabled ? "not-allowed" : edge.cursor,
       kind: "resize-element",
       elementId: sourceId,
@@ -1087,7 +1089,7 @@ function buildResizeHandleDisplaysForBounds({
 
 function buildMatrixEdgeHitRegions(
   elements: readonly SceneElement[],
-  boundsBySource: ReadonlyMap<string, { minX: number; minY: number; maxX: number; maxY: number }>,
+  boundsBySource: SourceBoundsMap,
   scale: number
 ): HitRegion[] {
   const byCell = new Map<

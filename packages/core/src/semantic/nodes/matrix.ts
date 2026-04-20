@@ -8,7 +8,8 @@ import type { NodePositioningResolution } from "../path/node-positioning.js";
 import type { DiagnosticPushFn, FeatureMarkFn } from "../path/types.js";
 import { normalizeOptionValue, parseStyleValueAsOptionList, readBalancedBlock } from "../style/option-utils.js";
 import { cloneStyleChain, type StyleChainEntry } from "../style-chain.js";
-import type { MatrixCellInfo, Point, ResolvedStyle, SceneElement } from "../types.js";
+import type { WorldPoint } from "../../coords/points.js";
+import type { MatrixCellInfo, ResolvedStyle, SceneElement } from "../types.js";
 import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 import { placeNodeCenter, registerNamedNodeAnchors } from "./anchors.js";
 import {
@@ -113,7 +114,7 @@ export type MatrixNodeEvaluation = {
   frontElements: SceneElement[];
 };
 
-type MatrixNodeEvaluator = (item: NodeItem, defaultTargetPoint: Point) => MatrixNodeEvaluation;
+type MatrixNodeEvaluator = (item: NodeItem, defaultTargetWorldPoint: WorldPoint) => MatrixNodeEvaluation;
 
 export type EvaluateMatrixNodeParams = {
   item: NodeItem;
@@ -233,13 +234,13 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
   const xCenters = computeAxisCenters(colWidths, columnGaps, params.matrixMode.columnSep.betweenOrigins, 1);
   const yCenters = computeAxisCenters(rowHeights, rowGaps, params.matrixMode.rowSep.betweenOrigins, -1);
 
-  const xBounds = computeBoundsFromCenters(xCenters, colWidths);
-  const yBounds = computeBoundsFromCenters(yCenters, rowHeights);
-  const contentWidth = Math.max(1, xBounds.max - xBounds.min);
-  const contentHeight = Math.max(1, yBounds.max - yBounds.min);
+  const xWorldBounds = computeWorldBoundsFromCenters(xCenters, colWidths);
+  const yWorldBounds = computeWorldBoundsFromCenters(yCenters, rowHeights);
+  const contentWidth = Math.max(1, xWorldBounds.max - xWorldBounds.min);
+  const contentHeight = Math.max(1, yWorldBounds.max - yWorldBounds.min);
   const contentCenter = {
-    x: (xBounds.min + xBounds.max) / 2,
-    y: (yBounds.min + yBounds.max) / 2
+    x: (xWorldBounds.min + xWorldBounds.max) / 2,
+    y: (yWorldBounds.min + yWorldBounds.max) / 2
   };
 
   const matrixLayout = makeMatrixLayout(contentWidth, contentHeight);
@@ -1291,7 +1292,7 @@ function splitMatrixRowCells(
 }
 
 function parseMatrixCell(rawCell: MatrixParsedCell, mode: MatrixMode): MatrixCell | null {
-  const outer = trimOuterWhitespaceBounds(rawCell.raw, 0, rawCell.raw.length);
+  const outer = trimOuterWhitespaceWorldBounds(rawCell.raw, 0, rawCell.raw.length);
   let working = rawCell.raw.slice(outer.from, outer.to);
   let workingOffset = rawCell.span.from + outer.from;
   if (working.length === 0 && !mode.includeEmptyCells) {
@@ -1628,7 +1629,7 @@ function computeAxisCenters(sizes: number[], gaps: number[], betweenOrigins: boo
   return centers;
 }
 
-function computeBoundsFromCenters(centers: number[], sizes: number[]): { min: number; max: number } {
+function computeWorldBoundsFromCenters(centers: number[], sizes: number[]): { min: number; max: number } {
   if (centers.length === 0 || sizes.length === 0) {
     return { min: 0, max: 1 };
   }
@@ -1714,7 +1715,7 @@ function findMatrixPipeClosing(input: string): number {
 }
 
 function resolveLeadingMatrixCellOptionSpan(rawCell: string, baseOffset: number): Span | undefined {
-  const trimmed = trimOuterWhitespaceBounds(rawCell, 0, rawCell.length);
+  const trimmed = trimOuterWhitespaceWorldBounds(rawCell, 0, rawCell.length);
   if (trimmed.from >= trimmed.to || rawCell[trimmed.from] !== "|") {
     return undefined;
   }
@@ -1749,7 +1750,7 @@ function resolveLeadingMatrixCellOptionSpan(rawCell: string, baseOffset: number)
   };
 }
 
-function trimOuterWhitespaceBounds(input: string, from: number, to: number): { from: number; to: number } {
+function trimOuterWhitespaceWorldBounds(input: string, from: number, to: number): { from: number; to: number } {
   const left = trimLeftWhitespaceBoundary(input, from, to);
   const right = trimRightWhitespaceBoundary(input, to, left);
   return {

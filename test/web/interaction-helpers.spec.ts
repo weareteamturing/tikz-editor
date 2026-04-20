@@ -39,7 +39,7 @@ function makePathPointHandle(
     sourceText: "",
     coordinateForm: "cartesian",
     rewriteMode: "direct"
-  };
+  } as EditHandle;
 }
 
 describe("interaction-helpers bezier math", () => {

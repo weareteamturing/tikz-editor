@@ -1,10 +1,11 @@
-import type { EditHandle, Point, SceneElement, ScenePath } from "tikz-editor/semantic/types";
+import type { EditHandle, SceneElement, ScenePath } from "tikz-editor/semantic/types";
+import type { WorldPoint } from "../coords/types";
 
 export type CurveControlLine = {
   key: string;
   sourceId: string;
-  from: Point;
-  to: Point;
+  from: WorldPoint;
+  to: WorldPoint;
 };
 
 export function deriveCurveControlLines(
@@ -56,8 +57,8 @@ export function deriveCurveControlLines(
 
 function collectControlLinesFromPath(path: ScenePath): CurveControlLine[] {
   const lines: CurveControlLine[] = [];
-  let current: Point | null = null;
-  let subpathStart: Point | null = null;
+  let current: WorldPoint | null = null;
+  let subpathStart: WorldPoint | null = null;
 
   path.commands.forEach((command, commandIndex) => {
     if (command.kind === "M") {

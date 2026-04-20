@@ -1,10 +1,11 @@
+import type { WorldPoint } from "../../coords/points.js";
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import type { PathOptionItem } from "../../ast/types.js";
 import type { DiagnosticPushFn, ArcParameters, PlacementSegment } from "./types.js";
 import { coordinateInner, toRadians } from "./shared.js";
 import { parseLength } from "../coords/parse-length.js";
 import type { MacroBinding, MacroExpansionTraceEvent } from "../../macros/index.js";
-import type { Point, ResolvedStyle, ScenePathCommand } from "../types.js";
+import type { ResolvedStyle, ScenePathCommand } from "../types.js";
 import { applyMatrixToVector } from "../transform.js";
 import { expandPathMacroBindings } from "./macro-expansion.js";
 
@@ -121,10 +122,10 @@ export function parseArcShorthand(raw: string): ArcParameters | null {
 
 export function appendArcCommand(
   commands: ScenePathCommand[],
-  from: Point,
+  from: WorldPoint,
   params: ArcParameters,
   transform: { a: number; b: number; c: number; d: number } = { a: 1, b: 0, c: 0, d: 1 }
-): { endpoint: Point; segment: PlacementSegment } {
+): { endpoint: WorldPoint; segment: PlacementSegment } {
   const geometry = computeArcGeometry(from, params, transform);
   commands.push({
     kind: "A",
@@ -147,11 +148,11 @@ export function appendArcCommand(
 }
 
 function computeArcGeometry(
-  from: Point,
+  from: WorldPoint,
   params: ArcParameters,
   transform: { a: number; b: number; c: number; d: number }
 ): {
-  endpoint: Point;
+  endpoint: WorldPoint;
   rx: number;
   ry: number;
   xAxisRotation: number;

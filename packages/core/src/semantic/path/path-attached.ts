@@ -1,6 +1,7 @@
+import type { WorldPoint } from "../../coords/points.js";
 import type { OptionListAst } from "../../options/types.js";
 import type { StyleChainEntry } from "../style-chain.js";
-import type { Point, ScenePathAttachment } from "../types.js";
+import type { ScenePathAttachment } from "../types.js";
 import type { PlacementSegment } from "./types.js";
 
 type ArcParams = Extract<PlacementSegment, { kind: "arc" }>["params"];
@@ -118,7 +119,7 @@ export function approximatePlacementSegmentLength(segment: PlacementSegment): nu
   return length;
 }
 
-export function pointAtPlacementSegment(segment: PlacementSegment, t: number): Point {
+export function pointAtPlacementSegment(segment: PlacementSegment, t: number): WorldPoint {
   const clamped = normalizePathPosition(t);
   if (segment.kind === "line") {
     return interpolate(segment.from, segment.to, clamped);
@@ -141,7 +142,7 @@ export function pointAtPlacementSegment(segment: PlacementSegment, t: number): P
   };
 }
 
-export function tangentAtPlacementSegment(segment: PlacementSegment, t: number): Point {
+export function tangentAtPlacementSegment(segment: PlacementSegment, t: number): WorldPoint {
   const clamped = normalizePathPosition(t);
   if (segment.kind === "line") {
     return { x: segment.to.x - segment.from.x, y: segment.to.y - segment.from.y };
@@ -174,7 +175,7 @@ export function tangentAtPlacementSegment(segment: PlacementSegment, t: number):
   };
 }
 
-export function closestPointOnPlacementSegment(segment: PlacementSegment, point: Point): { t: number; point: Point } {
+export function closestPointOnPlacementSegment(segment: PlacementSegment, point: WorldPoint): { t: number; point: WorldPoint } {
   if (segment.kind === "line") {
     return closestPointOnLine(point, segment.from, segment.to);
   }
@@ -293,8 +294,8 @@ export function resolvePathAttachedNodeSloped(
 }
 
 export function resolveExplicitDirectionFromPoint(
-  point: Point,
-  anchor: Point,
+  point: WorldPoint,
+  anchor: WorldPoint,
   family: "cardinal-diagonal" | "base" | "mid"
 ): string {
   const dx = point.x - anchor.x;
@@ -319,8 +320,8 @@ export function resolveExplicitDirectionFromPoint(
 }
 
 export function resolveDraggedPathAttachedNodeDirection(
-  anchor: Point,
-  point: Point,
+  anchor: WorldPoint,
+  point: WorldPoint,
   regime: Extract<ScenePathAttachment["regime"], { kind: "explicit-direction" }>,
   options: { axisThreshold?: number } = {}
 ): string {
@@ -355,7 +356,7 @@ export function resolveDraggedPathAttachedNodeDirection(
   return "below left";
 }
 
-export function resolvePathAttachedDirectionUnit(direction: string): Point {
+export function resolvePathAttachedDirectionUnit(direction: string): WorldPoint {
   const signs = resolveDirectionSigns(direction);
   const magnitude = Math.hypot(signs.xSign, signs.ySign);
   if (magnitude <= 1e-6) {
@@ -481,7 +482,7 @@ function resolveDirectionSigns(direction: string): { xSign: number; ySign: numbe
   }
 }
 
-function cubicPoint(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point {
+function cubicPoint(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, t: number): WorldPoint {
   const u = 1 - t;
   const uu = u * u;
   const uuu = uu * u;
@@ -493,24 +494,24 @@ function cubicPoint(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Poin
   };
 }
 
-function interpolate(from: Point, to: Point, t: number): Point {
+function interpolate(from: WorldPoint, to: WorldPoint, t: number): WorldPoint {
   return {
     x: from.x + (to.x - from.x) * t,
     y: from.y + (to.y - from.y) * t
   };
 }
 
-function distance(a: Point, b: Point): number {
+function distance(a: WorldPoint, b: WorldPoint): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function distanceSquared(a: Point, b: Point): number {
+function distanceSquared(a: WorldPoint, b: WorldPoint): number {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return dx * dx + dy * dy;
 }
 
-function closestPointOnLine(p: Point, a: Point, b: Point): { t: number; point: Point } {
+function closestPointOnLine(p: WorldPoint, a: WorldPoint, b: WorldPoint): { t: number; point: WorldPoint } {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const lengthSq = dx * dx + dy * dy;
@@ -521,7 +522,7 @@ function closestPointOnLine(p: Point, a: Point, b: Point): { t: number; point: P
   return { t, point: interpolate(a, b, t) };
 }
 
-function closestPointOnCubic(p: Point, c0: Point, c1: Point, c2: Point, c3: Point): { t: number; point: Point } {
+function closestPointOnCubic(p: WorldPoint, c0: WorldPoint, c1: WorldPoint, c2: WorldPoint, c3: WorldPoint): { t: number; point: WorldPoint } {
   let bestT = 0;
   let bestDistSq = Number.POSITIVE_INFINITY;
   for (let index = 0; index <= 32; index += 1) {
@@ -550,7 +551,7 @@ function closestPointOnCubic(p: Point, c0: Point, c1: Point, c2: Point, c3: Poin
   return { t, point: cubicPoint(c0, c1, c2, c3, t) };
 }
 
-function arcCenter(from: Point, params: ArcParams): Point {
+function arcCenter(from: WorldPoint, params: ArcParams): WorldPoint {
   const startRadians = (params.startAngle * Math.PI) / 180;
   return {
     x: from.x - params.rx * Math.cos(startRadians),

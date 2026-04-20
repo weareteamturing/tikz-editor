@@ -2,6 +2,7 @@ import type { Span } from "../ast/types.js";
 import type { SemanticContext } from "./context.js";
 import type { EvaluatedCoordinate } from "./coords/evaluate.js";
 import type { EditHandle } from "./types.js";
+import { identityMatrix } from "./transform.js";
 
 export function createEditHandle(
   evaluated: EvaluatedCoordinate,
@@ -17,8 +18,7 @@ export function createEditHandle(
 
   const rewriteMode = determineRewriteMode(evaluated);
   const sourceText = context.source.slice(sourceSpan.from, sourceSpan.to);
-
-  return {
+  const base = {
     // Keep IDs stable across coordinate text rewrites by avoiding source-span offsets.
     // This allows ongoing drags to continue after recompute snapshots.
     id: `handle:${sourceId}:${kind}:${context.editHandles.length}`,
@@ -30,21 +30,60 @@ export function createEditHandle(
     },
     kind,
     world: evaluated.world,
-    local: evaluated.local ?? undefined,
-    transform: evaluated.transform,
     sourceText,
     coordinateForm: evaluated.coordinateForm,
     relativePrefix: evaluated.relativePrefix,
-    relativeBaseWorld: evaluated.relativePrefix ? context.currentPoint ?? undefined : undefined,
-    rewriteMode,
     rewriteTargetHandleId: opts.rewriteTargetHandleId
+  } as const;
+
+  if (evaluated.kind === "transformed") {
+    const frame = evaluated.frame;
+    const local = evaluated.local;
+    if (!frame || !local) {
+      return null;
+    }
+    if (rewriteMode === "delta") {
+      const relativeBase = context.currentPoint;
+      if (!relativeBase) {
+        return null;
+      }
+      return {
+        ...base,
+        transform: frame,
+        handleType: "coordinate",
+        coordinateSpace: "frame-local",
+        local,
+        frame,
+        rewriteMode,
+        relativeBase
+      };
+    }
+
+    return {
+      ...base,
+      transform: frame,
+      handleType: "coordinate",
+      coordinateSpace: "frame-local",
+      local,
+      frame,
+      rewriteMode
+    };
+  }
+
+  return {
+    ...base,
+    transform: identityMatrix(),
+    handleType: "coordinate",
+    coordinateSpace: "world-only",
+    rewriteMode: "unsupported"
   };
 }
 
 function determineRewriteMode(evaluated: EvaluatedCoordinate): "direct" | "delta" | "unsupported" {
   if (evaluated.relativePrefix) return "delta";
+  if (evaluated.kind === "transformed" && evaluated.coordinateForm === "explicit") return "direct";
   const form = evaluated.coordinateForm;
   if (form === "cartesian" || form === "polar" || form === "xyz") return "direct";
-  // named, calc, explicit (perpendicular/intersection/canvas), unknown
+  // named, calc, explicit world-only (perpendicular/intersection), unknown
   return "unsupported";
 }

@@ -1,4 +1,5 @@
 import { useCallback, useMemo, type Dispatch, type MutableRefObject, type PointerEvent as ReactPointerEvent, type RefObject, type SetStateAction } from "react";
+import { unsafePoint } from "tikz-editor/coords/index";
 import {
   buildTicks,
   buildValueSequence,
@@ -17,6 +18,7 @@ import {
   upsertGuideValue
 } from "./panel-helpers";
 import type { CanvasTransform } from "../../store/types";
+import type { ClientPoint } from "../coords/types";
 import type { GuideDragState, GuideOrientation, GuidePreview, GuidesState } from "./types";
 import type { SvgViewBox } from "tikz-editor/svg/index";
 
@@ -196,7 +198,7 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
   }, [overlayGridSteps, showGrid, svgResult, visibleRanges]);
 
   const resolveGuideFromClient = useCallback(
-    (orientation: GuideOrientation, clientX: number, clientY: number): { value: number; overViewport: boolean } | null => {
+    (orientation: GuideOrientation, clientPoint: ClientPoint): { value: number; overViewport: boolean } | null => {
       const viewport = viewportRef.current;
       const currentSvg = svgResultRef.current;
       if (!viewport || !currentSvg) {
@@ -204,27 +206,27 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
       }
 
       const rect = viewport.getBoundingClientRect();
-      const localX = clientX - rect.left;
-      const localY = clientY - rect.top;
+      const localX = clientPoint.x - rect.left;
+      const localY = clientPoint.y - rect.top;
       const world = viewportToWorldPoint(localX, localY, canvasTransformRef.current, currentSvg.viewBox);
       return {
         value: orientation === "vertical" ? world.x : world.y,
-        overViewport: isPointInsideRect(clientX, clientY, rect)
+        overViewport: isPointInsideRect(clientPoint, rect)
       };
     },
     [canvasTransformRef, svgResultRef, viewportRef]
   );
 
   const isPointerOverGuideDeleteZone = useCallback(
-    (orientation: GuideOrientation, clientX: number, clientY: number): boolean => {
+    (orientation: GuideOrientation, clientPoint: ClientPoint): boolean => {
       const viewportRect = viewportRef.current?.getBoundingClientRect();
       if (!viewportRect) {
         return false;
       }
       if (orientation === "horizontal") {
-        return clientY <= viewportRect.top + 0.5;
+        return clientPoint.y <= viewportRect.top + 0.5;
       }
-      return clientX <= viewportRect.left + 0.5;
+      return clientPoint.x <= viewportRect.left + 0.5;
     },
     [viewportRef]
   );
@@ -237,7 +239,8 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
       if (event.button !== 0) {
         return;
       }
-      const guide = resolveGuideFromClient(orientation, event.clientX, event.clientY);
+      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const guide = resolveGuideFromClient(orientation, clientPoint);
       if (!guide) {
         return;
       }
@@ -250,7 +253,7 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
         sourceValue: value,
         value: guide.value,
         overViewport: guide.overViewport,
-        overDeleteZone: isPointerOverGuideDeleteZone(orientation, event.clientX, event.clientY)
+        overDeleteZone: isPointerOverGuideDeleteZone(orientation, clientPoint)
       };
       setGuidePreview(
         guide.overViewport
@@ -274,7 +277,8 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
       if (event.button !== 0) {
         return;
       }
-      const guide = resolveGuideFromClient("horizontal", event.clientX, event.clientY);
+      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const guide = resolveGuideFromClient("horizontal", clientPoint);
       if (!guide) {
         return;
       }
@@ -313,7 +317,8 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
         return;
       }
 
-      const guide = resolveGuideFromClient("vertical", event.clientX, event.clientY);
+      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const guide = resolveGuideFromClient("vertical", clientPoint);
       if (!guide) {
         return;
       }

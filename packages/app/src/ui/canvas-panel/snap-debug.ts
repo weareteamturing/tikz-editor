@@ -1,4 +1,4 @@
-import type { Point } from "tikz-editor/semantic/types";
+import type { WorldPoint } from "../coords/types";
 import type { SnapContext, SnapLine } from "tikz-editor/edit/snapping";
 
 const SNAP_DEBUG_MIN_WIDTH_PX = 280;
@@ -42,7 +42,7 @@ export type SnapDebugContextSummary = {
   zoom: number;
   thresholdWorld: number;
   selectedSourceIds: string[];
-  referencePointCount: number;
+  referenceWorldPointCount: number;
   referenceBoundsCount: number;
   horizontalGapCount: number;
   verticalGapCount: number;
@@ -76,7 +76,7 @@ function roundForDebug(value: number): number {
   return Math.round(value * 1e4) / 1e4;
 }
 
-export function toDebugPoint(point: Point | null | undefined): SnapDebugPoint | null {
+export function toDebugPoint(point: WorldPoint | null | undefined): SnapDebugPoint | null {
   if (!point) {
     return null;
   }
@@ -95,7 +95,7 @@ export function summarizeSnapContextForDebug(context: SnapContext | null | undef
     zoom: roundForDebug(context.zoom),
     thresholdWorld: roundForDebug(context.settings.thresholdPx / Math.max(context.zoom, 1e-6)),
     selectedSourceIds: context.selectedSourceIds.slice(0, 8),
-    referencePointCount: context.referencePoints.length,
+    referenceWorldPointCount: context.referencePoints.length,
     referenceBoundsCount: context.referenceBounds.length,
     horizontalGapCount: context.visibleGaps.horizontal.length,
     verticalGapCount: context.visibleGaps.vertical.length

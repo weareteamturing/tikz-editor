@@ -74,8 +74,8 @@ import { parseBooleanishNormalized } from "../utils/booleanish.js";
 import { stripWrappingBraces } from "../utils/braces.js";
 import { evaluatePgfMathExpression, formatPgfMathNumber } from "./pgfmath/evaluator.js";
 import { withPgfMathRuntime } from "./pgfmath/runtime.js";
+import type { WorldBounds } from "../coords/points.js";
 import type {
-  Bounds,
   EditHandle,
   EvaluateOptions,
   FeatureUsage,
@@ -1864,7 +1864,7 @@ function normalizeColorAliasName(raw: string): string | null {
   return trimmed.toLowerCase();
 }
 
-export function computeBounds(elements: SceneElement[]): Bounds | undefined {
+export function computeBounds(elements: SceneElement[]): WorldBounds | undefined {
   const points: Array<{ x: number; y: number }> = [];
 
   for (const element of elements) {

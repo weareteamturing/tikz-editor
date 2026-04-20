@@ -1,14 +1,10 @@
 import { applyMatrix } from "tikz-editor/semantic/transform";
-import type {
-  Bounds,
-  Matrix2D,
-  Point,
-  SceneClipPath,
-  SceneElement,
-  ScenePathCommand,
-  SceneText
-} from "tikz-editor/semantic/types";
+import type { SvgTransform, WorldBounds, WorldPoint, WorldTransform } from "tikz-editor/coords/index";
+import { worldToSvgTransform } from "tikz-editor/coords/index";
+import type { SceneClipPath, SceneElement, ScenePathCommand, SceneText } from "tikz-editor/semantic/types";
+import type { SvgBounds, SvgPoint } from "../coords/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
+import { worldToSvgPoint } from "./geometry";
 
 const HIT_STROKE_PX = 18;
 const ADORNMENT_TEXT_HIT_PADDING_PX = 8;
@@ -27,7 +23,7 @@ export type HitRegion =
       targetId: string;
       clipChain?: HitRegionClipPath[];
       d: string;
-      transform?: Matrix2D;
+      transform?: SvgTransform;
       pointerMode: "stroke" | "fill";
       strokeWidth: number;
     }
@@ -70,7 +66,7 @@ export type HitRegion =
       cx: number;
       cy: number;
       rotation: number;
-      transform?: Matrix2D;
+      transform?: SvgTransform;
       interactionMode?: "move" | "text";
       pointerMode?: "stroke" | "fill";
       strokeWidth?: number;
@@ -87,7 +83,7 @@ export type HitRegion =
 
 export type ScopeHitBounds = {
   scopeId: string;
-  bounds: Bounds;
+  bounds: WorldBounds;
 };
 
 export function buildHitRegions(
@@ -326,7 +322,7 @@ function encodeClipChain(
 function textGeometryInSvg(
   element: SceneText,
   viewBox: Pick<SvgViewBox, "y" | "height">
-): { cx: number; cy: number; width: number; height: number; rotation: number; transform?: Matrix2D } {
+): { cx: number; cy: number; width: number; height: number; rotation: number; transform?: SvgTransform } {
   const center = worldToSvgPoint(element.position, viewBox);
   const width = element.textBlockWidth ?? estimateTextBlockWidth(element.text, element.style.fontSize);
   const height = element.textBlockHeight ?? Math.max(1, element.text.split("\n").length) * element.style.fontSize * 1.15;
@@ -348,7 +344,7 @@ function resolveTextRectTransformInSvg(
   element: SceneText,
   localRect: { x: number; y: number; width: number; height: number },
   viewBox: Pick<SvgViewBox, "y" | "height">
-): Matrix2D | undefined {
+): SvgTransform | undefined {
   const center = element.position;
   const halfWidth = localRect.width / 2;
   const halfHeight = localRect.height / 2;
@@ -375,7 +371,7 @@ function resolveTextRectTransformInSvg(
   return isIdentityAffine(transform) ? undefined : transform;
 }
 
-function rotateWorldPointAroundCenter(point: Point, center: Point, degrees: number): Point {
+function rotateWorldPointAroundCenter(point: WorldPoint, center: WorldPoint, degrees: number): WorldPoint {
   if (Math.abs(degrees) <= 1e-6) {
     return point;
   }
@@ -397,7 +393,7 @@ function rectTransformFromCorners(
     topRight: { x: number; y: number };
     bottomLeft: { x: number; y: number };
   }
-): Matrix2D {
+): SvgTransform {
   const safeWidth = Math.max(localRect.width, 1e-9);
   const safeHeight = Math.max(localRect.height, 1e-9);
   const a = (corners.topRight.x - corners.topLeft.x) / safeWidth;
@@ -409,7 +405,7 @@ function rectTransformFromCorners(
   return { a, b, c, d, e, f };
 }
 
-function isIdentityAffine(matrix: Matrix2D): boolean {
+function isIdentityAffine(matrix: SvgTransform): boolean {
   return (
     Math.abs(matrix.a - 1) <= 1e-6 &&
     Math.abs(matrix.b) <= 1e-6 &&
@@ -427,17 +423,6 @@ function estimateTextBlockWidth(text: string, fontSize: number): number {
     return 0;
   }
   return maxChars * fontSize * 0.7;
-}
-
-function worldToSvgPoint(point: { x: number; y: number }, viewBox: Pick<SvgViewBox, "y" | "height">): { x: number; y: number } {
-  return {
-    x: point.x,
-    y: worldToSvgY(point.y, viewBox)
-  };
-}
-
-function worldToSvgY(worldY: number, viewBox: Pick<SvgViewBox, "y" | "height">): number {
-  return viewBox.y + viewBox.height - (worldY - viewBox.y);
 }
 
 function encodePathData(commands: ScenePathCommand[], viewBox: Pick<SvgViewBox, "y" | "height">): string {
@@ -478,21 +463,8 @@ function fmt(value: number): string {
 }
 
 function worldTransformToSvgTransform(
-  matrix: Matrix2D,
+  matrix: WorldTransform,
   viewBox: Pick<SvgViewBox, "y" | "height">
-): Matrix2D {
-  const k = viewBox.y + viewBox.height + viewBox.y;
-  const flip: Matrix2D = { a: 1, b: 0, c: 0, d: -1, e: 0, f: k };
-  return multiplyAffine(multiplyAffine(flip, matrix), flip);
-}
-
-function multiplyAffine(left: Matrix2D, right: Matrix2D): Matrix2D {
-  return {
-    a: left.a * right.a + left.c * right.b,
-    b: left.b * right.a + left.d * right.b,
-    c: left.a * right.c + left.c * right.d,
-    d: left.b * right.c + left.d * right.d,
-    e: left.a * right.e + left.c * right.f + left.e,
-    f: left.b * right.e + left.d * right.f + left.f
-  };
+): SvgTransform {
+  return worldToSvgTransform(matrix, viewBox);
 }

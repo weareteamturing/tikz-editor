@@ -1,9 +1,9 @@
-import type { Point } from "../semantic/types.js";
+import type { WorldPoint } from "../coords/points.js";
 
 /**
  * Find the closest point on a line segment to a given point.
  */
-export function closestPointOnLine(p: Point, a: Point, b: Point): { t: number; point: Point } {
+export function closestPointOnLine(p: WorldPoint, a: WorldPoint, b: WorldPoint): { t: number; point: WorldPoint } {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const lengthSq = dx * dx + dy * dy;
@@ -20,7 +20,7 @@ export function closestPointOnLine(p: Point, a: Point, b: Point): { t: number; p
 /**
  * Evaluate a cubic Bezier at parameter t.
  */
-export function evalCubic(t: number, c0: Point, c1: Point, c2: Point, c3: Point): Point {
+export function evalCubic(t: number, c0: WorldPoint, c1: WorldPoint, c2: WorldPoint, c3: WorldPoint): WorldPoint {
   const s = 1 - t;
   const s2 = s * s;
   const t2 = t * t;
@@ -35,12 +35,12 @@ export function evalCubic(t: number, c0: Point, c1: Point, c2: Point, c3: Point)
  * Uses iterative subdivision for robust results.
  */
 export function closestPointOnCubic(
-  p: Point,
-  c0: Point,
-  c1: Point,
-  c2: Point,
-  c3: Point
-): { t: number; point: Point } {
+  p: WorldPoint,
+  c0: WorldPoint,
+  c1: WorldPoint,
+  c2: WorldPoint,
+  c3: WorldPoint
+): { t: number; point: WorldPoint } {
   // Sample coarsely, then refine around the best sample
   const COARSE_SAMPLES = 32;
   let bestT = 0;
@@ -84,12 +84,12 @@ export function closestPointOnCubic(
  */
 export function subdivideCubicAt(
   t: number,
-  c0: Point,
-  c1: Point,
-  c2: Point,
-  c3: Point
-): { left: [Point, Point, Point, Point]; right: [Point, Point, Point, Point] } {
-  const lerp = (a: Point, b: Point): Point => ({
+  c0: WorldPoint,
+  c1: WorldPoint,
+  c2: WorldPoint,
+  c3: WorldPoint
+): { left: [WorldPoint, WorldPoint, WorldPoint, WorldPoint]; right: [WorldPoint, WorldPoint, WorldPoint, WorldPoint] } {
+  const lerp = (a: WorldPoint, b: WorldPoint): WorldPoint => ({
     x: a.x + t * (b.x - a.x),
     y: a.y + t * (b.y - a.y)
   });

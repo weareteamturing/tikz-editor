@@ -1,9 +1,10 @@
-import type { Point, ScenePathCommand } from "../semantic/types.js";
+import type { WorldPoint } from "../coords/points.js";
+import type { ScenePathCommand } from "../semantic/types.js";
 
 export type Frame = {
-  point: Point;
-  tangent: Point;
-  normal: Point;
+  point: WorldPoint;
+  tangent: WorldPoint;
+  normal: WorldPoint;
 };
 
 const EPSILON = 1e-9;
@@ -24,48 +25,48 @@ type ArcGeometry = {
 export type PathSegment =
   | {
       kind: "L";
-      from: Point;
-      to: Point;
+      from: WorldPoint;
+      to: WorldPoint;
       command: Extract<ScenePathCommand, { kind: "L" }>;
       length: number;
     }
   | {
       kind: "C";
-      from: Point;
-      to: Point;
+      from: WorldPoint;
+      to: WorldPoint;
       command: Extract<ScenePathCommand, { kind: "C" }>;
       length: number;
     }
   | {
       kind: "A";
-      from: Point;
-      to: Point;
+      from: WorldPoint;
+      to: WorldPoint;
       command: Extract<ScenePathCommand, { kind: "A" }>;
       length: number;
       arc: ArcGeometry | null;
     };
 
-export function clonePoint(point: Point): Point {
+export function clonePoint(point: WorldPoint): WorldPoint {
   return { x: point.x, y: point.y };
 }
 
-export function addPoint(left: Point, right: Point): Point {
+export function addPoint(left: WorldPoint, right: WorldPoint): WorldPoint {
   return { x: left.x + right.x, y: left.y + right.y };
 }
 
-export function subtractPoint(left: Point, right: Point): Point {
+export function subtractPoint(left: WorldPoint, right: WorldPoint): WorldPoint {
   return { x: left.x - right.x, y: left.y - right.y };
 }
 
-export function scaleVector(vector: Point, factor: number): Point {
+export function scaleVector(vector: WorldPoint, factor: number): WorldPoint {
   return { x: vector.x * factor, y: vector.y * factor };
 }
 
-export function lengthOfVector(vector: Point): number {
+export function lengthOfVector(vector: WorldPoint): number {
   return Math.hypot(vector.x, vector.y);
 }
 
-export function normalizeVector(vector: Point): Point {
+export function normalizeVector(vector: WorldPoint): WorldPoint {
   const length = lengthOfVector(vector);
   if (length <= EPSILON) {
     return { x: 1, y: 0 };
@@ -73,7 +74,7 @@ export function normalizeVector(vector: Point): Point {
   return { x: vector.x / length, y: vector.y / length };
 }
 
-export function perpendicular(vector: Point): Point {
+export function perpendicular(vector: WorldPoint): WorldPoint {
   return { x: -vector.y, y: vector.x };
 }
 
@@ -133,7 +134,7 @@ export function hasDrawablePathCommands(commands: ScenePathCommand[]): boolean {
 
 export function commandsToSegments(commands: ScenePathCommand[]): PathSegment[] {
   const segments: PathSegment[] = [];
-  let current: Point | null = null;
+  let current: WorldPoint | null = null;
 
   for (const command of commands) {
     if (command.kind === "M") {
@@ -283,7 +284,7 @@ export function sampleFrameFromEndExtrapolated(segments: PathSegment[], distance
   return sampleSegmentFrameAtDistance(first, 0);
 }
 
-export function samplePointFromStartExtrapolated(segments: PathSegment[], distance: number): Point | null {
+export function samplePointFromStartExtrapolated(segments: PathSegment[], distance: number): WorldPoint | null {
   const frame = sampleFrameFromStartExtrapolated(segments, distance);
   return frame ? frame.point : null;
 }
@@ -423,11 +424,11 @@ function sampleSegmentFrameAtDistance(segment: PathSegment, distance: number): F
   return { point, tangent, normal };
 }
 
-function lineLength(from: Point, to: Point): number {
+function lineLength(from: WorldPoint, to: WorldPoint): number {
   return Math.hypot(to.x - from.x, to.y - from.y);
 }
 
-function interpolateLine(from: Point, to: Point, ratio: number): Point {
+function interpolateLine(from: WorldPoint, to: WorldPoint, ratio: number): WorldPoint {
   const t = clamp(ratio, 0, 1);
   return {
     x: from.x + (to.x - from.x) * t,
@@ -435,7 +436,7 @@ function interpolateLine(from: Point, to: Point, ratio: number): Point {
   };
 }
 
-function cubicLength(p0: Point, p1: Point, p2: Point, p3: Point, t0: number, t1: number): number {
+function cubicLength(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, t0: number, t1: number): number {
   const start = clamp(t0, 0, 1);
   const end = clamp(t1, 0, 1);
   if (end - start <= EPSILON) {
@@ -447,7 +448,7 @@ function cubicLength(p0: Point, p1: Point, p2: Point, p3: Point, t0: number, t1:
   }, start, end, 30);
 }
 
-function parameterAtCubicDistance(p0: Point, p1: Point, p2: Point, p3: Point, distance: number): number {
+function parameterAtCubicDistance(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, distance: number): number {
   const total = cubicLength(p0, p1, p2, p3, 0, 1);
   if (total <= EPSILON) {
     return 0;
@@ -467,7 +468,7 @@ function parameterAtCubicDistance(p0: Point, p1: Point, p2: Point, p3: Point, di
   return (low + high) / 2;
 }
 
-function pointOnCubic(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point {
+function pointOnCubic(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, t: number): WorldPoint {
   const u = clamp(t, 0, 1);
   const oneMinus = 1 - u;
   const oneMinusSq = oneMinus * oneMinus;
@@ -486,7 +487,7 @@ function pointOnCubic(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Po
   };
 }
 
-function derivativeOnCubic(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point {
+function derivativeOnCubic(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, t: number): WorldPoint {
   const u = clamp(t, 0, 1);
   const oneMinus = 1 - u;
   return {
@@ -501,7 +502,7 @@ function derivativeOnCubic(p0: Point, p1: Point, p2: Point, p3: Point, t: number
   };
 }
 
-function splitCubic(p0: Point, p1: Point, p2: Point, p3: Point, t: number): [[Point, Point, Point, Point], [Point, Point, Point, Point]] {
+function splitCubic(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, t: number): [[WorldPoint, WorldPoint, WorldPoint, WorldPoint], [WorldPoint, WorldPoint, WorldPoint, WorldPoint]] {
   const u = clamp(t, 0, 1);
   const p01 = interpolateLine(p0, p1, u);
   const p12 = interpolateLine(p1, p2, u);
@@ -515,7 +516,7 @@ function splitCubic(p0: Point, p1: Point, p2: Point, p3: Point, t: number): [[Po
   ];
 }
 
-function sliceCubic(p0: Point, p1: Point, p2: Point, p3: Point, t0: number, t1: number): [Point, Point, Point, Point] {
+function sliceCubic(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, t0: number, t1: number): [WorldPoint, WorldPoint, WorldPoint, WorldPoint] {
   const start = clamp(t0, 0, 1);
   const end = clamp(t1, 0, 1);
   if (end <= start + EPSILON) {
@@ -539,7 +540,7 @@ function sliceCubic(p0: Point, p1: Point, p2: Point, p3: Point, t0: number, t1: 
   return middle;
 }
 
-function arcEndpointToCenter(from: Point, command: Extract<ScenePathCommand, { kind: "A" }>): ArcGeometry | null {
+function arcEndpointToCenter(from: WorldPoint, command: Extract<ScenePathCommand, { kind: "A" }>): ArcGeometry | null {
   const to = command.to;
   let rx = Math.abs(command.rx);
   let ry = Math.abs(command.ry);
@@ -632,7 +633,7 @@ function parameterAtArcDistance(arc: ArcGeometry, distance: number): number {
   return (low + high) / 2;
 }
 
-function pointOnArc(arc: ArcGeometry, t: number): Point {
+function pointOnArc(arc: ArcGeometry, t: number): WorldPoint {
   const u = clamp(t, 0, 1);
   const theta = arc.startAngle + arc.deltaAngle * u;
   const cosPhi = Math.cos(arc.phi);
@@ -645,7 +646,7 @@ function pointOnArc(arc: ArcGeometry, t: number): Point {
   };
 }
 
-function derivativeOnArc(arc: ArcGeometry, t: number): Point {
+function derivativeOnArc(arc: ArcGeometry, t: number): WorldPoint {
   const u = clamp(t, 0, 1);
   const theta = arc.startAngle + arc.deltaAngle * u;
   const cosPhi = Math.cos(arc.phi);

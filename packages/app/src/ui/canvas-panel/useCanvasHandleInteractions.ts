@@ -2,7 +2,8 @@ import { useCallback, type PointerEvent as ReactPointerEvent } from "react";
 import { resolveTransformInspectorMutationContext } from "tikz-editor/edit/inspector";
 import { buildSnapContext } from "tikz-editor/edit/snapping";
 import type { ResizeRole } from "tikz-editor/edit/actions";
-import type { EditHandle, Point, ScenePath } from "tikz-editor/semantic/types";
+import type { EditHandle, ScenePath } from "tikz-editor/semantic/types";
+import type { WorldPoint } from "../coords/types";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import { clientToWorldPoint } from "./geometry";
 import { resolveResizeFrameForSource, type ResizeFrame } from "./resize-frames";
@@ -358,7 +359,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
   );
 
   const onRotateHandlePointerDown = useCallback(
-    (event: ReactPointerEvent<SVGElement>, sourceId: string, centerWorld: Point, cursor: string) => {
+    (event: ReactPointerEvent<SVGElement>, sourceId: string, centerWorld: WorldPoint, cursor: string) => {
       if (!svgResult || toolMode !== "select" || event.button !== 0) return;
       if (cursor === "not-allowed") {
         const reason = directManipulationDisabledReasonBySourceId?.get(sourceId);

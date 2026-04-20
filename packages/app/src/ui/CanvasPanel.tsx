@@ -53,17 +53,18 @@ import {
 import {
   EditHandle,
   NodeAnchorTarget,
-  Point,
   SceneElement,
   ScenePath,
   SceneText
 } from "tikz-editor/semantic/types";
+import { unsafeBounds, unsafePoint } from "tikz-editor/coords/index";
 import { renderTikzToSvg } from "tikz-editor/render/index";
 import { type SvgDiffHints, type SvgViewBox } from "tikz-editor/svg/index";
 import type { SvgRenderModel } from "tikz-editor/svg";
 import { getSharedEditAnalysisView, getSharedEditAnalysisSession } from "../edit-analysis-manager";
 import { useEditorStore } from "../store/store";
 import type { CanvasDragKind, CanvasTransform } from "../store/types";
+import type { ClientPoint, SvgBounds, SvgPoint, ViewportPoint, WorldPoint } from "./coords/types";
 import { getActiveEditorPlatform } from "../platform/current";
 import { buildHitRegions, type HitRegion } from "./canvas-panel/hit-regions";
 import { computeDragCapability } from "./canvas-panel/drag-capability";
@@ -79,7 +80,6 @@ import {
 import { useCanvasDragController } from "./canvas-panel/useCanvasDragController";
 import type {
   ApplyActionFeedback,
-  Bounds,
   DragState,
   DragTooltipState,
   EditableTextTarget,
@@ -93,6 +93,7 @@ import type {
   PendingBezier,
   PathToolDraft,
   SelectionBounds,
+  SourceBoundsMap,
   SnapDebugLogInput,
   TextEditingSession
 } from "./canvas-panel/types";
@@ -191,7 +192,7 @@ import {
 import { createSourceRenderOffsetMap } from "./canvas-panel/text-offset-map";
 import { useCanvasSelectionDerivedState } from "./canvas-panel/useCanvasSelectionDerivedState";
 import {
-  isWorldPointWithinScopeBounds,
+  isSvgPointWithinScopeBounds,
   resolveFocusedScopeIdForSelection
 } from "./canvas-panel/scope-overlay";
 import {
@@ -260,45 +261,6 @@ type DiagnosticRow = {
 };
 
 
-type HandleDisplay =
-  | {
-      key: string;
-      x: number;
-      y: number;
-      cursor: string;
-      kind: "move-handle";
-      handle: EditHandle;
-    }
-  | {
-      key: string;
-      x: number;
-      y: number;
-      cursor: string;
-      kind: "move-element";
-      elementId: string;
-    }
-  | {
-      key: string;
-      x: number;
-      y: number;
-      cursor: string;
-      kind: "resize-element";
-      elementId: string;
-      role: ResizeRole;
-      rotationDeg: number;
-    }
-  | {
-      key: string;
-      x: number;
-      y: number;
-      anchorX: number;
-      anchorY: number;
-      centerWorld: Point;
-      cursor: string;
-      kind: "rotate-element";
-      elementId: string;
-    };
-
 type GridLines = {
   verticalMinor: number[];
   verticalMajor: number[];
@@ -345,8 +307,7 @@ type BucketPreviewSession = {
 
 type CanvasContextMenuState = {
   target: CanvasContextMenuTarget;
-  anchorX: number;
-  anchorY: number;
+  anchor: ViewportPoint;
   handleIdOverride?: string | null;
   includeEditEquationForSingleNode?: boolean;
   includeMatrixMultiRemoveRow?: boolean;
@@ -358,8 +319,7 @@ type CanvasContextMenuState = {
 };
 
 type PendingNativeContextMenuRequest = {
-  clientX: number;
-  clientY: number;
+  clientPoint: ClientPoint;
   clickedSourceId: string;
   clickedHandleId: string | null;
 };
@@ -725,21 +685,20 @@ function resolveTextSelectionRangeForDrag(
 
 function estimateTextOffsetFromClient(
   target: EditableTextTarget,
-  clientX: number,
-  clientY: number,
+  clientPoint: ClientPoint,
   interactionSvgElement: SVGSVGElement | null,
   viewportRef: { current: HTMLDivElement | null },
   svgResult: { viewBox: SvgViewBox } | null,
   canvasTransform: CanvasTransform
 ): number {
   const contentBox = resolveRectHitRegionContentBox(target.region);
-  const svgPoint = clientToSvgPoint(clientX, clientY, interactionSvgElement) ?? (() => {
+  const svgPoint = clientToSvgPoint(clientPoint.x, clientPoint.y, interactionSvgElement) ?? (() => {
     const viewportRect = viewportRef.current?.getBoundingClientRect();
-    const localViewportX = viewportRect ? clientX - viewportRect.left : clientX;
-    const localViewportY = viewportRect ? clientY - viewportRect.top : clientY;
+    const localViewportX = viewportRect ? clientPoint.x - viewportRect.left : clientPoint.x;
+    const localViewportY = viewportRect ? clientPoint.y - viewportRect.top : clientPoint.y;
     return svgResult
       ? viewportToSvgPoint(localViewportX, localViewportY, canvasTransform, svgResult.viewBox)
-      : { x: clientX, y: clientY };
+      : unsafePoint<SvgPoint>(clientPoint.x, clientPoint.y);
   })();
   const localPoint = mapPointToRectRegionLocal(svgPoint, target.region);
   const xRatio =
@@ -751,8 +710,7 @@ function estimateTextOffsetFromClient(
 
 function estimateTextLineRangeFromClient(
   target: EditableTextTarget,
-  clientX: number,
-  clientY: number,
+  clientPoint: ClientPoint,
   interactionSvgElement: SVGSVGElement | null,
   viewportRef: { current: HTMLDivElement | null },
   svgResult: { viewBox: SvgViewBox } | null,
@@ -767,13 +725,13 @@ function estimateTextLineRangeFromClient(
   }
 
   const contentBox = resolveRectHitRegionContentBox(target.region);
-  const svgPoint = clientToSvgPoint(clientX, clientY, interactionSvgElement) ?? (() => {
+  const svgPoint = clientToSvgPoint(clientPoint.x, clientPoint.y, interactionSvgElement) ?? (() => {
     const viewportRect = viewportRef.current?.getBoundingClientRect();
-    const localViewportX = viewportRect ? clientX - viewportRect.left : clientX;
-    const localViewportY = viewportRect ? clientY - viewportRect.top : clientY;
+    const localViewportX = viewportRect ? clientPoint.x - viewportRect.left : clientPoint.x;
+    const localViewportY = viewportRect ? clientPoint.y - viewportRect.top : clientPoint.y;
     return svgResult
       ? viewportToSvgPoint(localViewportX, localViewportY, canvasTransform, svgResult.viewBox)
-      : { x: clientX, y: clientY };
+      : unsafePoint<SvgPoint>(clientPoint.x, clientPoint.y);
   })();
   const localPoint = mapPointToRectRegionLocal(svgPoint, target.region);
   const yRatio =
@@ -813,7 +771,7 @@ function expandSvgViewBox(
   };
 }
 
-function mergeBoundsList(boundsList: readonly Bounds[]): Bounds | null {
+function mergeBoundsList(boundsList: readonly SvgBounds[]): SvgBounds | null {
   if (boundsList.length === 0) {
     return null;
   }
@@ -833,7 +791,7 @@ function mergeBoundsList(boundsList: readonly Bounds[]): Bounds | null {
   return { minX, minY, maxX, maxY };
 }
 
-function boundsMaxDimension(bounds: Bounds): number {
+function boundsMaxDimension(bounds: SvgBounds): number {
   return Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
 }
 
@@ -1018,7 +976,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       viewBox: svgResult.viewBox
     };
   }, [baseSvgModel, svgResult]);
-  const [toolCursorWorld, setToolCursorWorld] = useState<Point | null>(null);
+  const [toolCursorWorld, setToolCursorWorld] = useState<WorldPoint | null>(null);
   const [magnifierState, setMagnifierState] = useState<{ pointerId: number; x: number; y: number } | null>(null);
   const [pathDraft, setPathDraft] = useState<PathToolDraft | null>(null);
   const [freehandDraft, setFreehandDraft] = useState<FreehandToolDraft | null>(null);
@@ -1043,7 +1001,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   const [fitToContentModeActive, setFitToContentModeActive] = useState(true);
   const [expandedDensePathSourceId, setExpandedDensePathSourceId] = useState<string | null>(null);
   const bucketPreviewSessionRef = useRef<BucketPreviewSession | null>(null);
-  const contextMenuContextRef = useRef<{ clickedTargetId: string | null; clickedWorld: Point | null }>({
+  const contextMenuContextRef = useRef<{ clickedTargetId: string | null; clickedWorld: WorldPoint | null }>({
     clickedTargetId: null,
     clickedWorld: null
   });
@@ -1338,8 +1296,8 @@ export const CanvasPanel = memo(function CanvasPanel({
       clickedWorld:
         svgResult
           ? viewportToWorldPoint(
-              pendingNativeContextMenuRequest.clientX - rect.left,
-              pendingNativeContextMenuRequest.clientY - rect.top,
+              pendingNativeContextMenuRequest.clientPoint.x - rect.left,
+              pendingNativeContextMenuRequest.clientPoint.y - rect.top,
               canvasTransform,
               svgResult.viewBox
             )
@@ -1410,7 +1368,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   const selectedElementIdsRef = useRef(selectedElementIds);
   const svgResultRef = useRef(svgResult);
   const fitToContentModeActiveRef = useRef(fitToContentModeActive);
-  const sourceBoundsSvgRef = useRef(new Map<string, Bounds>());
+  const sourceBoundsSvgRef = useRef<SourceBoundsMap>(new Map<string, SvgBounds>());
   const liveResizeFramesRef = useRef(new Map<string, ReturnType<typeof resolveResizeFrameForSource>>());
   const previousViewBoxRef = useRef<SvgViewBox | null>(null);
   const guideDragRef = useRef<GuideDragState | null>(null);
@@ -2071,7 +2029,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   );
 
   const queueSelectionForAddedElement = useCallback(
-    (preferredWorld: Point, preferredSourceId?: string) => {
+    (preferredWorld: WorldPoint, preferredSourceId?: string) => {
       const beforeIds = new Set<string>();
       for (const element of snapshot.scene?.elements ?? []) {
         beforeIds.add(element.sourceRef.sourceId);
@@ -2092,8 +2050,8 @@ export const CanvasPanel = memo(function CanvasPanel({
     setToolCursorWorld(segment.endWorld);
   }, []);
 
-  const appendFreehandSamplePoint = useCallback((point: Point): Point[] | null => {
-    let nextPoints: Point[] | null = null;
+  const appendFreehandSamplePoint = useCallback((point: WorldPoint): WorldPoint[] | null => {
+    let nextPoints: WorldPoint[] | null = null;
     setFreehandDraft((previousDraft) => {
       if (!previousDraft) {
         return previousDraft;
@@ -2105,7 +2063,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     return nextPoints;
   }, []);
 
-  const finalizeFreehandDraft = useCallback((overridePoints?: Point[]) => {
+  const finalizeFreehandDraft = useCallback((overridePoints?: WorldPoint[]) => {
     const baseDraft = freehandDraftRef.current;
     const draft =
       baseDraft && overridePoints
@@ -2295,18 +2253,13 @@ export const CanvasPanel = memo(function CanvasPanel({
         totalWidth: textBlockWidth,
         region,
         popupAnchorBox: preferredBounds
-          ? {
-              x: preferredBounds.minX,
-              y: preferredBounds.minY,
-              width: preferredBounds.maxX - preferredBounds.minX,
-              height: preferredBounds.maxY - preferredBounds.minY
-            }
-          : {
-              x: region.cx - popupAnchorWidth / 2,
-              y: region.cy - popupAnchorHeight / 2,
-              width: popupAnchorWidth,
-              height: popupAnchorHeight
-            }
+          ? unsafeBounds<SvgBounds>(preferredBounds.minX, preferredBounds.minY, preferredBounds.maxX, preferredBounds.maxY)
+          : unsafeBounds<SvgBounds>(
+              region.cx - popupAnchorWidth / 2,
+              region.cy - popupAnchorHeight / 2,
+              region.cx + popupAnchorWidth / 2,
+              region.cy + popupAnchorHeight / 2
+            )
       };
     },
     [sceneTextByRegionKey, snapshot.parseResult, snapshot.scene, source, sourceBoundsSvg, svgResult]
@@ -2374,14 +2327,13 @@ export const CanvasPanel = memo(function CanvasPanel({
   }, []);
 
   const resolveTextOffsetFromClient = useCallback(
-    async (target: EditableTextTarget, clientX: number, clientY: number): Promise<number | null> => {
+    async (target: EditableTextTarget, clientPoint: ClientPoint): Promise<number | null> => {
       const outputJax = getActiveMathJaxOutputJax();
       const containerElement = resolveRenderedMathTextElement(target);
       if (!target.paragraphId || !outputJax || !containerElement) {
         return estimateTextOffsetFromClient(
           target,
-          clientX,
-          clientY,
+          clientPoint,
           interactionSvgRef.current,
           viewportRef,
           svgResult,
@@ -2392,8 +2344,7 @@ export const CanvasPanel = memo(function CanvasPanel({
         paragraphId: target.paragraphId,
         sourceText: target.renderSourceText,
         containerElement,
-        clientX,
-        clientY
+        clientPoint
       });
       if (!result.ok || result.offset == null) {
         return null;
@@ -2410,7 +2361,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   );
 
   const resolveTextLineRangeFromClient = useCallback(
-    async (target: EditableTextTarget, clientX: number, clientY: number): Promise<TextLineRange | null> => {
+    async (target: EditableTextTarget, clientPoint: ClientPoint): Promise<TextLineRange | null> => {
       const outputJax = getActiveMathJaxOutputJax();
       const containerElement = resolveRenderedMathTextElement(target);
       if (target.paragraphId && outputJax && containerElement) {
@@ -2418,8 +2369,7 @@ export const CanvasPanel = memo(function CanvasPanel({
           paragraphId: target.paragraphId,
           sourceText: target.renderSourceText,
           containerElement,
-          clientX,
-          clientY
+          clientPoint
         });
         if (result.ok && result.lineStartOffset != null && result.lineEndOffset != null) {
           const offsetMap = createSourceRenderOffsetMap(target.text, target.renderSourceText);
@@ -2433,8 +2383,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       }
       return estimateTextLineRangeFromClient(
         target,
-        clientX,
-        clientY,
+        clientPoint,
         interactionSvgRef.current,
         viewportRef,
         svgResult,
@@ -2481,10 +2430,10 @@ export const CanvasPanel = memo(function CanvasPanel({
         textEditingSession?.sourceId === target.sourceId ? textEditingSession.historyMergeKey : undefined;
       const clickCount = event.detail >= 2 ? event.detail : 1;
       const mode = resolveTextSelectionModeFromClickCount(clickCount);
+      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
       const provisionalOffset = estimateTextOffsetFromClient(
         target,
-        event.clientX,
-        event.clientY,
+        clientPoint,
         interactionSvgRef.current,
         viewportRef,
         svgResult,
@@ -2519,9 +2468,9 @@ export const CanvasPanel = memo(function CanvasPanel({
         mode,
         anchorLineRange: provisionalLineRange
       };
-      const offsetPromise = resolveTextOffsetFromClient(target, event.clientX, event.clientY);
+      const offsetPromise = resolveTextOffsetFromClient(target, clientPoint);
       const lineRangePromise = mode === "line"
-        ? resolveTextLineRangeFromClient(target, event.clientX, event.clientY)
+        ? resolveTextLineRangeFromClient(target, clientPoint)
         : Promise.resolve<TextLineRange | null>(null);
       void Promise.all([offsetPromise, lineRangePromise]).then(([offset, lineRange]) => {
         const resolvedOffset = offset == null ? provisionalOffset : clamp(offset, 0, target.text.length);
@@ -2851,9 +2800,10 @@ export const CanvasPanel = memo(function CanvasPanel({
       }
       const requestRevision = canvasTextEditStateRef.current.asyncRequestRevision;
       const baseInputRevision = canvasTextEditStateRef.current.inputRevision;
-      const offsetPromise = resolveTextOffsetFromClient(target, event.clientX, event.clientY);
+      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const offsetPromise = resolveTextOffsetFromClient(target, clientPoint);
       const lineRangePromise = drag.mode === "line"
-        ? resolveTextLineRangeFromClient(target, event.clientX, event.clientY)
+        ? resolveTextLineRangeFromClient(target, clientPoint)
         : Promise.resolve<TextLineRange | null>(null);
       void Promise.all([offsetPromise, lineRangePromise]).then(([offset, focusLineRange]) => {
         const resolvedOffset = offset == null ? drag.anchorOffset : clamp(offset, 0, target.text.length);
@@ -3011,7 +2961,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   });
 
   const resolveWorldFromViewportClient = useCallback(
-    (clientX: number, clientY: number): Point | null => {
+    (clientX: number, clientY: number): WorldPoint | null => {
       if (!svgResult) {
         return null;
       }
@@ -3039,8 +2989,9 @@ export const CanvasPanel = memo(function CanvasPanel({
 
       if (
         !additiveSelection &&
+        svgResult &&
         focusedScopeId != null &&
-        !isWorldPointWithinScopeBounds(focusedScopeId, world, scopeOverlay)
+        !isSvgPointWithinScopeBounds(focusedScopeId, worldToSvgPoint(world, svgResult.viewBox), scopeOverlay)
       ) {
         dispatch({ type: "SET_FOCUSED_SCOPE", scopeId: null });
       }
@@ -3105,8 +3056,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       } else if (resolution.selectionAction.kind === "select-only") {
         if (platform.menu?.usesNativeContextMenus) {
           setPendingNativeContextMenuRequest({
-            clientX,
-            clientY,
+            clientPoint: unsafePoint<ClientPoint>(clientX, clientY),
             clickedSourceId: resolution.selectionAction.sourceId,
             clickedHandleId
           });
@@ -3151,8 +3101,7 @@ export const CanvasPanel = memo(function CanvasPanel({
 
       const nextContextMenuState: CanvasContextMenuState = {
         target: effectiveTarget,
-        anchorX: clientX - rect.left,
-        anchorY: clientY - rect.top,
+        anchor: unsafePoint<ViewportPoint>(clientX - rect.left, clientY - rect.top),
         handleIdOverride: clickedHandleId,
         includeEditEquationForSingleNode,
         includeMatrixMultiInsertRowAbove: matrixMultiOptions.includeMatrixMultiInsertRowAbove,
@@ -3166,8 +3115,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       if (platform.menu?.usesNativeContextMenus) {
         if (clickedHandleId && clickedSourceId) {
           setPendingNativeContextMenuRequest({
-            clientX,
-            clientY,
+            clientPoint: unsafePoint<ClientPoint>(clientX, clientY),
             clickedSourceId,
             clickedHandleId
           });
@@ -3860,10 +3808,10 @@ export const CanvasPanel = memo(function CanvasPanel({
     const contentBox = resolveRectHitRegionContentBox(textEditingSession.region);
     const popupAnchorBox = textEditingSession.popupAnchorBox;
     const sourceBounds = popupAnchorBox ? undefined : sourceBoundsSvg.get(textEditingSession.sourceId);
-    const anchorLeft = popupAnchorBox?.x ?? sourceBounds?.minX ?? contentBox.x;
-    const anchorRight = popupAnchorBox ? popupAnchorBox.x + popupAnchorBox.width : (sourceBounds?.maxX ?? (contentBox.x + contentBox.width));
-    const anchorTop = popupAnchorBox?.y ?? sourceBounds?.minY ?? contentBox.y;
-    const anchorBottom = popupAnchorBox ? popupAnchorBox.y + popupAnchorBox.height : (sourceBounds?.maxY ?? (contentBox.y + contentBox.height));
+    const anchorLeft = popupAnchorBox?.minX ?? sourceBounds?.minX ?? contentBox.x;
+    const anchorRight = popupAnchorBox?.maxX ?? sourceBounds?.maxX ?? (contentBox.x + contentBox.width);
+    const anchorTop = popupAnchorBox?.minY ?? sourceBounds?.minY ?? contentBox.y;
+    const anchorBottom = popupAnchorBox?.maxY ?? sourceBounds?.maxY ?? (contentBox.y + contentBox.height);
     const leftEdge =
       canvasTransform.translateX + (anchorLeft - svgResult.viewBox.x) * canvasTransform.scale;
     const rightEdge =

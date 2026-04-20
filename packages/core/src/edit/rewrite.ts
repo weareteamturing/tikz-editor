@@ -1,4 +1,9 @@
-import type { EditHandle, Point } from "../semantic/types.js";
+import {
+  isCoordinateEditHandle,
+  isRelativeCoordinateEditHandle,
+  type EditHandle
+} from "../semantic/types.js";
+import type { WorldPoint } from "../coords/points.js";
 import { worldToLocal, worldDeltaToLocalDelta, localToSourceUnits } from "./coords.js";
 import { CM_PER_PT, formatNumber } from "./format.js";
 import { formatCoordinate, formatPolarCoordinate } from "./style.js";
@@ -8,7 +13,7 @@ import { formatCoordinate, formatPolarCoordinate } from "./style.js";
  * Returns null if the rewrite cannot be performed.
  */
 export function rewriteCoordinate(
-  newWorld: Point,
+  newWorld: WorldPoint,
   handle: EditHandle,
   source: string
 ): string | null {
@@ -41,7 +46,7 @@ export function supportsUnsupportedCoordinateDetach(handle: EditHandle): boolean
 }
 
 function rewriteUnsupportedCoordinate(
-  newWorld: Point,
+  newWorld: WorldPoint,
   handle: EditHandle,
   source: string
 ): string | null {
@@ -56,10 +61,13 @@ function rewriteUnsupportedCoordinate(
 }
 
 function rewriteCartesian(
-  newWorld: Point,
+  newWorld: WorldPoint,
   handle: EditHandle,
   source: string
 ): string | null {
+  if (!isCoordinateEditHandle(handle)) {
+    return null;
+  }
   const local = worldToLocal(newWorld, handle.transform);
   if (!local) {
     return null;
@@ -71,10 +79,13 @@ function rewriteCartesian(
 }
 
 function rewritePolar(
-  newWorld: Point,
+  newWorld: WorldPoint,
   handle: EditHandle,
   source: string
 ): string | null {
+  if (!isCoordinateEditHandle(handle)) {
+    return null;
+  }
   const local = worldToLocal(newWorld, handle.transform);
   if (!local) {
     return null;
@@ -87,15 +98,18 @@ function rewritePolar(
 }
 
 function rewriteDelta(
-  newWorld: Point,
+  newWorld: WorldPoint,
   handle: EditHandle,
   source: string
 ): string | null {
-  const base = handle.relativeBaseWorld;
+  if (!isRelativeCoordinateEditHandle(handle)) {
+    return null;
+  }
+  const base = handle.relativeBase;
   if (!base) {
     return null;
   }
-  const delta: Point = {
+  const delta: WorldPoint = {
     x: newWorld.x - base.x,
     y: newWorld.y - base.y
   };
@@ -134,7 +148,7 @@ function applyInsertionSyntax(source: string, handle: EditHandle, coordinate: st
   return coordinate;
 }
 
-function toPolar(point: Point): { angleDeg: number; radius: number } {
+function toPolar(point: WorldPoint): { angleDeg: number; radius: number } {
   const radius = Math.sqrt(point.x * point.x + point.y * point.y);
   let angleDeg = (Math.atan2(point.y, point.x) * 180) / Math.PI;
   if (angleDeg < 0) {
@@ -168,7 +182,7 @@ function anchorOffsetsForDirection(
   targetHH: number,
   currentHW: number,
   currentHH: number
-): { targetAnchor: Point; currentAnchor: Point } {
+): { targetAnchor: WorldPoint; currentAnchor: WorldPoint } {
   // TikZ positioning: target anchor is the "outward" side of A toward B,
   // current anchor is the "inward" side of B toward A.
   const dirMeta: Record<string, { tx: number; ty: number; cx: number; cy: number }> = {
@@ -253,11 +267,13 @@ function signedPairForDirection(
 }
 
 function rewritePositioning(
-  newWorld: Point,
+  newWorld: WorldPoint,
   handle: EditHandle
 ): string | null {
+  if (handle.handleType !== "node-positioning") {
+    return null;
+  }
   const ctx = handle.positioningContext;
-  if (!ctx) return null;
 
   const centerDeltaWorld = {
     x: newWorld.x - ctx.targetCenter.x,
@@ -270,7 +286,7 @@ function rewritePositioning(
   const maxComp = Math.max(absCx, absCy);
   const currentSigns = POSITIONING_DIRECTION_SIGNS[ctx.direction] ?? { x: 1, y: 0 };
 
-  const computeShift = (direction: string): Point => {
+  const computeShift = (direction: string): WorldPoint => {
     const offsets = ctx.anchorOffsetsByDirection?.[direction]
       ?? anchorOffsetsForDirection(direction, ctx.targetAnchorHW, ctx.targetAnchorHH, ctx.currentAnchorHW, ctx.currentAnchorHH);
     return {

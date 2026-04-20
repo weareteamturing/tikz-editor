@@ -1,20 +1,12 @@
 import { worldToLocal } from "tikz-editor/edit/coords";
 import type { ResizeRole } from "tikz-editor/edit/actions";
-import type {
-  EditHandle,
-  Matrix2D,
-  Point,
-  SceneCircle,
-  SceneElement,
-  SceneEllipse,
-  ScenePath,
-  ScenePathShapeHint,
-  SceneText
-} from "tikz-editor/semantic/types";
+import { EditHandle, isFrameLocalCoordinateEditHandle, SceneCircle, SceneElement, SceneEllipse, ScenePath, ScenePathShapeHint, SceneText } from "tikz-editor/semantic/types";
+import type { FrameLocalPoint, WorldTransform } from "tikz-editor/coords/index";
 import { applyMatrix, applyMatrixToVector } from "tikz-editor/semantic/transform";
 import type { SvgViewBox } from "tikz-editor/svg/types";
+import { unsafePoint } from "tikz-editor/coords/index";
+import type { SvgBounds, SvgPoint, WorldPoint } from "../coords/types";
 import { svgToWorldPoint, worldToSvgPoint } from "./geometry";
-import type { Bounds } from "./types";
 
 export type ResizeFrameCornerRole = Extract<ResizeRole, "top-left" | "top-right" | "bottom-left" | "bottom-right">;
 
@@ -26,22 +18,22 @@ export const RESIZE_FRAME_CORNER_ROLES: readonly ResizeFrameCornerRole[] = [
 ];
 
 export type ResizeFrameCorner = {
-  world: Point;
-  svg: Point;
+  world: WorldPoint;
+  svg: SvgPoint;
 };
 
 export type ResizeFrame = {
   sourceId: string;
-  centerWorld: Point;
-  centerSvg: Point;
+  centerWorld: WorldPoint;
+  centerSvg: SvgPoint;
   cornersByRole: Record<ResizeFrameCornerRole, ResizeFrameCorner>;
-  polygonSvg: Point[];
-  boundsSvg: Bounds;
+  polygonSvg: SvgPoint[];
+  boundsSvg: SvgBounds;
 };
 
 const EPSILON = 1e-6;
 
-const IDENTITY_MATRIX: Matrix2D = {
+const IDENTITY_MATRIX: WorldTransform = {
   a: 1,
   b: 0,
   c: 0,
@@ -95,7 +87,7 @@ export function resolveResizeFrameForSource(
 
 export function resolveResizeFrameFromBounds(
   sourceId: string,
-  bounds: Bounds,
+  bounds: SvgBounds,
   viewBox: SvgViewBox
 ): ResizeFrame | null {
   const width = bounds.maxX - bounds.minX;
@@ -104,20 +96,17 @@ export function resolveResizeFrameFromBounds(
     return null;
   }
 
-  const cornersByRoleSvg: Record<ResizeFrameCornerRole, Point> = {
-    "top-left": { x: bounds.minX, y: bounds.minY },
-    "top-right": { x: bounds.maxX, y: bounds.minY },
-    "bottom-right": { x: bounds.maxX, y: bounds.maxY },
-    "bottom-left": { x: bounds.minX, y: bounds.maxY }
+  const cornersByRoleSvg: Record<ResizeFrameCornerRole, SvgPoint> = {
+    "top-left": unsafePoint<SvgPoint>(bounds.minX, bounds.minY),
+    "top-right": unsafePoint<SvgPoint>(bounds.maxX, bounds.minY),
+    "bottom-right": unsafePoint<SvgPoint>(bounds.maxX, bounds.maxY),
+    "bottom-left": unsafePoint<SvgPoint>(bounds.minX, bounds.maxY)
   };
   const centerWorld = svgToWorldPoint(
-    {
-      x: (bounds.minX + bounds.maxX) / 2,
-      y: (bounds.minY + bounds.maxY) / 2
-    },
+    unsafePoint<SvgPoint>((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2),
     viewBox
   );
-  const cornersByRoleWorld: Record<ResizeFrameCornerRole, Point> = {
+  const cornersByRoleWorld: Record<ResizeFrameCornerRole, WorldPoint> = {
     "top-left": svgToWorldPoint(cornersByRoleSvg["top-left"], viewBox),
     "top-right": svgToWorldPoint(cornersByRoleSvg["top-right"], viewBox),
     "bottom-right": svgToWorldPoint(cornersByRoleSvg["bottom-right"], viewBox),
@@ -213,14 +202,14 @@ function resolveGenericNodePathResizeFrame(
     return null;
   }
 
-  const roleLocal: Record<ResizeFrameCornerRole, Point> = {
+  const roleLocal: Record<ResizeFrameCornerRole, WorldPoint> = {
     "top-left": { x: localBounds.minX, y: localBounds.maxY },
     "top-right": { x: localBounds.maxX, y: localBounds.maxY },
     "bottom-right": { x: localBounds.maxX, y: localBounds.minY },
     "bottom-left": { x: localBounds.minX, y: localBounds.minY }
   };
   const transform = path.transform;
-  const roleWorld: Record<ResizeFrameCornerRole, Point> = transform
+  const roleWorld: Record<ResizeFrameCornerRole, WorldPoint> = transform
     ? {
         "top-left": applyMatrix(transform, roleLocal["top-left"]),
         "top-right": applyMatrix(transform, roleLocal["top-right"]),
@@ -236,14 +225,14 @@ function resolveGenericNodePathResizeFrame(
   return buildResizeFrame(sourceId, centerWorld, roleWorld, viewBox);
 }
 
-function approximatePathBoundsInWorld(path: ScenePath): Bounds | null {
+function approximatePathBoundsInWorld(path: ScenePath): SvgBounds | null {
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
-  let current: Point | null = null;
+  let current: WorldPoint | null = null;
 
-  const includePoint = (point: Point): void => {
+  const includePoint = (point: WorldPoint): void => {
     minX = Math.min(minX, point.x);
     minY = Math.min(minY, point.y);
     maxX = Math.max(maxX, point.x);
@@ -311,8 +300,12 @@ function resolvePathRectangleResizeFrame(
   }
 
   const transform = startHandle.transform;
-  const startLocal = startHandle.local ?? worldToLocal(startHandle.world, transform);
-  const oppositeLocal = oppositeHandle.local ?? worldToLocal(oppositeHandle.world, transform);
+  const startLocal = isFrameLocalCoordinateEditHandle(startHandle)
+    ? startHandle.local
+    : worldToLocal(startHandle.world, transform);
+  const oppositeLocal = isFrameLocalCoordinateEditHandle(oppositeHandle)
+    ? oppositeHandle.local
+    : worldToLocal(oppositeHandle.world, transform);
   if (!startLocal || !oppositeLocal) {
     return null;
   }
@@ -321,13 +314,13 @@ function resolvePathRectangleResizeFrame(
   const maxX = Math.max(startLocal.x, oppositeLocal.x);
   const minY = Math.min(startLocal.y, oppositeLocal.y);
   const maxY = Math.max(startLocal.y, oppositeLocal.y);
-  const roleLocal: Record<ResizeFrameCornerRole, Point> = {
+  const roleLocal: Record<ResizeFrameCornerRole, FrameLocalPoint> = {
     "top-left": { x: minX, y: maxY },
     "top-right": { x: maxX, y: maxY },
     "bottom-right": { x: maxX, y: minY },
     "bottom-left": { x: minX, y: minY }
   };
-  const roleWorld: Record<ResizeFrameCornerRole, Point> = {
+  const roleWorld: Record<ResizeFrameCornerRole, WorldPoint> = {
     "top-left": applyMatrix(transform, roleLocal["top-left"]),
     "top-right": applyMatrix(transform, roleLocal["top-right"]),
     "bottom-right": applyMatrix(transform, roleLocal["bottom-right"]),
@@ -387,24 +380,24 @@ function resolveEllipseResizeFrame(
 
 function resolveEllipseLikeResizeFrame(
   sourceId: string,
-  centerWorld: Point,
+  centerWorld: WorldPoint,
   rx: number,
   ry: number,
   viewBox: SvgViewBox,
-  transform: Matrix2D,
+  transform: WorldTransform,
   extraRotation = 0
 ): ResizeFrame | null {
   if (!(rx > EPSILON) || !(ry > EPSILON)) {
     return null;
   }
 
-  const localByRole: Record<ResizeFrameCornerRole, Point> = {
+  const localByRole: Record<ResizeFrameCornerRole, FrameLocalPoint> = {
     "top-left": { x: -rx, y: ry },
     "top-right": { x: rx, y: ry },
     "bottom-right": { x: rx, y: -ry },
     "bottom-left": { x: -rx, y: -ry }
   };
-  const toWorldCorner = (localCorner: Point): Point => {
+  const toWorldCorner = (localCorner: FrameLocalPoint): WorldPoint => {
     let worldOffset = applyMatrixToVector(transform, localCorner);
     if (Math.abs(extraRotation) > EPSILON) {
       worldOffset = rotateVector(worldOffset, extraRotation);
@@ -414,7 +407,7 @@ function resolveEllipseLikeResizeFrame(
       y: centerWorld.y + worldOffset.y
     };
   };
-  const roleWorld: Record<ResizeFrameCornerRole, Point> = {
+  const roleWorld: Record<ResizeFrameCornerRole, WorldPoint> = {
     "top-left": toWorldCorner(localByRole["top-left"]),
     "top-right": toWorldCorner(localByRole["top-right"]),
     "bottom-right": toWorldCorner(localByRole["bottom-right"]),
@@ -438,7 +431,7 @@ function resolveTextResizeFrame(
   const halfWidth = width / 2;
   const halfHeight = height / 2;
   const rotation = text.rotation ?? 0;
-  const localByRole: Record<ResizeFrameCornerRole, Point> = {
+  const localByRole: Record<ResizeFrameCornerRole, FrameLocalPoint> = {
     "top-left": { x: -halfWidth, y: halfHeight },
     "top-right": { x: halfWidth, y: halfHeight },
     "bottom-right": { x: halfWidth, y: -halfHeight },
@@ -490,8 +483,8 @@ function resolvePathArcRadii(
 
 function buildResizeFrame(
   sourceId: string,
-  centerWorld: Point,
-  cornersByRoleWorld: Record<ResizeFrameCornerRole, Point>,
+  centerWorld: WorldPoint,
+  cornersByRoleWorld: Record<ResizeFrameCornerRole, WorldPoint>,
   viewBox: SvgViewBox
 ): ResizeFrame | null {
   const cornersByRole = {
@@ -526,8 +519,8 @@ function buildResizeFrame(
   };
 }
 
-function resolveRectanglePathCorners(path: ScenePath): Point[] | null {
-  const corners: Point[] = [];
+function resolveRectanglePathCorners(path: ScenePath): WorldPoint[] | null {
+  const corners: WorldPoint[] = [];
   let closed = false;
   for (const command of path.commands) {
     if (command.kind === "M" || command.kind === "L") {
@@ -561,7 +554,7 @@ function resolveRectanglePathCorners(path: ScenePath): Point[] | null {
   return resolveRectangleBasis(corners) ? corners : null;
 }
 
-function resolveRectangleBasis(corners: readonly Point[]): { u: Point; v: Point } | null {
+function resolveRectangleBasis(corners: readonly WorldPoint[]): { u: WorldPoint; v: WorldPoint } | null {
   if (corners.length !== 4) {
     return null;
   }
@@ -600,11 +593,11 @@ function resolveRectangleBasis(corners: readonly Point[]): { u: Point; v: Point 
 }
 
 function assignCornersByRoleWithBasis(
-  points: readonly Point[],
-  center: Point,
-  uAxis: Point,
-  vAxis: Point
-): Record<ResizeFrameCornerRole, Point> | null {
+  points: readonly WorldPoint[],
+  center: WorldPoint,
+  uAxis: WorldPoint,
+  vAxis: WorldPoint
+): Record<ResizeFrameCornerRole, WorldPoint> | null {
   if (points.length !== 4) {
     return null;
   }
@@ -621,7 +614,7 @@ function assignCornersByRoleWithBasis(
   }
 
   const usedIndices = new Set<number>();
-  const pick = (targetU: number, targetV: number): Point | null => {
+  const pick = (targetU: number, targetV: number): WorldPoint | null => {
     let bestIndex = -1;
     let bestDistance = Number.POSITIVE_INFINITY;
     for (let index = 0; index < projections.length; index += 1) {
@@ -667,7 +660,7 @@ function assignCornersByRoleWithBasis(
 function pickCenterPathPointHandle(
   editHandles: readonly EditHandle[],
   sourceId: string,
-  targetCenter?: Point
+  targetCenter?: WorldPoint
 ): EditHandle | null {
   const pathPointHandles = editHandles.filter(
     (handle) => handle.sourceRef.sourceId === sourceId && handle.kind === "path-point"
@@ -699,7 +692,7 @@ function pickCenterPathPointHandle(
   return bestHandle;
 }
 
-function boundsFromPoints(points: readonly Point[]): Bounds {
+function boundsFromPoints(points: readonly SvgPoint[]): SvgBounds {
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
@@ -715,7 +708,7 @@ function boundsFromPoints(points: readonly Point[]): Bounds {
   return { minX, minY, maxX, maxY };
 }
 
-function rotateVector(vector: Point, degrees: number): Point {
+function rotateVector(vector: WorldPoint, degrees: number): WorldPoint {
   if (Math.abs(degrees) <= EPSILON) {
     return vector;
   }
@@ -728,7 +721,7 @@ function rotateVector(vector: Point, degrees: number): Point {
   };
 }
 
-function rotateAndTranslatePoint(localPoint: Point, center: Point, degrees: number): Point {
+function rotateAndTranslatePoint(localPoint: FrameLocalPoint, center: WorldPoint, degrees: number): WorldPoint {
   const rotated = rotateVector(localPoint, degrees);
   return {
     x: center.x + rotated.x,
@@ -736,18 +729,18 @@ function rotateAndTranslatePoint(localPoint: Point, center: Point, degrees: numb
   };
 }
 
-function subtractPoints(left: Point, right: Point): Point {
+function subtractPoints(left: WorldPoint, right: WorldPoint): WorldPoint {
   return {
     x: left.x - right.x,
     y: left.y - right.y
   };
 }
 
-function dot(left: Point, right: Point): number {
+function dot(left: WorldPoint, right: WorldPoint): number {
   return left.x * right.x + left.y * right.y;
 }
 
-function pointsApproximatelyEqual(left: Point, right: Point, epsilon = 1e-6): boolean {
+function pointsApproximatelyEqual(left: WorldPoint, right: WorldPoint, epsilon = 1e-6): boolean {
   return Math.abs(left.x - right.x) <= epsilon && Math.abs(left.y - right.y) <= epsilon;
 }
 
@@ -760,7 +753,7 @@ function estimateTextBlockWidth(text: string, fontSize: number): number {
   return maxChars * fontSize * 0.7;
 }
 
-function matrixIsIdentity(matrix: Matrix2D): boolean {
+function matrixIsIdentity(matrix: WorldTransform): boolean {
   return (
     Math.abs(matrix.a - IDENTITY_MATRIX.a) <= EPSILON &&
     Math.abs(matrix.b - IDENTITY_MATRIX.b) <= EPSILON &&

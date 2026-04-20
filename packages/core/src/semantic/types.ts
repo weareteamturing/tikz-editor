@@ -2,21 +2,31 @@ import type { AdornmentOwnerGeometry, CoordinateForm, Span } from "../ast/types.
 import type { OptionListAst } from "../options/types.js";
 import type { NodeTextEngine, NodeTextRenderInfo } from "../text/types.js";
 import type { MacroOriginFrame } from "../macros/index.js";
+import type {
+  AnchorLocalPoint,
+  FrameLocalPoint,
+  SourceCmPoint,
+  SvgPoint,
+  WorldBounds,
+  WorldPoint
+} from "../coords/points.js";
+import type { AnchorTransform, FrameTransform, WorldTransform } from "../coords/transforms.js";
 import type { StyleChainEntry } from "./style-chain.js";
 import type { PlacementSegment } from "./path/types.js";
 
 export const SHADOW_INHERIT_STROKE = "__tikz-shadow-inherit-stroke__";
 export const SHADOW_INHERIT_FILL = "__tikz-shadow-inherit-fill__";
 
-export type Point = {
-  x: number;
-  y: number;
-};
+export type SourceCmPoint2D = SourceCmPoint;
+export type FrameLocalPoint2D = FrameLocalPoint;
+export type AnchorLocalPoint2D = AnchorLocalPoint;
+export type SvgPoint2D = SvgPoint;
+export type WorldPoint2D = WorldPoint;
 
 export type NodeAnchorTarget = {
   nodeName: string;
   anchor: string;
-  world: Point;
+  world: WorldPoint;
   tier: "basic" | "special";
 };
 
@@ -64,28 +74,16 @@ export type ArrowMarker = {
 
 export type TipsMode = "true" | "proper" | "on draw" | "on proper draw" | "never";
 
-export type Bounds = {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-};
-
-export type Matrix2D = {
-  a: number;
-  b: number;
-  c: number;
-  d: number;
-  e: number;
-  f: number;
-};
+export type FrameTransform2D = FrameTransform;
+export type AnchorTransform2D = AnchorTransform;
+export type WorldTransform2D = WorldTransform;
 
 export type SceneFigure = {
   kind: "SceneFigure";
   span: Span;
   requiredTikzLibraries: readonly string[];
   elements: SceneElement[];
-  bounds?: Bounds;
+  bounds?: WorldBounds;
   hasStatefulGraphicsState?: boolean;
 };
 
@@ -103,7 +101,7 @@ export type SceneAdornment = {
   distancePt: number;
   defaultDistancePt: number;
   distanceExplicit: boolean;
-  ownerPoint?: Point;
+  ownerPoint?: WorldPoint;
   ownerGeometry?: AdornmentOwnerGeometry;
 };
 
@@ -164,10 +162,10 @@ export type TreeChildInfo = {
 };
 
 export type ScenePathCommand =
-  | { kind: "M"; to: Point }
-  | { kind: "L"; to: Point }
-  | { kind: "C"; c1: Point; c2: Point; to: Point }
-  | { kind: "A"; rx: number; ry: number; xAxisRotation: number; largeArc: boolean; sweep: boolean; to: Point }
+  | { kind: "M"; to: WorldPoint }
+  | { kind: "L"; to: WorldPoint }
+  | { kind: "C"; c1: WorldPoint; c2: WorldPoint; to: WorldPoint }
+  | { kind: "A"; rx: number; ry: number; xAxisRotation: number; largeArc: boolean; sweep: boolean; to: WorldPoint }
   | { kind: "Z" };
 
 export type SceneClipPath = {
@@ -195,7 +193,7 @@ export type ScenePath = {
   styleChain: StyleChainEntry[];
   clipChain?: SceneClipPath[];
   commands: ScenePathCommand[];
-  transform?: Matrix2D;
+  transform?: WorldTransform;
 };
 
 export type SceneCircle = {
@@ -211,9 +209,9 @@ export type SceneCircle = {
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
   clipChain?: SceneClipPath[];
-  center: Point;
+  center: WorldPoint;
   radius: number;
-  transform?: Matrix2D;
+  transform?: WorldTransform;
 };
 
 export type SceneEllipse = {
@@ -229,11 +227,11 @@ export type SceneEllipse = {
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
   clipChain?: SceneClipPath[];
-  center: Point;
+  center: WorldPoint;
   rx: number;
   ry: number;
   rotation?: number;
-  transform?: Matrix2D;
+  transform?: WorldTransform;
 };
 
 export type SceneText = {
@@ -251,7 +249,7 @@ export type SceneText = {
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
   clipChain?: SceneClipPath[];
-  position: Point;
+  position: WorldPoint;
   text: string;
   textBlockWidth?: number;
   textBlockHeight?: number;
@@ -259,7 +257,7 @@ export type SceneText = {
   nodeVisualHeight?: number;
   textRenderInfo?: NodeTextRenderInfo;
   rotation?: number;
-  transform?: Matrix2D;
+  transform?: WorldTransform;
 };
 
 export type ForeachOriginFrame = {
@@ -466,16 +464,16 @@ export type CurveEditHandleData =
       kind: "to-angle";
       operationItemId: string;
       role: "out" | "in";
-      startWorld: Point;
-      endWorld: Point;
+      startWorld: WorldPoint;
+      endWorld: WorldPoint;
       relative: boolean;
       baseHeading: number;
     }
   | {
       kind: "to-bend";
       operationItemId: string;
-      startWorld: Point;
-      endWorld: Point;
+      startWorld: WorldPoint;
+      endWorld: WorldPoint;
       baseHeading: number;
     };
 
@@ -491,35 +489,126 @@ export type EditHandlePathAttachmentContext = {
   sloped: boolean;
 };
 
-export type EditHandle = {
+type EditHandleBase = {
   id: string;
   runtimeId: string;
   sourceRef: SourceRef;
-  kind: "node-position" | "path-point" | "path-control" | "path-bend";
-  world: Point;
-  local?: Point;
-  transform: Matrix2D;
+  world: WorldPoint;
+  transform: WorldTransform;
   sourceText: string;
   coordinateForm: CoordinateForm;
   relativePrefix?: "+" | "++";
-  relativeBaseWorld?: Point;
-  rewriteMode: "direct" | "delta" | "positioning" | "unsupported";
   rewriteTargetHandleId?: string;
-  pathAttachmentContext?: EditHandlePathAttachmentContext;
-  curveEdit?: CurveEditHandleData;
-  insertion?: EditHandleInsertion;
-  positioningContext?: {
-    direction: string;
-    targetNodeName: string;
-    targetCenter: Point;
-    currentCenter: Point;
-    legacyOf: boolean;
-    anchorOffsetsByDirection?: Record<string, { targetAnchor: Point; currentAnchor: Point }>;
-    /** Anchor half-dimensions for the target node (A), used for anchor compensation */
-    targetAnchorHW: number;
-    targetAnchorHH: number;
-    /** Anchor half-dimensions for the current node (B), used for anchor compensation */
-    currentAnchorHW: number;
-    currentAnchorHH: number;
-  };
 };
+
+export type EditHandlePositioningContext = {
+  direction: string;
+  targetNodeName: string;
+  targetCenter: WorldPoint;
+  currentCenter: WorldPoint;
+  legacyOf: boolean;
+  anchorOffsetsByDirection?: Record<string, { targetAnchor: WorldPoint; currentAnchor: WorldPoint }>;
+  /** Anchor half-dimensions for the target node (A), used for anchor compensation */
+  targetAnchorHW: number;
+  targetAnchorHH: number;
+  /** Anchor half-dimensions for the current node (B), used for anchor compensation */
+  currentAnchorHW: number;
+  currentAnchorHH: number;
+};
+
+type CoordinateEditHandleBase = EditHandleBase & {
+  handleType: "coordinate";
+  kind: "node-position" | "path-point" | "path-control";
+  insertion?: EditHandleInsertion;
+  curveEdit?: never;
+  positioningContext?: never;
+  pathAttachmentContext?: never;
+};
+
+export type FrameLocalCoordinateEditHandle = CoordinateEditHandleBase & {
+  coordinateSpace: "frame-local";
+  rewriteMode: "direct" | "unsupported";
+  local: FrameLocalPoint;
+  frame: FrameTransform;
+  relativeBase?: never;
+};
+
+export type RelativeCoordinateEditHandle = CoordinateEditHandleBase & {
+  coordinateSpace: "frame-local";
+  rewriteMode: "delta";
+  local: FrameLocalPoint;
+  frame: FrameTransform;
+  relativeBase: WorldPoint;
+};
+
+export type WorldCoordinateEditHandle = CoordinateEditHandleBase & {
+  coordinateSpace: "world-only";
+  rewriteMode: "unsupported";
+  local?: never;
+  frame?: never;
+  relativeBase?: never;
+};
+
+export type CoordinateEditHandle =
+  | FrameLocalCoordinateEditHandle
+  | RelativeCoordinateEditHandle
+  | WorldCoordinateEditHandle;
+
+export type CurveControlEditHandle = EditHandleBase & {
+  handleType: "curve-control";
+  kind: "path-control" | "path-bend";
+  rewriteMode: "direct";
+  curveEdit: CurveEditHandleData;
+  local?: never;
+  frame?: never;
+  relativeBase?: never;
+  insertion?: never;
+  positioningContext?: never;
+  pathAttachmentContext?: never;
+};
+
+export type NodePositionEditHandle = EditHandleBase & {
+  handleType: "node-positioning";
+  kind: "node-position";
+  rewriteMode: "positioning";
+  positioningContext: EditHandlePositioningContext;
+  local?: never;
+  frame?: never;
+  relativeBase?: never;
+  insertion?: never;
+  curveEdit?: never;
+  pathAttachmentContext?: never;
+};
+
+export type PathAttachmentEditHandle = EditHandleBase & {
+  handleType: "path-attachment";
+  kind: "node-position";
+  rewriteMode: "positioning";
+  pathAttachmentContext: EditHandlePathAttachmentContext;
+  local?: never;
+  frame?: never;
+  relativeBase?: never;
+  insertion?: never;
+  curveEdit?: never;
+  positioningContext?: never;
+};
+
+export type EditHandle =
+  | CoordinateEditHandle
+  | CurveControlEditHandle
+  | NodePositionEditHandle
+  | PathAttachmentEditHandle;
+
+export function isCoordinateEditHandle(handle: EditHandle): handle is CoordinateEditHandle {
+  return handle.handleType === "coordinate";
+}
+
+export function isFrameLocalCoordinateEditHandle(
+  handle: EditHandle
+): handle is FrameLocalCoordinateEditHandle | RelativeCoordinateEditHandle {
+  return handle.handleType === "coordinate" && handle.coordinateSpace === "frame-local";
+}
+
+export function isRelativeCoordinateEditHandle(handle: EditHandle): handle is RelativeCoordinateEditHandle {
+  return handle.handleType === "coordinate" && handle.rewriteMode === "delta";
+}

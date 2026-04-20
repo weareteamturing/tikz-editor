@@ -1,8 +1,13 @@
 import { useEffect } from "react";
+import { unsafeBounds, unsafePoint } from "tikz-editor/coords/index";
 import { getActiveMathJaxOutputJax } from "tikz-editor/text/mathjax-engine";
 import { getKnuthPlassPointFromOffset, getKnuthPlassSelectionRects } from "tikz-editor/text/knuth-plass";
+import type { ClientPoint, SvgBounds, SvgPoint, ViewportPoint } from "../coords/types";
+import { clientToViewport, svgToViewport } from "../coords/convert";
+import { clientBoundsToViewport, svgBoundsToViewportBounds } from "../coords/text";
 import { clamp } from "./geometry";
 import { createSourceRenderOffsetMap } from "./text-offset-map";
+import type { TextSelectionOverlay, TextSelectionOverlayBox } from "./types";
 
 export type UseCanvasTextEditingEffectsArgs = {
   [key: string]: any;
@@ -13,7 +18,16 @@ type LogicalLineRange = {
   end: number;
 };
 
-type RegionSelectionOverlay = ReturnType<typeof resolveRegionSelectionOverlay>;
+type RegionSelectionOverlayBox = {
+  bounds: SvgBounds;
+  center?: SvgPoint;
+  rotationDeg?: number;
+};
+
+type RegionSelectionOverlay = {
+  caret: RegionSelectionOverlayBox | null;
+  rects: RegionSelectionOverlayBox[];
+};
 
 function collectLogicalLineRanges(text: string): LogicalLineRange[] {
   if (text.length === 0) {
@@ -69,8 +83,8 @@ function resolveRegionSelectionOverlay(
   selectionStart: number,
   selectionEnd: number
 ): {
-  caret: { left: number; top: number; height: number } | null;
-  rects: Array<{ left: number; top: number; width: number; height: number; centerX?: number; centerY?: number; rotationDeg?: number }>;
+  caret: RegionSelectionOverlayBox | null;
+  rects: RegionSelectionOverlayBox[];
 } {
   const ranges = collectLogicalLineRanges(target.text);
   const lineHeight = target.region.height / Math.max(1, ranges.length);
@@ -87,17 +101,18 @@ function resolveRegionSelectionOverlay(
     const range = ranges[lineIndex] ?? { start: 0, end: target.text.length };
     const denominator = Math.max(1, range.end - range.start);
     const ratio = (selectionStart - range.start) / denominator;
+    const left = target.region.x + clamp(ratio, 0, 1) * target.region.width;
+    const top = target.region.y + lineIndex * lineHeight;
+    const height = Math.max(1, lineHeight);
     return {
       caret: {
-        left: target.region.x + clamp(ratio, 0, 1) * target.region.width,
-        top: target.region.y + lineIndex * lineHeight,
-        height: Math.max(1, lineHeight)
+        bounds: unsafeBounds<SvgBounds>(left, top, left, top + height)
       },
       rects: []
     };
   }
 
-  const rects: Array<{ left: number; top: number; width: number; height: number; centerX?: number; centerY?: number; rotationDeg?: number }> = [];
+  const rects: RegionSelectionOverlayBox[] = [];
   const start = Math.min(selectionStart, selectionEnd);
   const end = Math.max(selectionStart, selectionEnd);
   for (let index = 0; index < ranges.length; index += 1) {
@@ -112,13 +127,12 @@ function resolveRegionSelectionOverlay(
     const rightRatio = (localEnd - range.start) / denominator;
     const left = target.region.x + clamp(leftRatio, 0, 1) * target.region.width;
     const right = target.region.x + clamp(rightRatio, 0, 1) * target.region.width;
+    const top = target.region.y + index * lineHeight;
+    const height = Math.max(1, lineHeight);
+    const width = Math.max(1, right - left);
     rects.push({
-      left,
-      top: target.region.y + index * lineHeight,
-      width: Math.max(1, right - left),
-      height: Math.max(1, lineHeight),
-      centerX: left + Math.max(1, right - left) / 2,
-      centerY: target.region.y + index * lineHeight + Math.max(1, lineHeight) / 2,
+      bounds: unsafeBounds<SvgBounds>(left, top, left + width, top + height),
+      center: unsafePoint<SvgPoint>(left + width / 2, top + height / 2),
       rotationDeg: Number.isFinite(target.region.rotation) ? Number(target.region.rotation) : undefined
     });
   }
@@ -128,35 +142,17 @@ function resolveRegionSelectionOverlay(
 function projectRegionSelectionOverlayToViewport(
   overlay: RegionSelectionOverlay,
   canvasTransform: { translateX: number; translateY: number; scale: number },
-  viewBox: { x: number; y: number }
-): {
-  caret: {
-    left: number;
-    top: number;
-    height: number;
-  } | null;
-  rects: Array<{ left: number; top: number; width: number; height: number; centerX?: number; centerY?: number; rotationDeg?: number }>;
-} {
-  const scale = Math.max(canvasTransform.scale, 1e-6);
-  const projectX = (svgX: number) => canvasTransform.translateX + (svgX - viewBox.x) * scale;
-  const projectY = (svgY: number) => canvasTransform.translateY + (svgY - viewBox.y) * scale;
+  viewBox: { x: number; y: number; width: number; height: number }
+): Pick<TextSelectionOverlay, "caret" | "rects"> {
+  const projectPoint = (point: SvgPoint): ViewportPoint => svgToViewport(point, canvasTransform, viewBox);
+  const projectBox = (box: RegionSelectionOverlayBox): TextSelectionOverlayBox => ({
+    bounds: svgBoundsToViewportBounds(box.bounds, projectPoint),
+    center: box.center ? projectPoint(box.center) : undefined,
+    rotationDeg: box.rotationDeg
+  });
   return {
-    caret: overlay.caret
-      ? {
-          left: projectX(overlay.caret.left),
-          top: projectY(overlay.caret.top),
-          height: overlay.caret.height * scale
-        }
-      : null,
-    rects: overlay.rects.map((rect) => ({
-      left: projectX(rect.left),
-      top: projectY(rect.top),
-      width: rect.width * scale,
-      height: rect.height * scale,
-      centerX: rect.centerX != null ? projectX(rect.centerX) : undefined,
-      centerY: rect.centerY != null ? projectY(rect.centerY) : undefined,
-      rotationDeg: rect.rotationDeg
-    }))
+    caret: overlay.caret ? projectBox(overlay.caret) : null,
+    rects: overlay.rects.map(projectBox)
   };
 }
 
@@ -185,7 +181,8 @@ async function estimateCaretHeight(
       endOffset
     });
     if (rects.ok && rects.rects.length > 0) {
-      return Math.max(1, rects.rects[0]!.height);
+      const rect = rects.rects[0]!;
+      return Math.max(1, rect.bounds.maxY - rect.bounds.minY);
     }
   }
   return null;
@@ -294,7 +291,7 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
     const renderEnd = Math.max(renderAnchor, renderFocus);
 
     void (async () => {
-      const pushOverlay = (overlay: any) => {
+      const pushOverlay = (overlay: TextSelectionOverlay | null) => {
         dispatchCanvasTextEditAction({
           type: "overlay_resolved",
           requestRevision: textEditAsyncRequestRevision,
@@ -339,7 +336,7 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
           if (requestRef.cancelled) {
             return;
           }
-          if (!point.ok || point.clientX == null || point.clientY == null) {
+          if (!point.ok || point.clientPoint == null) {
             setRegionFallbackOverlay();
             return;
           }
@@ -359,12 +356,17 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
             selectionStart: boundedStart,
             selectionEnd: boundedEnd,
             caret: {
-              left: point.clientX - viewportRect.left,
-              top: point.clientY - viewportRect.top - height / 2,
-              height,
-              centerX: point.clientX - viewportRect.left,
-              centerY: point.clientY - viewportRect.top,
-              rotationDeg: Number.isFinite(point.rotationDeg) ? point.rotationDeg : undefined
+              bounds: unsafeBounds(
+                point.clientPoint.x - viewportRect.left,
+                point.clientPoint.y - viewportRect.top - height / 2,
+                point.clientPoint.x - viewportRect.left,
+                point.clientPoint.y - viewportRect.top + height / 2
+              ),
+              center: clientToViewport(point.clientPoint, viewportRect),
+              rotationDeg:
+                typeof point.rotationDeg === "number" && Number.isFinite(point.rotationDeg)
+                  ? point.rotationDeg
+                  : undefined
             },
             rects: []
           });
@@ -391,12 +393,8 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
           selectionEnd: boundedEnd,
           caret: null,
           rects: rects.rects.map((rect) => ({
-            left: rect.left - viewportRect.left,
-            top: rect.top - viewportRect.top,
-            width: rect.width,
-            height: rect.height,
-            centerX: rect.centerX - viewportRect.left,
-            centerY: rect.centerY - viewportRect.top,
+            bounds: clientBoundsToViewport(rect.bounds, viewportRect),
+            center: clientToViewport(rect.center, viewportRect),
             rotationDeg: rect.rotationDeg
           }))
         });

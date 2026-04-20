@@ -1,12 +1,12 @@
 import type { OptionEntry } from "../../options/types.js";
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
 import { multiplyMatrix, rotationMatrix, scaleMatrix, translationMatrix } from "../transform.js";
+import type { WorldPoint } from "../../coords/points.js";
+import type { WorldTransform } from "../../coords/transforms.js";
 import {
   SHADOW_INHERIT_FILL,
   SHADOW_INHERIT_STROKE,
   type DecorationStyle,
-  type Matrix2D,
-  type Point,
   type ResolvedStyle,
   type ShadowFadeKind,
   type ShadowLayer,
@@ -36,9 +36,9 @@ export function applyKvEntry(
   key: string,
   valueRaw: string,
   style: ResolvedStyle,
-  transform: Matrix2D,
+  transform: WorldTransform,
   applyOptionEntry: ApplyEntryFn,
-  resolveCoordinate?: (raw: string) => Point | null,
+  resolveCoordinate?: (raw: string) => WorldPoint | null,
   resolveColorAlias?: ColorAliasResolver
 ): ApplyOutcome {
   if (key === "every path/.style" || key === "every path/.append style") {
@@ -840,7 +840,7 @@ type AppendShadowOptions = {
 
 function appendShadowLayers(
   style: ResolvedStyle,
-  transform: Matrix2D,
+  transform: WorldTransform,
   valueRaw: string,
   applyOptionEntry: ApplyEntryFn,
   options: AppendShadowOptions
@@ -911,7 +911,7 @@ function appendShadowLayers(
 function applyOptionListEntries(
   entries: OptionEntry[],
   style: ResolvedStyle,
-  transform: Matrix2D,
+  transform: WorldTransform,
   applyOptionEntry: ApplyEntryFn
 ): ApplyOutcome {
   let nextStyle = style;

@@ -1,7 +1,7 @@
+import type { WorldPoint } from "../../coords/points.js";
 import type { CoordinateForm, CoordinateItem } from "../../ast/types.js";
 import { parseLength, parseQuantityExpression } from "../coords/parse-length.js";
 import type { EvaluatedCoordinate } from "../coords/evaluate.js";
-import type { Point } from "../types.js";
 import { applyMatrixToVector, identityMatrix } from "../transform.js";
 import { DEFAULT_GRID_STEP } from "./constants.js";
 import type { PlacementSegment } from "./types.js";
@@ -11,7 +11,7 @@ function inferSegmentEndHeadingDegrees(segment: PlacementSegment | null): number
     return 0;
   }
 
-  let direction: Point | null = null;
+  let direction: WorldPoint | null = null;
   if (segment.kind === "line") {
     direction = {
       x: segment.to.x - segment.from.x,
@@ -48,7 +48,7 @@ function inferSegmentEndHeadingDegrees(segment: PlacementSegment | null): number
 
 export function evaluateTurnCoordinate(
   item: CoordinateItem,
-  currentPoint: Point | null,
+  currentPoint: WorldPoint | null,
   transform: { a: number; b: number; c: number; d: number; e: number; f: number },
   lastPlacementSegment: PlacementSegment | null
 ): EvaluatedCoordinate | null {
@@ -64,9 +64,8 @@ export function evaluateTurnCoordinate(
   const polarForm: CoordinateForm = "polar";
   if (item.form !== "polar") {
     return {
+      kind: "invalid",
       world: null,
-      local: undefined,
-      transform: identityMatrix(),
       coordinateForm: polarForm,
       diagnostics: [`invalid-turn-coordinate:${item.raw}`],
       advancesCurrentPoint: true
@@ -75,9 +74,8 @@ export function evaluateTurnCoordinate(
 
   if (!currentPoint) {
     return {
+      kind: "invalid",
       world: null,
-      local: undefined,
-      transform: identityMatrix(),
       coordinateForm: polarForm,
       diagnostics: ["turn-coordinate-without-current-point"],
       advancesCurrentPoint: true
@@ -88,9 +86,8 @@ export function evaluateTurnCoordinate(
   const radius = parseLength(item.y, "cm");
   if (!angleQuantity || angleQuantity.kind !== "scalar" || radius == null) {
     return {
+      kind: "invalid",
       world: null,
-      local: undefined,
-      transform: identityMatrix(),
       coordinateForm: polarForm,
       diagnostics: [`invalid-polar-coordinate:${item.raw}`],
       advancesCurrentPoint: true
@@ -107,12 +104,13 @@ export function evaluateTurnCoordinate(
   const delta = applyMatrixToVector(transform, localVector);
 
   return {
+    kind: "transformed",
     world: {
       x: currentPoint.x + delta.x,
       y: currentPoint.y + delta.y
     },
     local: localVector,
-    transform,
+    frame: transform,
     coordinateForm: polarForm,
     relativePrefix: item.relativePrefix,
     diagnostics: [],

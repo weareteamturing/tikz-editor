@@ -3,7 +3,8 @@ import type { PathStatement, Statement } from "tikz-editor/ast/types";
 import type { EditAction } from "tikz-editor/edit/actions";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import { extractNodeAdornmentPlan } from "tikz-editor/semantic/path/label-quotes";
-import type { Point, SceneElement } from "tikz-editor/semantic/types";
+import type { SceneElement } from "tikz-editor/semantic/types";
+import type { WorldPoint } from "../coords/types";
 import type { SvgViewBox } from "tikz-editor/svg/index";
 import { collectSourceBounds } from "./panel-helpers";
 import { worldToSvgPoint } from "./geometry";
@@ -12,7 +13,7 @@ export type ResolveNodeAdornmentContextActionInput = {
   source: string;
   clickedTargetId: string | null;
   selectedTargetId: string | null;
-  clickedWorld: Point | null;
+  clickedWorld: WorldPoint | null;
   sceneElements: readonly SceneElement[];
   viewBox: SvgViewBox | null;
   adornmentKind: "label" | "pin";
@@ -94,7 +95,7 @@ export function resolveNodeAdornmentOwnerTargetId(
 
 export function resolveContextMenuAdornmentAngleKeyword(
   targetIds: readonly string[],
-  clickedWorld: Point | null,
+  clickedWorld: WorldPoint | null,
   sceneElements: readonly SceneElement[],
   viewBox: SvgViewBox | null
 ): string {

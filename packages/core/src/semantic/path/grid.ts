@@ -1,8 +1,10 @@
+import type { WorldTransform } from "../../coords/transforms.js";
+import type { WorldPoint } from "../../coords/points.js";
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import type { OptionListAst } from "../../options/types.js";
 import type { PathOptionItem } from "../../ast/types.js";
 import { applyMatrix, applyMatrixToVector } from "../transform.js";
-import type { Matrix2D, Point, ResolvedStyle, ScenePath } from "../types.js";
+import type { ResolvedStyle, ScenePath } from "../types.js";
 import type { DiagnosticPushFn } from "./types.js";
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
 import { coordinateInner, normalizeOptionValue, toRadians } from "./shared.js";
@@ -16,7 +18,7 @@ export function extractGridSteps(
   item: PathOptionItem,
   pushDiagnostic: DiagnosticPushFn,
   macroBindings: ReadonlyMap<string, MacroBinding>,
-  transform: Matrix2D
+  transform: WorldTransform
 ): { stepX?: number; stepY?: number } | null {
   return extractGridStepsFromOptionList(item.options, pushDiagnostic, macroBindings, transform);
 }
@@ -25,7 +27,7 @@ export function extractGridStepsFromOptionList(
   options: OptionListAst,
   pushDiagnostic: DiagnosticPushFn,
   macroBindings: ReadonlyMap<string, MacroBinding>,
-  transform: Matrix2D
+  transform: WorldTransform
 ): { stepX?: number; stepY?: number } | null {
   let stepX: number | undefined;
   let stepY: number | undefined;
@@ -102,7 +104,7 @@ export function extractGridStepsFromOptionLists(
   optionLists: readonly OptionListAst[],
   pushDiagnostic: DiagnosticPushFn,
   macroBindings: ReadonlyMap<string, MacroBinding>,
-  transform: Matrix2D
+  transform: WorldTransform
 ): { stepX?: number; stepY?: number } | null {
   let stepX: number | undefined;
   let stepY: number | undefined;
@@ -155,7 +157,7 @@ function resolveGridAxisStep(
   step: number,
   axis: "x" | "y",
   hasExplicitUnit: boolean,
-  transform: Matrix2D
+  transform: WorldTransform
 ): number {
   if (hasExplicitUnit) {
     return Math.abs(step);
@@ -181,14 +183,14 @@ function hasExplicitLengthUnit(raw: string): boolean {
 export function makeGridElements(
   sourceId: string,
   itemId: string,
-  from: Point,
-  to: Point,
+  from: WorldPoint,
+  to: WorldPoint,
   stepX: number,
   stepY: number,
   style: ResolvedStyle,
   styleChain: StyleChainEntry[],
   span: { from: number; to: number },
-  transform?: Matrix2D
+  transform?: WorldTransform
 ): ScenePath[] {
   if (transform) {
     const affine = makeAffineGridElements(sourceId, itemId, from, to, stepX, stepY, style, styleChain, span, transform);
@@ -243,14 +245,14 @@ export function makeGridElements(
 function makeAffineGridElements(
   sourceId: string,
   itemId: string,
-  from: Point,
-  to: Point,
+  from: WorldPoint,
+  to: WorldPoint,
   stepX: number,
   stepY: number,
   style: ResolvedStyle,
   styleChain: StyleChainEntry[],
   span: { from: number; to: number },
-  transform: Matrix2D
+  transform: WorldTransform
 ): ScenePath[] | null {
   const localFrom = applyInverseMatrix(transform, from);
   const localTo = applyInverseMatrix(transform, to);
@@ -314,7 +316,7 @@ function makeAffineGridElements(
   return paths;
 }
 
-function applyInverseMatrix(matrix: Matrix2D, point: Point): Point | null {
+function applyInverseMatrix(matrix: WorldTransform, point: WorldPoint): WorldPoint | null {
   const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
   if (!Number.isFinite(determinant) || Math.abs(determinant) <= 1e-12) {
     return null;

@@ -1,4 +1,5 @@
 export { FeatureFlags } from "./ast/features.js";
+export * from "./coords/index.js";
 export { parseTikz, createIncrementalParseSession } from "./parser/index.js";
 export { applyEdit, applyEditIntent } from "./edit/apply.js";
 export { EditorSession } from "./edit/session.js";

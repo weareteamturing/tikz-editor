@@ -2,7 +2,8 @@ import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionListAst } from "../../options/types.js";
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import { parseCoordinateLike, parseLength, parseQuantityExpression } from "../coords/parse-length.js";
-import type { Point, ResolvedStyle } from "../types.js";
+import type { WorldPoint } from "../../coords/points.js";
+import type { ResolvedStyle } from "../types.js";
 import { DEFAULT_TEXT_FONT_SIZE, FONT_SIZE_COMMAND_FACTORS } from "./constants.js";
 
 export function parseStyleValueAsOptionList(valueRaw: string, absoluteFrom = 0): OptionListAst | null {
@@ -194,8 +195,8 @@ export function parseCmTransformValue(
 
 export function parseRotateAroundValue(
   raw: string,
-  resolveCoordinate?: (raw: string) => Point | null
-): { angleDeg: number; pivot: Point } | null {
+  resolveCoordinate?: (raw: string) => WorldPoint | null
+): { angleDeg: number; pivot: WorldPoint } | null {
   const normalized = normalizeOptionValue(raw);
   if (normalized.length === 0) {
     return null;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { buildSnapContext, collectSelectionGeometryFromBounds, collectSourceWorldBounds } from "tikz-editor/edit/snapping";
-import type { EditHandle, Point, SceneElement } from "tikz-editor/semantic/types";
+import type { EditHandle, SceneElement } from "tikz-editor/semantic/types";
+import type { WorldPoint } from "../coords/types";
 import { resolveEligibleExplicitPath, type ExplicitPathAnalysis, type ExplicitPathSegment } from "tikz-editor/edit/path-editing";
 import { closestPointOnLine, closestPointOnCubic } from "tikz-editor/edit/curve-math";
 import { clientToWorldPoint } from "./geometry";
@@ -69,7 +70,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     targetId: string;
     textTarget: EditableTextTarget;
     dragIds: string[];
-    wasSelectedOnPointerDown: boolean;
+    wasSelectedOnWorldPointerDown: boolean;
     moved: boolean;
     dragStarted: boolean;
   } | null>(null);
@@ -206,7 +207,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
   );
 
   useEffect(() => {
-    function onPointerMove(event: PointerEvent) {
+    function onWorldPointerMove(event: PointerEvent) {
       const pending = pendingScopeDrillRef.current;
       if (!pending || pending.pointerId !== event.pointerId || pending.dragStarted) {
         return;
@@ -228,7 +229,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       pending.dragStarted = true;
     }
 
-    function onPointerUp(event: PointerEvent) {
+    function onWorldPointerUp(event: PointerEvent) {
       const pending = pendingScopeDrillRef.current;
       if (!pending || pending.pointerId !== event.pointerId) {
         return;
@@ -259,7 +260,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       setSnapLines([]);
     }
 
-    function onTextPointerMove(event: PointerEvent) {
+    function onTextWorldPointerMove(event: PointerEvent) {
       const pending = pendingTextInteractionRef.current;
       if (!pending || pending.pointerId !== event.pointerId || pending.dragStarted) {
         return;
@@ -277,7 +278,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       if (!world) {
         return;
       }
-      if (!pending.wasSelectedOnPointerDown) {
+      if (!pending.wasSelectedOnWorldPointerDown) {
         dispatch({ type: "SELECT", id: pending.targetId, additive: false });
         dispatch({
           type: "SET_FOCUSED_SCOPE",
@@ -289,7 +290,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       pending.dragStarted = true;
     }
 
-    function onTextPointerUp(event: PointerEvent) {
+    function onTextWorldPointerUp(event: PointerEvent) {
       const pending = pendingTextInteractionRef.current;
       if (!pending || pending.pointerId !== event.pointerId) {
         return;
@@ -314,7 +315,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
           clientY: event.clientY,
           pointerId: event.pointerId,
           currentTarget: {
-            setPointerCapture() {
+            setWorldPointerCapture() {
               // No-op for deferred text activation outside the original React event.
             }
           }
@@ -323,19 +324,19 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       );
     }
 
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    window.addEventListener("pointercancel", onPointerUp);
-    window.addEventListener("pointermove", onTextPointerMove);
-    window.addEventListener("pointerup", onTextPointerUp);
-    window.addEventListener("pointercancel", onTextPointerUp);
+    window.addEventListener("pointermove", onWorldPointerMove);
+    window.addEventListener("pointerup", onWorldPointerUp);
+    window.addEventListener("pointercancel", onWorldPointerUp);
+    window.addEventListener("pointermove", onTextWorldPointerMove);
+    window.addEventListener("pointerup", onTextWorldPointerUp);
+    window.addEventListener("pointercancel", onTextWorldPointerUp);
     return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("pointercancel", onPointerUp);
-      window.removeEventListener("pointermove", onTextPointerMove);
-      window.removeEventListener("pointerup", onTextPointerUp);
-      window.removeEventListener("pointercancel", onTextPointerUp);
+      window.removeEventListener("pointermove", onWorldPointerMove);
+      window.removeEventListener("pointerup", onWorldPointerUp);
+      window.removeEventListener("pointercancel", onWorldPointerUp);
+      window.removeEventListener("pointermove", onTextWorldPointerMove);
+      window.removeEventListener("pointerup", onTextWorldPointerUp);
+      window.removeEventListener("pointercancel", onTextWorldPointerUp);
     };
   }, [beginCanvasTextInteraction, closeTextEditingSession, dispatch, interactionSvgRef, scopeOverlay, selectedElementIds, setSnapLines, startElementDrag, svgResult]);
 
@@ -410,7 +411,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
             targetId: resolvedTargetId,
             textTarget,
             dragIds: draggedIds,
-            wasSelectedOnPointerDown: alreadySelected,
+            wasSelectedOnWorldPointerDown: alreadySelected,
             moved: false,
             dragStarted: false
           };
@@ -441,7 +442,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         : null;
       const singleSelectedScopeId =
         singleSelectedId && scopeOverlay.scopesById.has(singleSelectedId) ? singleSelectedId : null;
-      const shouldDeferScopeDrillToPointerUp =
+      const shouldDeferScopeDrillToWorldPointerUp =
         !additiveSelection &&
         singleSelectedScopeId != null &&
         resolvedTargetId === singleSelectedScopeId &&
@@ -455,7 +456,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         return;
       }
 
-      if (shouldDeferScopeDrillToPointerUp) {
+      if (shouldDeferScopeDrillToWorldPointerUp) {
         const canDragSelectedScope = draggableSourceIds.has(singleSelectedScopeId);
         pendingScopeDrillRef.current = {
           pointerId: event.pointerId,
@@ -517,7 +518,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     ]
   );
 
-  const tryInsertPathPoint = useCallback(
+  const tryInsertPathWorldPoint = useCallback(
     (event: ReactMouseEvent<SVGElement>, sourceId: string): boolean => {
       if (!svgResult || snapshot.source !== source) return false;
 
@@ -537,7 +538,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
       if (!world) return false;
 
-      const result = findClosestSegmentPoint(snapshot.editHandles, sourceId, analysis, world);
+      const result = findClosestSegmentWorldPoint(snapshot.editHandles, sourceId, analysis, world);
       if (!result) return false;
 
       // Threshold: 12px screen distance
@@ -545,7 +546,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       if (result.distance > thresholdWorld) return false;
 
       applyActionWithFeedback({
-        kind: "insertPathPoint",
+        kind: "insertPathWorldPoint",
         elementId: sourceId,
         segmentIndex: result.segmentIndex,
         point: result.point
@@ -572,7 +573,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       if (densePathSourceIds.has(sourceId)) {
         if (expandedDensePathSourceId === sourceId) {
           // Expanded dense paths should use double-click for point insertion first.
-          if (tryInsertPathPoint(event, sourceId)) {
+          if (tryInsertPathWorldPoint(event, sourceId)) {
             return;
           }
           // Missed insertion is a no-op; keep dense path expanded.
@@ -589,7 +590,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       }
 
       // Try to insert a point on a path segment
-      if (tryInsertPathPoint(event, sourceId)) {
+      if (tryInsertPathWorldPoint(event, sourceId)) {
         return;
       }
     },
@@ -651,13 +652,13 @@ function isSyntheticTreeDescendantSourceId(candidateSourceId: string, selectedSo
   return candidateSourceId.startsWith(`${selectedSourceId}:tree-child:`);
 }
 
-function findClosestSegmentPoint(
+function findClosestSegmentWorldPoint(
   editHandles: readonly EditHandle[],
   sourceId: string,
   analysis: ExplicitPathAnalysis,
-  pointer: Point
-): { segmentIndex: number; point: Point; distance: number } | null {
-  let best: { segmentIndex: number; point: Point; distance: number } | null = null;
+  pointer: WorldPoint
+): { segmentIndex: number; point: WorldPoint; distance: number } | null {
+  let best: { segmentIndex: number; point: WorldPoint; distance: number } | null = null;
 
   for (let i = 0; i < analysis.segments.length; i++) {
     const seg = analysis.segments[i]!;
@@ -665,7 +666,7 @@ function findClosestSegmentPoint(
     const endW = resolveAnchorWorld(editHandles, sourceId, analysis.anchors[seg.endAnchorIndex]!);
     if (!startW || !endW) continue;
 
-    let closest: { point: Point };
+    let closest: { point: WorldPoint };
     if (seg.kind === "line") {
       closest = closestPointOnLine(pointer, startW, endW);
     } else if (seg.kind === "cubic") {
@@ -693,7 +694,7 @@ function resolveAnchorWorld(
   editHandles: readonly EditHandle[],
   sourceId: string,
   anchor: ExplicitPathAnalysis["anchors"][number]
-): Point | null {
+): WorldPoint | null {
   const handle = editHandles.find(
     (h) =>
       h.sourceRef.sourceId === sourceId &&
@@ -708,7 +709,7 @@ function resolveControlWorld(
   editHandles: readonly EditHandle[],
   sourceId: string,
   span: { from: number; to: number }
-): Point | null {
+): WorldPoint | null {
   const handle = editHandles.find(
     (h) =>
       h.sourceRef.sourceId === sourceId &&

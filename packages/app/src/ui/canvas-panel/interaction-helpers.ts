@@ -1,13 +1,14 @@
 import type { ElementTemplate } from "tikz-editor/edit/actions";
 import type { SelectionGeometry } from "tikz-editor/edit/snapping";
-import type { EditHandle, Point, SceneElement, ScenePathCommand } from "tikz-editor/semantic/types";
+import type { EditHandle, SceneElement, ScenePathCommand } from "tikz-editor/semantic/types";
 import { CM_PER_PT, PT_PER_CM, formatNumber } from "tikz-editor/edit/format";
 
 import { distanceSquared } from "./geometry";
 import { shouldConstrainToolCreateToSquare, type ToolCreateMode } from "../tool-config";
-import type { Bounds, DragState, DragTooltipRow } from "./types";
+import type { DragState, DragTooltipRow } from "./types";
 import type { ResizeFrame } from "./resize-frames";
 import { resolveAddShapeDraft } from "./add-shape-draft";
+import type { SvgBounds, WorldPoint } from "../coords/types";
 
 const DEFAULT_BEZIER_LENGTH_PT = 2 * PT_PER_CM;
 const STEP_SNAP_EPSILON = 1e-9;
@@ -15,7 +16,7 @@ export const DEFAULT_GRID_TOOL_STEP_PT = PT_PER_CM;
 const TOOLTIP_ZERO_EPSILON = 1e-6;
 const MIN_SHAPE_DRAG_DIMENSION_PT = 0.1 * PT_PER_CM;
 
-export function boundsFromPoints(a: { x: number; y: number }, b: { x: number; y: number }): Bounds {
+export function boundsFromPoints(a: { x: number; y: number }, b: { x: number; y: number }): SvgBounds {
   return {
     minX: Math.min(a.x, b.x),
     minY: Math.min(a.y, b.y),
@@ -24,7 +25,7 @@ export function boundsFromPoints(a: { x: number; y: number }, b: { x: number; y:
   };
 }
 
-export function collectSourceIdsInBounds(boundsBySource: ReadonlyMap<string, Bounds>, selection: Bounds): string[] {
+export function collectSourceIdsInBounds(boundsBySource: ReadonlyMap<string, SvgBounds>, selection: SvgBounds): string[] {
   const result: string[] = [];
   for (const [sourceId, bounds] of boundsBySource) {
     if (boundsContainedWithin(bounds, selection)) {
@@ -38,7 +39,7 @@ export function deriveSelectionTranslationDeltaFromAnchor(
   initialSelection: SelectionGeometry,
   currentSelection: SelectionGeometry | null,
   anchorRatio: { x: number; y: number } | null
-): Point {
+): WorldPoint {
   if (!currentSelection) {
     return { x: 0, y: 0 };
   }
@@ -54,8 +55,8 @@ export function deriveSelectionTranslationDeltaFromAnchor(
 
 export function createTemplateForToolDrag(
   mode: ToolCreateMode,
-  startWorld: Point,
-  endWorld: Point,
+  startWorld: WorldPoint,
+  endWorld: WorldPoint,
   options?: {
     selectedAddShape?: string;
     strokeColor?: string;
@@ -151,10 +152,10 @@ export function createTemplateForToolDrag(
 }
 
 export function resolveBezierControlsFromBend(
-  startWorld: Point,
-  endWorld: Point,
-  bendWorld: Point
-): { endWorld: Point; control1: Point; control2: Point } {
+  startWorld: WorldPoint,
+  endWorld: WorldPoint,
+  bendWorld: WorldPoint
+): { endWorld: WorldPoint; control1: WorldPoint; control2: WorldPoint } {
   let resolvedEnd = endWorld;
   let dx = resolvedEnd.x - startWorld.x;
   let dy = resolvedEnd.y - startWorld.y;
@@ -194,9 +195,9 @@ export function resolveBezierControlsFromBend(
 }
 
 export function createBezierTemplateFromBend(
-  startWorld: Point,
-  endWorld: Point,
-  bendWorld: Point
+  startWorld: WorldPoint,
+  endWorld: WorldPoint,
+  bendWorld: WorldPoint
 ): Extract<ElementTemplate, { kind: "bezier" }> {
   const controls = resolveBezierControlsFromBend(startWorld, endWorld, bendWorld);
   return {
@@ -208,22 +209,22 @@ export function createBezierTemplateFromBend(
 }
 
 export function resolveToolCreateCurrentWorld(
-  startWorld: Point,
-  rawCurrentWorld: Point,
+  startWorld: WorldPoint,
+  rawCurrentWorld: WorldPoint,
   mode: ToolCreateMode,
   shiftKey: boolean
-): Point {
+): WorldPoint {
   return shouldConstrainToolCreateToSquare(mode) && shiftKey
     ? constrainRectCornerToSquare(startWorld, rawCurrentWorld)
     : rawCurrentWorld;
 }
 
 export function snapPointDeltaToAxisStepMultiples(
-  anchorWorld: Point,
-  currentWorld: Point,
+  anchorWorld: WorldPoint,
+  currentWorld: WorldPoint,
   stepX: number,
   stepY: number
-): Point {
+): WorldPoint {
   return {
     x: anchorWorld.x + snapDeltaToStep(currentWorld.x - anchorWorld.x, stepX),
     y: anchorWorld.y + snapDeltaToStep(currentWorld.y - anchorWorld.y, stepY)
@@ -253,7 +254,7 @@ export function resolveHandleIdForDrag(
 
 function findClosestHandleMatch(
   handles: readonly EditHandle[],
-  target: Point,
+  target: WorldPoint,
   predicate: (handle: EditHandle) => boolean
 ): EditHandle | null {
   let best: EditHandle | null = null;
@@ -273,18 +274,18 @@ function findClosestHandleMatch(
   return best;
 }
 
-function boundsContainedWithin(inner: Bounds, outer: Bounds): boolean {
+function boundsContainedWithin(inner: SvgBounds, outer: SvgBounds): boolean {
   return inner.minX >= outer.minX && inner.maxX <= outer.maxX && inner.minY >= outer.minY && inner.maxY <= outer.maxY;
 }
 
-function pointFromBoundsAnchorRatio(bounds: Bounds, ratio: { x: number; y: number }): Point {
+function pointFromBoundsAnchorRatio(bounds: SvgBounds, ratio: { x: number; y: number }): WorldPoint {
   return {
     x: bounds.minX + (bounds.maxX - bounds.minX) * ratio.x,
     y: bounds.minY + (bounds.maxY - bounds.minY) * ratio.y
   };
 }
 
-function constrainRectCornerToSquare(startWorld: Point, cornerWorld: Point): Point {
+function constrainRectCornerToSquare(startWorld: WorldPoint, cornerWorld: WorldPoint): WorldPoint {
   const dx = cornerWorld.x - startWorld.x;
   const dy = cornerWorld.y - startWorld.y;
   const side = Math.max(Math.abs(dx), Math.abs(dy));
@@ -307,7 +308,7 @@ function snapDeltaToStep(delta: number, step: number): number {
   return Math.round(delta / step) * step;
 }
 
-export function sourceIdAnchorWorld(elements: SceneElement[], sourceId: string): Point {
+export function sourceIdAnchorWorld(elements: SceneElement[], sourceId: string): WorldPoint {
   let sumX = 0;
   let sumY = 0;
   let count = 0;
@@ -355,8 +356,8 @@ export function formatTooltipGridCountRow(columns: number, rows: number): DragTo
 }
 
 export function resolveFrameBasis(frame: ResizeFrame): {
-  widthUnit: Point;
-  heightUnit: Point;
+  widthUnit: WorldPoint;
+  heightUnit: WorldPoint;
   width: number;
   height: number;
 } {
@@ -381,7 +382,7 @@ export function resolveFrameBasis(frame: ResizeFrame): {
   };
 }
 
-export function oppositeCornerWorld(frame: ResizeFrame, role: Extract<DragState, { kind: "resize" }>["role"]): Point {
+export function oppositeCornerWorld(frame: ResizeFrame, role: Extract<DragState, { kind: "resize" }>["role"]): WorldPoint {
   const oppositeRole =
     role === "top-left" ? "bottom-right" :
     role === "top-right" ? "bottom-left" :
@@ -391,7 +392,7 @@ export function oppositeCornerWorld(frame: ResizeFrame, role: Extract<DragState,
 }
 
 export function projectResizeDimensionsFromCenter(
-  pointerWorld: Point,
+  pointerWorld: WorldPoint,
   frame: ResizeFrame,
   preserveAspectRatio: number | null,
   preserveAspectDuringResize: boolean
@@ -422,7 +423,7 @@ export function projectResizeDimensionsFromCenter(
 }
 
 export function projectResizeDimensionsFromOppositeCorner(
-  pointerWorld: Point,
+  pointerWorld: WorldPoint,
   frame: ResizeFrame,
   role: Extract<DragState, { kind: "resize" }>["role"]
 ): { width: number; height: number } {
@@ -440,8 +441,8 @@ export function projectResizeDimensionsFromOppositeCorner(
 
 export function resolveToolCreateSize(
   mode: ToolCreateMode,
-  startWorld: Point,
-  currentWorld: Point
+  startWorld: WorldPoint,
+  currentWorld: WorldPoint
 ): { width: number; height: number } {
   if (mode === "addCircle") {
     const radius = Math.hypot(currentWorld.x - startWorld.x, currentWorld.y - startWorld.y);
@@ -455,7 +456,7 @@ export function resolveToolCreateSize(
   };
 }
 
-export function resolveGridTooltipCounts(startWorld: Point, currentWorld: Point): { columns: number; rows: number } {
+export function resolveGridTooltipCounts(startWorld: WorldPoint, currentWorld: WorldPoint): { columns: number; rows: number } {
   const width = Math.abs(currentWorld.x - startWorld.x);
   const height = Math.abs(currentWorld.y - startWorld.y);
   return {
@@ -473,11 +474,11 @@ function clampTooltipScalar(value: number): number {
   return Math.abs(value) <= TOOLTIP_ZERO_EPSILON ? 0 : value;
 }
 
-function dotPoint(a: Point, b: Point): number {
+function dotPoint(a: WorldPoint, b: WorldPoint): number {
   return a.x * b.x + a.y * b.y;
 }
 
-function elementAnchorWorld(element: SceneElement): Point {
+function elementAnchorWorld(element: SceneElement): WorldPoint {
   if (element.kind === "Circle" || element.kind === "Ellipse") {
     return element.center;
   }
@@ -489,7 +490,7 @@ function elementAnchorWorld(element: SceneElement): Point {
   return firstPoint ?? { x: 0, y: 0 };
 }
 
-function firstPathPoint(commands: ScenePathCommand[]): Point | null {
+function firstPathPoint(commands: ScenePathCommand[]): WorldPoint | null {
   for (const command of commands) {
     if (command.kind === "Z") {
       continue;
@@ -502,7 +503,7 @@ function firstPathPoint(commands: ScenePathCommand[]): Point | null {
 export function pickClosestSourceId(
   elements: SceneElement[],
   sourceIds: readonly string[],
-  preferredWorld: Point
+  preferredWorld: WorldPoint
 ): string {
   let bestId = sourceIds[0]!;
   let bestDistSq = Number.POSITIVE_INFINITY;
