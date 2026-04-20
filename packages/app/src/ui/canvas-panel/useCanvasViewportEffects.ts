@@ -195,7 +195,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
       const currentTransform = canvasTransformRef.current;
       pinchGesture = {
         baseScale: currentTransform.scale,
-        baseSvgPoint: viewportToSvgPoint(center.x, center.y, currentTransform, currentSvg.viewBox),
+        baseSvgPoint: viewportToSvgPoint(center, currentTransform, currentSvg.viewBox),
         baseDistance: distance
       };
     };
@@ -252,7 +252,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
               : 1;
         const zoomFactor = Math.exp(-event.deltaY * deltaModeFactor * zoomSpeed);
         const nextScale = clamp(currentTransform.scale * zoomFactor, MIN_SCALE, MAX_SCALE);
-        const svgPoint = viewportToSvgPoint(localX, localY, currentTransform, currentSvg.viewBox);
+        const svgPoint = viewportToSvgPoint(unsafePoint<ViewportPoint>(localX, localY), currentTransform, currentSvg.viewBox);
         const translateX = localX - (svgPoint.x - currentSvg.viewBox.x) * nextScale;
         const translateY = localY - (svgPoint.y - currentSvg.viewBox.y) * nextScale;
 

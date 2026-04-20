@@ -74,7 +74,8 @@ import { parseBooleanishNormalized } from "../utils/booleanish.js";
 import { stripWrappingBraces } from "../utils/braces.js";
 import { evaluatePgfMathExpression, formatPgfMathNumber } from "./pgfmath/evaluator.js";
 import { withPgfMathRuntime } from "./pgfmath/runtime.js";
-import type { WorldBounds } from "../coords/points.js";
+import { unsafeBounds, unsafePoint } from "../coords/points.js";
+import type { WorldBounds, WorldPoint } from "../coords/points.js";
 import type {
   EditHandle,
   EvaluateOptions,
@@ -564,7 +565,7 @@ export function collectNodeAnchorTargets(context: SemanticContext): NodeAnchorTa
 
   const targets: NodeAnchorTarget[] = [];
   const seen = new Set<string>();
-  const anchorsByNode = new Map<string, Array<{ anchor: string; world: { x: number; y: number } }>>();
+  const anchorsByNode = new Map<string, Array<{ anchor: string; world: WorldPoint }>>();
 
   for (const [coordinateName, world] of context.namedCoordinates) {
     const dot = coordinateName.indexOf(".");
@@ -585,7 +586,7 @@ export function collectNodeAnchorTargets(context: SemanticContext): NodeAnchorTa
   }
 
   for (const [nodeName, geometry] of context.namedNodeGeometries) {
-    const addTarget = (anchor: string, world: { x: number; y: number }) => {
+    const addTarget = (anchor: string, world: WorldPoint) => {
       const normalizedAnchor = anchor.trim().toLowerCase();
       if (normalizedAnchor.length === 0) {
         return;
@@ -598,7 +599,7 @@ export function collectNodeAnchorTargets(context: SemanticContext): NodeAnchorTa
       targets.push({
         nodeName,
         anchor: normalizedAnchor,
-        world: { x: world.x, y: world.y },
+        world: unsafePoint<WorldPoint>(world.x, world.y),
         tier: BASIC_ANCHORS.has(normalizedAnchor) ? "basic" : "special"
       });
     };
@@ -1865,7 +1866,7 @@ function normalizeColorAliasName(raw: string): string | null {
 }
 
 export function computeBounds(elements: SceneElement[]): WorldBounds | undefined {
-  const points: Array<{ x: number; y: number }> = [];
+  const points: WorldPoint[] = [];
 
   for (const element of elements) {
     if (element.kind === "Path") {
@@ -1874,8 +1875,8 @@ export function computeBounds(elements: SceneElement[]): WorldBounds | undefined
     }
 
     if (element.kind === "Circle") {
-      const min = { x: element.center.x - element.radius, y: element.center.y - element.radius };
-      const max = { x: element.center.x + element.radius, y: element.center.y + element.radius };
+      const min = unsafePoint<WorldPoint>(element.center.x - element.radius, element.center.y - element.radius);
+      const max = unsafePoint<WorldPoint>(element.center.x + element.radius, element.center.y + element.radius);
       pushRectCorners(points, min, max, element.transform);
       continue;
     }
@@ -1886,8 +1887,8 @@ export function computeBounds(elements: SceneElement[]): WorldBounds | undefined
       const sin = Math.sin(rotation);
       const extentX = Math.sqrt(element.rx * element.rx * cos * cos + element.ry * element.ry * sin * sin);
       const extentY = Math.sqrt(element.rx * element.rx * sin * sin + element.ry * element.ry * cos * cos);
-      const min = { x: element.center.x - extentX, y: element.center.y - extentY };
-      const max = { x: element.center.x + extentX, y: element.center.y + extentY };
+      const min = unsafePoint<WorldPoint>(element.center.x - extentX, element.center.y - extentY);
+      const max = unsafePoint<WorldPoint>(element.center.x + extentX, element.center.y + extentY);
       pushRectCorners(points, min, max, element.transform);
       continue;
     }
@@ -1901,16 +1902,16 @@ export function computeBounds(elements: SceneElement[]): WorldBounds | undefined
     const cos = Math.cos(rotation);
     const sin = Math.sin(rotation);
     const corners = [
-      { x: -halfWidth, y: -halfHeight },
-      { x: halfWidth, y: -halfHeight },
-      { x: halfWidth, y: halfHeight },
-      { x: -halfWidth, y: halfHeight }
+      unsafePoint<WorldPoint>(-halfWidth, -halfHeight),
+      unsafePoint<WorldPoint>(halfWidth, -halfHeight),
+      unsafePoint<WorldPoint>(halfWidth, halfHeight),
+      unsafePoint<WorldPoint>(-halfWidth, halfHeight)
     ];
     for (const corner of corners) {
-      const rotatedCorner = {
-        x: element.position.x + corner.x * cos - corner.y * sin,
-        y: element.position.y + corner.x * sin + corner.y * cos
-      };
+      const rotatedCorner = unsafePoint<WorldPoint>(
+        element.position.x + corner.x * cos - corner.y * sin,
+        element.position.y + corner.x * sin + corner.y * cos
+      );
       points.push(applyOptionalTransform(rotatedCorner, element.transform));
     }
   }
@@ -1924,30 +1925,31 @@ export function computeBounds(elements: SceneElement[]): WorldBounds | undefined
   const maxX = Math.max(...points.map((point) => point.x));
   const maxY = Math.max(...points.map((point) => point.y));
 
-  return { minX, minY, maxX, maxY };
+  return unsafeBounds<WorldBounds>(minX, minY, maxX, maxY);
 }
 
 function applyOptionalTransform(
-  point: { x: number; y: number },
-  transform: { a: number; b: number; c: number; d: number; e: number; f: number } | undefined
-): { x: number; y: number } {
+  point: WorldPoint,
+  transform: SceneElement["transform"]
+): WorldPoint {
   if (!transform) {
     return point;
   }
-  return applyMatrix(transform, point);
+  const transformed = applyMatrix(transform, point);
+  return unsafePoint<WorldPoint>(transformed.x, transformed.y);
 }
 
 function pushRectCorners(
-  points: Array<{ x: number; y: number }>,
-  min: { x: number; y: number },
-  max: { x: number; y: number },
-  transform: { a: number; b: number; c: number; d: number; e: number; f: number } | undefined
+  points: WorldPoint[],
+  min: WorldPoint,
+  max: WorldPoint,
+  transform: SceneElement["transform"]
 ): void {
   const corners = [
-    { x: min.x, y: min.y },
-    { x: max.x, y: min.y },
-    { x: max.x, y: max.y },
-    { x: min.x, y: max.y }
+    unsafePoint<WorldPoint>(min.x, min.y),
+    unsafePoint<WorldPoint>(max.x, min.y),
+    unsafePoint<WorldPoint>(max.x, max.y),
+    unsafePoint<WorldPoint>(min.x, max.y)
   ];
   for (const corner of corners) {
     points.push(applyOptionalTransform(corner, transform));
@@ -1960,10 +1962,10 @@ function estimateTextWidth(text: string, fontSize: number): number {
   return maxChars * fontSize * 0.7;
 }
 
-function pathBoundsPoints(commands: ScenePathCommand[]): Array<{ x: number; y: number }> {
-  const points: Array<{ x: number; y: number }> = [];
-  let current: { x: number; y: number } | null = null;
-  let subpathStart: { x: number; y: number } | null = null;
+function pathBoundsPoints(commands: ScenePathCommand[]): WorldPoint[] {
+  const points: WorldPoint[] = [];
+  let current: WorldPoint | null = null;
+  let subpathStart: WorldPoint | null = null;
 
   for (const command of commands) {
     if (command.kind === "M") {
@@ -2003,10 +2005,13 @@ function pathBoundsPoints(commands: ScenePathCommand[]): Array<{ x: number; y: n
   return points;
 }
 
+type WorldUnitVector = Readonly<{ x: number; y: number }>;
+type ArcBoundsCommand = Extract<ScenePathCommand, { kind: "A" }>;
+
 function arcExtremaPoints(
-  from: { x: number; y: number },
-  arc: { rx: number; ry: number; xAxisRotation: number; largeArc: boolean; sweep: boolean; to: { x: number; y: number } }
-): Array<{ x: number; y: number }> {
+  from: WorldPoint,
+  arc: ArcBoundsCommand
+): WorldPoint[] {
   const solution = solveArcCenter(from, arc);
   if (!solution) {
     return [];
@@ -2015,7 +2020,7 @@ function arcExtremaPoints(
   const { center, rx, ry, phi, theta1, deltaTheta } = solution;
   const theta2 = theta1 + deltaTheta;
   const candidates = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2];
-  const points: Array<{ x: number; y: number }> = [];
+  const points: WorldPoint[] = [];
 
   for (const candidate of candidates) {
     if (!angleOnArc(candidate, theta1, theta2, arc.sweep)) {
@@ -2028,10 +2033,10 @@ function arcExtremaPoints(
 }
 
 function solveArcCenter(
-  from: { x: number; y: number },
-  arc: { rx: number; ry: number; xAxisRotation: number; largeArc: boolean; sweep: boolean; to: { x: number; y: number } }
+  from: WorldPoint,
+  arc: ArcBoundsCommand
 ): {
-  center: { x: number; y: number };
+  center: WorldPoint;
   rx: number;
   ry: number;
   phi: number;
@@ -2078,8 +2083,8 @@ function solveArcCenter(
   const cx = cosPhi * cxp - sinPhi * cyp + (from.x + arc.to.x) / 2;
   const cy = sinPhi * cxp + cosPhi * cyp + (from.y + arc.to.y) / 2;
 
-  const startUnit = { x: (x1p - cxp) / rx, y: (y1p - cyp) / ry };
-  const endUnit = { x: (-x1p - cxp) / rx, y: (-y1p - cyp) / ry };
+  const startUnit: WorldUnitVector = { x: (x1p - cxp) / rx, y: (y1p - cyp) / ry };
+  const endUnit: WorldUnitVector = { x: (-x1p - cxp) / rx, y: (-y1p - cyp) / ry };
   const theta1 = angleFromUnit(startUnit);
   let deltaTheta = angleBetweenUnits(startUnit, endUnit);
 
@@ -2090,7 +2095,7 @@ function solveArcCenter(
   }
 
   return {
-    center: { x: cx, y: cy },
+    center: unsafePoint<WorldPoint>(cx, cy),
     rx,
     ry,
     phi,
@@ -2100,27 +2105,27 @@ function solveArcCenter(
 }
 
 function pointOnEllipse(
-  center: { x: number; y: number },
+  center: WorldPoint,
   rx: number,
   ry: number,
   phi: number,
   theta: number
-): { x: number; y: number } {
+): WorldPoint {
   const cosTheta = Math.cos(theta);
   const sinTheta = Math.sin(theta);
   const cosPhi = Math.cos(phi);
   const sinPhi = Math.sin(phi);
-  return {
-    x: center.x + rx * cosTheta * cosPhi - ry * sinTheta * sinPhi,
-    y: center.y + rx * cosTheta * sinPhi + ry * sinTheta * cosPhi
-  };
+  return unsafePoint<WorldPoint>(
+    center.x + rx * cosTheta * cosPhi - ry * sinTheta * sinPhi,
+    center.y + rx * cosTheta * sinPhi + ry * sinTheta * cosPhi
+  );
 }
 
-function angleFromUnit(unit: { x: number; y: number }): number {
+function angleFromUnit(unit: WorldUnitVector): number {
   return Math.atan2(unit.y, unit.x);
 }
 
-function angleBetweenUnits(from: { x: number; y: number }, to: { x: number; y: number }): number {
+function angleBetweenUnits(from: WorldUnitVector, to: WorldUnitVector): number {
   const cross = from.x * to.y - from.y * to.x;
   const dot = from.x * to.x + from.y * to.y;
   return Math.atan2(cross, dot);

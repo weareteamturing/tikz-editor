@@ -1,3 +1,4 @@
+import { unsafePoint } from "tikz-editor/coords/index";
 import { applyMatrix } from "tikz-editor/semantic/transform";
 import type { SvgTransform, WorldBounds, WorldPoint, WorldTransform } from "tikz-editor/coords/index";
 import { worldToSvgTransform } from "tikz-editor/coords/index";
@@ -350,9 +351,9 @@ function resolveTextRectTransformInSvg(
   const halfHeight = localRect.height / 2;
   const rotation = element.rotation ?? 0;
   const localCornersWorld = {
-    topLeft: rotateWorldPointAroundCenter({ x: center.x - halfWidth, y: center.y + halfHeight }, center, rotation),
-    topRight: rotateWorldPointAroundCenter({ x: center.x + halfWidth, y: center.y + halfHeight }, center, rotation),
-    bottomLeft: rotateWorldPointAroundCenter({ x: center.x - halfWidth, y: center.y - halfHeight }, center, rotation)
+    topLeft: rotateWorldPointAroundCenter(unsafePoint<WorldPoint>(center.x - halfWidth, center.y + halfHeight), center, rotation),
+    topRight: rotateWorldPointAroundCenter(unsafePoint<WorldPoint>(center.x + halfWidth, center.y + halfHeight), center, rotation),
+    bottomLeft: rotateWorldPointAroundCenter(unsafePoint<WorldPoint>(center.x - halfWidth, center.y - halfHeight), center, rotation)
   };
   const actualCornersWorld = element.transform
     ? {
@@ -380,18 +381,18 @@ function rotateWorldPointAroundCenter(point: WorldPoint, center: WorldPoint, deg
   const sin = Math.sin(theta);
   const dx = point.x - center.x;
   const dy = point.y - center.y;
-  return {
-    x: center.x + dx * cos - dy * sin,
-    y: center.y + dx * sin + dy * cos
-  };
+  return unsafePoint<WorldPoint>(
+    center.x + dx * cos - dy * sin,
+    center.y + dx * sin + dy * cos
+  );
 }
 
 function rectTransformFromCorners(
   localRect: { x: number; y: number; width: number; height: number },
   corners: {
-    topLeft: { x: number; y: number };
-    topRight: { x: number; y: number };
-    bottomLeft: { x: number; y: number };
+    topLeft: SvgPoint;
+    topRight: SvgPoint;
+    bottomLeft: SvgPoint;
   }
 ): SvgTransform {
   const safeWidth = Math.max(localRect.width, 1e-9);

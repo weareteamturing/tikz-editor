@@ -6,6 +6,8 @@ import type { WorldPoint } from "../../coords/points.js";
 import type { ResolvedStyle } from "../types.js";
 import { DEFAULT_TEXT_FONT_SIZE, FONT_SIZE_COMMAND_FACTORS } from "./constants.js";
 
+type AxisVector = Readonly<{ x: number; y: number }>;
+
 export function parseStyleValueAsOptionList(valueRaw: string, absoluteFrom = 0): OptionListAst | null {
   const trimmed = valueRaw.trim();
   if (trimmed.length === 0) {
@@ -132,7 +134,7 @@ export function parseFontStyle(
   return Object.keys(parsed).length > 0 ? parsed : null;
 }
 
-export function parseAxisVector(raw: string, axis: "x" | "y"): { x: number; y: number } | null {
+export function parseAxisVector(raw: string, axis: "x" | "y"): AxisVector | null {
   const pair = parseCoordinateLike(raw);
   if (pair) {
     const x = parseLength(pair.x, "cm");
@@ -152,7 +154,7 @@ export function parseAxisVector(raw: string, axis: "x" | "y"): { x: number; y: n
 
 export function parseCmTransformValue(
   raw: string,
-  resolveCoordinate?: (raw: string) => { x: number; y: number } | null
+  resolveCoordinate?: (raw: string) => WorldPoint | null
 ): { a: number; b: number; c: number; d: number; e: number; f: number } | null {
   const normalized = normalizeOptionValue(raw);
   if (normalized.length === 0) {

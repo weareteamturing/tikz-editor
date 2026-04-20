@@ -1,3 +1,5 @@
+import { unsafePoint } from "../../coords/points.js";
+import type { ArrowLocalPoint } from "../../coords/points.js";
 import type { ScenePathCommand } from "../../semantic/types.js";
 import { computeLatexShapeParameters, computeStealthShapeParameters } from "./metrics.js";
 import type { ArrowTipMetrics, NormalizedArrowTip } from "./types.js";
@@ -150,7 +152,7 @@ function buildRawTipPaths(tip: NormalizedArrowTip): ScenePathCommand[][] {
   return [[moveTo(0, halfWidth), lineTo(tip.length, 0), lineTo(0, -halfWidth), lineTo(tip.length * 0.24, 0), close()]];
 }
 
-function transformPath(path: ScenePathCommand[], map: (x: number, y: number) => { x: number; y: number }): ScenePathCommand[] {
+function transformPath(path: ScenePathCommand[], map: (x: number, y: number) => ArrowLocalPoint): ScenePathCommand[] {
   return path.map((command) => {
     if (command.kind === "Z") {
       return { kind: "Z" };
@@ -183,31 +185,31 @@ function quadraticAsCubic(start: ScenePathCommand, cx: number, cy: number, x: nu
     return [start];
   }
   const p0 = start.to;
-  const c1 = {
-    x: p0.x + (2 / 3) * (cx - p0.x),
-    y: p0.y + (2 / 3) * (cy - p0.y)
-  };
-  const c2 = {
-    x: x + (2 / 3) * (cx - x),
-    y: y + (2 / 3) * (cy - y)
-  };
-  return [start, { kind: "C", c1, c2, to: { x, y } }];
+  const c1 = unsafePoint<ArrowLocalPoint>(
+    p0.x + (2 / 3) * (cx - p0.x),
+    p0.y + (2 / 3) * (cy - p0.y)
+  );
+  const c2 = unsafePoint<ArrowLocalPoint>(
+    x + (2 / 3) * (cx - x),
+    y + (2 / 3) * (cy - y)
+  );
+  return [start, { kind: "C", c1, c2, to: unsafePoint<ArrowLocalPoint>(x, y) }];
 }
 
 function moveTo(x: number, y: number): ScenePathCommand {
-  return { kind: "M", to: { x, y } };
+  return { kind: "M", to: unsafePoint<ArrowLocalPoint>(x, y) };
 }
 
 function lineTo(x: number, y: number): ScenePathCommand {
-  return { kind: "L", to: { x, y } };
+  return { kind: "L", to: unsafePoint<ArrowLocalPoint>(x, y) };
 }
 
 function cubicTo(c1x: number, c1y: number, c2x: number, c2y: number, x: number, y: number): ScenePathCommand {
   return {
     kind: "C",
-    c1: { x: c1x, y: c1y },
-    c2: { x: c2x, y: c2y },
-    to: { x, y }
+    c1: unsafePoint<ArrowLocalPoint>(c1x, c1y),
+    c2: unsafePoint<ArrowLocalPoint>(c2x, c2y),
+    to: unsafePoint<ArrowLocalPoint>(x, y)
   };
 }
 
@@ -219,7 +221,7 @@ function arcTo(rx: number, ry: number, xAxisRotation: number, largeArc: boolean,
     xAxisRotation,
     largeArc,
     sweep,
-    to: { x, y }
+    to: unsafePoint<ArrowLocalPoint>(x, y)
   };
 }
 

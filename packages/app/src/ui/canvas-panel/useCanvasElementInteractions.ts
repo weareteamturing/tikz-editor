@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { buildSnapContext, collectSelectionGeometryFromBounds, collectSourceWorldBounds } from "tikz-editor/edit/snapping";
+import { unsafePoint } from "tikz-editor/coords/index";
+import { buildSnapContext, collectSelectionGeometryFromBounds, collectSourceWorldBounds, type SnapBounds } from "tikz-editor/edit/snapping";
 import type { EditHandle, SceneElement } from "tikz-editor/semantic/types";
-import type { WorldPoint } from "../coords/types";
+import type { ClientPoint, WorldBounds, WorldPoint } from "../coords/types";
 import { resolveEligibleExplicitPath, type ExplicitPathAnalysis, type ExplicitPathSegment } from "tikz-editor/edit/path-editing";
 import { closestPointOnLine, closestPointOnCubic } from "tikz-editor/edit/curve-math";
 import { clientToWorldPoint } from "./geometry";
@@ -55,8 +56,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
 
   const pendingScopeDrillRef = useRef<{
     pointerId: number;
-    startClientX: number;
-    startClientY: number;
+    startClient: ClientPoint;
     selectedScopeId: string;
     hitSourceId: string;
     dragIds: string[];
@@ -65,8 +65,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
   } | null>(null);
   const pendingTextInteractionRef = useRef<{
     pointerId: number;
-    startClientX: number;
-    startClientY: number;
+    startClient: ClientPoint;
     targetId: string;
     textTarget: EditableTextTarget;
     dragIds: string[];
@@ -78,7 +77,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
   const startElementDrag = useCallback(
     (
       pointerId: number,
-      world: { x: number; y: number },
+      world: WorldPoint,
       draggedIds: string[],
       options: { adornmentDragFromText?: boolean } = {}
     ) => {
@@ -121,10 +120,10 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         : null;
       const worldBoundsBySource = snapshot.scene
         ? collectSourceWorldBounds(snapshot.scene.elements)
-        : new Map<string, { minX: number; minY: number; maxX: number; maxY: number; sourceId: string }>();
-      const worldInteractionBoundsBySource = new Map(worldBoundsBySource);
+        : new Map<string, SnapBounds>();
+      const worldInteractionBoundsBySource = new Map<string, SnapBounds>(worldBoundsBySource);
       for (const scopeId of scopeOverlay.scopesById.keys()) {
-        let mergedBounds: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
+        let mergedBounds: WorldBounds | null = null;
         for (const [sourceId, sourceBounds] of worldBoundsBySource.entries()) {
           const ancestors = scopeOverlay.ancestorScopeIdsBySourceId.get(sourceId) ?? [];
           if (!ancestors.includes(scopeId)) {
@@ -148,7 +147,10 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
           continue;
         }
         worldInteractionBoundsBySource.set(scopeId, {
-          ...mergedBounds,
+          minX: mergedBounds.minX,
+          minY: mergedBounds.minY,
+          maxX: mergedBounds.maxX,
+          maxY: mergedBounds.maxY,
           sourceId: scopeId
         });
       }
@@ -212,8 +214,9 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       if (!pending || pending.pointerId !== event.pointerId || pending.dragStarted) {
         return;
       }
-      const dx = event.clientX - pending.startClientX;
-      const dy = event.clientY - pending.startClientY;
+      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const dx = clientPoint.x - pending.startClient.x;
+      const dy = clientPoint.y - pending.startClient.y;
       if ((dx * dx) + (dy * dy) <= 16) {
         return;
       }
@@ -221,7 +224,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       if (pending.dragIds.length === 0 || !svgResult) {
         return;
       }
-      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      const world = clientToWorldPoint(clientPoint, interactionSvgRef.current, svgResult.viewBox);
       if (!world) {
         return;
       }
@@ -265,8 +268,9 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       if (!pending || pending.pointerId !== event.pointerId || pending.dragStarted) {
         return;
       }
-      const dx = event.clientX - pending.startClientX;
-      const dy = event.clientY - pending.startClientY;
+      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const dx = clientPoint.x - pending.startClient.x;
+      const dy = clientPoint.y - pending.startClient.y;
       if ((dx * dx) + (dy * dy) <= 16) {
         return;
       }
@@ -274,7 +278,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       if (!svgResult) {
         return;
       }
-      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      const world = clientToWorldPoint(clientPoint, interactionSvgRef.current, svgResult.viewBox);
       if (!world) {
         return;
       }
@@ -356,6 +360,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       }
       if (toolMode !== "select") return;
       const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
+      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
       const hitSourceId = typeof region?.sourceId === "string" ? region.sourceId : targetId;
       const matrixEdgeSelection =
         region?.shape === "rect" && region.matrixEdgeSelection
@@ -406,8 +411,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         ) {
           pendingTextInteractionRef.current = {
             pointerId: event.pointerId,
-            startClientX: event.clientX,
-            startClientY: event.clientY,
+            startClient: clientPoint,
             targetId: resolvedTargetId,
             textTarget,
             dragIds: draggedIds,
@@ -448,7 +452,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         resolvedTargetId === singleSelectedScopeId &&
         isSourceWithinScope(singleSelectedScopeId, hitSourceId, scopeOverlay);
 
-      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      const world = clientToWorldPoint(clientPoint, interactionSvgRef.current, svgResult.viewBox);
       if (!world) return;
 
       if (additiveSelection) {
@@ -460,8 +464,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         const canDragSelectedScope = draggableSourceIds.has(singleSelectedScopeId);
         pendingScopeDrillRef.current = {
           pointerId: event.pointerId,
-          startClientX: event.clientX,
-          startClientY: event.clientY,
+          startClient: clientPoint,
           selectedScopeId: singleSelectedScopeId,
           hitSourceId,
           dragIds: canDragSelectedScope ? [singleSelectedScopeId] : [],
@@ -535,7 +538,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       if (resolved.kind !== "eligible") return false;
       const analysis = resolved.analysis;
 
-      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      const world = clientToWorldPoint(unsafePoint<ClientPoint>(event.clientX, event.clientY), interactionSvgRef.current, svgResult.viewBox);
       if (!world) return false;
 
       const result = findClosestSegmentWorldPoint(snapshot.editHandles, sourceId, analysis, world);

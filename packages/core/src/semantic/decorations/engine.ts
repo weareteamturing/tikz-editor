@@ -1,5 +1,6 @@
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
 import { multiplyMatrix, rotationMatrix, scaleMatrix, translationMatrix } from "../transform.js";
+import { unsafePoint } from "../../coords/points.js";
 import type { WorldPoint } from "../../coords/points.js";
 import type { WorldTransform } from "../../coords/transforms.js";
 import type { DecorationStyle, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
@@ -954,17 +955,17 @@ function makeShapeBackgroundPolylines(
   transformSpec: DecorationTransformSpec,
   followPath: boolean
 ): WorldPoint[][] {
-  const pointsToPolyline = (entries: Array<{ x: number; y: number }>): WorldPoint[] =>
+  const pointsToPolyline = (entries: WorldPoint[]): WorldPoint[] =>
     entries.map((entry) => pointFromFrame(frame, entry.x, entry.y, decoration, transformSpec, followPath));
 
   if (shapeName === "rectangle") {
     return [
       pointsToPolyline([
-        { x: -width / 2, y: -height / 2 },
-        { x: width / 2, y: -height / 2 },
-        { x: width / 2, y: height / 2 },
-        { x: -width / 2, y: height / 2 },
-        { x: -width / 2, y: -height / 2 }
+        unsafePoint<WorldPoint>(-width / 2, -height / 2),
+        unsafePoint<WorldPoint>(width / 2, -height / 2),
+        unsafePoint<WorldPoint>(width / 2, height / 2),
+        unsafePoint<WorldPoint>(-width / 2, height / 2),
+        unsafePoint<WorldPoint>(-width / 2, -height / 2)
       ])
     ];
   }
@@ -972,23 +973,23 @@ function makeShapeBackgroundPolylines(
   if (shapeName === "triangle" || shapeName === "triangles") {
     return [
       pointsToPolyline([
-        { x: 0, y: height / 2 },
-        { x: width / 2, y: -height / 2 },
-        { x: -width / 2, y: -height / 2 },
-        { x: 0, y: height / 2 }
+        unsafePoint<WorldPoint>(0, height / 2),
+        unsafePoint<WorldPoint>(width / 2, -height / 2),
+        unsafePoint<WorldPoint>(-width / 2, -height / 2),
+        unsafePoint<WorldPoint>(0, height / 2)
       ])
     ];
   }
 
   // default: approximate circle/ellipse
   const samples = 10;
-  const points: Array<{ x: number; y: number }> = [];
+  const points: WorldPoint[] = [];
   for (let index = 0; index <= samples; index += 1) {
     const angle = (index / samples) * Math.PI * 2;
-    points.push({
-      x: Math.cos(angle) * width * 0.5,
-      y: Math.sin(angle) * height * 0.5
-    });
+    points.push(unsafePoint<WorldPoint>(
+      Math.cos(angle) * width * 0.5,
+      Math.sin(angle) * height * 0.5
+    ));
   }
   return [pointsToPolyline(points)];
 }
@@ -1015,35 +1016,35 @@ function decorateBrace(segments: PathSegment[], decoration: DecorationStyle, tra
     xc = amplitude;
   }
 
-  const localWorldPoints: Array<{ x: number; y: number }> = [];
+  const localWorldPoints: WorldPoint[] = [];
   localWorldPoints.push(...sampleCubic(
-    { x: 0, y: 0 },
-    { x: 0.15 * yc, y: 0.3 * amplitude },
-    { x: 0.5 * yc, y: 0.5 * amplitude },
-    { x: yc, y: 0.5 * amplitude },
+    unsafePoint<WorldPoint>(0, 0),
+    unsafePoint<WorldPoint>(0.15 * yc, 0.3 * amplitude),
+    unsafePoint<WorldPoint>(0.5 * yc, 0.5 * amplitude),
+    unsafePoint<WorldPoint>(yc, 0.5 * amplitude),
     10
   ));
-  localWorldPoints.push({ x: aspect * total - yc, y: 0.5 * amplitude });
+  localWorldPoints.push(unsafePoint<WorldPoint>(aspect * total - yc, 0.5 * amplitude));
   localWorldPoints.push(...sampleCubic(
-    { x: aspect * total - yc, y: 0.5 * amplitude },
-    { x: aspect * total - 0.5 * yc, y: 0.5 * amplitude },
-    { x: aspect * total - 0.15 * yc, y: 0.7 * amplitude },
-    { x: aspect * total, y: 1 * amplitude },
+    unsafePoint<WorldPoint>(aspect * total - yc, 0.5 * amplitude),
+    unsafePoint<WorldPoint>(aspect * total - 0.5 * yc, 0.5 * amplitude),
+    unsafePoint<WorldPoint>(aspect * total - 0.15 * yc, 0.7 * amplitude),
+    unsafePoint<WorldPoint>(aspect * total, 1 * amplitude),
     10
   ));
   localWorldPoints.push(...sampleCubic(
-    { x: aspect * total, y: 1 * amplitude },
-    { x: aspect * total + 0.15 * xc, y: 0.7 * amplitude },
-    { x: aspect * total + 0.5 * xc, y: 0.5 * amplitude },
-    { x: aspect * total + xc, y: 0.5 * amplitude },
+    unsafePoint<WorldPoint>(aspect * total, 1 * amplitude),
+    unsafePoint<WorldPoint>(aspect * total + 0.15 * xc, 0.7 * amplitude),
+    unsafePoint<WorldPoint>(aspect * total + 0.5 * xc, 0.5 * amplitude),
+    unsafePoint<WorldPoint>(aspect * total + xc, 0.5 * amplitude),
     10
   ));
-  localWorldPoints.push({ x: total - xc, y: 0.5 * amplitude });
+  localWorldPoints.push(unsafePoint<WorldPoint>(total - xc, 0.5 * amplitude));
   localWorldPoints.push(...sampleCubic(
-    { x: total - xc, y: 0.5 * amplitude },
-    { x: total - 0.5 * xc, y: 0.5 * amplitude },
-    { x: total - 0.15 * xc, y: 0.3 * amplitude },
-    { x: total, y: 0 },
+    unsafePoint<WorldPoint>(total - xc, 0.5 * amplitude),
+    unsafePoint<WorldPoint>(total - 0.5 * xc, 0.5 * amplitude),
+    unsafePoint<WorldPoint>(total - 0.15 * xc, 0.3 * amplitude),
+    unsafePoint<WorldPoint>(total, 0),
     10
   ));
 
@@ -1454,24 +1455,24 @@ function sampleCubic(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPo
   for (let index = 0; index <= clampedSteps; index += 1) {
     const t = index / clampedSteps;
     const oneMinusT = 1 - t;
-    points.push({
-      x:
+    points.push(
+      unsafePoint<WorldPoint>(
         oneMinusT * oneMinusT * oneMinusT * p0.x +
-        3 * oneMinusT * oneMinusT * t * p1.x +
-        3 * oneMinusT * t * t * p2.x +
-        t * t * t * p3.x,
-      y:
+          3 * oneMinusT * oneMinusT * t * p1.x +
+          3 * oneMinusT * t * t * p2.x +
+          t * t * t * p3.x,
         oneMinusT * oneMinusT * oneMinusT * p0.y +
-        3 * oneMinusT * oneMinusT * t * p1.y +
-        3 * oneMinusT * t * t * p2.y +
-        t * t * t * p3.y
-    });
+          3 * oneMinusT * oneMinusT * t * p1.y +
+          3 * oneMinusT * t * t * p2.y +
+          t * t * t * p3.y
+      )
+    );
   }
   return points;
 }
 
-function dedupeLocalWorldPoints(points: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
-  const deduped: Array<{ x: number; y: number }> = [];
+function dedupeLocalWorldPoints(points: WorldPoint[]): WorldPoint[] {
+  const deduped: WorldPoint[] = [];
   for (const point of points) {
     const last = deduped[deduped.length - 1];
     if (!last || Math.hypot(last.x - point.x, last.y - point.y) > 1e-6) {

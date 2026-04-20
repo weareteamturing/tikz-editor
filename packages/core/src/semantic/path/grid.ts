@@ -14,6 +14,8 @@ import { cloneStyleChain } from "../style-chain.js";
 import { expandPathMacroBindings } from "./macro-expansion.js";
 import type { MacroBinding } from "../../macros/index.js";
 
+type PolarStepVector = Readonly<{ x: number; y: number }>;
+
 export function extractGridSteps(
   item: PathOptionItem,
   pushDiagnostic: DiagnosticPushFn,
@@ -129,7 +131,7 @@ export function extractGridStepsFromOptionLists(
   return { stepX, stepY };
 }
 
-function parsePolarStep(raw: string): { x: number; y: number } | null {
+function parsePolarStep(raw: string): PolarStepVector | null {
   const inner = coordinateInner(raw);
   if (!inner) {
     return null;

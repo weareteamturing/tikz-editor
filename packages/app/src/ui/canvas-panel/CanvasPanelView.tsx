@@ -143,10 +143,10 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
   const magnifierRadius = MAGNIFIER_DIAMETER_PX / 2;
   const magnifierVisible = toolMode === "magnify" && magnifierState != null && svgResult != null && viewportSize.width > 0 && viewportSize.height > 0;
   const magnifierLeft = magnifierVisible
-    ? Math.max(0, Math.min(viewportSize.width - MAGNIFIER_DIAMETER_PX, magnifierState.x - magnifierRadius))
+    ? Math.max(0, Math.min(viewportSize.width - MAGNIFIER_DIAMETER_PX, magnifierState.center.x - magnifierRadius))
     : 0;
   const magnifierTop = magnifierVisible
-    ? Math.max(0, Math.min(viewportSize.height - MAGNIFIER_DIAMETER_PX, magnifierState.y - magnifierRadius))
+    ? Math.max(0, Math.min(viewportSize.height - MAGNIFIER_DIAMETER_PX, magnifierState.center.y - magnifierRadius))
     : 0;
   const textCaretBlinkSyncKey = textEditingSession
     ? `${textEditingSession.sourceId}:${textEditingSession.selectionStart}:${textEditingSession.selectionEnd}:${textEditingSession.text.length}`
@@ -605,7 +605,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                 style={{
                   width: viewportSize.width,
                   height: viewportSize.height,
-                  transform: `translate(${magnifierRadius - magnifierState.x * MAGNIFIER_SCALE}px, ${magnifierRadius - magnifierState.y * MAGNIFIER_SCALE}px) scale(${MAGNIFIER_SCALE})`
+                  transform: `translate(${magnifierRadius - magnifierState.center.x * MAGNIFIER_SCALE}px, ${magnifierRadius - magnifierState.center.y * MAGNIFIER_SCALE}px) scale(${MAGNIFIER_SCALE})`
                 }}
               >
                 <div

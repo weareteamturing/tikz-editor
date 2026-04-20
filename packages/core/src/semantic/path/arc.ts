@@ -9,6 +9,8 @@ import type { ResolvedStyle, ScenePathCommand } from "../types.js";
 import { applyMatrixToVector } from "../transform.js";
 import { expandPathMacroBindings } from "./macro-expansion.js";
 
+type BasisVector = Readonly<{ x: number; y: number }>;
+
 export function extractArcParameters(
   item: PathOptionItem,
   pushDiagnostic: DiagnosticPushFn,
@@ -198,8 +200,8 @@ function computeArcGeometry(
 }
 
 function ellipseGeometryFromBasis(
-  basisX: { x: number; y: number },
-  basisY: { x: number; y: number }
+  basisX: BasisVector,
+  basisY: BasisVector
 ): { rx: number; ry: number; rotation: number } {
   const s11 = basisX.x * basisX.x + basisY.x * basisY.x;
   const s12 = basisX.x * basisX.y + basisY.x * basisY.y;

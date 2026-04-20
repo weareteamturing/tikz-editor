@@ -103,6 +103,8 @@ import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 import { applyMatrixToVector, identityMatrix, multiplyMatrix, rotationMatrix } from "../transform.js";
 import type { PgfRandom } from "../pgfmath/rng.js";
 
+type InnerSepVector = Readonly<{ x: number; y: number }>;
+
 const CONTINUOUS_POSITIONING_DIRECTIONS: PositioningDirection[] = [
   "above",
   "below",
@@ -3218,7 +3220,7 @@ function resolveEveryTextNodePartAlign(options: OptionListAst | undefined): Reso
   return align;
 }
 
-function resolveRectangleSplitInnerSeps(options: OptionListAst | undefined): { x: number; y: number } {
+function resolveRectangleSplitInnerSeps(options: OptionListAst | undefined): InnerSepVector {
   const defaultInner = parseLength(".3333em", "pt") ?? 3.333;
   let x = defaultInner;
   let y = defaultInner;

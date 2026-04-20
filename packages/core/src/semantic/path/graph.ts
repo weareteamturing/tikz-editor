@@ -33,6 +33,8 @@ type GraphVector2 = {
   y: number;
 };
 
+type GraphPoint = GraphVector2;
+
 type GraphCircularPlacementState = {
   chainAngle: number;
   chainRadius: number;
@@ -134,7 +136,7 @@ export type GraphPlannedNode = {
   text: string;
   options?: OptionListAst;
   span: Span;
-  defaultPoint: { x: number; y: number };
+  defaultPoint: GraphPoint;
   placementHint?: GraphPlacementHint;
 };
 
@@ -1999,7 +2001,7 @@ class GraphPlanner {
     scope: GraphScopeState,
     layout: GraphLayoutContext,
     placementSlot: number
-  ): { x: number; y: number } {
+  ): GraphPoint {
     let x = 0;
     let y = 0;
 

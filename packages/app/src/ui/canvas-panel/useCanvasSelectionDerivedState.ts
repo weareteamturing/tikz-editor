@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { unsafePoint } from "tikz-editor/coords/index";
 import type { PathItem, Statement } from "tikz-editor/ast/types";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import { FIT_DIRECT_MANIPULATION_BLOCK_REASON, sourceUsesFitNodeFromParseResult } from "tikz-editor/edit/fit";
@@ -183,10 +184,14 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     return collectSourceBounds(snapshot.scene.elements, svgResult.viewBox);
   }, [snapshot.scene, svgResult]);
 
+  const sourceBoundsWorld = useMemo(() => {
+    if (!snapshot.scene) {
+      return collectSourceWorldBounds([]);
+    }
+    return collectSourceWorldBounds(snapshot.scene.elements);
+  }, [snapshot.scene]);
+
   const matrixCellAnchorHints = useMemo<readonly MatrixCellAnchorHint[]>(() => {
-    const sourceBoundsWorld = snapshot.scene
-      ? collectSourceWorldBounds(snapshot.scene.elements)
-      : new Map<string, { minX: number; minY: number; maxX: number; maxY: number }>();
     const byCellId = new Map<string, MatrixCellAnchorHint>();
     for (const element of snapshot.scene?.elements ?? []) {
       const matrixCell = element.matrixCell;
@@ -215,7 +220,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       });
     }
     return [...byCellId.values()];
-  }, [snapshot.scene]);
+  }, [snapshot.scene, sourceBoundsWorld]);
 
   const scopeOverlay = useMemo(
     () =>
@@ -293,10 +298,13 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
   }, [scopeOverlay.boundsByScopeId, selectedElementIds, selectedNodeSourceIds, snapshot.scene, sourceBoundsSvg, svgResult, treeChildSourceIds, treeRootSourceIds]);
 
   const selectedScopeHitBounds = useMemo<ScopeHitBounds[]>(() => {
-    return selectionBounds
-      .filter((entry) => movableScopeSourceIds.has(entry.sourceId) && scopeOverlay.scopesById.has(entry.sourceId))
-      .map((entry) => ({ scopeId: entry.sourceId, bounds: entry.bounds }));
-  }, [movableScopeSourceIds, scopeOverlay.scopesById, selectionBounds]);
+    return [...selectedElementIds]
+      .filter((sourceId) => movableScopeSourceIds.has(sourceId) && scopeOverlay.scopesById.has(sourceId))
+      .flatMap((sourceId) => {
+        const bounds = sourceBoundsWorld.get(sourceId);
+        return bounds ? [{ scopeId: sourceId, bounds }] : [];
+      });
+  }, [movableScopeSourceIds, scopeOverlay.scopesById, selectedElementIds, sourceBoundsWorld]);
 
   const selectionBoundsBySource = useMemo<ReadonlyMap<string, SvgBounds>>(() => {
     const bySource = new Map<string, SvgBounds>();
@@ -862,7 +870,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
   };
 }
 
-function distanceSquared(a: { x: number; y: number }, b: { x: number; y: number }): number {
+function distanceSquared(a: WorldPoint, b: WorldPoint): number {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return dx * dx + dy * dy;
@@ -915,11 +923,13 @@ function shouldShowSideResizeHandles(
   return Math.min(widthPx, heightPx) >= SIDE_RESIZE_HANDLE_MIN_DIMENSION_PX;
 }
 
-function midpoint<TPoint extends { x: number; y: number }>(a: TPoint, b: TPoint): TPoint {
-  return {
-    x: (a.x + b.x) / 2,
-    y: (a.y + b.y) / 2
-  } as TPoint;
+function midpoint(a: SvgPoint, b: SvgPoint): SvgPoint;
+function midpoint(a: WorldPoint, b: WorldPoint): WorldPoint;
+function midpoint(a: SvgPoint | WorldPoint, b: SvgPoint | WorldPoint): SvgPoint | WorldPoint {
+  return unsafePoint(
+    (a.x + b.x) / 2,
+    (a.y + b.y) / 2
+  );
 }
 
 function buildResizeHandleDisplaysForFrame({
@@ -943,10 +953,10 @@ function buildResizeHandleDisplaysForFrame({
   const frameRotationDeg = (Math.atan2(topRight.y - topLeft.y, topRight.x - topLeft.x) * 180) / Math.PI;
   for (const role of RESIZE_FRAME_CORNER_ROLES) {
     const corner = resizeFrame.cornersByRole[role];
-    const resizeVector = {
-      x: corner.world.x - resizeFrame.centerWorld.x,
-      y: corner.world.y - resizeFrame.centerWorld.y
-    };
+    const resizeVector = unsafePoint<WorldPoint>(
+      corner.world.x - resizeFrame.centerWorld.x,
+      corner.world.y - resizeFrame.centerWorld.y
+    );
     displays.push({
       key: `node-handle:${sourceId}:${role}`,
       point: corner.svg,
@@ -1094,7 +1104,7 @@ function buildMatrixEdgeHitRegions(
 ): HitRegion[] {
   const byCell = new Map<
     string,
-    { matrixSourceId: string; row: number; column: number; cellSourceId: string; bounds: { minX: number; minY: number; maxX: number; maxY: number } }
+    { matrixSourceId: string; row: number; column: number; cellSourceId: string; bounds: SvgBounds }
   >();
   for (const element of elements) {
     const matrixCell = element.matrixCell;
@@ -1123,8 +1133,8 @@ function buildMatrixEdgeHitRegions(
     {
       rows: Map<number, string[]>;
       columns: Map<number, string[]>;
-      boundsByRow: Map<number, { minX: number; minY: number; maxX: number; maxY: number }>;
-      boundsByColumn: Map<number, { minX: number; minY: number; maxX: number; maxY: number }>;
+      boundsByRow: Map<number, SvgBounds>;
+      boundsByColumn: Map<number, SvgBounds>;
       matrixMinX: number;
       matrixMinY: number;
       matrixMaxX: number;
@@ -1135,8 +1145,8 @@ function buildMatrixEdgeHitRegions(
     const current = byMatrix.get(cell.matrixSourceId) ?? {
       rows: new Map<number, string[]>(),
       columns: new Map<number, string[]>(),
-      boundsByRow: new Map<number, { minX: number; minY: number; maxX: number; maxY: number }>(),
-      boundsByColumn: new Map<number, { minX: number; minY: number; maxX: number; maxY: number }>(),
+      boundsByRow: new Map<number, SvgBounds>(),
+      boundsByColumn: new Map<number, SvgBounds>(),
       matrixMinX: Number.POSITIVE_INFINITY,
       matrixMinY: Number.POSITIVE_INFINITY,
       matrixMaxX: Number.NEGATIVE_INFINITY,

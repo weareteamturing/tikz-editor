@@ -87,6 +87,7 @@ import type {
   GuideDragState,
   GuidePreview,
   GuidesState,
+  MagnifierState,
   NodeAnchorOverlayState,
   PendingTouchViewport,
   PendingAddedSelection,
@@ -356,15 +357,13 @@ type SnapDebugOverlayState = {
 type SnapDebugOverlayDragState =
   | {
       kind: "move";
-      startClientX: number;
-      startClientY: number;
+      startClient: ClientPoint;
       startLeft: number;
       startTop: number;
     }
   | {
       kind: "resize";
-      startClientX: number;
-      startClientY: number;
+      startClient: ClientPoint;
       startWidth: number;
       startHeight: number;
     };
@@ -692,12 +691,12 @@ function estimateTextOffsetFromClient(
   canvasTransform: CanvasTransform
 ): number {
   const contentBox = resolveRectHitRegionContentBox(target.region);
-  const svgPoint = clientToSvgPoint(clientPoint.x, clientPoint.y, interactionSvgElement) ?? (() => {
+  const svgPoint = clientToSvgPoint(clientPoint, interactionSvgElement) ?? (() => {
     const viewportRect = viewportRef.current?.getBoundingClientRect();
     const localViewportX = viewportRect ? clientPoint.x - viewportRect.left : clientPoint.x;
     const localViewportY = viewportRect ? clientPoint.y - viewportRect.top : clientPoint.y;
     return svgResult
-      ? viewportToSvgPoint(localViewportX, localViewportY, canvasTransform, svgResult.viewBox)
+      ? viewportToSvgPoint(unsafePoint<ViewportPoint>(localViewportX, localViewportY), canvasTransform, svgResult.viewBox)
       : unsafePoint<SvgPoint>(clientPoint.x, clientPoint.y);
   })();
   const localPoint = mapPointToRectRegionLocal(svgPoint, target.region);
@@ -725,12 +724,12 @@ function estimateTextLineRangeFromClient(
   }
 
   const contentBox = resolveRectHitRegionContentBox(target.region);
-  const svgPoint = clientToSvgPoint(clientPoint.x, clientPoint.y, interactionSvgElement) ?? (() => {
+  const svgPoint = clientToSvgPoint(clientPoint, interactionSvgElement) ?? (() => {
     const viewportRect = viewportRef.current?.getBoundingClientRect();
     const localViewportX = viewportRect ? clientPoint.x - viewportRect.left : clientPoint.x;
     const localViewportY = viewportRect ? clientPoint.y - viewportRect.top : clientPoint.y;
     return svgResult
-      ? viewportToSvgPoint(localViewportX, localViewportY, canvasTransform, svgResult.viewBox)
+      ? viewportToSvgPoint(unsafePoint<ViewportPoint>(localViewportX, localViewportY), canvasTransform, svgResult.viewBox)
       : unsafePoint<SvgPoint>(clientPoint.x, clientPoint.y);
   })();
   const localPoint = mapPointToRectRegionLocal(svgPoint, target.region);
@@ -977,7 +976,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     };
   }, [baseSvgModel, svgResult]);
   const [toolCursorWorld, setToolCursorWorld] = useState<WorldPoint | null>(null);
-  const [magnifierState, setMagnifierState] = useState<{ pointerId: number; x: number; y: number } | null>(null);
+  const [magnifierState, setMagnifierState] = useState<MagnifierState | null>(null);
   const [pathDraft, setPathDraft] = useState<PathToolDraft | null>(null);
   const [freehandDraft, setFreehandDraft] = useState<FreehandToolDraft | null>(null);
   const [pathSegmentDraft, setPathSegmentDraft] = useState<Extract<DragState, { kind: "tool-path-segment" }> | null>(null);
@@ -1296,8 +1295,10 @@ export const CanvasPanel = memo(function CanvasPanel({
       clickedWorld:
         svgResult
           ? viewportToWorldPoint(
-              pendingNativeContextMenuRequest.clientPoint.x - rect.left,
-              pendingNativeContextMenuRequest.clientPoint.y - rect.top,
+              unsafePoint<ViewportPoint>(
+                pendingNativeContextMenuRequest.clientPoint.x - rect.left,
+                pendingNativeContextMenuRequest.clientPoint.y - rect.top
+              ),
               canvasTransform,
               svgResult.viewBox
             )
@@ -1529,8 +1530,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       }
       snapDebugDragRef.current = {
         kind: "move",
-        startClientX: event.clientX,
-        startClientY: event.clientY,
+        startClient: unsafePoint<ClientPoint>(event.clientX, event.clientY),
         startLeft: snapDebugRect.left,
         startTop: snapDebugRect.top
       };
@@ -1548,8 +1548,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       }
       snapDebugDragRef.current = {
         kind: "resize",
-        startClientX: event.clientX,
-        startClientY: event.clientY,
+        startClient: unsafePoint<ClientPoint>(event.clientX, event.clientY),
         startWidth: snapDebugRect.width,
         startHeight: snapDebugRect.height
       };
@@ -1612,8 +1611,8 @@ export const CanvasPanel = memo(function CanvasPanel({
           clampSnapDebugOverlayRect(
             {
               ...current,
-              left: drag.startLeft + (event.clientX - drag.startClientX),
-              top: drag.startTop + (event.clientY - drag.startClientY)
+              left: drag.startLeft + (event.clientX - drag.startClient.x),
+              top: drag.startTop + (event.clientY - drag.startClient.y)
             },
             viewportSize.width,
             viewportSize.height
@@ -1624,11 +1623,11 @@ export const CanvasPanel = memo(function CanvasPanel({
 
       setSnapDebugRect((current) =>
         clampSnapDebugOverlayRect(
-          {
-            ...current,
-            width: drag.startWidth + (event.clientX - drag.startClientX),
-            height: drag.startHeight + (event.clientY - drag.startClientY)
-          },
+            {
+              ...current,
+            width: drag.startWidth + (event.clientX - drag.startClient.x),
+            height: drag.startHeight + (event.clientY - drag.startClient.y)
+            },
           viewportSize.width,
           viewportSize.height
         )
@@ -1941,7 +1940,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       return;
     }
 
-    const svgPoint = viewportToSvgPoint(centerX, centerY, currentTransform, svgResult.viewBox);
+    const svgPoint = viewportToSvgPoint(unsafePoint<ViewportPoint>(centerX, centerY), currentTransform, svgResult.viewBox);
     const translateX = centerX - (svgPoint.x - svgResult.viewBox.x) * nextScale;
     const translateY = centerY - (svgPoint.y - svgResult.viewBox.y) * nextScale;
 
@@ -2961,7 +2960,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   });
 
   const resolveWorldFromViewportClient = useCallback(
-    (clientX: number, clientY: number): WorldPoint | null => {
+    (clientPoint: ClientPoint): WorldPoint | null => {
       if (!svgResult) {
         return null;
       }
@@ -2970,16 +2969,16 @@ export const CanvasPanel = memo(function CanvasPanel({
         return null;
       }
       const rect = viewport.getBoundingClientRect();
-      const localX = clientX - rect.left;
-      const localY = clientY - rect.top;
-      return viewportToWorldPoint(localX, localY, canvasTransform, svgResult.viewBox);
+      const localX = clientPoint.x - rect.left;
+      const localY = clientPoint.y - rect.top;
+      return viewportToWorldPoint(unsafePoint<ViewportPoint>(localX, localY), canvasTransform, svgResult.viewBox);
     },
     [canvasTransform, svgResult]
   );
 
   const startMarqueeSelection = useCallback(
-    (pointerId: number, clientX: number, clientY: number, additiveSelection: boolean): boolean => {
-      const world = resolveWorldFromViewportClient(clientX, clientY);
+    (pointerId: number, clientPoint: ClientPoint, additiveSelection: boolean): boolean => {
+      const world = resolveWorldFromViewportClient(clientPoint);
       if (!world) {
         if (!additiveSelection) {
           dispatch({ type: "CLEAR_SELECTION" });
@@ -3031,7 +3030,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   );
 
   const openCanvasContextMenuAt = useCallback(
-    (clientX: number, clientY: number, clickedSourceId: string | null, clickedHandleId: string | null = null) => {
+    (clientPoint: ClientPoint, clickedSourceId: string | null, clickedHandleId: string | null = null) => {
       const viewport = viewportRef.current;
       if (!viewport) {
         return;
@@ -3056,7 +3055,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       } else if (resolution.selectionAction.kind === "select-only") {
         if (platform.menu?.usesNativeContextMenus) {
           setPendingNativeContextMenuRequest({
-            clientPoint: unsafePoint<ClientPoint>(clientX, clientY),
+            clientPoint,
             clickedSourceId: resolution.selectionAction.sourceId,
             clickedHandleId
           });
@@ -3083,7 +3082,11 @@ export const CanvasPanel = memo(function CanvasPanel({
         clickedTargetId: clickedSourceId,
         clickedWorld:
           svgResult
-            ? viewportToWorldPoint(clientX - rect.left, clientY - rect.top, canvasTransform, svgResult.viewBox)
+            ? viewportToWorldPoint(
+                unsafePoint<ViewportPoint>(clientPoint.x - rect.left, clientPoint.y - rect.top),
+                canvasTransform,
+                svgResult.viewBox
+              )
             : null
       };
 
@@ -3101,7 +3104,7 @@ export const CanvasPanel = memo(function CanvasPanel({
 
       const nextContextMenuState: CanvasContextMenuState = {
         target: effectiveTarget,
-        anchor: unsafePoint<ViewportPoint>(clientX - rect.left, clientY - rect.top),
+        anchor: unsafePoint<ViewportPoint>(clientPoint.x - rect.left, clientPoint.y - rect.top),
         handleIdOverride: clickedHandleId,
         includeEditEquationForSingleNode,
         includeMatrixMultiInsertRowAbove: matrixMultiOptions.includeMatrixMultiInsertRowAbove,
@@ -3115,7 +3118,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       if (platform.menu?.usesNativeContextMenus) {
         if (clickedHandleId && clickedSourceId) {
           setPendingNativeContextMenuRequest({
-            clientPoint: unsafePoint<ClientPoint>(clientX, clientY),
+            clientPoint,
             clickedSourceId,
             clickedHandleId
           });

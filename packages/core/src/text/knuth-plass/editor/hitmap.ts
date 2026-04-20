@@ -14,6 +14,7 @@ import type { ClientBounds, ClientPoint } from '../../../coords/points.js';
 // The core package builds without the DOM lib; keep the editor hit-testing
 // helpers structurally typed so they remain importable in Node-only builds.
 type Element = any;
+type ClientUnitVector = Readonly<{ x: number; y: number }>;
 
 export interface CaretBaseParams {
   paragraphId: string;
@@ -442,7 +443,7 @@ function lineLocalClientPoint(
   );
 }
 
-function lineTangentUnit(line: LineGeometry): { x: number; y: number } {
+function lineTangentUnit(line: LineGeometry): ClientUnitVector {
   const tangentLength = Math.hypot(line.screenMatrix.a, line.screenMatrix.b);
   if (!Number.isFinite(tangentLength) || tangentLength <= EPSILON) {
     return { x: 1, y: 0 };
@@ -453,7 +454,7 @@ function lineTangentUnit(line: LineGeometry): { x: number; y: number } {
   };
 }
 
-function lineNormalUnit(line: LineGeometry): { x: number; y: number } {
+function lineNormalUnit(line: LineGeometry): ClientUnitVector {
   const tangent = lineTangentUnit(line);
   return {
     x: -tangent.y,

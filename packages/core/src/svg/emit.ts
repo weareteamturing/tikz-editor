@@ -7,6 +7,7 @@ import type {
   ScenePathCommand,
   ShadowLayer
 } from "../semantic/types.js";
+import { unsafePoint } from "../coords/points.js";
 import type { SvgBounds, SvgPoint, WorldPoint } from "../coords/points.js";
 import type { SvgTransform, WorldTransform } from "../coords/transforms.js";
 import { worldToSvgPoint as convertWorldToSvgPoint, worldToSvgTransform as convertWorldToSvgTransform } from "../coords/svg.js";
@@ -1400,12 +1401,12 @@ function polygonPathFromPolarAngles(centerX: number, centerY: number, radius: nu
   return `M ${fmt(first.x)} ${fmt(first.y)} ${rest.map((point) => `L ${fmt(point.x)} ${fmt(point.y)}`).join(" ")} Z`;
 }
 
-function polarPoint(angleDeg: number, radius: number): { x: number; y: number } {
+function polarPoint(angleDeg: number, radius: number): SvgPoint {
   const radians = (angleDeg * Math.PI) / 180;
-  return {
-    x: radius * Math.cos(radians),
-    y: -radius * Math.sin(radians)
-  };
+  return unsafePoint<SvgPoint>(
+    radius * Math.cos(radians),
+    -radius * Math.sin(radians)
+  );
 }
 
 function mixColors(first: string, second: string, ratioFirst: number): string | null {

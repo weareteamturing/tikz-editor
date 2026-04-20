@@ -1,6 +1,8 @@
 import { useCallback, type MouseEvent as ReactMouseEvent } from "react";
+import { unsafePoint } from "tikz-editor/coords/index";
 import type { EditHandle } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
+import type { ClientPoint } from "../coords/types";
 import { resolveScopeAwareContextMenuTarget } from "./scope-overlay";
 import { clientToWorldPoint } from "./geometry";
 
@@ -35,10 +37,10 @@ export function useCanvasSelectionInteractions(args: UseCanvasSelectionInteracti
       });
 
       let resolvedHandleId = handleId ?? null;
+      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
       if (!resolvedHandleId && resolvedSourceId && svgResult) {
         resolvedHandleId = findNearestPathPointHandle(
-          event.clientX,
-          event.clientY,
+          clientPoint,
           resolvedSourceId,
           snapshot.editHandles,
           interactionSvgRef.current,
@@ -47,7 +49,7 @@ export function useCanvasSelectionInteractions(args: UseCanvasSelectionInteracti
         );
       }
 
-      openCanvasContextMenuAt(event.clientX, event.clientY, resolvedSourceId, resolvedHandleId);
+      openCanvasContextMenuAt(clientPoint, resolvedSourceId, resolvedHandleId);
     },
     [focusedScopeId, openCanvasContextMenuAt, scopeOverlay, selectedElementIds, snapshot.editHandles, svgResult, interactionSvgRef, canvasTransform.scale]
   );
@@ -57,7 +59,7 @@ export function useCanvasSelectionInteractions(args: UseCanvasSelectionInteracti
       event.preventDefault();
       event.stopPropagation();
       closeTextEditingSession();
-      openCanvasContextMenuAt(event.clientX, event.clientY, null);
+      openCanvasContextMenuAt(unsafePoint<ClientPoint>(event.clientX, event.clientY), null);
     },
     [closeTextEditingSession, openCanvasContextMenuAt]
   );
@@ -72,15 +74,14 @@ export function useCanvasSelectionInteractions(args: UseCanvasSelectionInteracti
 const CONTEXT_MENU_HANDLE_THRESHOLD_PX = 12;
 
 function findNearestPathPointHandle(
-  clientX: number,
-  clientY: number,
+  clientPoint: ClientPoint,
   sourceId: string,
   editHandles: readonly EditHandle[],
   svgElement: SVGSVGElement | null,
   viewBox: SvgViewBox,
   zoom: number
 ): string | null {
-  const world = clientToWorldPoint(clientX, clientY, svgElement, viewBox);
+  const world = clientToWorldPoint(clientPoint, svgElement, viewBox);
   if (!world) return null;
 
   const thresholdWorld = CONTEXT_MENU_HANDLE_THRESHOLD_PX / zoom;

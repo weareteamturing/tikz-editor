@@ -1,9 +1,10 @@
 import { useCallback, type PointerEvent as ReactPointerEvent } from "react";
+import { unsafePoint } from "tikz-editor/coords/index";
 import { resolveTransformInspectorMutationContext } from "tikz-editor/edit/inspector";
 import { buildSnapContext } from "tikz-editor/edit/snapping";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import type { EditHandle, ScenePath } from "tikz-editor/semantic/types";
-import type { WorldPoint } from "../coords/types";
+import type { ClientPoint, WorldPoint } from "../coords/types";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import { clientToWorldPoint } from "./geometry";
 import { resolveResizeFrameForSource, type ResizeFrame } from "./resize-frames";
@@ -223,7 +224,8 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
         return;
       }
 
-      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const world = clientToWorldPoint(clientPoint, interactionSvgRef.current, svgResult.viewBox);
       if (!world) {
         return;
       }
@@ -376,7 +378,8 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       closeTextEditingSession();
       setNodeAnchorOverlay(null);
 
-      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const world = clientToWorldPoint(clientPoint, interactionSvgRef.current, svgResult.viewBox);
       if (!world) {
         return;
       }

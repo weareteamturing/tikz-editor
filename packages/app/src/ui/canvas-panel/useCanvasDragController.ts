@@ -175,8 +175,8 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
       if (drag.kind === "pan") {
         setNodeAnchorOverlay(null);
         setDragTooltip(null);
-        const deltaX = event.clientX - drag.startClientX;
-        const deltaY = event.clientY - drag.startClientY;
+        const deltaX = event.clientX - drag.startClient.x;
+        const deltaY = event.clientY - drag.startClient.y;
         setSnapLines([]);
         logSnapDebug({
           phase: "drag-pan-move",
@@ -203,7 +203,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
         return;
       }
 
-      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, currentSvg.viewBox);
+      const world = clientToWorldPoint(unsafePoint<ClientPoint>(event.clientX, event.clientY), interactionSvgRef.current, currentSvg.viewBox);
       if (!world) {
         setNodeAnchorOverlay(null);
         setDragTooltip(null);
@@ -871,7 +871,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
       const world =
         currentSvg == null
           ? null
-          : clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, currentSvg.viewBox);
+          : clientToWorldPoint(unsafePoint<ClientPoint>(event.clientX, event.clientY), interactionSvgRef.current, currentSvg.viewBox);
 
       if (drag.kind === "marquee") {
         setNodeAnchorOverlay(null);

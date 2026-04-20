@@ -56,11 +56,15 @@ export type DragTooltipState = {
 
 export type PendingTouchViewport = {
   pointerId: number;
-  startClientX: number;
-  startClientY: number;
+  startClient: ClientPoint;
   additiveSelection: boolean;
   startTransform: CanvasTransform;
   timer: ReturnType<typeof setTimeout>;
+};
+
+export type MagnifierState = {
+  pointerId: number;
+  center: ViewportPoint;
 };
 
 export type DragState =
@@ -148,8 +152,7 @@ export type DragState =
   | {
       kind: "pan";
       pointerId: number;
-      startClientX: number;
-      startClientY: number;
+      startClient: ClientPoint;
       startTransform: CanvasTransform;
     }
   | {
@@ -303,7 +306,7 @@ export type SourceBoundsMap = ReadonlyMap<string, SvgBounds>;
 
 export type ScopeHitBounds = {
   scopeId: string;
-  bounds: SvgBounds;
+  bounds: WorldBounds;
 };
 
 export type SelectionBoxDisplay =

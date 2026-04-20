@@ -2,13 +2,14 @@ import type { ElementTemplate } from "tikz-editor/edit/actions";
 import type { SelectionGeometry } from "tikz-editor/edit/snapping";
 import type { EditHandle, SceneElement, ScenePathCommand } from "tikz-editor/semantic/types";
 import { CM_PER_PT, PT_PER_CM, formatNumber } from "tikz-editor/edit/format";
+import { unsafeBounds, unsafePoint } from "tikz-editor/coords/index";
 
 import { distanceSquared } from "./geometry";
 import { shouldConstrainToolCreateToSquare, type ToolCreateMode } from "../tool-config";
 import type { DragState, DragTooltipRow } from "./types";
 import type { ResizeFrame } from "./resize-frames";
 import { resolveAddShapeDraft } from "./add-shape-draft";
-import type { SvgBounds, WorldPoint } from "../coords/types";
+import type { SvgBounds, SvgPoint, WorldPoint } from "../coords/types";
 
 const DEFAULT_BEZIER_LENGTH_PT = 2 * PT_PER_CM;
 const STEP_SNAP_EPSILON = 1e-9;
@@ -16,13 +17,13 @@ export const DEFAULT_GRID_TOOL_STEP_PT = PT_PER_CM;
 const TOOLTIP_ZERO_EPSILON = 1e-6;
 const MIN_SHAPE_DRAG_DIMENSION_PT = 0.1 * PT_PER_CM;
 
-export function boundsFromPoints(a: { x: number; y: number }, b: { x: number; y: number }): SvgBounds {
-  return {
-    minX: Math.min(a.x, b.x),
-    minY: Math.min(a.y, b.y),
-    maxX: Math.max(a.x, b.x),
-    maxY: Math.max(a.y, b.y)
-  };
+export function boundsFromPoints(a: SvgPoint, b: SvgPoint): SvgBounds {
+  return unsafeBounds<SvgBounds>(
+    Math.min(a.x, b.x),
+    Math.min(a.y, b.y),
+    Math.max(a.x, b.x),
+    Math.max(a.y, b.y)
+  );
 }
 
 export function collectSourceIdsInBounds(boundsBySource: ReadonlyMap<string, SvgBounds>, selection: SvgBounds): string[] {
@@ -41,16 +42,16 @@ export function deriveSelectionTranslationDeltaFromAnchor(
   anchorRatio: { x: number; y: number } | null
 ): WorldPoint {
   if (!currentSelection) {
-    return { x: 0, y: 0 };
+    return unsafePoint<WorldPoint>(0, 0);
   }
 
   const ratio = anchorRatio ?? { x: 0.5, y: 0.5 };
   const initialCenter = pointFromBoundsAnchorRatio(initialSelection.bounds, ratio);
   const currentCenter = pointFromBoundsAnchorRatio(currentSelection.bounds, ratio);
-  return {
-    x: currentCenter.x - initialCenter.x,
-    y: currentCenter.y - initialCenter.y
-  };
+  return unsafePoint<WorldPoint>(
+    currentCenter.x - initialCenter.x,
+    currentCenter.y - initialCenter.y
+  );
 }
 
 export function createTemplateForToolDrag(
@@ -92,10 +93,10 @@ export function createTemplateForToolDrag(
   }
 
   if (mode === "addBezier") {
-    const bend = {
-      x: (startWorld.x + endWorld.x) / 2,
-      y: (startWorld.y + endWorld.y) / 2
-    };
+    const bend = unsafePoint<WorldPoint>(
+      (startWorld.x + endWorld.x) / 2,
+      (startWorld.y + endWorld.y) / 2
+    );
     if (hasDrag) {
       const bezierTemplate = createBezierTemplateFromBend(startWorld, endWorld, bend);
       return { ...bezierTemplate, strokeColor };
@@ -161,7 +162,7 @@ export function resolveBezierControlsFromBend(
   let dy = resolvedEnd.y - startWorld.y;
   let length = Math.hypot(dx, dy);
   if (length <= 1e-6) {
-    resolvedEnd = { x: startWorld.x + DEFAULT_BEZIER_LENGTH_PT, y: startWorld.y };
+    resolvedEnd = unsafePoint<WorldPoint>(startWorld.x + DEFAULT_BEZIER_LENGTH_PT, startWorld.y);
     dx = resolvedEnd.x - startWorld.x;
     dy = resolvedEnd.y - startWorld.y;
     length = Math.hypot(dx, dy);
@@ -169,23 +170,23 @@ export function resolveBezierControlsFromBend(
 
   const unitTangent = { x: dx / length, y: dy / length };
   const unitNormal = { x: -unitTangent.y, y: unitTangent.x };
-  const midpoint = {
-    x: (startWorld.x + resolvedEnd.x) / 2,
-    y: (startWorld.y + resolvedEnd.y) / 2
-  };
+  const midpoint = unsafePoint<WorldPoint>(
+    (startWorld.x + resolvedEnd.x) / 2,
+    (startWorld.y + resolvedEnd.y) / 2
+  );
   const signedNormalOffset =
     (bendWorld.x - midpoint.x) * unitNormal.x +
     (bendWorld.y - midpoint.y) * unitNormal.y;
   const controlNormalOffset = (4 / 3) * signedNormalOffset;
 
-  const control1 = {
-    x: startWorld.x + dx / 3 + unitNormal.x * controlNormalOffset,
-    y: startWorld.y + dy / 3 + unitNormal.y * controlNormalOffset
-  };
-  const control2 = {
-    x: startWorld.x + (2 * dx) / 3 + unitNormal.x * controlNormalOffset,
-    y: startWorld.y + (2 * dy) / 3 + unitNormal.y * controlNormalOffset
-  };
+  const control1 = unsafePoint<WorldPoint>(
+    startWorld.x + dx / 3 + unitNormal.x * controlNormalOffset,
+    startWorld.y + dy / 3 + unitNormal.y * controlNormalOffset
+  );
+  const control2 = unsafePoint<WorldPoint>(
+    startWorld.x + (2 * dx) / 3 + unitNormal.x * controlNormalOffset,
+    startWorld.y + (2 * dy) / 3 + unitNormal.y * controlNormalOffset
+  );
 
   return {
     endWorld: resolvedEnd,
@@ -225,10 +226,10 @@ export function snapPointDeltaToAxisStepMultiples(
   stepX: number,
   stepY: number
 ): WorldPoint {
-  return {
-    x: anchorWorld.x + snapDeltaToStep(currentWorld.x - anchorWorld.x, stepX),
-    y: anchorWorld.y + snapDeltaToStep(currentWorld.y - anchorWorld.y, stepY)
-  };
+  return unsafePoint<WorldPoint>(
+    anchorWorld.x + snapDeltaToStep(currentWorld.x - anchorWorld.x, stepX),
+    anchorWorld.y + snapDeltaToStep(currentWorld.y - anchorWorld.y, stepY)
+  );
 }
 
 export function resolveHandleIdForDrag(
@@ -279,10 +280,10 @@ function boundsContainedWithin(inner: SvgBounds, outer: SvgBounds): boolean {
 }
 
 function pointFromBoundsAnchorRatio(bounds: SvgBounds, ratio: { x: number; y: number }): WorldPoint {
-  return {
-    x: bounds.minX + (bounds.maxX - bounds.minX) * ratio.x,
-    y: bounds.minY + (bounds.maxY - bounds.minY) * ratio.y
-  };
+  return unsafePoint<WorldPoint>(
+    bounds.minX + (bounds.maxX - bounds.minX) * ratio.x,
+    bounds.minY + (bounds.maxY - bounds.minY) * ratio.y
+  );
 }
 
 function constrainRectCornerToSquare(startWorld: WorldPoint, cornerWorld: WorldPoint): WorldPoint {
@@ -295,10 +296,10 @@ function constrainRectCornerToSquare(startWorld: WorldPoint, cornerWorld: WorldP
 
   const xSign = dx < 0 ? -1 : 1;
   const ySign = dy < 0 ? -1 : 1;
-  return {
-    x: startWorld.x + xSign * side,
-    y: startWorld.y + ySign * side
-  };
+  return unsafePoint<WorldPoint>(
+    startWorld.x + xSign * side,
+    startWorld.y + ySign * side
+  );
 }
 
 function snapDeltaToStep(delta: number, step: number): number {
@@ -324,13 +325,10 @@ export function sourceIdAnchorWorld(elements: SceneElement[], sourceId: string):
   }
 
   if (count === 0) {
-    return { x: 0, y: 0 };
+    return unsafePoint<WorldPoint>(0, 0);
   }
 
-  return {
-    x: sumX / count,
-    y: sumY / count
-  };
+  return unsafePoint<WorldPoint>(sumX / count, sumY / count);
 }
 
 export function formatTooltipLengthRows(widthPt: number, heightPt: number): DragTooltipRow[] {

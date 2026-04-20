@@ -41,11 +41,11 @@ export function computeVisibleRanges(
   viewportWidth: number,
   viewportHeight: number
 ): VisibleRanges {
-  const worldTopLeft = viewportToWorldPoint(0, 0, transform, viewBox);
-  const worldBottomRight = viewportToWorldPoint(viewportWidth, viewportHeight, transform, viewBox);
+  const worldTopLeft = viewportToWorldPoint(unsafePoint<ViewportPoint>(0, 0), transform, viewBox);
+  const worldBottomRight = viewportToWorldPoint(unsafePoint<ViewportPoint>(viewportWidth, viewportHeight), transform, viewBox);
 
-  const svgTopLeft = viewportToSvgPoint(0, 0, transform, viewBox);
-  const svgBottomRight = viewportToSvgPoint(viewportWidth, viewportHeight, transform, viewBox);
+  const svgTopLeft = viewportToSvgPoint(unsafePoint<ViewportPoint>(0, 0), transform, viewBox);
+  const svgBottomRight = viewportToSvgPoint(unsafePoint<ViewportPoint>(viewportWidth, viewportHeight), transform, viewBox);
 
   return {
     worldMinX: Math.min(worldTopLeft.x, worldBottomRight.x),
@@ -100,13 +100,12 @@ export function buildValueSequence(min: number, max: number, step: number, maxCo
 }
 
 export function clientToWorldPoint(
-  clientX: number,
-  clientY: number,
+  point: ClientPoint,
   svgElement: SVGSVGElement | null,
   viewBox: SvgViewBox
 ): WorldPoint | null {
   return typedClientToWorld(
-    unsafePoint<ClientPoint>(clientX, clientY),
+    point,
     svgElement,
     null,
     { translateX: 0, translateY: 0, scale: 1 },
@@ -115,12 +114,11 @@ export function clientToWorldPoint(
 }
 
 export function clientToSvgPoint(
-  clientX: number,
-  clientY: number,
+  point: ClientPoint,
   svgElement: SVGSVGElement | null
 ): SvgPoint | null {
   return typedClientToSvg(
-    unsafePoint<ClientPoint>(clientX, clientY),
+    point,
     svgElement,
     null,
     { translateX: 0, translateY: 0, scale: 1 },
@@ -149,21 +147,19 @@ export function rotatePointAroundCenter(
 }
 
 export function viewportToSvgPoint(
-  viewportX: number,
-  viewportY: number,
+  point: ViewportPoint,
   transform: CanvasTransform,
   viewBox: SvgViewBox
 ): SvgPoint {
-  return typedViewportToSvg(unsafePoint<ViewportPoint>(viewportX, viewportY), transform, viewBox) as SvgPoint;
+  return typedViewportToSvg(point, transform, viewBox) as SvgPoint;
 }
 
 export function viewportToWorldPoint(
-  viewportX: number,
-  viewportY: number,
+  point: ViewportPoint,
   transform: CanvasTransform,
   viewBox: SvgViewBox
 ): WorldPoint {
-  return typedSvgToWorld(viewportToSvgPoint(viewportX, viewportY, transform, viewBox), viewBox);
+  return typedSvgToWorld(viewportToSvgPoint(point, transform, viewBox), viewBox);
 }
 
 export function toViewportXFromWorld(worldX: number, viewBox: SvgViewBox, transform: CanvasTransform): number {

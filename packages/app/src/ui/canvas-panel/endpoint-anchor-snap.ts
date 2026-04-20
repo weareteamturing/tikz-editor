@@ -1,5 +1,6 @@
+import { unsafeBounds } from "tikz-editor/coords/index";
 import type { NodeAnchorTarget } from "tikz-editor/semantic/types";
-import type { WorldPoint } from "../coords/types";
+import type { WorldBounds, WorldPoint } from "../coords/types";
 
 const NODE_REVEAL_RADIUS_PX = 44;
 const SNAP_RADIUS_PX = 12;
@@ -14,7 +15,7 @@ export type MatrixCellAnchorHint = {
   cellSourceId: string;
   row: number;
   column: number;
-  bounds: { minX: number; minY: number; maxX: number; maxY: number };
+  bounds: WorldBounds;
 };
 
 export function resolveEndpointAnchorSnap(input: {
@@ -226,7 +227,7 @@ function distanceSquared(a: WorldPoint, b: WorldPoint): number {
 
 function deriveNodeExtent(
   anchors: readonly NodeAnchorTarget[]
-): { minX: number; minY: number; maxX: number; maxY: number } | null {
+): WorldBounds | null {
   const candidates = anchors.filter((anchor) => anchor.tier === "basic");
   const source = candidates.length > 0 ? candidates : anchors;
   if (source.length === 0) {
@@ -248,12 +249,12 @@ function deriveNodeExtent(
     return null;
   }
 
-  return { minX, minY, maxX, maxY };
+  return unsafeBounds<WorldBounds>(minX, minY, maxX, maxY);
 }
 
 function distanceSquaredToBounds(
   point: WorldPoint,
-  bounds: { minX: number; minY: number; maxX: number; maxY: number }
+  bounds: WorldBounds
 ): number {
   const clampedX = Math.min(bounds.maxX, Math.max(bounds.minX, point.x));
   const clampedY = Math.min(bounds.maxY, Math.max(bounds.minY, point.y));
