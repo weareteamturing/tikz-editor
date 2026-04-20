@@ -1,4 +1,4 @@
-import { unsafeBounds } from "tikz-editor/coords/index";
+import { worldBounds } from "tikz-editor/coords/index";
 import type { NodeAnchorTarget } from "tikz-editor/semantic/types";
 import type { WorldBounds, WorldPoint } from "../coords/types";
 
@@ -249,7 +249,7 @@ function deriveNodeExtent(
     return null;
   }
 
-  return unsafeBounds<WorldBounds>(minX, minY, maxX, maxY);
+  return worldBounds(minX, minY, maxX, maxY);
 }
 
 function distanceSquaredToBounds(

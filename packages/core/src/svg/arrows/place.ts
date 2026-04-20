@@ -1,18 +1,22 @@
-import type { ArrowLocalPoint } from "../../coords/points.js";
+import { worldVector } from "../../coords/points.js";
+import type { ArrowLocalPoint, WorldPoint } from "../../coords/points.js";
 import type { ScenePathCommand } from "../../semantic/types.js";
 import { addPoint, scaleVector } from "../../geometry/path-sampler.js";
 import type { Frame } from "./types.js";
+import type { ArrowLocalPathCommand } from "./types.js";
 
-export function placeLocalPathsRigid(localPaths: ScenePathCommand[][], frame: Frame, offset: number): ScenePathCommand[][] {
+export function placeLocalPathsRigid(localPaths: ArrowLocalPathCommand[][], frame: Frame, offset: number): ScenePathCommand[][] {
   return localPaths.map((path) =>
     transformLocalPath(path, (point) => {
       const x = offset + point.x;
-      return addPoint(frame.point, addPoint(scaleVector(frame.tangent, x), scaleVector(frame.normal, point.y)));
+      const tangentOffset = scaleVector(frame.tangent, x);
+      const normalOffset = scaleVector(frame.normal, point.y);
+      return addPoint(frame.point, worldVector(tangentOffset.x + normalOffset.x, tangentOffset.y + normalOffset.y));
     })
   );
 }
 
-export function placeLocalPathsBent(localPaths: ScenePathCommand[][], offset: number, frameAtOffset: (x: number) => Frame): ScenePathCommand[][] {
+export function placeLocalPathsBent(localPaths: ArrowLocalPathCommand[][], offset: number, frameAtOffset: (x: number) => Frame): ScenePathCommand[][] {
   return localPaths.map((path) =>
     transformLocalPath(path, (point) => {
       const x = offset + point.x;
@@ -22,7 +26,7 @@ export function placeLocalPathsBent(localPaths: ScenePathCommand[][], offset: nu
   );
 }
 
-function transformLocalPath(path: ScenePathCommand[], mapPoint: (point: ArrowLocalPoint) => ArrowLocalPoint): ScenePathCommand[] {
+function transformLocalPath(path: ArrowLocalPathCommand[], mapPoint: (point: ArrowLocalPoint) => WorldPoint): ScenePathCommand[] {
   return path.map((command) => {
     if (command.kind === "Z") {
       return { kind: "Z" };

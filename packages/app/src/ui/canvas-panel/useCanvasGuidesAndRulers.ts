@@ -1,5 +1,5 @@
 import { useCallback, useMemo, type Dispatch, type MutableRefObject, type PointerEvent as ReactPointerEvent, type RefObject, type SetStateAction } from "react";
-import { unsafePoint } from "tikz-editor/coords/index";
+import { viewportPoint as makeViewportPoint, clientPoint as makeClientPoint } from "tikz-editor/coords/index";
 import {
   buildTicks,
   buildValueSequence,
@@ -206,7 +206,7 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
       }
 
       const rect = viewport.getBoundingClientRect();
-      const viewportPoint = unsafePoint<ViewportPoint>(clientPoint.x - rect.left, clientPoint.y - rect.top);
+      const viewportPoint = makeViewportPoint(clientPoint.x - rect.left, clientPoint.y - rect.top);
       const world = viewportToWorldPoint(viewportPoint, canvasTransformRef.current, currentSvg.viewBox);
       return {
         value: orientation === "vertical" ? world.x : world.y,
@@ -238,7 +238,7 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
       if (event.button !== 0) {
         return;
       }
-      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const clientPoint = makeClientPoint(event.clientX, event.clientY);
       const guide = resolveGuideFromClient(orientation, clientPoint);
       if (!guide) {
         return;
@@ -276,7 +276,7 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
       if (event.button !== 0) {
         return;
       }
-      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const clientPoint = makeClientPoint(event.clientX, event.clientY);
       const guide = resolveGuideFromClient("horizontal", clientPoint);
       if (!guide) {
         return;
@@ -309,14 +309,14 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
       }
 
       const rect = event.currentTarget.getBoundingClientRect();
-      const viewportPoint = unsafePoint<ViewportPoint>(event.clientX - rect.left, event.clientY - rect.top);
+      const viewportPoint = makeViewportPoint(event.clientX - rect.left, event.clientY - rect.top);
       // Keep guide drags on the canvas-adjacent side so the code-panel splitter
       // can still be grabbed reliably near the outer edge.
       if (viewportPoint.x < rect.width - LEFT_RULER_DRAG_SOURCE_WIDTH_PX) {
         return;
       }
 
-      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const clientPoint = makeClientPoint(event.clientX, event.clientY);
       const guide = resolveGuideFromClient("vertical", clientPoint);
       if (!guide) {
         return;

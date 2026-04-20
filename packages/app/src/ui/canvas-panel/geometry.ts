@@ -1,7 +1,7 @@
 import { PT_PER_CM } from "tikz-editor/edit/format";
 import { GRID_MINOR_TARGET_PX } from "tikz-editor/edit/snapping/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
-import { unsafePoint } from "tikz-editor/coords/index";
+import { svgPoint, viewportPoint } from "tikz-editor/coords/index";
 import type { CanvasTransform } from "../../store/types";
 import {
   clientToSvg as typedClientToSvg,
@@ -41,11 +41,11 @@ export function computeVisibleRanges(
   viewportWidth: number,
   viewportHeight: number
 ): VisibleRanges {
-  const worldTopLeft = viewportToWorldPoint(unsafePoint<ViewportPoint>(0, 0), transform, viewBox);
-  const worldBottomRight = viewportToWorldPoint(unsafePoint<ViewportPoint>(viewportWidth, viewportHeight), transform, viewBox);
+  const worldTopLeft = viewportToWorldPoint(viewportPoint(0, 0), transform, viewBox);
+  const worldBottomRight = viewportToWorldPoint(viewportPoint(viewportWidth, viewportHeight), transform, viewBox);
 
-  const svgTopLeft = viewportToSvgPoint(unsafePoint<ViewportPoint>(0, 0), transform, viewBox);
-  const svgBottomRight = viewportToSvgPoint(unsafePoint<ViewportPoint>(viewportWidth, viewportHeight), transform, viewBox);
+  const svgTopLeft = viewportToSvgPoint(viewportPoint(0, 0), transform, viewBox);
+  const svgBottomRight = viewportToSvgPoint(viewportPoint(viewportWidth, viewportHeight), transform, viewBox);
 
   return {
     worldMinX: Math.min(worldTopLeft.x, worldBottomRight.x),
@@ -158,10 +158,10 @@ export function rotatePointAroundCenter(
   const sin = Math.sin(theta);
   const dx = point.x - cx;
   const dy = point.y - cy;
-  return unsafePoint(
-    cx + dx * cos - dy * sin,
-    cy + dx * sin + dy * cos
-  );
+  return {
+    x: cx + dx * cos - dy * sin,
+    y: cy + dx * sin + dy * cos
+  } as typeof point;
 }
 
 export function viewportToSvgPoint(
@@ -181,11 +181,11 @@ export function viewportToWorldPoint(
 }
 
 export function toViewportXFromWorld(worldX: number, viewBox: SvgViewBox, transform: CanvasTransform): number {
-  return svgToViewport(unsafePoint<SvgPoint>(worldX, viewBox.y), transform, viewBox).x;
+  return svgToViewport(svgPoint(worldX, viewBox.y), transform, viewBox).x;
 }
 
 export function toViewportYFromWorld(worldY: number, viewBox: SvgViewBox, transform: CanvasTransform): number {
-  return svgToViewport(unsafePoint<SvgPoint>(viewBox.x, worldToSvgY(worldY, viewBox)), transform, viewBox).y;
+  return svgToViewport(svgPoint(viewBox.x, worldToSvgY(worldY, viewBox)), transform, viewBox).y;
 }
 
 export function worldToSvgPoint(point: WorldPoint, viewBox: Pick<SvgViewBox, "y" | "height">): SvgPoint {

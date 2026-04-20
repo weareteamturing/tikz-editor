@@ -1,5 +1,5 @@
 import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
-import { unsafePoint } from "tikz-editor/coords/index";
+import { clientPoint as makeClientPoint } from "tikz-editor/coords/index";
 import { addGuide, moveGuide, removeGuide } from "./panel-helpers";
 import type { ClientPoint } from "../coords/types";
 import type { GuideDragState, GuideOrientation, GuidePreview, GuidesState } from "./types";
@@ -46,7 +46,7 @@ export function useCanvasGuideEffects(args: UseCanvasGuideEffectsArgs) {
         return;
       }
 
-      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const clientPoint = makeClientPoint(event.clientX, event.clientY);
       const guide = resolveGuideFromClient(drag.orientation, clientPoint);
       if (!guide) {
         drag.overViewport = false;
@@ -89,7 +89,7 @@ export function useCanvasGuideEffects(args: UseCanvasGuideEffectsArgs) {
         return;
       }
 
-      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const clientPoint = makeClientPoint(event.clientX, event.clientY);
       const guide = resolveGuideFromClient(drag.orientation, clientPoint);
       if (guide) {
         drag.value = guide.value;

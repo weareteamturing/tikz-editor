@@ -1,6 +1,7 @@
 import type { CoordinateItem, NodeItem, PathStatement, Span, Statement } from "../../ast/types.js";
 import type { OptionEntry } from "../../options/types.js";
 import { evaluateTikzFigure } from "../../semantic/evaluate.js";
+import { worldPoint } from "../../coords/points.js";
 import type { WorldPoint } from "../../coords/points.js";
 import type { EditHandle } from "../../semantic/types.js";
 import { collectSourceWorldBounds } from "../snapping/index.js";
@@ -287,7 +288,7 @@ function applyMoveElementsUsingHandleRewrites(
       continue;
     }
 
-    const newWorld: WorldPoint = { x: handle.world.x + delta.x, y: handle.world.y + delta.y };
+    const newWorld: WorldPoint = worldPoint(handle.world.x + delta.x, handle.world.y + delta.y);
     const text = rewriteCoordinate(newWorld, handle, source);
     if (text != null) {
       pending.push({ span: handle.sourceRef.sourceSpan, text });
@@ -754,10 +755,10 @@ function rewriteSingleMatrixPlacement(
     return { kind: "unsupported", reason: `Could not resolve semantic bounds for matrix ${elementId}` };
   }
 
-  const nextCenterWorld: WorldPoint = {
-    x: (bounds.minX + bounds.maxX) / 2 + delta.x,
-    y: (bounds.minY + bounds.maxY) / 2 + delta.y
-  };
+  const nextCenterWorld: WorldPoint = worldPoint(
+    (bounds.minX + bounds.maxX) / 2 + delta.x,
+    (bounds.minY + bounds.maxY) / 2 + delta.y
+  );
   const nextCoordinate = formatPlacementCoordinateFromWorld(nextCenterWorld, placementHandle?.transform);
 
   const inlineAtCoordinate = findInlineAtCoordinateItem(statement);
@@ -870,10 +871,10 @@ function rewriteSingleTreeRootPlacement(
   if (!currentPlacementWorld) {
     return { kind: "unsupported", reason: `Could not resolve semantic placement for tree root ${elementId}` };
   }
-  const nextPlacementWorld: WorldPoint = {
-    x: currentPlacementWorld.x + delta.x,
-    y: currentPlacementWorld.y + delta.y
-  };
+  const nextPlacementWorld: WorldPoint = worldPoint(
+    currentPlacementWorld.x + delta.x,
+    currentPlacementWorld.y + delta.y
+  );
   const nextCoordinate = formatPlacementCoordinateFromWorld(nextPlacementWorld, placementHandle?.transform);
 
   if (rootNode.atSpan) {

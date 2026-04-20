@@ -1,4 +1,4 @@
-import { unsafePoint, type WorldPoint } from "../../coords/points.js";
+import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
 import type { OptionListAst } from "../../options/types.js";
 import type { StyleChainEntry } from "../style-chain.js";
 import type { ScenePathAttachment } from "../types.js";
@@ -42,7 +42,7 @@ const EXPLICIT_DIRECTIONS = new Set([
 ]);
 
 function worldPoint(x: number, y: number): WorldPoint {
-  return unsafePoint<WorldPoint>(x, y);
+  return makeWorldPoint(x, y);
 }
 
 export function normalizePathPosition(position: number): number {

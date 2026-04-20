@@ -1,4 +1,4 @@
-import { unsafeBounds, unsafePoint } from "../../coords/points.js";
+import { worldBounds, worldPoint } from "../../coords/points.js";
 import type {
   SceneElement,
   ScenePath,
@@ -11,7 +11,7 @@ import type { SelectionGeometry, SnapBounds, SnapPoint } from "./types.js";
 export const SNAP_EPSILON = 1e-6;
 
 export function mergeBounds(a: WorldBounds, b: WorldBounds): WorldBounds {
-  return unsafeBounds<WorldBounds>(
+  return worldBounds(
     Math.min(a.minX, b.minX),
     Math.min(a.minY, b.minY),
     Math.max(a.maxX, b.maxX),
@@ -20,14 +20,14 @@ export function mergeBounds(a: WorldBounds, b: WorldBounds): WorldBounds {
 }
 
 export function boundsCenter(bounds: WorldBounds): WorldPoint {
-  return unsafePoint<WorldPoint>(
+  return worldPoint(
     (bounds.minX + bounds.maxX) / 2,
     (bounds.minY + bounds.maxY) / 2
   );
 }
 
 export function boundsFromPoints(a: WorldPoint, b: WorldPoint): WorldBounds {
-  return unsafeBounds<WorldBounds>(
+  return worldBounds(
     Math.min(a.x, b.x),
     Math.min(a.y, b.y),
     Math.max(a.x, b.x),
@@ -36,7 +36,7 @@ export function boundsFromPoints(a: WorldPoint, b: WorldPoint): WorldBounds {
 }
 
 export function translateBounds(bounds: WorldBounds, delta: WorldPoint): WorldBounds {
-  return unsafeBounds<WorldBounds>(
+  return worldBounds(
     bounds.minX + delta.x,
     bounds.minY + delta.y,
     bounds.maxX + delta.x,
@@ -45,11 +45,11 @@ export function translateBounds(bounds: WorldBounds, delta: WorldPoint): WorldBo
 }
 
 export function translatePoints(points: readonly WorldPoint[], delta: WorldPoint): WorldPoint[] {
-  return points.map((point) => unsafePoint<WorldPoint>(point.x + delta.x, point.y + delta.y));
+  return points.map((point) => worldPoint(point.x + delta.x, point.y + delta.y));
 }
 
 export function expandBounds(bounds: WorldBounds, padding: number): WorldBounds {
-  return unsafeBounds<WorldBounds>(
+  return worldBounds(
     bounds.minX - padding,
     bounds.minY - padding,
     bounds.maxX + padding,
@@ -79,10 +79,10 @@ export function rangesOverlap(a: [number, number], b: [number, number]): boolean
 export function selectionSnapPointsFromBounds(bounds: WorldBounds): WorldPoint[] {
   const center = boundsCenter(bounds);
   return [
-    unsafePoint<WorldPoint>(bounds.minX, bounds.minY),
-    unsafePoint<WorldPoint>(bounds.maxX, bounds.minY),
-    unsafePoint<WorldPoint>(bounds.minX, bounds.maxY),
-    unsafePoint<WorldPoint>(bounds.maxX, bounds.maxY),
+    worldPoint(bounds.minX, bounds.minY),
+    worldPoint(bounds.maxX, bounds.minY),
+    worldPoint(bounds.minX, bounds.maxY),
+    worldPoint(bounds.maxX, bounds.maxY),
     center
   ];
 }
@@ -200,7 +200,7 @@ function elementBoundsInWorld(element: SceneElement): WorldBounds | null {
   }
 
   if (element.kind === "Circle") {
-    const bounds = unsafeBounds<WorldBounds>(
+    const bounds = worldBounds(
       element.center.x - element.radius,
       element.center.y - element.radius,
       element.center.x + element.radius,
@@ -268,12 +268,12 @@ function pathBoundsInWorld(path: ScenePath): WorldBounds | null {
 
     if (command.kind === "A") {
       if (previous) {
-        includePoint(unsafePoint<WorldPoint>(previous.x - command.rx, previous.y - command.ry));
-        includePoint(unsafePoint<WorldPoint>(previous.x + command.rx, previous.y + command.ry));
+        includePoint(worldPoint(previous.x - command.rx, previous.y - command.ry));
+        includePoint(worldPoint(previous.x + command.rx, previous.y + command.ry));
       }
 
-      includePoint(unsafePoint<WorldPoint>(command.to.x - command.rx, command.to.y - command.ry));
-      includePoint(unsafePoint<WorldPoint>(command.to.x + command.rx, command.to.y + command.ry));
+      includePoint(worldPoint(command.to.x - command.rx, command.to.y - command.ry));
+      includePoint(worldPoint(command.to.x + command.rx, command.to.y + command.ry));
       previous = command.to;
       continue;
     }
@@ -286,7 +286,7 @@ function pathBoundsInWorld(path: ScenePath): WorldBounds | null {
     return null;
   }
 
-  return unsafeBounds<WorldBounds>(minX, minY, maxX, maxY);
+  return worldBounds(minX, minY, maxX, maxY);
 }
 
 function computeEllipseBounds(cx: number, cy: number, rx: number, ry: number, rotation: number): WorldBounds {
@@ -296,7 +296,7 @@ function computeEllipseBounds(cx: number, cy: number, rx: number, ry: number, ro
   const extentX = Math.sqrt(rx * rx * cos * cos + ry * ry * sin * sin);
   const extentY = Math.sqrt(rx * rx * sin * sin + ry * ry * cos * cos);
 
-  return unsafeBounds<WorldBounds>(cx - extentX, cy - extentY, cx + extentX, cy + extentY);
+  return worldBounds(cx - extentX, cy - extentY, cx + extentX, cy + extentY);
 }
 
 function computeRotatedRectBounds(cx: number, cy: number, width: number, height: number, rotation: number): WorldBounds {
@@ -304,7 +304,7 @@ function computeRotatedRectBounds(cx: number, cy: number, width: number, height:
   const halfHeight = height / 2;
 
   if (Math.abs(rotation) <= 1e-6) {
-    return unsafeBounds<WorldBounds>(cx - halfWidth, cy - halfHeight, cx + halfWidth, cy + halfHeight);
+    return worldBounds(cx - halfWidth, cy - halfHeight, cx + halfWidth, cy + halfHeight);
   }
 
   const theta = (rotation * Math.PI) / 180;
@@ -313,7 +313,7 @@ function computeRotatedRectBounds(cx: number, cy: number, width: number, height:
   const extentX = halfWidth * cos + halfHeight * sin;
   const extentY = halfWidth * sin + halfHeight * cos;
 
-  return unsafeBounds<WorldBounds>(cx - extentX, cy - extentY, cx + extentX, cy + extentY);
+  return worldBounds(cx - extentX, cy - extentY, cx + extentX, cy + extentY);
 }
 
 function transformBounds(
@@ -321,17 +321,17 @@ function transformBounds(
   transform: { a: number; b: number; c: number; d: number; e: number; f: number }
 ): WorldBounds {
   const corners: WorldPoint[] = [
-    unsafePoint<WorldPoint>(bounds.minX, bounds.minY),
-    unsafePoint<WorldPoint>(bounds.maxX, bounds.minY),
-    unsafePoint<WorldPoint>(bounds.maxX, bounds.maxY),
-    unsafePoint<WorldPoint>(bounds.minX, bounds.maxY)
+    worldPoint(bounds.minX, bounds.minY),
+    worldPoint(bounds.maxX, bounds.minY),
+    worldPoint(bounds.maxX, bounds.maxY),
+    worldPoint(bounds.minX, bounds.maxY)
   ];
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
   for (const point of corners) {
-    const mapped = unsafePoint<WorldPoint>(
+    const mapped = worldPoint(
       transform.a * point.x + transform.c * point.y + transform.e,
       transform.b * point.x + transform.d * point.y + transform.f
     );
@@ -340,7 +340,7 @@ function transformBounds(
     maxX = Math.max(maxX, mapped.x);
     maxY = Math.max(maxY, mapped.y);
   }
-  return unsafeBounds<WorldBounds>(minX, minY, maxX, maxY);
+  return worldBounds(minX, minY, maxX, maxY);
 }
 
 function estimateTextBlockWidth(text: string, fontSize: number): number {

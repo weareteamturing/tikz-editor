@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { AdornmentOwnerGeometry } from "tikz-editor/ast/types";
-import { unsafeBounds, unsafePoint } from "tikz-editor/coords/index";
+import { worldPoint, clientPoint, worldBounds } from "tikz-editor/coords/index";
 import type { EditAction } from "tikz-editor/edit/actions";
 import { parseEditableTargetId } from "tikz-editor/edit/editable-targets";
 import { formatNumber } from "tikz-editor/edit/format";
@@ -71,11 +71,7 @@ const SNAP_FEEDBACK_EPSILON = 1e-6;
 const ADORNMENT_OWNER_CENTER_EPSILON = 1e-6;
 
 function clientPointFromEvent(event: Pick<PointerEvent, "clientX" | "clientY">): ClientPoint {
-  return unsafePoint<ClientPoint>(event.clientX, event.clientY);
-}
-
-function worldPoint(x: number, y: number): WorldPoint {
-  return unsafePoint<WorldPoint>(x, y);
+  return clientPoint(event.clientX, event.clientY);
 }
 
 export function useCanvasDragController(params: UseCanvasDragControllerParams) {
@@ -1704,7 +1700,7 @@ function resizeFrameWorldBounds(frame: ResizeFrame): WorldBounds {
     frame.cornersByRole["bottom-right"].world,
     frame.cornersByRole["bottom-left"].world
   ];
-  return unsafeBounds<WorldBounds>(
+  return worldBounds(
     Math.min(...worldCorners.map((corner) => corner.x)),
     Math.min(...worldCorners.map((corner) => corner.y)),
     Math.max(...worldCorners.map((corner) => corner.x)),

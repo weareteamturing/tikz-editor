@@ -1,7 +1,7 @@
-import type { FrameLocalPoint, SourceCmPoint, WorldPoint } from "../coords/points.js";
+import type { FrameLocalPoint, FrameLocalVector, SourceCmPoint, WorldPoint, WorldVector } from "../coords/points.js";
+import { sourceCmPoint } from "../coords/points.js";
 import type { FrameTransform } from "../coords/transforms.js";
 import { ptToCm } from "../coords/source.js";
-import { unsafePoint } from "../coords/points.js";
 import { worldToFrameLocal, worldVectorToFrameLocal } from "../coords/frame.js";
 
 /**
@@ -9,22 +9,22 @@ import { worldToFrameLocal, worldVectorToFrameLocal } from "../coords/frame.js";
  * Returns null if the transform is not invertible.
  */
 export function worldToFrameLocalPoint(world: WorldPoint, transform: FrameTransform): FrameLocalPoint | null {
-  return worldToFrameLocal(world as FrameLocalPoint & WorldPoint, transform);
+  return worldToFrameLocal(world, transform);
 }
 
 /**
  * Convert a world-space delta to a local-space delta (excludes translation).
  * Returns null if the transform is not invertible.
  */
-export function worldVectorToFrameLocalPoint(delta: WorldPoint, transform: FrameTransform): FrameLocalPoint | null {
-  return worldVectorToFrameLocal(delta as FrameLocalPoint & WorldPoint, transform);
+export function worldVectorToFrameLocalPoint(delta: WorldVector, transform: FrameTransform): FrameLocalVector | null {
+  return worldVectorToFrameLocal(delta, transform);
 }
 
 /**
  * Convert local coordinates (TeX points) to source units (cm).
  */
-export function frameLocalPtToSourceCmPoint(local: FrameLocalPoint): SourceCmPoint {
-  return unsafePoint<SourceCmPoint>(ptToCm(local.x as never).valueOf(), ptToCm(local.y as never).valueOf());
+export function frameLocalPtToSourceCmPoint(local: Pick<FrameLocalPoint, "x" | "y"> | Pick<FrameLocalVector, "x" | "y">): SourceCmPoint {
+  return sourceCmPoint(ptToCm(local.x), ptToCm(local.y));
 }
 
 export const worldToLocal = worldToFrameLocalPoint;

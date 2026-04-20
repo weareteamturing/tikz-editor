@@ -1,14 +1,14 @@
-import { unsafeBounds, unsafePoint } from "tikz-editor/coords/index";
+import { textareaLocalPoint, viewportBounds } from "tikz-editor/coords/index";
 import type { ClientBounds, ClientPoint, SvgBounds, SvgPoint, TextareaLocalPoint, ViewportBounds, ViewportPoint } from "./types";
 
 export function clientPointToTextareaLocal(point: ClientPoint, textareaRect: DOMRect): TextareaLocalPoint {
-  return unsafePoint<TextareaLocalPoint>(point.x - textareaRect.left, point.y - textareaRect.top);
+  return textareaLocalPoint(point.x - textareaRect.left, point.y - textareaRect.top);
 }
 
 export function clientBoundsToViewport(bounds: ClientBounds, viewportRect: DOMRect | null): ViewportBounds {
   const left = viewportRect?.left ?? 0;
   const top = viewportRect?.top ?? 0;
-  return unsafeBounds<ViewportBounds>(
+  return viewportBounds(
     bounds.minX - left,
     bounds.minY - top,
     bounds.maxX - left,
@@ -22,5 +22,5 @@ export function svgBoundsToViewportBounds(
 ): ViewportBounds {
   const topLeft = project({ x: bounds.minX, y: bounds.minY });
   const bottomRight = project({ x: bounds.maxX, y: bounds.maxY });
-  return unsafeBounds<ViewportBounds>(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y);
+  return viewportBounds(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y);
 }

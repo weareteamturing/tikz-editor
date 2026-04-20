@@ -5,12 +5,12 @@ import {
   type NamedNodeGeometry,
   type SemanticContext
 } from "../context.js";
-import { unsafePoint, type WorldPoint } from "../../coords/points.js";
+import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
 import { intersectRayWithPolygon } from "./shape-geometry.js";
 import { applyMatrixToVector, inverseMatrix } from "../transform.js";
 
 function worldPoint(x: number, y: number): WorldPoint {
-  return unsafePoint<WorldPoint>(x, y);
+  return makeWorldPoint(x, y);
 }
 
 export function collectScopedNodeNames(name: string | undefined, aliases: string[] | undefined, context: SemanticContext): string[] {

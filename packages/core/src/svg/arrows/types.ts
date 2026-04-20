@@ -1,8 +1,16 @@
+import type { ArrowLocalPoint } from "../../coords/points.js";
 import type { ArrowTip, ScenePath, ScenePathCommand } from "../../semantic/types.js";
 
 export type { Frame } from "../../geometry/path-sampler.js";
 
 export type ArrowSide = "start" | "end";
+
+export type ArrowLocalPathCommand =
+  | { kind: "M"; to: ArrowLocalPoint }
+  | { kind: "L"; to: ArrowLocalPoint }
+  | { kind: "C"; c1: ArrowLocalPoint; c2: ArrowLocalPoint; to: ArrowLocalPoint }
+  | { kind: "A"; rx: number; ry: number; xAxisRotation: number; largeArc: boolean; sweep: boolean; to: ArrowLocalPoint }
+  | { kind: "Z" };
 
 export type NormalizedArrowTip = ArrowTip & {
   length: number;

@@ -1,5 +1,5 @@
 import { worldToSvgPoint } from "../coords/svg.js";
-import { unsafeBounds, unsafePoint } from "../coords/points.js";
+import { svgPoint, svgBounds } from "../coords/points.js";
 import type { SvgBounds, SvgPoint } from "../coords/points.js";
 import type { SvgTransform } from "../coords/transforms.js";
 import type { ScenePathCommand } from "../semantic/types.js";
@@ -58,7 +58,7 @@ export function computeSvgPathBounds(commands: ScenePathCommand[], viewBox: Pick
     return null;
   }
 
-  return unsafeBounds<SvgBounds>(minX, minY, maxX, maxY);
+  return svgBounds(minX, minY, maxX, maxY);
 }
 
 export function includeSvgArcBounds(args: {
@@ -132,7 +132,7 @@ export function includeSvgArcBounds(args: {
     const cosT = Math.cos(angle);
     const sinT = Math.sin(angle);
     includePoint(
-      unsafePoint<SvgPoint>(
+      svgPoint(
         cx + rx * cosPhi * cosT - ry * sinPhi * sinT,
         cy + rx * sinPhi * cosT + ry * cosPhi * sinT
       )
@@ -146,22 +146,22 @@ export function computeSvgEllipseBounds(cx: number, cy: number, rx: number, ry: 
   const sin = Math.sin(theta);
   const extentX = Math.sqrt(rx * rx * cos * cos + ry * ry * sin * sin);
   const extentY = Math.sqrt(rx * rx * sin * sin + ry * ry * cos * cos);
-  return unsafeBounds<SvgBounds>(cx - extentX, cy - extentY, cx + extentX, cy + extentY);
+  return svgBounds(cx - extentX, cy - extentY, cx + extentX, cy + extentY);
 }
 
 export function transformSvgBounds(bounds: SvgBounds, transform: SvgTransform): SvgBounds {
   const corners: SvgPoint[] = [
-    unsafePoint<SvgPoint>(bounds.minX, bounds.minY),
-    unsafePoint<SvgPoint>(bounds.maxX, bounds.minY),
-    unsafePoint<SvgPoint>(bounds.maxX, bounds.maxY),
-    unsafePoint<SvgPoint>(bounds.minX, bounds.maxY)
+    svgPoint(bounds.minX, bounds.minY),
+    svgPoint(bounds.maxX, bounds.minY),
+    svgPoint(bounds.maxX, bounds.maxY),
+    svgPoint(bounds.minX, bounds.maxY)
   ];
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
   for (const point of corners) {
-    const mapped = unsafePoint<SvgPoint>(
+    const mapped = svgPoint(
       transform.a * point.x + transform.c * point.y + transform.e,
       transform.b * point.x + transform.d * point.y + transform.f
     );
@@ -170,7 +170,7 @@ export function transformSvgBounds(bounds: SvgBounds, transform: SvgTransform): 
     maxX = Math.max(maxX, mapped.x);
     maxY = Math.max(maxY, mapped.y);
   }
-  return unsafeBounds<SvgBounds>(minX, minY, maxX, maxY);
+  return svgBounds(minX, minY, maxX, maxY);
 }
 
 function isAngleOnArc(angle: number, startAngle: number, deltaAngle: number): boolean {

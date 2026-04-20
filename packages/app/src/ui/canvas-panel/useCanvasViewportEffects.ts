@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { unsafePoint } from "tikz-editor/coords/index";
+import { viewportPoint as makeViewportPoint, clientPoint } from "tikz-editor/coords/index";
 import { clamp, distanceSquared, viewportToSvgPoint } from "./geometry";
 import { resolveToolCreateCurrentWorld } from "./interaction-helpers";
 import type { ClientPoint, SvgPoint, ViewportPoint } from "../coords/types";
@@ -237,7 +237,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
       }
 
       const rect = viewport.getBoundingClientRect();
-      const viewportPoint = unsafePoint<ViewportPoint>(event.clientX - rect.left, event.clientY - rect.top);
+      const viewportPoint = makeViewportPoint(event.clientX - rect.left, event.clientY - rect.top);
 
       if (event.ctrlKey || event.metaKey) {
         if (fitToContentModeActiveRef.current) {
@@ -270,7 +270,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
       if (event.pointerType !== "touch") {
         return;
       }
-      activeTouchPointers.set(event.pointerId, unsafePoint<ClientPoint>(event.clientX, event.clientY));
+      activeTouchPointers.set(event.pointerId, clientPoint(event.clientX, event.clientY));
       if (activeTouchPointers.size < 2) {
         return;
       }
@@ -287,7 +287,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
       if (event.pointerType !== "touch" || !activeTouchPointers.has(event.pointerId)) {
         return;
       }
-      activeTouchPointers.set(event.pointerId, unsafePoint<ClientPoint>(event.clientX, event.clientY));
+      activeTouchPointers.set(event.pointerId, clientPoint(event.clientX, event.clientY));
       if (!pinchGesture) {
         return;
       }
@@ -344,7 +344,7 @@ function midpointLocal(
   viewport: HTMLDivElement
 ): ViewportPoint {
   const rect = viewport.getBoundingClientRect();
-  return unsafePoint<ViewportPoint>(
+  return makeViewportPoint(
     (first.x + second.x) / 2 - rect.left,
     (first.y + second.y) / 2 - rect.top
   );

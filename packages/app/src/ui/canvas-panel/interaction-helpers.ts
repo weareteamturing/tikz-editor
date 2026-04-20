@@ -2,7 +2,7 @@ import type { ElementTemplate } from "tikz-editor/edit/actions";
 import type { SelectionGeometry } from "tikz-editor/edit/snapping";
 import type { EditHandle, SceneElement, ScenePathCommand } from "tikz-editor/semantic/types";
 import { CM_PER_PT, PT_PER_CM, formatNumber } from "tikz-editor/edit/format";
-import { unsafeBounds, unsafePoint } from "tikz-editor/coords/index";
+import { worldPoint, svgBounds } from "tikz-editor/coords/index";
 
 import { distanceSquared } from "./geometry";
 import { shouldConstrainToolCreateToSquare, type ToolCreateMode } from "../tool-config";
@@ -18,7 +18,7 @@ const TOOLTIP_ZERO_EPSILON = 1e-6;
 const MIN_SHAPE_DRAG_DIMENSION_PT = 0.1 * PT_PER_CM;
 
 export function boundsFromPoints(a: SvgPoint, b: SvgPoint): SvgBounds {
-  return unsafeBounds<SvgBounds>(
+  return svgBounds(
     Math.min(a.x, b.x),
     Math.min(a.y, b.y),
     Math.max(a.x, b.x),
@@ -42,13 +42,13 @@ export function deriveSelectionTranslationDeltaFromAnchor(
   anchorRatio: SelectionAnchorRatio | null
 ): WorldPoint {
   if (!currentSelection) {
-    return unsafePoint<WorldPoint>(0, 0);
+    return worldPoint(0, 0);
   }
 
   const ratio = anchorRatio ?? { x: 0.5, y: 0.5 };
   const initialCenter = pointFromBoundsAnchorRatio(initialSelection.bounds, ratio);
   const currentCenter = pointFromBoundsAnchorRatio(currentSelection.bounds, ratio);
-  return unsafePoint<WorldPoint>(
+  return worldPoint(
     currentCenter.x - initialCenter.x,
     currentCenter.y - initialCenter.y
   );
@@ -93,7 +93,7 @@ export function createTemplateForToolDrag(
   }
 
   if (mode === "addBezier") {
-    const bend = unsafePoint<WorldPoint>(
+    const bend = worldPoint(
       (startWorld.x + endWorld.x) / 2,
       (startWorld.y + endWorld.y) / 2
     );
@@ -162,7 +162,7 @@ export function resolveBezierControlsFromBend(
   let dy = resolvedEnd.y - startWorld.y;
   let length = Math.hypot(dx, dy);
   if (length <= 1e-6) {
-    resolvedEnd = unsafePoint<WorldPoint>(startWorld.x + DEFAULT_BEZIER_LENGTH_PT, startWorld.y);
+    resolvedEnd = worldPoint(startWorld.x + DEFAULT_BEZIER_LENGTH_PT, startWorld.y);
     dx = resolvedEnd.x - startWorld.x;
     dy = resolvedEnd.y - startWorld.y;
     length = Math.hypot(dx, dy);
@@ -170,7 +170,7 @@ export function resolveBezierControlsFromBend(
 
   const unitTangent = { x: dx / length, y: dy / length };
   const unitNormal = { x: -unitTangent.y, y: unitTangent.x };
-  const midpoint = unsafePoint<WorldPoint>(
+  const midpoint = worldPoint(
     (startWorld.x + resolvedEnd.x) / 2,
     (startWorld.y + resolvedEnd.y) / 2
   );
@@ -179,11 +179,11 @@ export function resolveBezierControlsFromBend(
     (bendWorld.y - midpoint.y) * unitNormal.y;
   const controlNormalOffset = (4 / 3) * signedNormalOffset;
 
-  const control1 = unsafePoint<WorldPoint>(
+  const control1 = worldPoint(
     startWorld.x + dx / 3 + unitNormal.x * controlNormalOffset,
     startWorld.y + dy / 3 + unitNormal.y * controlNormalOffset
   );
-  const control2 = unsafePoint<WorldPoint>(
+  const control2 = worldPoint(
     startWorld.x + (2 * dx) / 3 + unitNormal.x * controlNormalOffset,
     startWorld.y + (2 * dy) / 3 + unitNormal.y * controlNormalOffset
   );
@@ -226,7 +226,7 @@ export function snapPointDeltaToAxisStepMultiples(
   stepX: number,
   stepY: number
 ): WorldPoint {
-  return unsafePoint<WorldPoint>(
+  return worldPoint(
     anchorWorld.x + snapDeltaToStep(currentWorld.x - anchorWorld.x, stepX),
     anchorWorld.y + snapDeltaToStep(currentWorld.y - anchorWorld.y, stepY)
   );
@@ -280,7 +280,7 @@ function boundsContainedWithin(inner: SvgBounds, outer: SvgBounds): boolean {
 }
 
 function pointFromBoundsAnchorRatio(bounds: WorldBounds, ratio: SelectionAnchorRatio): WorldPoint {
-  return unsafePoint<WorldPoint>(
+  return worldPoint(
     bounds.minX + (bounds.maxX - bounds.minX) * ratio.x,
     bounds.minY + (bounds.maxY - bounds.minY) * ratio.y
   );
@@ -296,7 +296,7 @@ function constrainRectCornerToSquare(startWorld: WorldPoint, cornerWorld: WorldP
 
   const xSign = dx < 0 ? -1 : 1;
   const ySign = dy < 0 ? -1 : 1;
-  return unsafePoint<WorldPoint>(
+  return worldPoint(
     startWorld.x + xSign * side,
     startWorld.y + ySign * side
   );
@@ -325,10 +325,10 @@ export function sourceIdAnchorWorld(elements: SceneElement[], sourceId: string):
   }
 
   if (count === 0) {
-    return unsafePoint<WorldPoint>(0, 0);
+    return worldPoint(0, 0);
   }
 
-  return unsafePoint<WorldPoint>(sumX / count, sumY / count);
+  return worldPoint(sumX / count, sumY / count);
 }
 
 export function formatTooltipLengthRows(widthPt: number, heightPt: number): DragTooltipRow[] {

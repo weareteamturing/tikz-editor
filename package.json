@@ -11,7 +11,7 @@
   "scripts": {
     "codespaces:startup": "bash scripts/codespaces/startup.sh",
     "generate:grammar": "npm run -w @tikz-editor/core generate:grammar",
-    "typecheck": "npx tsc -p tsconfig.json --noEmit",
+    "typecheck": "npx tsc -p tsconfig.json --noEmit && node scripts/check-coordinate-typing.mjs",
     "build": "npm run -w @tikz-editor/core build",
     "test": "npm run generate:grammar && vitest run",
     "test:capabilities": "npm run generate:grammar && vitest run test/capabilities.spec.ts",

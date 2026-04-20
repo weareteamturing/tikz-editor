@@ -8,6 +8,8 @@ import {
   type NamedNodeGeometry,
   type SemanticContext
 } from "../context.js";
+import { applyFrameTransform, applyFrameVector } from "../../coords/frame.js";
+import { frameLocalPoint, frameLocalVector, worldPoint } from "../../coords/points.js";
 import type { FrameLocalPoint, WorldPoint } from "../../coords/points.js";
 import type { FrameTransform } from "../../coords/transforms.js";
 import { applyMatrix, applyMatrixToVector, identityMatrix, inverseMatrix } from "../transform.js";
@@ -95,8 +97,15 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
         return invalidCoordinate("explicit", diagnostics, item.relativePrefix === "++");
       }
 
-      const localPt = { x, y };
-      return transformedCoordinate("explicit", localPt, applyMatrix(frame.transform, localPt), frame.transform, diagnostics, item.relativePrefix === "++");
+      const localPt = frameLocalPoint(x, y);
+      return transformedCoordinate(
+        "explicit",
+        localPt,
+        applyFrameTransform(frame.transform, localPt),
+        frame.transform,
+        diagnostics,
+        item.relativePrefix === "++"
+      );
     }
 
     if (parsed.kind === "perpendicular") {
@@ -109,7 +118,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
       }
       return worldOnlyCoordinate(
         "explicit",
-        { x: vertical.world.x, y: horizontal.world.y },
+        worldPoint(vertical.world.x, horizontal.world.y),
         diagnostics,
         item.relativePrefix === "++",
         "perpendicular"
@@ -156,7 +165,15 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
       diagnostics.push("unsupported-coordinate-z-component");
     }
 
-    return transformedCoordinate("xyz", { x, y }, applyMatrix(frame.transform, { x, y }), frame.transform, diagnostics, item.relativePrefix === "++");
+    const localPt = frameLocalPoint(x, y);
+    return transformedCoordinate(
+      "xyz",
+      localPt,
+      applyFrameTransform(frame.transform, localPt),
+      frame.transform,
+      diagnostics,
+      item.relativePrefix === "++"
+    );
   }
 
   if (item.form === "unknown") {
@@ -164,7 +181,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     return invalidCoordinate("unknown", diagnostics, item.relativePrefix === "++");
   }
 
-  let localPoint: WorldPoint | null = null;
+  let localPoint: FrameLocalPoint | null = null;
 
   if (item.form === "polar") {
     const angleQuantity = parseQuantityExpression(expandCoordinateComponent(item.x.trim(), frame.macroBindings, traceCollector));
@@ -178,10 +195,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     // `\pgfmathparse{#1}` normalizes the angle expression numerically before trig.
     const angle = angleQuantity.value;
     const radians = (angle * Math.PI) / 180;
-    localPoint = {
-      x: radius * Math.cos(radians),
-      y: radius * Math.sin(radians)
-    };
+    localPoint = frameLocalPoint(radius * Math.cos(radians), radius * Math.sin(radians));
   } else {
     const x = parseLength(expandCoordinateComponent(item.x, frame.macroBindings, traceCollector), "cm");
     const y = parseLength(expandCoordinateComponent(item.y, frame.macroBindings, traceCollector), "cm");
@@ -190,7 +204,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
       return invalidCoordinate("cartesian", diagnostics, item.relativePrefix === "++");
     }
 
-    localPoint = { x, y };
+    localPoint = frameLocalPoint(x, y);
   }
 
   if (!localPoint) {
@@ -205,12 +219,12 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
       const form: CoordinateForm = item.form === "polar" ? "polar" : "cartesian";
       return invalidCoordinate(form, diagnostics, item.relativePrefix === "++", item.relativePrefix);
     }
-    const delta = applyMatrixToVector(frame.transform, localPoint);
+    const delta = applyFrameVector(frame.transform, frameLocalVector(localPoint.x, localPoint.y));
     const form: CoordinateForm = item.form === "polar" ? "polar" : "cartesian";
     return transformedCoordinate(
       form,
       localPoint,
-      { x: current.x + delta.x, y: current.y + delta.y },
+      worldPoint(current.x + delta.x, current.y + delta.y),
       frame.transform,
       diagnostics,
       item.relativePrefix === "++",
@@ -219,7 +233,14 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
   }
 
   const coordinateForm: CoordinateForm = item.form === "polar" ? "polar" : "cartesian";
-  return transformedCoordinate(coordinateForm, localPoint, applyMatrix(frame.transform, localPoint), frame.transform, diagnostics, true);
+  return transformedCoordinate(
+    coordinateForm,
+    localPoint,
+    applyFrameTransform(frame.transform, localPoint),
+    frame.transform,
+    diagnostics,
+    true
+  );
 }
 
 function transformedCoordinate(

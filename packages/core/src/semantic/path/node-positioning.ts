@@ -1,5 +1,5 @@
 import type { WorldTransform } from "../../coords/transforms.js";
-import { unsafePoint, type WorldPoint } from "../../coords/points.js";
+import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import type { Span } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
@@ -79,7 +79,7 @@ const IDENTITY_MATRIX: WorldTransform = {
 const PT_PER_CM = parseLength("1cm", "cm") ?? 28.4527559055;
 
 function worldPoint(x: number, y: number): WorldPoint {
-  return unsafePoint<WorldPoint>(x, y);
+  return makeWorldPoint(x, y);
 }
 
 type RelativePlacementSpec = {
@@ -185,12 +185,12 @@ export function resolveNodePositioningTarget(
     horizontal: { kind: "dimension", value: PT_PER_CM }
   };
   let relativePlacement: RelativePlacementSpec | null = null;
-  let additiveOffset: WorldPoint = { x: 0, y: 0 };
+  let additiveOffset: WorldPoint = makeWorldPoint(0, 0);
 
   for (const entry of options.entries) {
     if (entry.kind === "flag") {
       if (entry.key === "centered") {
-        additiveOffset = { x: 0, y: 0 };
+        additiveOffset = makeWorldPoint(0, 0);
       } else if (entry.key === "on grid") {
         onGrid = true;
       }

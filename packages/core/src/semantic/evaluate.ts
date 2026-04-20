@@ -74,7 +74,7 @@ import { parseBooleanishNormalized } from "../utils/booleanish.js";
 import { stripWrappingBraces } from "../utils/braces.js";
 import { evaluatePgfMathExpression, formatPgfMathNumber } from "./pgfmath/evaluator.js";
 import { withPgfMathRuntime } from "./pgfmath/runtime.js";
-import { unsafeBounds, unsafePoint } from "../coords/points.js";
+import { worldPoint, worldBounds } from "../coords/points.js";
 import type { WorldBounds, WorldPoint } from "../coords/points.js";
 import type {
   EditHandle,
@@ -599,7 +599,7 @@ export function collectNodeAnchorTargets(context: SemanticContext): NodeAnchorTa
       targets.push({
         nodeName,
         anchor: normalizedAnchor,
-        world: unsafePoint<WorldPoint>(world.x, world.y),
+        world: worldPoint(world.x, world.y),
         tier: BASIC_ANCHORS.has(normalizedAnchor) ? "basic" : "special"
       });
     };
@@ -1875,8 +1875,8 @@ export function computeBounds(elements: SceneElement[]): WorldBounds | undefined
     }
 
     if (element.kind === "Circle") {
-      const min = unsafePoint<WorldPoint>(element.center.x - element.radius, element.center.y - element.radius);
-      const max = unsafePoint<WorldPoint>(element.center.x + element.radius, element.center.y + element.radius);
+      const min = worldPoint(element.center.x - element.radius, element.center.y - element.radius);
+      const max = worldPoint(element.center.x + element.radius, element.center.y + element.radius);
       pushRectCorners(points, min, max, element.transform);
       continue;
     }
@@ -1887,8 +1887,8 @@ export function computeBounds(elements: SceneElement[]): WorldBounds | undefined
       const sin = Math.sin(rotation);
       const extentX = Math.sqrt(element.rx * element.rx * cos * cos + element.ry * element.ry * sin * sin);
       const extentY = Math.sqrt(element.rx * element.rx * sin * sin + element.ry * element.ry * cos * cos);
-      const min = unsafePoint<WorldPoint>(element.center.x - extentX, element.center.y - extentY);
-      const max = unsafePoint<WorldPoint>(element.center.x + extentX, element.center.y + extentY);
+      const min = worldPoint(element.center.x - extentX, element.center.y - extentY);
+      const max = worldPoint(element.center.x + extentX, element.center.y + extentY);
       pushRectCorners(points, min, max, element.transform);
       continue;
     }
@@ -1902,13 +1902,13 @@ export function computeBounds(elements: SceneElement[]): WorldBounds | undefined
     const cos = Math.cos(rotation);
     const sin = Math.sin(rotation);
     const corners = [
-      unsafePoint<WorldPoint>(-halfWidth, -halfHeight),
-      unsafePoint<WorldPoint>(halfWidth, -halfHeight),
-      unsafePoint<WorldPoint>(halfWidth, halfHeight),
-      unsafePoint<WorldPoint>(-halfWidth, halfHeight)
+      worldPoint(-halfWidth, -halfHeight),
+      worldPoint(halfWidth, -halfHeight),
+      worldPoint(halfWidth, halfHeight),
+      worldPoint(-halfWidth, halfHeight)
     ];
     for (const corner of corners) {
-      const rotatedCorner = unsafePoint<WorldPoint>(
+      const rotatedCorner = worldPoint(
         element.position.x + corner.x * cos - corner.y * sin,
         element.position.y + corner.x * sin + corner.y * cos
       );
@@ -1925,7 +1925,7 @@ export function computeBounds(elements: SceneElement[]): WorldBounds | undefined
   const maxX = Math.max(...points.map((point) => point.x));
   const maxY = Math.max(...points.map((point) => point.y));
 
-  return unsafeBounds<WorldBounds>(minX, minY, maxX, maxY);
+  return worldBounds(minX, minY, maxX, maxY);
 }
 
 function applyOptionalTransform(
@@ -1936,7 +1936,7 @@ function applyOptionalTransform(
     return point;
   }
   const transformed = applyMatrix(transform, point);
-  return unsafePoint<WorldPoint>(transformed.x, transformed.y);
+  return worldPoint(transformed.x, transformed.y);
 }
 
 function pushRectCorners(
@@ -1946,10 +1946,10 @@ function pushRectCorners(
   transform: SceneElement["transform"]
 ): void {
   const corners = [
-    unsafePoint<WorldPoint>(min.x, min.y),
-    unsafePoint<WorldPoint>(max.x, min.y),
-    unsafePoint<WorldPoint>(max.x, max.y),
-    unsafePoint<WorldPoint>(min.x, max.y)
+    worldPoint(min.x, min.y),
+    worldPoint(max.x, min.y),
+    worldPoint(max.x, max.y),
+    worldPoint(min.x, max.y)
   ];
   for (const corner of corners) {
     points.push(applyOptionalTransform(corner, transform));
@@ -2099,7 +2099,7 @@ function solveArcCenter(
   }
 
   return {
-    center: unsafePoint<WorldPoint>(cx, cy),
+    center: worldPoint(cx, cy),
     rx,
     ry,
     phi,
@@ -2119,7 +2119,7 @@ function pointOnEllipse(
   const sinTheta = Math.sin(theta);
   const cosPhi = Math.cos(phi);
   const sinPhi = Math.sin(phi);
-  return unsafePoint<WorldPoint>(
+  return worldPoint(
     center.x + rx * cosTheta * cosPhi - ry * sinTheta * sinPhi,
     center.y + rx * cosTheta * sinPhi + ry * sinTheta * cosPhi
   );

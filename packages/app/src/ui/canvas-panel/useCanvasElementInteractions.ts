@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { unsafePoint } from "tikz-editor/coords/index";
+import { clientPoint } from "tikz-editor/coords/index";
 import { buildSnapContext, collectSelectionGeometryFromBounds, collectSourceWorldBounds, type SnapBounds } from "tikz-editor/edit/snapping";
 import type { EditHandle, SceneElement } from "tikz-editor/semantic/types";
 import type { ClientPoint, WorldBounds, WorldPoint } from "../coords/types";
@@ -21,7 +21,7 @@ export type UseCanvasElementInteractionsArgs = {
 };
 
 function clientPointFromEvent(event: Pick<PointerEvent | ReactPointerEvent<SVGElement> | ReactMouseEvent<SVGElement>, "clientX" | "clientY">): ClientPoint {
-  return unsafePoint<ClientPoint>(event.clientX, event.clientY);
+  return clientPoint(event.clientX, event.clientY);
 }
 
 export function useCanvasElementInteractions(args: UseCanvasElementInteractionsArgs) {

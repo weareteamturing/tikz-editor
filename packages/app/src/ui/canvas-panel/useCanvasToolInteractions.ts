@@ -1,5 +1,5 @@
 import { useCallback, useEffect, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { unsafePoint } from "tikz-editor/coords/index";
+import { viewportPoint, clientPoint as makeClientPoint } from "tikz-editor/coords/index";
 import { buildSnapContext, snapToolPointer, type SnapLine } from "tikz-editor/edit/snapping";
 import type { NodeAnchorTarget } from "tikz-editor/semantic/types";
 import type { ClientPoint, ViewportPoint, WorldPoint } from "../coords/types";
@@ -84,7 +84,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     function onWorldPointerMove(event: PointerEvent) {
       const pending = pendingTouchViewportRef.current;
       if (!pending || pending.pointerId !== event.pointerId) return;
-      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const clientPoint = makeClientPoint(event.clientX, event.clientY);
       const dx = clientPoint.x - pending.startClient.x;
       const dy = clientPoint.y - pending.startClient.y;
       if (dx * dx + dy * dy > 16) {
@@ -126,7 +126,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       }
       closeTextEditingSession();
       const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
-      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const clientPoint = makeClientPoint(event.clientX, event.clientY);
       if (startMarqueeSelection(event.pointerId, clientPoint, additiveSelection)) {
         event.preventDefault();
       }
@@ -173,10 +173,10 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
           return;
         }
         const rect = viewport.getBoundingClientRect();
-        const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+        const clientPoint = makeClientPoint(event.clientX, event.clientY);
         setMagnifierState({
           pointerId: event.pointerId,
-          center: unsafePoint<ViewportPoint>(clientPoint.x - rect.left, clientPoint.y - rect.top)
+          center: viewportPoint(clientPoint.x - rect.left, clientPoint.y - rect.top)
         });
         setDragCursorLock("none");
         event.preventDefault();
@@ -185,7 +185,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
 
       const canPan = event.button === 1 || (event.button === 0 && event.altKey);
       if (canPan) {
-        const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+        const clientPoint = makeClientPoint(event.clientX, event.clientY);
         setDragState({
           kind: "pan",
           pointerId: event.pointerId,
@@ -197,7 +197,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       }
 
       if (event.button === 0 && toolMode !== "select") {
-        const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+        const clientPoint = makeClientPoint(event.clientX, event.clientY);
         const world = clientToWorldPoint(clientPoint, interactionSvgRef.current, svgResult.viewBox);
         if (!world) {
           return;
@@ -526,7 +526,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
           }
           // On touch: moving immediately pans the canvas; marquee only opens after a long press.
           const touchWorldPointerId = event.pointerId;
-          const touchClientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+          const touchClientPoint = makeClientPoint(event.clientX, event.clientY);
           const timer = setTimeout(() => {
             if (pendingTouchViewportRef.current?.pointerId === touchWorldPointerId) {
               pendingTouchViewportRef.current = null;
@@ -542,7 +542,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
           };
           event.preventDefault();
         } else {
-          const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+          const clientPoint = makeClientPoint(event.clientX, event.clientY);
           if (startMarqueeSelection(event.pointerId, clientPoint, additiveSelection)) {
             event.preventDefault();
           }
@@ -613,10 +613,10 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
           return;
         }
         const rect = viewport.getBoundingClientRect();
-        const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+        const clientPoint = makeClientPoint(event.clientX, event.clientY);
         setMagnifierState({
           pointerId: magnifier.pointerId,
-          center: unsafePoint<ViewportPoint>(clientPoint.x - rect.left, clientPoint.y - rect.top)
+          center: viewportPoint(clientPoint.x - rect.left, clientPoint.y - rect.top)
         });
         event.preventDefault();
         return;
@@ -631,7 +631,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
         return;
       }
 
-      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const clientPoint = makeClientPoint(event.clientX, event.clientY);
       const world = clientToWorldPoint(clientPoint, interactionSvgRef.current, svgResult.viewBox);
       if (!world) {
         setNodeAnchorOverlay(null);
@@ -805,7 +805,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       if (pathSegmentDraft) {
         return;
       }
-      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const clientPoint = makeClientPoint(event.clientX, event.clientY);
       const world = clientToWorldPoint(clientPoint, interactionSvgRef.current, svgResult.viewBox);
       if (!world) {
         setNodeAnchorOverlay(null);

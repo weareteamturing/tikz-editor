@@ -1,5 +1,6 @@
 import type { NodeItem, PathStatement } from "../../ast/types.js";
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
+import { worldPoint } from "../../coords/points.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings } from "../../macros/index.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
@@ -158,7 +159,7 @@ function computePositioningAnchorOffsetsByDirection(params: {
       nodeTransform,
       nodeAnchorOffset(nodeShape, nodeLayout, currentAnchorForDirection(direction), nodeOptions)
     );
-    let targetAnchor: WorldPoint = { x: 0, y: 0 };
+    let targetAnchor: WorldPoint = worldPoint(0, 0);
 
     if (!legacyOf) {
       const targetAnchorWorldPoint = evaluateRawCoordinate(
@@ -166,10 +167,10 @@ function computePositioningAnchorOffsetsByDirection(params: {
         context
       ).world;
       if (targetAnchorWorldPoint) {
-        targetAnchor = {
-          x: targetAnchorWorldPoint.x - targetCenter.x,
-          y: targetAnchorWorldPoint.y - targetCenter.y
-        };
+        targetAnchor = worldPoint(
+          targetAnchorWorldPoint.x - targetCenter.x,
+          targetAnchorWorldPoint.y - targetCenter.y
+        );
       }
     }
 

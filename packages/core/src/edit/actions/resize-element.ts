@@ -9,6 +9,8 @@ import {
   ScenePath,
   ScenePathShapeHint
 } from "../../semantic/types.js";
+import { applyFrameTransform } from "../../coords/frame.js";
+import { frameLocalPoint } from "../../coords/points.js";
 import type { FrameLocalPoint, WorldPoint } from "../../coords/points.js";
 import type { CoordinateItem, NodeItem, PathItem, PathOptionItem, Statement, Span } from "../../ast/types.js";
 import type { PropertyTarget } from "../property-target.js";
@@ -821,17 +823,11 @@ function applyResizePathRectangle(
   const startUsesMinX = startLocal.x <= oppositeLocal.x;
   const startUsesMinY = startLocal.y <= oppositeLocal.y;
 
-  const nextStartLocal: FrameLocalPoint = {
-    x: startUsesMinX ? minX : maxX,
-    y: startUsesMinY ? minY : maxY
-  };
-  const nextOppositeLocal: FrameLocalPoint = {
-    x: startUsesMinX ? maxX : minX,
-    y: startUsesMinY ? maxY : minY
-  };
+  const nextStartLocal = frameLocalPoint(startUsesMinX ? minX : maxX, startUsesMinY ? minY : maxY);
+  const nextOppositeLocal = frameLocalPoint(startUsesMinX ? maxX : minX, startUsesMinY ? maxY : minY);
 
-  const nextStartWorld = applyMatrix(transform, nextStartLocal);
-  const nextOppositeWorld = applyMatrix(transform, nextOppositeLocal);
+  const nextStartWorld = applyFrameTransform(transform, nextStartLocal);
+  const nextOppositeWorld = applyFrameTransform(transform, nextOppositeLocal);
   let oppositeRewriteHandle = context.oppositeHandle;
   if (
     isRelativeCoordinateEditHandle(oppositeRewriteHandle) &&
@@ -1843,12 +1839,12 @@ function worldVectorToLocal(
   };
   const inverse = inverseMatrix(matrix);
   if (!inverse) {
-    return vector;
+    return frameLocalPoint(vector.x, vector.y);
   }
-  return {
-    x: inverse.a * vector.x + inverse.c * vector.y,
-    y: inverse.b * vector.x + inverse.d * vector.y
-  };
+  return frameLocalPoint(
+    inverse.a * vector.x + inverse.c * vector.y,
+    inverse.b * vector.x + inverse.d * vector.y
+  );
 }
 
 function worldSizeToLocalSize(

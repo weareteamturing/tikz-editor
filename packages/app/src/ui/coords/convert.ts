@@ -1,18 +1,23 @@
 import type { SvgViewBox } from "tikz-editor/svg/types";
 import type { CanvasTransform } from "../../store/types";
 import type { ClientPoint, SvgPoint, ViewportPoint, WorldPoint } from "./types";
-import { unsafePoint } from "tikz-editor/coords/index";
-import { svgToWorldPoint as coreSvgToWorldPoint, worldToSvgPoint as coreWorldToSvgPoint } from "tikz-editor/coords/index";
+import {
+  clientPoint,
+  svgPoint,
+  svgToWorldPoint as coreSvgToWorldPoint,
+  viewportPoint,
+  worldToSvgPoint as coreWorldToSvgPoint
+} from "tikz-editor/coords/index";
 
 export function clientToViewport(point: ClientPoint, viewportRect: DOMRect | null): ViewportPoint {
-  return unsafePoint<ViewportPoint>(
+  return viewportPoint(
     point.x - (viewportRect?.left ?? 0),
     point.y - (viewportRect?.top ?? 0)
   );
 }
 
 export function viewportToClient(point: ViewportPoint, viewportRect: DOMRect | null): ClientPoint {
-  return unsafePoint<ClientPoint>(
+  return clientPoint(
     point.x + (viewportRect?.left ?? 0),
     point.y + (viewportRect?.top ?? 0)
   );
@@ -20,14 +25,14 @@ export function viewportToClient(point: ViewportPoint, viewportRect: DOMRect | n
 
 export function viewportToSvg(point: ViewportPoint, transform: CanvasTransform, viewBox: SvgViewBox): SvgPoint {
   const scale = Math.max(transform.scale, 1e-6);
-  return unsafePoint<SvgPoint>(
+  return svgPoint(
     viewBox.x + (point.x - transform.translateX) / scale,
     viewBox.y + (point.y - transform.translateY) / scale
   );
 }
 
 export function svgToViewport(point: SvgPoint, transform: CanvasTransform, viewBox: SvgViewBox): ViewportPoint {
-  return unsafePoint<ViewportPoint>(
+  return viewportPoint(
     transform.translateX + (point.x - viewBox.x) * transform.scale,
     transform.translateY + (point.y - viewBox.y) * transform.scale
   );
@@ -55,11 +60,11 @@ export function clientToSvg(
   if (svgElement) {
     const ctm = svgElement.getScreenCTM();
     if (ctm) {
-      const svgPoint = svgElement.createSVGPoint();
-      svgPoint.x = point.x;
-      svgPoint.y = point.y;
-      const result = svgPoint.matrixTransform(ctm.inverse());
-      return unsafePoint<SvgPoint>(result.x, result.y);
+      const domPoint = svgElement.createSVGPoint();
+      domPoint.x = point.x;
+      domPoint.y = point.y;
+      const result = domPoint.matrixTransform(ctm.inverse());
+      return svgPoint(result.x, result.y);
     }
   }
   return viewportToSvg(clientToViewport(point, viewportRect), transform, viewBox);

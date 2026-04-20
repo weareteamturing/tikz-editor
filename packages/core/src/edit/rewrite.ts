@@ -3,6 +3,7 @@ import {
   isRelativeCoordinateEditHandle,
   type EditHandle
 } from "../semantic/types.js";
+import { worldVector } from "../coords/points.js";
 import type { WorldPoint } from "../coords/points.js";
 import { worldToLocal, worldDeltaToLocalDelta, localToSourceUnits } from "./coords.js";
 import { CM_PER_PT, formatNumber } from "./format.js";
@@ -109,10 +110,7 @@ function rewriteDelta(
   if (!base) {
     return null;
   }
-  const delta: WorldPoint = {
-    x: newWorld.x - base.x,
-    y: newWorld.y - base.y
-  };
+  const delta = worldVector(newWorld.x - base.x, newWorld.y - base.y);
   const localDelta = worldDeltaToLocalDelta(delta, handle.transform);
   if (!localDelta) {
     return null;
@@ -148,7 +146,7 @@ function applyInsertionSyntax(source: string, handle: EditHandle, coordinate: st
   return coordinate;
 }
 
-function toPolar(point: WorldPoint): { angleDeg: number; radius: number } {
+function toPolar(point: Pick<WorldPoint, "x" | "y">): { angleDeg: number; radius: number } {
   const radius = Math.sqrt(point.x * point.x + point.y * point.y);
   let angleDeg = (Math.atan2(point.y, point.x) * 180) / Math.PI;
   if (angleDeg < 0) {

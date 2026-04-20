@@ -1,7 +1,6 @@
-import { unsafePoint } from "tikz-editor/coords/index";
 import { applyMatrix } from "tikz-editor/semantic/transform";
 import type { SvgTransform, WorldBounds, WorldPoint, WorldTransform } from "tikz-editor/coords/index";
-import { worldToSvgTransform } from "tikz-editor/coords/index";
+import { worldToSvgTransform, worldPoint } from "tikz-editor/coords/index";
 import type { SceneClipPath, SceneElement, ScenePathCommand, SceneText } from "tikz-editor/semantic/types";
 import type { SvgBounds, SvgPoint } from "../coords/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
@@ -351,9 +350,9 @@ function resolveTextRectTransformInSvg(
   const halfHeight = localRect.height / 2;
   const rotation = element.rotation ?? 0;
   const localCornersWorld = {
-    topLeft: rotateWorldPointAroundCenter(unsafePoint<WorldPoint>(center.x - halfWidth, center.y + halfHeight), center, rotation),
-    topRight: rotateWorldPointAroundCenter(unsafePoint<WorldPoint>(center.x + halfWidth, center.y + halfHeight), center, rotation),
-    bottomLeft: rotateWorldPointAroundCenter(unsafePoint<WorldPoint>(center.x - halfWidth, center.y - halfHeight), center, rotation)
+    topLeft: rotateWorldPointAroundCenter(worldPoint(center.x - halfWidth, center.y + halfHeight), center, rotation),
+    topRight: rotateWorldPointAroundCenter(worldPoint(center.x + halfWidth, center.y + halfHeight), center, rotation),
+    bottomLeft: rotateWorldPointAroundCenter(worldPoint(center.x - halfWidth, center.y - halfHeight), center, rotation)
   };
   const actualCornersWorld = element.transform
     ? {
@@ -381,7 +380,7 @@ function rotateWorldPointAroundCenter(point: WorldPoint, center: WorldPoint, deg
   const sin = Math.sin(theta);
   const dx = point.x - center.x;
   const dy = point.y - center.y;
-  return unsafePoint<WorldPoint>(
+  return worldPoint(
     center.x + dx * cos - dy * sin,
     center.y + dx * sin + dy * cos
   );

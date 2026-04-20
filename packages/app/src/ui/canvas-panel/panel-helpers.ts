@@ -1,6 +1,6 @@
 import type { AdornmentOwnerGeometry, NodeItem, PathItem, Span, Statement } from "tikz-editor/ast/types";
 import type { ResizeRole } from "tikz-editor/edit/actions";
-import { unsafeBounds, unsafePoint } from "tikz-editor/coords/index";
+import { svgPoint, svgBounds } from "tikz-editor/coords/index";
 import { parseCoordinateLike, parseLength } from "tikz-editor/semantic/coords/parse-length";
 import type { OptionListAst } from "tikz-editor/options/types";
 import type { EditHandle, SceneClipPath, SceneElement, ScenePath, ScenePathCommand, ScenePathShapeHint, SceneText } from "tikz-editor/semantic/types";
@@ -297,7 +297,7 @@ export function constrainBoundsToClipChain(
   if (!bounds) {
     return null;
   }
-  let constrained: SvgBounds | null = { ...bounds };
+  let constrained: SvgBounds | null = svgBounds(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY);
   for (const clipPath of clipChain) {
     const clipBounds = clipPathBoundsInSvg(clipPath, viewBox);
     if (!clipBounds) {
@@ -335,12 +335,12 @@ function pathCommandBoundsInSvg(commands: readonly ScenePathCommand[], viewBox: 
 
     if (command.kind === "A") {
       if (previous) {
-        includePoint(unsafePoint<SvgPoint>(previous.x - command.rx, previous.y - command.ry));
-        includePoint(unsafePoint<SvgPoint>(previous.x + command.rx, previous.y + command.ry));
+        includePoint(svgPoint(previous.x - command.rx, previous.y - command.ry));
+        includePoint(svgPoint(previous.x + command.rx, previous.y + command.ry));
       }
       const to = worldToSvgPoint(command.to, viewBox);
-      includePoint(unsafePoint<SvgPoint>(to.x - command.rx, to.y - command.ry));
-      includePoint(unsafePoint<SvgPoint>(to.x + command.rx, to.y + command.ry));
+      includePoint(svgPoint(to.x - command.rx, to.y - command.ry));
+      includePoint(svgPoint(to.x + command.rx, to.y + command.ry));
       previous = to;
       continue;
     }
@@ -354,7 +354,7 @@ function pathCommandBoundsInSvg(commands: readonly ScenePathCommand[], viewBox: 
     return null;
   }
 
-  return unsafeBounds<SvgBounds>(minX, minY, maxX, maxY);
+  return svgBounds(minX, minY, maxX, maxY);
 }
 
 function intersectBounds(a: SvgBounds, b: SvgBounds): SvgBounds | null {
@@ -365,7 +365,7 @@ function intersectBounds(a: SvgBounds, b: SvgBounds): SvgBounds | null {
   if (minX > maxX || minY > maxY) {
     return null;
   }
-  return unsafeBounds<SvgBounds>(minX, minY, maxX, maxY);
+  return svgBounds(minX, minY, maxX, maxY);
 }
 
 export function computeEllipseBounds(cx: number, cy: number, rx: number, ry: number, rotation: number): SvgBounds {
@@ -387,7 +387,7 @@ export function computeRotatedRectBounds(cx: number, cy: number, width: number, 
   const halfWidth = width / 2;
   const halfHeight = height / 2;
   if (Math.abs(rotation) <= 1e-6) {
-    return unsafeBounds<SvgBounds>(cx - halfWidth, cy - halfHeight, cx + halfWidth, cy + halfHeight);
+    return svgBounds(cx - halfWidth, cy - halfHeight, cx + halfWidth, cy + halfHeight);
   }
 
   const theta = (rotation * Math.PI) / 180;
@@ -396,11 +396,11 @@ export function computeRotatedRectBounds(cx: number, cy: number, width: number, 
   const extentX = halfWidth * cos + halfHeight * sin;
   const extentY = halfWidth * sin + halfHeight * cos;
 
-  return unsafeBounds<SvgBounds>(cx - extentX, cy - extentY, cx + extentX, cy + extentY);
+  return svgBounds(cx - extentX, cy - extentY, cx + extentX, cy + extentY);
 }
 
 export function mergeBounds(a: SvgBounds, b: SvgBounds): SvgBounds {
-  return unsafeBounds<SvgBounds>(
+  return svgBounds(
     Math.min(a.minX, b.minX),
     Math.min(a.minY, b.minY),
     Math.max(a.maxX, b.maxX),
@@ -445,10 +445,10 @@ function multiplyAffine(left: SvgTransform, right: SvgTransform): SvgTransform {
 
 function transformBounds(bounds: SvgBounds, transform: SvgTransform): SvgBounds {
   const corners: SvgPoint[] = [
-    unsafePoint<SvgPoint>(bounds.minX, bounds.minY),
-    unsafePoint<SvgPoint>(bounds.maxX, bounds.minY),
-    unsafePoint<SvgPoint>(bounds.maxX, bounds.maxY),
-    unsafePoint<SvgPoint>(bounds.minX, bounds.maxY)
+    svgPoint(bounds.minX, bounds.minY),
+    svgPoint(bounds.maxX, bounds.minY),
+    svgPoint(bounds.maxX, bounds.maxY),
+    svgPoint(bounds.minX, bounds.maxY)
   ];
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
@@ -456,7 +456,7 @@ function transformBounds(bounds: SvgBounds, transform: SvgTransform): SvgBounds 
   let maxY = Number.NEGATIVE_INFINITY;
 
   for (const point of corners) {
-    const mapped = unsafePoint<SvgPoint>(
+    const mapped = svgPoint(
       transform.a * point.x + transform.c * point.y + transform.e,
       transform.b * point.x + transform.d * point.y + transform.f
     );
@@ -466,7 +466,7 @@ function transformBounds(bounds: SvgBounds, transform: SvgTransform): SvgBounds 
     maxY = Math.max(maxY, mapped.y);
   }
 
-  return unsafeBounds<SvgBounds>(minX, minY, maxX, maxY);
+  return svgBounds(minX, minY, maxX, maxY);
 }
 
 export function selectionAnchorRatioFromPoint(bounds: WorldBounds, point: WorldPoint): SelectionAnchorRatio {

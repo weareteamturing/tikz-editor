@@ -1,4 +1,4 @@
-import { unsafePoint, type WorldPoint } from "../../coords/points.js";
+import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
 import type { AdornmentOwnerGeometry, EdgeOperationItem, NodeItem, Span, ToOperationItem } from "../../ast/types.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
@@ -17,7 +17,7 @@ import { applyMatrixToVector, inverseMatrix } from "../transform.js";
 import { stripWrappingBraces } from "../../utils/braces.js";
 
 function worldPoint(x: number, y: number): WorldPoint {
-  return unsafePoint<WorldPoint>(x, y);
+  return makeWorldPoint(x, y);
 }
 
 type QuotesMode = NodeQuotesMode;

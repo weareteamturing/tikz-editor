@@ -1,5 +1,5 @@
 import { parseLength } from "../coords/parse-length.js";
-import { unsafePoint, type WorldPoint } from "../../coords/points.js";
+import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
 import type { OptionListAst } from "../../options/types.js";
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
@@ -226,7 +226,7 @@ const DEFAULT_CHAMFERED_RECTANGLE_CORNERS = "chamfer all";
 const EPSILON = 1e-9;
 
 function worldPoint(x: number, y: number): WorldPoint {
-  return unsafePoint<WorldPoint>(x, y);
+  return makeWorldPoint(x, y);
 }
 
 export function resolveNodeShapeGeometryParams(

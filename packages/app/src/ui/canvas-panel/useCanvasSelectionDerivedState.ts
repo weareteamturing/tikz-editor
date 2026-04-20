@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { unsafePoint } from "tikz-editor/coords/index";
+import { worldPoint } from "tikz-editor/coords/index";
 import type { PathItem, Statement } from "tikz-editor/ast/types";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import { FIT_DIRECT_MANIPULATION_BLOCK_REASON, sourceUsesFitNodeFromParseResult } from "tikz-editor/edit/fit";
@@ -559,10 +559,10 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       if (!bounds) {
         continue;
       }
-      const labelCenterWorld: WorldPoint = {
-        x: (bounds.minX + bounds.maxX) / 2,
-        y: svgResult.viewBox.y + svgResult.viewBox.height - (((bounds.minY + bounds.maxY) / 2) - svgResult.viewBox.y)
-      };
+      const labelCenterWorld: WorldPoint = worldPoint(
+        (bounds.minX + bounds.maxX) / 2,
+        svgResult.viewBox.y + svgResult.viewBox.height - (((bounds.minY + bounds.maxY) / 2) - svgResult.viewBox.y)
+      );
       const connectorOwnerPoint = resolveAdornmentOwnerBoundaryPoint(
         adornment.ownerGeometry,
         adornment.ownerPoint,
@@ -926,10 +926,10 @@ function shouldShowSideResizeHandles(
 function midpoint(a: SvgPoint, b: SvgPoint): SvgPoint;
 function midpoint(a: WorldPoint, b: WorldPoint): WorldPoint;
 function midpoint(a: SvgPoint | WorldPoint, b: SvgPoint | WorldPoint): SvgPoint | WorldPoint {
-  return unsafePoint(
-    (a.x + b.x) / 2,
-    (a.y + b.y) / 2
-  );
+  return {
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2
+  } as typeof a;
 }
 
 function buildResizeHandleDisplaysForFrame({
@@ -953,7 +953,7 @@ function buildResizeHandleDisplaysForFrame({
   const frameRotationDeg = (Math.atan2(topRight.y - topLeft.y, topRight.x - topLeft.x) * 180) / Math.PI;
   for (const role of RESIZE_FRAME_CORNER_ROLES) {
     const corner = resizeFrame.cornersByRole[role];
-    const resizeVector = unsafePoint<WorldPoint>(
+    const resizeVector = worldPoint(
       corner.world.x - resizeFrame.centerWorld.x,
       corner.world.y - resizeFrame.centerWorld.y
     );

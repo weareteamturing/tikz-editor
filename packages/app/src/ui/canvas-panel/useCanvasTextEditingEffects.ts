@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { unsafeBounds, unsafePoint } from "tikz-editor/coords/index";
+import { svgPoint, svgBounds, viewportBounds } from "tikz-editor/coords/index";
 import { getActiveMathJaxOutputJax } from "tikz-editor/text/mathjax-engine";
 import { getKnuthPlassPointFromOffset, getKnuthPlassSelectionRects } from "tikz-editor/text/knuth-plass";
 import type { ClientPoint, SvgBounds, SvgPoint, ViewportPoint } from "../coords/types";
@@ -106,7 +106,7 @@ function resolveRegionSelectionOverlay(
     const height = Math.max(1, lineHeight);
     return {
       caret: {
-        bounds: unsafeBounds<SvgBounds>(left, top, left, top + height)
+        bounds: svgBounds(left, top, left, top + height)
       },
       rects: []
     };
@@ -131,8 +131,8 @@ function resolveRegionSelectionOverlay(
     const height = Math.max(1, lineHeight);
     const width = Math.max(1, right - left);
     rects.push({
-      bounds: unsafeBounds<SvgBounds>(left, top, left + width, top + height),
-      center: unsafePoint<SvgPoint>(left + width / 2, top + height / 2),
+      bounds: svgBounds(left, top, left + width, top + height),
+      center: svgPoint(left + width / 2, top + height / 2),
       rotationDeg: Number.isFinite(target.region.rotation) ? Number(target.region.rotation) : undefined
     });
   }
@@ -356,7 +356,7 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
             selectionStart: boundedStart,
             selectionEnd: boundedEnd,
             caret: {
-              bounds: unsafeBounds(
+              bounds: viewportBounds(
                 point.clientPoint.x - viewportRect.left,
                 point.clientPoint.y - viewportRect.top - height / 2,
                 point.clientPoint.x - viewportRect.left,

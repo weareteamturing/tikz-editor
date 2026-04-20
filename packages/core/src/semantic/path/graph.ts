@@ -1,7 +1,7 @@
 import type { GraphOperationItem, GraphSpecChain, GraphSpecSegment, Span } from "../../ast/types.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
-import { unsafePoint, type WorldPoint } from "../../coords/points.js";
+import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
 import { parseLength } from "../coords/parse-length.js";
 import {
   findNextConnector,
@@ -35,7 +35,7 @@ type GraphVector2 = {
 };
 
 function graphPoint(x: number, y: number): WorldPoint {
-  return unsafePoint<WorldPoint>(x, y);
+  return makeWorldPoint(x, y);
 }
 
 type GraphCircularPlacementState = {

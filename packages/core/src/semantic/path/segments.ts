@@ -1,9 +1,9 @@
-import { unsafePoint, type WorldPoint } from "../../coords/points.js";
+import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
 import type { PlacementSegment } from "./types.js";
 import type { ScenePathCommand } from "../types.js";
 
 function worldPoint(x: number, y: number): WorldPoint {
-  return unsafePoint<WorldPoint>(x, y);
+  return makeWorldPoint(x, y);
 }
 
 export function appendPathPoint(

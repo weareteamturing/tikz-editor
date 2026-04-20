@@ -4,7 +4,7 @@ import {
   writeNamedNodeGeometry,
   type SemanticContext
 } from "../context.js";
-import { unsafePoint, type WorldPoint } from "../../coords/points.js";
+import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
 import type { WorldTransform } from "../../coords/transforms.js";
 import { applyMatrix, identityMatrix } from "../transform.js";
 import {
@@ -38,7 +38,7 @@ import { resolveRectangleSplitHorizontal, resolveRectangleSplitParts } from "./m
 import type { NodeLayout, NodeShape } from "./types.js";
 
 function worldPoint(x: number, y: number): WorldPoint {
-  return unsafePoint<WorldPoint>(x, y);
+  return makeWorldPoint(x, y);
 }
 
 export function placeNodeCenter(

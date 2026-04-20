@@ -1,7 +1,8 @@
-import type { ArrowTip, ScenePathCommand } from "../../semantic/types.js";
+import { arrowLocalPoint } from "../../coords/points.js";
+import type { ArrowTip } from "../../semantic/types.js";
 import { buildArrowTipMetrics, normalizeArrowTip } from "./metrics.js";
 import { buildLocalTipPaths } from "./shapes.js";
-import type { NormalizedArrowTip } from "./types.js";
+import type { ArrowLocalPathCommand, NormalizedArrowTip } from "./types.js";
 
 export type ArrowTipPreviewPath = {
   d: string;
@@ -88,7 +89,7 @@ function resolveTipPaint(
   };
 }
 
-function encodePathData(commands: ScenePathCommand[]): string {
+function encodePathData(commands: ArrowLocalPathCommand[]): string {
   const segments: string[] = [];
   for (const command of commands) {
     if (command.kind === "M") {
@@ -116,7 +117,7 @@ function encodePathData(commands: ScenePathCommand[]): string {
   return segments.join(" ");
 }
 
-function shiftPath(commands: ScenePathCommand[], deltaX: number): ScenePathCommand[] {
+function shiftPath(commands: ArrowLocalPathCommand[], deltaX: number): ArrowLocalPathCommand[] {
   if (Math.abs(deltaX) <= 1e-9) {
     return commands;
   }
@@ -125,22 +126,22 @@ function shiftPath(commands: ScenePathCommand[], deltaX: number): ScenePathComma
     if (command.kind === "M" || command.kind === "L" || command.kind === "A") {
       return {
         ...command,
-        to: { x: command.to.x + deltaX, y: command.to.y }
+        to: arrowLocalPoint(command.to.x + deltaX, command.to.y)
       };
     }
     if (command.kind === "C") {
       return {
         ...command,
-        c1: { x: command.c1.x + deltaX, y: command.c1.y },
-        c2: { x: command.c2.x + deltaX, y: command.c2.y },
-        to: { x: command.to.x + deltaX, y: command.to.y }
+        c1: arrowLocalPoint(command.c1.x + deltaX, command.c1.y),
+        c2: arrowLocalPoint(command.c2.x + deltaX, command.c2.y),
+        to: arrowLocalPoint(command.to.x + deltaX, command.to.y)
       };
     }
     return command;
   });
 }
 
-function collectPathXBounds(paths: ScenePathCommand[][]): { min: number; max: number } {
+function collectPathXBounds(paths: ArrowLocalPathCommand[][]): { min: number; max: number } {
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
 

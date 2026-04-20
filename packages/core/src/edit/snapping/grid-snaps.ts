@@ -1,4 +1,4 @@
-import { unsafePoint } from "../../coords/points.js";
+import { worldPoint } from "../../coords/points.js";
 import type { WorldPoint } from "../../coords/points.js";
 import { SNAP_EPSILON } from "./geometry.js";
 import { roundSnapValue } from "./point-snaps.js";
@@ -63,8 +63,8 @@ export function collectGridSnaps({
         nearest.x.push({
           kind: "grid",
           axis: "x",
-          from: unsafePoint<WorldPoint>(point.x, point.y),
-          to: unsafePoint<WorldPoint>(gridX, point.y),
+          from: worldPoint(point.x, point.y),
+          to: worldPoint(gridX, point.y),
           offset: offsetX,
           key: gridX
         });
@@ -85,8 +85,8 @@ export function collectGridSnaps({
         nearest.y.push({
           kind: "grid",
           axis: "y",
-          from: unsafePoint<WorldPoint>(point.x, point.y),
-          to: unsafePoint<WorldPoint>(point.x, gridY),
+          from: worldPoint(point.x, point.y),
+          to: worldPoint(point.x, gridY),
           offset: offsetY,
           key: gridY
         });

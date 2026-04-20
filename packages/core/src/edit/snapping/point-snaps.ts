@@ -1,4 +1,4 @@
-import { unsafePoint } from "../../coords/points.js";
+import { worldPoint } from "../../coords/points.js";
 import type { WorldPoint } from "../../coords/points.js";
 import type {
   Axis,
@@ -40,8 +40,8 @@ export function collectPointSnaps({
           nearest.x.push({
             kind,
             axis: "x",
-            from: unsafePoint<WorldPoint>(from.x, from.y),
-            to: unsafePoint<WorldPoint>(to.x, to.y),
+            from: worldPoint(from.x, from.y),
+            to: worldPoint(to.x, to.y),
             offset: offsetX,
             key: roundSnapValue(to.x)
           });
@@ -59,8 +59,8 @@ export function collectPointSnaps({
           nearest.y.push({
             kind,
             axis: "y",
-            from: unsafePoint<WorldPoint>(from.x, from.y),
-            to: unsafePoint<WorldPoint>(to.x, to.y),
+            from: worldPoint(from.x, from.y),
+            to: worldPoint(to.x, to.y),
             offset: offsetY,
             key: roundSnapValue(to.y)
           });
@@ -97,8 +97,8 @@ export function collectGuideSnaps({
           nearest.x.push({
             kind: "guide",
             axis: "x",
-            from: unsafePoint<WorldPoint>(from.x, from.y),
-            to: unsafePoint<WorldPoint>(guideX, from.y),
+            from: worldPoint(from.x, from.y),
+            to: worldPoint(guideX, from.y),
             offset: offsetX,
             key: roundSnapValue(guideX)
           });
@@ -119,8 +119,8 @@ export function collectGuideSnaps({
           nearest.y.push({
             kind: "guide",
             axis: "y",
-            from: unsafePoint<WorldPoint>(from.x, from.y),
-            to: unsafePoint<WorldPoint>(from.x, guideY),
+            from: worldPoint(from.x, from.y),
+            to: worldPoint(from.x, guideY),
             offset: offsetY,
             key: roundSnapValue(guideY)
           });
@@ -135,7 +135,7 @@ export function pointSnapOffset(nearest: AxisSnapBuckets): WorldPoint {
   const xSnap = nearest.x.find((snap): snap is PointSnapCandidate => snap.kind !== "gap");
   const ySnap = nearest.y.find((snap): snap is PointSnapCandidate => snap.kind !== "gap");
 
-  return unsafePoint<WorldPoint>(xSnap?.offset ?? 0, ySnap?.offset ?? 0);
+  return worldPoint(xSnap?.offset ?? 0, ySnap?.offset ?? 0);
 }
 
 export function createPointSnapLines(nearest: AxisSnapBuckets): SnapLine[] {
@@ -146,8 +146,8 @@ export function createPointSnapLines(nearest: AxisSnapBuckets): SnapLine[] {
     if (snap.kind !== "point") {
       continue;
     }
-    const from = unsafePoint<WorldPoint>(snap.to.x, snap.from.y);
-    const to = unsafePoint<WorldPoint>(snap.to.x, snap.to.y);
+    const from = worldPoint(snap.to.x, snap.from.y);
+    const to = worldPoint(snap.to.x, snap.to.y);
     const key = makeLineKey("x", from, to);
     if (seen.has(key)) {
       continue;
@@ -164,8 +164,8 @@ export function createPointSnapLines(nearest: AxisSnapBuckets): SnapLine[] {
     if (snap.kind !== "point") {
       continue;
     }
-    const from = unsafePoint<WorldPoint>(snap.from.x, snap.to.y);
-    const to = unsafePoint<WorldPoint>(snap.to.x, snap.to.y);
+    const from = worldPoint(snap.from.x, snap.to.y);
+    const to = worldPoint(snap.to.x, snap.to.y);
     const key = makeLineKey("y", from, to);
     if (seen.has(key)) {
       continue;
@@ -189,8 +189,8 @@ export function createPointerLinesForPointSnap(nearest: AxisSnapBuckets, snapped
     lines.push({
       type: "pointer",
       axis: "x",
-      from: unsafePoint<WorldPoint>(xSnap.to.x, xSnap.to.y),
-      to: unsafePoint<WorldPoint>(xSnap.to.x, snappedPoint.y)
+      from: worldPoint(xSnap.to.x, xSnap.to.y),
+      to: worldPoint(xSnap.to.x, snappedPoint.y)
     });
   }
 
@@ -199,8 +199,8 @@ export function createPointerLinesForPointSnap(nearest: AxisSnapBuckets, snapped
     lines.push({
       type: "pointer",
       axis: "y",
-      from: unsafePoint<WorldPoint>(ySnap.to.x, ySnap.to.y),
-      to: unsafePoint<WorldPoint>(snappedPoint.x, ySnap.to.y)
+      from: worldPoint(ySnap.to.x, ySnap.to.y),
+      to: worldPoint(snappedPoint.x, ySnap.to.y)
     });
   }
 

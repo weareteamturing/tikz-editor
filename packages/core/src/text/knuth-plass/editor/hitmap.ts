@@ -8,7 +8,7 @@ import {
   createMathPrefixCache,
   readPrefixUnitsFromTable,
 } from './mathPrefix.js';
-import { unsafePoint } from '../../../coords/points.js';
+import { clientPoint as makeClientPoint } from '../../../coords/points.js';
 import type { ClientBounds, ClientPoint } from '../../../coords/points.js';
 
 // The core package builds without the DOM lib; keep the editor hit-testing
@@ -441,7 +441,7 @@ function lineLocalClientPoint(
   const lineStart = Number(reportLine.xStart);
   const localReportX = Number.isFinite(lineStart) ? x - lineStart : x;
   const svgX = localReportX * line.reportToSvgScaleX;
-  return unsafePoint<ClientPoint>(
+  return makeClientPoint(
     line.screenMatrix.a * svgX + line.screenMatrix.c * 0 + line.screenMatrix.e,
     line.screenMatrix.b * svgX + line.screenMatrix.d * 0 + line.screenMatrix.f
   );
@@ -1646,7 +1646,7 @@ export async function getKnuthPlassPointFromOffset(
   const baselinePoint = lineLocalClientPoint(selected.line, reportLine, selected.stop.x);
   const normal = lineNormalUnit(selected.line);
   const normalOffset = lineBoxNormalOffset(selected.line, reportLine);
-  const clientPoint = unsafePoint<ClientPoint>(
+  const clientPoint = makeClientPoint(
     baselinePoint.x + normal.x * normalOffset,
     baselinePoint.y + normal.y * normalOffset
   );

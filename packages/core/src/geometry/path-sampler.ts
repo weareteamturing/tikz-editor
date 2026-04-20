@@ -1,13 +1,11 @@
-import { unsafePoint } from "../coords/points.js";
-import type { WorldPoint } from "../coords/points.js";
+import { worldPoint, worldVector } from "../coords/points.js";
+import type { WorldPoint, WorldVector } from "../coords/points.js";
 import type { ScenePathCommand } from "../semantic/types.js";
-
-type WorldVector = WorldPoint;
 
 export type Frame = {
   point: WorldPoint;
-  tangent: WorldPoint;
-  normal: WorldPoint;
+  tangent: WorldVector;
+  normal: WorldVector;
 };
 
 const EPSILON = 1e-9;
@@ -50,19 +48,19 @@ export type PathSegment =
     };
 
 export function clonePoint(point: WorldPoint): WorldPoint {
-  return unsafePoint<WorldPoint>(point.x, point.y);
+  return worldPoint(point.x, point.y);
 }
 
 export function addPoint(left: WorldPoint, right: WorldVector): WorldPoint {
-  return unsafePoint<WorldPoint>(left.x + right.x, left.y + right.y);
+  return worldPoint(left.x + right.x, left.y + right.y);
 }
 
 export function subtractPoint(left: WorldPoint, right: WorldPoint): WorldVector {
-  return unsafePoint<WorldVector>(left.x - right.x, left.y - right.y);
+  return worldVector(left.x - right.x, left.y - right.y);
 }
 
 export function scaleVector(vector: WorldVector, factor: number): WorldVector {
-  return unsafePoint<WorldVector>(vector.x * factor, vector.y * factor);
+  return worldVector(vector.x * factor, vector.y * factor);
 }
 
 export function lengthOfVector(vector: WorldVector): number {
@@ -72,13 +70,13 @@ export function lengthOfVector(vector: WorldVector): number {
 export function normalizeVector(vector: WorldVector): WorldVector {
   const length = lengthOfVector(vector);
   if (length <= EPSILON) {
-    return unsafePoint<WorldVector>(1, 0);
+    return worldVector(1, 0);
   }
-  return unsafePoint<WorldVector>(vector.x / length, vector.y / length);
+  return worldVector(vector.x / length, vector.y / length);
 }
 
 export function perpendicular(vector: WorldVector): WorldVector {
-  return unsafePoint<WorldVector>(-vector.y, vector.x);
+  return worldVector(-vector.y, vector.x);
 }
 
 export function clonePathCommand(command: ScenePathCommand): ScenePathCommand {
@@ -490,19 +488,17 @@ function pointOnCubic(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldP
   };
 }
 
-function derivativeOnCubic(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, t: number): WorldPoint {
+function derivativeOnCubic(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, t: number): WorldVector {
   const u = clamp(t, 0, 1);
   const oneMinus = 1 - u;
-  return {
-    x:
-      3 * oneMinus * oneMinus * (p1.x - p0.x) +
+  return worldVector(
+    3 * oneMinus * oneMinus * (p1.x - p0.x) +
       6 * oneMinus * u * (p2.x - p1.x) +
       3 * u * u * (p3.x - p2.x),
-    y:
-      3 * oneMinus * oneMinus * (p1.y - p0.y) +
+    3 * oneMinus * oneMinus * (p1.y - p0.y) +
       6 * oneMinus * u * (p2.y - p1.y) +
       3 * u * u * (p3.y - p2.y)
-  };
+  );
 }
 
 function splitCubic(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, t: number): [[WorldPoint, WorldPoint, WorldPoint, WorldPoint], [WorldPoint, WorldPoint, WorldPoint, WorldPoint]] {
@@ -649,7 +645,7 @@ function pointOnArc(arc: ArcGeometry, t: number): WorldPoint {
   };
 }
 
-function derivativeOnArc(arc: ArcGeometry, t: number): WorldPoint {
+function derivativeOnArc(arc: ArcGeometry, t: number): WorldVector {
   const u = clamp(t, 0, 1);
   const theta = arc.startAngle + arc.deltaAngle * u;
   const cosPhi = Math.cos(arc.phi);
@@ -657,10 +653,10 @@ function derivativeOnArc(arc: ArcGeometry, t: number): WorldPoint {
   const cosTheta = Math.cos(theta);
   const sinTheta = Math.sin(theta);
   const dTheta = arc.deltaAngle;
-  return {
-    x: dTheta * (-arc.rx * cosPhi * sinTheta - arc.ry * sinPhi * cosTheta),
-    y: dTheta * (-arc.rx * sinPhi * sinTheta + arc.ry * cosPhi * cosTheta)
-  };
+  return worldVector(
+    dTheta * (-arc.rx * cosPhi * sinTheta - arc.ry * sinPhi * cosTheta),
+    dTheta * (-arc.rx * sinPhi * sinTheta + arc.ry * cosPhi * cosTheta)
+  );
 }
 
 function integrateSimpson(fn: (t: number) => number, start: number, end: number, steps: number): number {
