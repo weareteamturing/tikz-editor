@@ -1,4 +1,4 @@
-import type { WorldPoint } from "../../coords/points.js";
+import { unsafePoint, type WorldPoint } from "../../coords/points.js";
 import type { OptionListAst } from "../../options/types.js";
 import type { StyleChainEntry } from "../style-chain.js";
 import type { ScenePathAttachment } from "../types.js";
@@ -40,6 +40,10 @@ const EXPLICIT_DIRECTIONS = new Set([
   "mid left",
   "mid right"
 ]);
+
+function worldPoint(x: number, y: number): WorldPoint {
+  return unsafePoint<WorldPoint>(x, y);
+}
 
 export function normalizePathPosition(position: number): number {
   if (!Number.isFinite(position)) {
@@ -136,35 +140,33 @@ export function pointAtPlacementSegment(segment: PlacementSegment, t: number): W
   const center = arcCenter(segment.from, segment.params);
   const angle = segment.params.startAngle + (segment.params.endAngle - segment.params.startAngle) * clamped;
   const radians = (angle * Math.PI) / 180;
-  return {
-    x: center.x + segment.params.rx * Math.cos(radians),
-    y: center.y + segment.params.ry * Math.sin(radians)
-  };
+  return worldPoint(
+    center.x + segment.params.rx * Math.cos(radians),
+    center.y + segment.params.ry * Math.sin(radians)
+  );
 }
 
 export function tangentAtPlacementSegment(segment: PlacementSegment, t: number): WorldPoint {
   const clamped = normalizePathPosition(t);
   if (segment.kind === "line") {
-    return { x: segment.to.x - segment.from.x, y: segment.to.y - segment.from.y };
+    return worldPoint(segment.to.x - segment.from.x, segment.to.y - segment.from.y);
   }
   if (segment.kind === "hv") {
     if (clamped < 0.5) {
-      return { x: segment.bend.x - segment.from.x, y: segment.bend.y - segment.from.y };
+      return worldPoint(segment.bend.x - segment.from.x, segment.bend.y - segment.from.y);
     }
-    return { x: segment.to.x - segment.bend.x, y: segment.to.y - segment.bend.y };
+    return worldPoint(segment.to.x - segment.bend.x, segment.to.y - segment.bend.y);
   }
   if (segment.kind === "cubic") {
     const u = 1 - clamped;
-    return {
-      x:
-        3 * u * u * (segment.c1.x - segment.from.x) +
+    return worldPoint(
+      3 * u * u * (segment.c1.x - segment.from.x) +
         6 * u * clamped * (segment.c2.x - segment.c1.x) +
         3 * clamped * clamped * (segment.to.x - segment.c2.x),
-      y:
-        3 * u * u * (segment.c1.y - segment.from.y) +
+      3 * u * u * (segment.c1.y - segment.from.y) +
         6 * u * clamped * (segment.c2.y - segment.c1.y) +
         3 * clamped * clamped * (segment.to.y - segment.c2.y)
-    };
+    );
   }
   const angle = segment.params.startAngle + (segment.params.endAngle - segment.params.startAngle) * clamped;
   const radians = (angle * Math.PI) / 180;
@@ -360,12 +362,9 @@ export function resolvePathAttachedDirectionUnit(direction: string): WorldPoint 
   const signs = resolveDirectionSigns(direction);
   const magnitude = Math.hypot(signs.xSign, signs.ySign);
   if (magnitude <= 1e-6) {
-    return { x: 0, y: 0 };
+    return worldPoint(0, 0);
   }
-  return {
-    x: signs.xSign / magnitude,
-    y: signs.ySign / magnitude
-  };
+  return worldPoint(signs.xSign / magnitude, signs.ySign / magnitude);
 }
 
 function resolveExplicitPathDirection(
@@ -488,17 +487,14 @@ function cubicPoint(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoi
   const uuu = uu * u;
   const tt = t * t;
   const ttt = tt * t;
-  return {
-    x: uuu * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + ttt * p3.x,
-    y: uuu * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + ttt * p3.y
-  };
+  return worldPoint(
+    uuu * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + ttt * p3.x,
+    uuu * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + ttt * p3.y
+  );
 }
 
 function interpolate(from: WorldPoint, to: WorldPoint, t: number): WorldPoint {
-  return {
-    x: from.x + (to.x - from.x) * t,
-    y: from.y + (to.y - from.y) * t
-  };
+  return worldPoint(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t);
 }
 
 function distance(a: WorldPoint, b: WorldPoint): number {

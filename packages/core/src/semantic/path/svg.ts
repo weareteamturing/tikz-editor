@@ -1,5 +1,5 @@
 import type { WorldTransform } from "../../coords/transforms.js";
-import type { WorldPoint } from "../../coords/points.js";
+import { unsafePoint, type WorldPoint } from "../../coords/points.js";
 import type { ScenePathCommand } from "../types.js";
 import { applyMatrix, inverseMatrix } from "../transform.js";
 import type { PlacementSegment } from "./types.js";
@@ -8,6 +8,10 @@ import { isWrappedBySingleBracePair, toRadians } from "./shared.js";
 const EPSILON = 1e-9;
 const MAX_ARC_SEGMENT_ANGLE = Math.PI / 2;
 const SVG_COMMANDS = new Set(["M", "m", "L", "l", "H", "h", "V", "v", "C", "c", "S", "s", "Q", "q", "T", "t", "A", "a", "Z", "z"]);
+
+function worldPoint(x: number, y: number): WorldPoint {
+  return unsafePoint<WorldPoint>(x, y);
+}
 
 type SvgToken =
   | {
@@ -457,7 +461,7 @@ function readPointPair(tokens: SvgToken[], start: number, current: WorldPoint, r
       y: current.y + y
     };
   }
-  return { x, y };
+  return worldPoint(x, y);
 }
 
 function getNumber(token: SvgToken | undefined): number {

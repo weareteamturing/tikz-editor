@@ -1,5 +1,8 @@
+import { unsafePoint } from "../coords/points.js";
 import type { WorldPoint } from "../coords/points.js";
 import type { ScenePathCommand } from "../semantic/types.js";
+
+type WorldVector = WorldPoint;
 
 export type Frame = {
   point: WorldPoint;
@@ -47,35 +50,35 @@ export type PathSegment =
     };
 
 export function clonePoint(point: WorldPoint): WorldPoint {
-  return { x: point.x, y: point.y };
+  return unsafePoint<WorldPoint>(point.x, point.y);
 }
 
-export function addPoint(left: WorldPoint, right: WorldPoint): WorldPoint {
-  return { x: left.x + right.x, y: left.y + right.y };
+export function addPoint(left: WorldPoint, right: WorldVector): WorldPoint {
+  return unsafePoint<WorldPoint>(left.x + right.x, left.y + right.y);
 }
 
-export function subtractPoint(left: WorldPoint, right: WorldPoint): WorldPoint {
-  return { x: left.x - right.x, y: left.y - right.y };
+export function subtractPoint(left: WorldPoint, right: WorldPoint): WorldVector {
+  return unsafePoint<WorldVector>(left.x - right.x, left.y - right.y);
 }
 
-export function scaleVector(vector: WorldPoint, factor: number): WorldPoint {
-  return { x: vector.x * factor, y: vector.y * factor };
+export function scaleVector(vector: WorldVector, factor: number): WorldVector {
+  return unsafePoint<WorldVector>(vector.x * factor, vector.y * factor);
 }
 
-export function lengthOfVector(vector: WorldPoint): number {
+export function lengthOfVector(vector: WorldVector): number {
   return Math.hypot(vector.x, vector.y);
 }
 
-export function normalizeVector(vector: WorldPoint): WorldPoint {
+export function normalizeVector(vector: WorldVector): WorldVector {
   const length = lengthOfVector(vector);
   if (length <= EPSILON) {
-    return { x: 1, y: 0 };
+    return unsafePoint<WorldVector>(1, 0);
   }
-  return { x: vector.x / length, y: vector.y / length };
+  return unsafePoint<WorldVector>(vector.x / length, vector.y / length);
 }
 
-export function perpendicular(vector: WorldPoint): WorldPoint {
-  return { x: -vector.y, y: vector.x };
+export function perpendicular(vector: WorldVector): WorldVector {
+  return unsafePoint<WorldVector>(-vector.y, vector.x);
 }
 
 export function clonePathCommand(command: ScenePathCommand): ScenePathCommand {

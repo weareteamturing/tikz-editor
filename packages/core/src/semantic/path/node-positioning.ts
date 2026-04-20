@@ -1,5 +1,5 @@
 import type { WorldTransform } from "../../coords/transforms.js";
-import type { WorldPoint } from "../../coords/points.js";
+import { unsafePoint, type WorldPoint } from "../../coords/points.js";
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import type { Span } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
@@ -77,6 +77,10 @@ const IDENTITY_MATRIX: WorldTransform = {
 };
 
 const PT_PER_CM = parseLength("1cm", "cm") ?? 28.4527559055;
+
+function worldPoint(x: number, y: number): WorldPoint {
+  return unsafePoint<WorldPoint>(x, y);
+}
 
 type RelativePlacementSpec = {
   direction: PositioningDirection;
@@ -462,15 +466,12 @@ function shiftVectorForDirection(direction: PositioningDirection, shift: NodeDis
     };
   }
 
-  return {
-    x: meta.xSign * base.x,
-    y: meta.ySign * base.y
-  };
+  return worldPoint(meta.xSign * base.x, meta.ySign * base.y);
 }
 
 function horizontalPositioningVector(component: NodeDistanceValue, transform: WorldTransform): WorldPoint {
   if (component.kind === "dimension") {
-    return { x: component.value, y: 0 };
+    return worldPoint(component.value, 0);
   }
 
   return applyMatrixToVector(transform, {
@@ -481,7 +482,7 @@ function horizontalPositioningVector(component: NodeDistanceValue, transform: Wo
 
 function verticalPositioningVector(component: NodeDistanceValue, transform: WorldTransform): WorldPoint {
   if (component.kind === "dimension") {
-    return { x: 0, y: component.value };
+    return worldPoint(0, component.value);
   }
 
   return applyMatrixToVector(transform, {

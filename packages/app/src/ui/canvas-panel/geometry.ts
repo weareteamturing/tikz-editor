@@ -11,7 +11,7 @@ import {
   viewportToSvg as typedViewportToSvg,
   worldToSvg as typedWorldToSvg
 } from "../coords/convert";
-import type { ClientPoint, SvgPoint, ViewportPoint, WorldPoint } from "../coords/types";
+import type { ClientPoint, SvgPoint, TextRectLocalPoint, ViewportPoint, WorldPoint } from "../coords/types";
 
 export type RulerTick = {
   viewportPos: number;
@@ -127,11 +127,29 @@ export function clientToSvgPoint(
 }
 
 export function rotatePointAroundCenter(
-  point: { x: number; y: number },
+  point: SvgPoint,
   cx: number,
   cy: number,
   degrees: number
-): { x: number; y: number } {
+): SvgPoint;
+export function rotatePointAroundCenter(
+  point: TextRectLocalPoint,
+  cx: number,
+  cy: number,
+  degrees: number
+): TextRectLocalPoint;
+export function rotatePointAroundCenter(
+  point: WorldPoint,
+  cx: number,
+  cy: number,
+  degrees: number
+): WorldPoint;
+export function rotatePointAroundCenter(
+  point: SvgPoint | TextRectLocalPoint | WorldPoint,
+  cx: number,
+  cy: number,
+  degrees: number
+): SvgPoint | TextRectLocalPoint | WorldPoint {
   if (Math.abs(degrees) <= 1e-6) {
     return point;
   }
@@ -140,10 +158,10 @@ export function rotatePointAroundCenter(
   const sin = Math.sin(theta);
   const dx = point.x - cx;
   const dy = point.y - cy;
-  return {
-    x: cx + dx * cos - dy * sin,
-    y: cy + dx * sin + dy * cos
-  };
+  return unsafePoint(
+    cx + dx * cos - dy * sin,
+    cy + dx * sin + dy * cos
+  );
 }
 
 export function viewportToSvgPoint(

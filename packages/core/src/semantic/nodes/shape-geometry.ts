@@ -1,5 +1,5 @@
 import { parseLength } from "../coords/parse-length.js";
-import type { WorldPoint } from "../../coords/points.js";
+import { unsafePoint, type WorldPoint } from "../../coords/points.js";
 import type { OptionListAst } from "../../options/types.js";
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
@@ -224,6 +224,10 @@ const DEFAULT_CHAMFERED_RECTANGLE_ANGLE = 45;
 const DEFAULT_CHAMFERED_RECTANGLE_SEP_PT = parseLength(".666ex", "pt") ?? 3.333;
 const DEFAULT_CHAMFERED_RECTANGLE_CORNERS = "chamfer all";
 const EPSILON = 1e-9;
+
+function worldPoint(x: number, y: number): WorldPoint {
+  return unsafePoint<WorldPoint>(x, y);
+}
 
 export function resolveNodeShapeGeometryParams(
   options: OptionListAst | undefined,
@@ -1966,7 +1970,7 @@ function parseCalloutCoordinateVector(raw: string): WorldPoint | null {
     if (x == null || y == null) {
       return null;
     }
-    return { x, y };
+    return worldPoint(x, y);
   }
   if (coordinate.form === "polar") {
     const angle = parseNumericOption(coordinate.x);
@@ -2179,13 +2183,10 @@ function ellipseBorderPoint(pointer: WorldPoint, rx: number, ry: number): WorldP
   const py = pointer.y;
   const norm = Math.hypot(px / Math.max(rx, EPSILON), py / Math.max(ry, EPSILON));
   if (!Number.isFinite(norm) || norm <= EPSILON) {
-    return { x: rx, y: 0 };
+    return worldPoint(rx, 0);
   }
   const scale = 1 / norm;
-  return {
-    x: px * scale,
-    y: py * scale
-  };
+  return worldPoint(px * scale, py * scale);
 }
 
 function resolveRelativeCalloutPointer(relativeWorldPointer: WorldPoint, borderWorldPoint: WorldPoint): WorldPoint {
@@ -2194,10 +2195,10 @@ function resolveRelativeCalloutPointer(relativeWorldPointer: WorldPoint, borderW
     return borderWorldPoint;
   }
   const angle = Math.atan2(borderWorldPoint.y, borderWorldPoint.x);
-  return {
-    x: borderWorldPoint.x + Math.cos(angle) * length,
-    y: borderWorldPoint.y + Math.sin(angle) * length
-  };
+  return worldPoint(
+    borderWorldPoint.x + Math.cos(angle) * length,
+    borderWorldPoint.y + Math.sin(angle) * length
+  );
 }
 
 function shortenCalloutPointer(pointer: WorldPoint, shortenPt: number): WorldPoint {
@@ -2207,10 +2208,7 @@ function shortenCalloutPointer(pointer: WorldPoint, shortenPt: number): WorldPoi
   }
   const remaining = Math.max(0, distance - shortenPt);
   const scale = remaining / distance;
-  return {
-    x: pointer.x * scale,
-    y: pointer.y * scale
-  };
+  return worldPoint(pointer.x * scale, pointer.y * scale);
 }
 
 function sampleEllipseArc(startRadians: number, endRadians: number, rx: number, ry: number, steps: number): WorldPoint[] {
@@ -2227,10 +2225,7 @@ function sampleEllipseArc(startRadians: number, endRadians: number, rx: number, 
   for (let index = 0; index <= count; index += 1) {
     const t = index / count;
     const angle = normalizedStart + sweep * t;
-    points.push({
-      x: rx * Math.cos(angle),
-      y: ry * Math.sin(angle)
-    });
+    points.push(worldPoint(rx * Math.cos(angle), ry * Math.sin(angle)));
   }
   return points;
 }
@@ -2317,21 +2312,15 @@ function makeCloudCalloutPointerPolygon(
 
   for (let index = 0; index <= segmentCount; index += 1) {
     const t = index / segmentCount;
-    const center = {
-      x: borderWorldPoint.x + direction.x * t,
-      y: borderWorldPoint.y + direction.y * t
-    };
+    const center = worldPoint(
+      borderWorldPoint.x + direction.x * t,
+      borderWorldPoint.y + direction.y * t
+    );
     const diameterX = lerp(startSize.xDiameter, endSize.xDiameter, t);
     const diameterY = lerp(startSize.yDiameter, endSize.yDiameter, t);
     const halfWidth = Math.max(EPSILON, (diameterX + diameterY) / 4);
-    left.push({
-      x: center.x + nx * halfWidth,
-      y: center.y + ny * halfWidth
-    });
-    right.push({
-      x: center.x - nx * halfWidth,
-      y: center.y - ny * halfWidth
-    });
+    left.push(worldPoint(center.x + nx * halfWidth, center.y + ny * halfWidth));
+    right.push(worldPoint(center.x - nx * halfWidth, center.y - ny * halfWidth));
   }
 
   return [...left, ...right.reverse()];
@@ -2343,26 +2332,17 @@ function lerp(from: number, to: number, t: number): number {
 
 function pointPolar(degrees: number, radius: number): WorldPoint {
   const radians = toRadians(degrees);
-  return {
-    x: radius * Math.cos(radians),
-    y: radius * Math.sin(radians)
-  };
+  return worldPoint(radius * Math.cos(radians), radius * Math.sin(radians));
 }
 
 function pointPolarOffset(degrees: number, radius: number, center: WorldPoint): WorldPoint {
   const point = pointPolar(degrees, radius);
-  return {
-    x: center.x + point.x,
-    y: center.y + point.y
-  };
+  return worldPoint(center.x + point.x, center.y + point.y);
 }
 
 function pointEllipsePolar(degrees: number, rx: number, ry: number): WorldPoint {
   const radians = toRadians(degrees);
-  return {
-    x: rx * Math.cos(radians),
-    y: ry * Math.sin(radians)
-  };
+  return worldPoint(rx * Math.cos(radians), ry * Math.sin(radians));
 }
 
 function ellipseOutwardUnit(point: WorldPoint, rx: number, ry: number): WorldPoint {
@@ -2370,21 +2350,18 @@ function ellipseOutwardUnit(point: WorldPoint, rx: number, ry: number): WorldPoi
   const gy = point.y / Math.max(ry * ry, EPSILON);
   const norm = Math.hypot(gx, gy);
   if (norm > EPSILON && Number.isFinite(norm)) {
-    return { x: gx / norm, y: gy / norm };
+    return worldPoint(gx / norm, gy / norm);
   }
   const radialNorm = Math.hypot(point.x, point.y);
   if (radialNorm > EPSILON && Number.isFinite(radialNorm)) {
-    return { x: point.x / radialNorm, y: point.y / radialNorm };
+    return worldPoint(point.x / radialNorm, point.y / radialNorm);
   }
-  return { x: 1, y: 0 };
+  return worldPoint(1, 0);
 }
 
 function pointEllipsePolarOffset(degrees: number, rx: number, ry: number, center: WorldPoint): WorldPoint {
   const radians = toRadians(degrees);
-  return {
-    x: center.x + rx * Math.cos(radians),
-    y: center.y + ry * Math.sin(radians)
-  };
+  return worldPoint(center.x + rx * Math.cos(radians), center.y + ry * Math.sin(radians));
 }
 
 function makeSeededRng(seedRaw: number): () => number {

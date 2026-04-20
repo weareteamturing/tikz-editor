@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { AdornmentOwnerGeometry } from "tikz-editor/ast/types";
-import { unsafePoint } from "tikz-editor/coords/index";
+import { unsafeBounds, unsafePoint } from "tikz-editor/coords/index";
 import type { EditAction } from "tikz-editor/edit/actions";
 import { parseEditableTargetId } from "tikz-editor/edit/editable-targets";
 import { formatNumber } from "tikz-editor/edit/format";
@@ -69,6 +69,14 @@ const ADORNMENT_CENTER_SNAP_THRESHOLD_PT = 1;
 const GRID_RESIZE_STEP_EPSILON = 1e-9;
 const SNAP_FEEDBACK_EPSILON = 1e-6;
 const ADORNMENT_OWNER_CENTER_EPSILON = 1e-6;
+
+function clientPointFromEvent(event: Pick<PointerEvent, "clientX" | "clientY">): ClientPoint {
+  return unsafePoint<ClientPoint>(event.clientX, event.clientY);
+}
+
+function worldPoint(x: number, y: number): WorldPoint {
+  return unsafePoint<WorldPoint>(x, y);
+}
 
 export function useCanvasDragController(params: UseCanvasDragControllerParams) {
   const {
@@ -203,7 +211,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
         return;
       }
 
-      const world = clientToWorldPoint(unsafePoint<ClientPoint>(event.clientX, event.clientY), interactionSvgRef.current, currentSvg.viewBox);
+      const world = clientToWorldPoint(clientPointFromEvent(event), interactionSvgRef.current, currentSvg.viewBox);
       if (!world) {
         setNodeAnchorOverlay(null);
         setDragTooltip(null);
@@ -267,7 +275,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
         }
         setDragTooltip({
           kind: "tool-create",
-          anchor: unsafePoint<ClientPoint>(event.clientX, event.clientY),
+          anchor: clientPointFromEvent(event),
           rows
         });
         setToolCursorWorld(drag.currentWorld);
@@ -423,7 +431,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
             );
         setDragTooltip({
           kind: "resize",
-          anchor: unsafePoint<ClientPoint>(event.clientX, event.clientY),
+          anchor: clientPointFromEvent(event),
           rows: formatTooltipLengthRows(dimensions.width, dimensions.height)
         });
         logSnapDebug({
@@ -477,7 +485,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
         });
         setDragTooltip({
           kind: "rotate",
-          anchor: unsafePoint<ClientPoint>(event.clientX, event.clientY),
+          anchor: clientPointFromEvent(event),
           rows: [formatTooltipAngleRow(nextRotate)]
         });
 
@@ -871,7 +879,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
       const world =
         currentSvg == null
           ? null
-          : clientToWorldPoint(unsafePoint<ClientPoint>(event.clientX, event.clientY), interactionSvgRef.current, currentSvg.viewBox);
+          : clientToWorldPoint(clientPointFromEvent(event), interactionSvgRef.current, currentSvg.viewBox);
 
       if (drag.kind === "marquee") {
         setNodeAnchorOverlay(null);
@@ -1507,11 +1515,11 @@ function derivePlacementFromReferenceWorldPoint(
   );
   const anchor = simple
     ? anchorFacingAway(angleDeg)
-    : autoAnchorFromVector({ x: shiftDirection.y, y: -shiftDirection.x });
-  const resolvedReferenceWorldPoint = {
-    x: borderWorldPoint.x + shiftDirection.x * distancePt,
-    y: borderWorldPoint.y + shiftDirection.y * distancePt
-  };
+    : autoAnchorFromVector(worldPoint(shiftDirection.y, -shiftDirection.x));
+  const resolvedReferenceWorldPoint = worldPoint(
+    borderWorldPoint.x + shiftDirection.x * distancePt,
+    borderWorldPoint.y + shiftDirection.y * distancePt
+  );
   return {
     angleDeg,
     distancePt,
@@ -1524,7 +1532,7 @@ function derivePlacementFromReferenceWorldPoint(
 
 function pointOnUnitCircle(angleDeg: number): WorldPoint {
   const radians = (angleDeg * Math.PI) / 180;
-  return { x: Math.cos(radians), y: Math.sin(radians) };
+  return worldPoint(Math.cos(radians), Math.sin(radians));
 }
 
 function autoAnchorFromVector(vector: WorldPoint): string {
@@ -1567,10 +1575,10 @@ function resolveAdornmentOwnerBorderDistance(
       return 0;
     }
     const radius = Math.max(0, ownerGeometry.anchorRadius);
-    const localWorldPoint = {
-      x: (localDirection.x / localLen) * radius,
-      y: (localDirection.y / localLen) * radius
-    };
+    const localWorldPoint = worldPoint(
+      (localDirection.x / localLen) * radius,
+      (localDirection.y / localLen) * radius
+    );
     const mapped = transform ? applyMatrixToVector(transform, localWorldPoint) : localWorldPoint;
     return Math.hypot(mapped.x, mapped.y);
   }
@@ -1588,10 +1596,7 @@ function resolveAdornmentOwnerBorderDistance(
     if (!Number.isFinite(scale)) {
       return 0;
     }
-    const localWorldPoint = {
-      x: localDirection.x * scale,
-      y: localDirection.y * scale
-    };
+    const localWorldPoint = worldPoint(localDirection.x * scale, localDirection.y * scale);
     const mapped = transform ? applyMatrixToVector(transform, localWorldPoint) : localWorldPoint;
     return Math.hypot(mapped.x, mapped.y);
   }
@@ -1609,10 +1614,7 @@ function resolveAdornmentOwnerBorderDistance(
     if (!Number.isFinite(scale)) {
       return 0;
     }
-    const localWorldPoint = {
-      x: localDirection.x * scale,
-      y: localDirection.y * scale
-    };
+    const localWorldPoint = worldPoint(localDirection.x * scale, localDirection.y * scale);
     const mapped = transform ? applyMatrixToVector(transform, localWorldPoint) : localWorldPoint;
     return Math.hypot(mapped.x, mapped.y);
   }
@@ -1660,23 +1662,23 @@ function anchorFacingAway(degrees: number): string {
 function anchorOffsetFromCenter(anchor: string, halfWidth: number, halfHeight: number): WorldPoint {
   switch (anchor) {
     case "west":
-      return { x: -halfWidth, y: 0 };
+      return worldPoint(-halfWidth, 0);
     case "east":
-      return { x: halfWidth, y: 0 };
+      return worldPoint(halfWidth, 0);
     case "north":
-      return { x: 0, y: halfHeight };
+      return worldPoint(0, halfHeight);
     case "south":
-      return { x: 0, y: -halfHeight };
+      return worldPoint(0, -halfHeight);
     case "north west":
-      return { x: -halfWidth, y: halfHeight };
+      return worldPoint(-halfWidth, halfHeight);
     case "north east":
-      return { x: halfWidth, y: halfHeight };
+      return worldPoint(halfWidth, halfHeight);
     case "south west":
-      return { x: -halfWidth, y: -halfHeight };
+      return worldPoint(-halfWidth, -halfHeight);
     case "south east":
-      return { x: halfWidth, y: -halfHeight };
+      return worldPoint(halfWidth, -halfHeight);
     default:
-      return { x: 0, y: 0 };
+      return worldPoint(0, 0);
   }
 }
 
@@ -1695,19 +1697,19 @@ function resolveSceneTextHeight(text: Extract<SceneElement, { kind: "Text" }>): 
   return Math.max(1, text.text.split("\n").length) * text.style.fontSize * 1.15;
 }
 
-function resizeFrameWorldBounds(frame: ResizeFrame): { minX: number; minY: number; maxX: number; maxY: number } {
+function resizeFrameWorldBounds(frame: ResizeFrame): WorldBounds {
   const worldCorners = [
     frame.cornersByRole["top-left"].world,
     frame.cornersByRole["top-right"].world,
     frame.cornersByRole["bottom-right"].world,
     frame.cornersByRole["bottom-left"].world
   ];
-  return {
-    minX: Math.min(...worldCorners.map((corner) => corner.x)),
-    minY: Math.min(...worldCorners.map((corner) => corner.y)),
-    maxX: Math.max(...worldCorners.map((corner) => corner.x)),
-    maxY: Math.max(...worldCorners.map((corner) => corner.y))
-  };
+  return unsafeBounds<WorldBounds>(
+    Math.min(...worldCorners.map((corner) => corner.x)),
+    Math.min(...worldCorners.map((corner) => corner.y)),
+    Math.max(...worldCorners.map((corner) => corner.x)),
+    Math.max(...worldCorners.map((corner) => corner.y))
+  );
 }
 
 function resolveAdornmentBodyDragBox(

@@ -5,9 +5,13 @@ import {
   type NamedNodeGeometry,
   type SemanticContext
 } from "../context.js";
-import type { WorldPoint } from "../../coords/points.js";
+import { unsafePoint, type WorldPoint } from "../../coords/points.js";
 import { intersectRayWithPolygon } from "./shape-geometry.js";
 import { applyMatrixToVector, inverseMatrix } from "../transform.js";
+
+function worldPoint(x: number, y: number): WorldPoint {
+  return unsafePoint<WorldPoint>(x, y);
+}
 
 export function collectScopedNodeNames(name: string | undefined, aliases: string[] | undefined, context: SemanticContext): string[] {
   const names = [name, ...(aliases ?? [])].filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
@@ -197,9 +201,9 @@ function intersectNodeBorder(
   if (geometry.shape === "circle") {
     const transform = geometry.anchorTransform;
     const localDirection = (() => {
-      if (!transform) return { x: dx, y: dy };
+      if (!transform) return worldPoint(dx, dy);
       const inverse = inverseMatrix(transform);
-      if (!inverse) return { x: dx, y: dy };
+      if (!inverse) return worldPoint(dx, dy);
       return applyMatrixToVector(inverse, { x: dx, y: dy });
     })();
     const localLen = Math.hypot(localDirection.x, localDirection.y);
@@ -231,9 +235,9 @@ function intersectNodeBorder(
   if (geometry.shape === "rectangle") {
     const transform = geometry.anchorTransform;
     const localDirection = (() => {
-      if (!transform) return { x: dx, y: dy };
+      if (!transform) return worldPoint(dx, dy);
       const inverse = inverseMatrix(transform);
-      if (!inverse) return { x: dx, y: dy };
+      if (!inverse) return worldPoint(dx, dy);
       return applyMatrixToVector(inverse, { x: dx, y: dy });
     })();
     const hw = geometry.anchorHalfWidth;
@@ -262,9 +266,9 @@ function intersectNodeBorder(
   if (geometry.shape === "ellipse") {
     const transform = geometry.anchorTransform;
     const localDirection = (() => {
-      if (!transform) return { x: dx, y: dy };
+      if (!transform) return worldPoint(dx, dy);
       const inverse = inverseMatrix(transform);
-      if (!inverse) return { x: dx, y: dy };
+      if (!inverse) return worldPoint(dx, dy);
       return applyMatrixToVector(inverse, { x: dx, y: dy });
     })();
     const rx = geometry.anchorHalfWidth;

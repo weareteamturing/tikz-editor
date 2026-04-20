@@ -103,7 +103,11 @@ import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 import { applyMatrixToVector, identityMatrix, multiplyMatrix, rotationMatrix } from "../transform.js";
 import type { PgfRandom } from "../pgfmath/rng.js";
 
-type InnerSepVector = Readonly<{ x: number; y: number }>;
+type RectangleSplitInnerSep = Readonly<{ x: number; y: number }>;
+
+function rectangleSplitInnerSep(x: number, y: number): RectangleSplitInnerSep {
+  return { x, y };
+}
 
 const CONTINUOUS_POSITIONING_DIRECTIONS: PositioningDirection[] = [
   "above",
@@ -3220,12 +3224,12 @@ function resolveEveryTextNodePartAlign(options: OptionListAst | undefined): Reso
   return align;
 }
 
-function resolveRectangleSplitInnerSeps(options: OptionListAst | undefined): InnerSepVector {
+function resolveRectangleSplitInnerSeps(options: OptionListAst | undefined): RectangleSplitInnerSep {
   const defaultInner = parseLength(".3333em", "pt") ?? 3.333;
   let x = defaultInner;
   let y = defaultInner;
   if (!options) {
-    return { x, y };
+    return rectangleSplitInnerSep(x, y);
   }
   for (const entry of options.entries) {
     if (entry.kind !== "kv") {
@@ -3253,7 +3257,7 @@ function resolveRectangleSplitInnerSeps(options: OptionListAst | undefined): Inn
       }
     }
   }
-  return { x, y };
+  return rectangleSplitInnerSep(x, y);
 }
 
 function resolveRectangleSplitEmptyPartMetrics(options: OptionListAst | undefined): {

@@ -1,6 +1,7 @@
 import type { GraphOperationItem, GraphSpecChain, GraphSpecSegment, Span } from "../../ast/types.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
+import { unsafePoint, type WorldPoint } from "../../coords/points.js";
 import { parseLength } from "../coords/parse-length.js";
 import {
   findNextConnector,
@@ -33,7 +34,9 @@ type GraphVector2 = {
   y: number;
 };
 
-type GraphPoint = GraphVector2;
+function graphPoint(x: number, y: number): WorldPoint {
+  return unsafePoint<WorldPoint>(x, y);
+}
 
 type GraphCircularPlacementState = {
   chainAngle: number;
@@ -136,7 +139,7 @@ export type GraphPlannedNode = {
   text: string;
   options?: OptionListAst;
   span: Span;
-  defaultPoint: GraphPoint;
+  defaultPoint: WorldPoint;
   placementHint?: GraphPlacementHint;
 };
 
@@ -1972,7 +1975,7 @@ class GraphPlanner {
   private resolveCumulativeCartesianChainOffset(scope: GraphScopeState, logicalWidth: number): GraphVector2 {
     const steps = Math.max(0, Math.floor(logicalWidth));
     if (steps === 0) {
-      return { x: 0, y: 0 };
+      return graphPoint(0, 0);
     }
 
     let simulationScope = this.cloneScope(scope);
@@ -1994,14 +1997,14 @@ class GraphPlanner {
       offset.y += simulationScope.chainShift.y;
     }
 
-    return offset;
+    return graphPoint(offset.x, offset.y);
   }
 
   private resolvePlacementPoint(
     scope: GraphScopeState,
     layout: GraphLayoutContext,
     placementSlot: number
-  ): GraphPoint {
+  ): WorldPoint {
     let x = 0;
     let y = 0;
 
@@ -2036,7 +2039,7 @@ class GraphPlanner {
       y = scope.manualY;
     }
 
-    return { x, y };
+    return graphPoint(x, y);
   }
 
   private createEdgeFromPair(

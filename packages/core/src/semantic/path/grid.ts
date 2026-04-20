@@ -14,7 +14,11 @@ import { cloneStyleChain } from "../style-chain.js";
 import { expandPathMacroBindings } from "./macro-expansion.js";
 import type { MacroBinding } from "../../macros/index.js";
 
-type PolarStepVector = Readonly<{ x: number; y: number }>;
+type GridPolarStep = Readonly<{ x: number; y: number }>;
+
+function gridPolarStep(x: number, y: number): GridPolarStep {
+  return { x, y };
+}
 
 export function extractGridSteps(
   item: PathOptionItem,
@@ -131,7 +135,7 @@ export function extractGridStepsFromOptionLists(
   return { stepX, stepY };
 }
 
-function parsePolarStep(raw: string): PolarStepVector | null {
+function parsePolarStep(raw: string): GridPolarStep | null {
   const inner = coordinateInner(raw);
   if (!inner) {
     return null;
@@ -149,10 +153,10 @@ function parsePolarStep(raw: string): PolarStepVector | null {
   }
 
   const radians = toRadians(angle);
-  return {
-    x: radius * Math.cos(radians),
-    y: radius * Math.sin(radians)
-  };
+  return gridPolarStep(
+    radius * Math.cos(radians),
+    radius * Math.sin(radians)
+  );
 }
 
 function resolveGridAxisStep(

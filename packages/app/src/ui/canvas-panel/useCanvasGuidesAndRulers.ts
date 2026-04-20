@@ -206,9 +206,8 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
       }
 
       const rect = viewport.getBoundingClientRect();
-      const localX = clientPoint.x - rect.left;
-      const localY = clientPoint.y - rect.top;
-      const world = viewportToWorldPoint(unsafePoint<ViewportPoint>(localX, localY), canvasTransformRef.current, currentSvg.viewBox);
+      const viewportPoint = unsafePoint<ViewportPoint>(clientPoint.x - rect.left, clientPoint.y - rect.top);
+      const world = viewportToWorldPoint(viewportPoint, canvasTransformRef.current, currentSvg.viewBox);
       return {
         value: orientation === "vertical" ? world.x : world.y,
         overViewport: isPointInsideRect(clientPoint, rect)
@@ -310,10 +309,10 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
       }
 
       const rect = event.currentTarget.getBoundingClientRect();
-      const localX = event.clientX - rect.left;
+      const viewportPoint = unsafePoint<ViewportPoint>(event.clientX - rect.left, event.clientY - rect.top);
       // Keep guide drags on the canvas-adjacent side so the code-panel splitter
       // can still be grabbed reliably near the outer edge.
-      if (localX < rect.width - LEFT_RULER_DRAG_SOURCE_WIDTH_PX) {
+      if (viewportPoint.x < rect.width - LEFT_RULER_DRAG_SOURCE_WIDTH_PX) {
         return;
       }
 

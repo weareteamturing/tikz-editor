@@ -237,8 +237,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
       }
 
       const rect = viewport.getBoundingClientRect();
-      const localX = event.clientX - rect.left;
-      const localY = event.clientY - rect.top;
+      const viewportPoint = unsafePoint<ViewportPoint>(event.clientX - rect.left, event.clientY - rect.top);
 
       if (event.ctrlKey || event.metaKey) {
         if (fitToContentModeActiveRef.current) {
@@ -252,9 +251,9 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
               : 1;
         const zoomFactor = Math.exp(-event.deltaY * deltaModeFactor * zoomSpeed);
         const nextScale = clamp(currentTransform.scale * zoomFactor, MIN_SCALE, MAX_SCALE);
-        const svgPoint = viewportToSvgPoint(unsafePoint<ViewportPoint>(localX, localY), currentTransform, currentSvg.viewBox);
-        const translateX = localX - (svgPoint.x - currentSvg.viewBox.x) * nextScale;
-        const translateY = localY - (svgPoint.y - currentSvg.viewBox.y) * nextScale;
+        const svgPoint = viewportToSvgPoint(viewportPoint, currentTransform, currentSvg.viewBox);
+        const translateX = viewportPoint.x - (svgPoint.x - currentSvg.viewBox.x) * nextScale;
+        const translateY = viewportPoint.y - (svgPoint.y - currentSvg.viewBox.y) * nextScale;
 
         dispatchCanvasTransform({ translateX, translateY, scale: nextScale });
         return;

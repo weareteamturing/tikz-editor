@@ -9,7 +9,7 @@ import { intersectRayWithPolygon } from "tikz-editor/semantic/nodes/shape-geomet
 import type { SvgViewBox } from "tikz-editor/svg/index";
 import { applyMatrix, applyMatrixToVector, inverseMatrix } from "tikz-editor/semantic/transform";
 import type { CanvasDragKind } from "../../store/types";
-import type { ClientPoint, SvgBounds, SvgPoint, TextRectLocalPoint, WorldPoint } from "../coords/types";
+import type { ClientPoint, SvgBounds, SvgPoint, TextRectLocalPoint, WorldBounds, WorldPoint } from "../coords/types";
 import {
   isSvgPointInsideRectHitRegionContentBox,
   resolveRectHitRegionContentBox as resolveTypedRectHitRegionContentBox,
@@ -20,6 +20,7 @@ import type {
   DragState,
   EditableTextTarget,
   GridResizeSnapConfig,
+  SelectionAnchorRatio,
   SelectionBounds
 } from "./types";
 import {
@@ -468,7 +469,7 @@ function transformBounds(bounds: SvgBounds, transform: SvgTransform): SvgBounds 
   return unsafeBounds<SvgBounds>(minX, minY, maxX, maxY);
 }
 
-export function selectionAnchorRatioFromPoint(bounds: SvgBounds, point: SvgPoint): { x: number; y: number } {
+export function selectionAnchorRatioFromPoint(bounds: WorldBounds, point: WorldPoint): SelectionAnchorRatio {
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
   return {

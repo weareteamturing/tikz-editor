@@ -1,4 +1,4 @@
-import type { WorldPoint } from "../../coords/points.js";
+import { unsafePoint, type WorldPoint } from "../../coords/points.js";
 import type { AdornmentOwnerGeometry, EdgeOperationItem, NodeItem, Span, ToOperationItem } from "../../ast/types.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
@@ -15,6 +15,10 @@ import { intersectRayWithPolygon } from "../nodes/shape-geometry.js";
 import { findTopLevelCharacter, readBalancedBlock, parseStyleValueAsOptionList } from "../style/option-utils.js";
 import { applyMatrixToVector, inverseMatrix } from "../transform.js";
 import { stripWrappingBraces } from "../../utils/braces.js";
+
+function worldPoint(x: number, y: number): WorldPoint {
+  return unsafePoint<WorldPoint>(x, y);
+}
 
 type QuotesMode = NodeQuotesMode;
 
@@ -1067,9 +1071,9 @@ function intersectNodeBorder(geometry: NamedNodeGeometry | null, direction: Worl
     const radius = geometry.anchorRadius;
     const transform = geometry.anchorTransform;
     const localDirection = (() => {
-      if (!transform) return { x: dx, y: dy };
+      if (!transform) return worldPoint(dx, dy);
       const inverse = inverseMatrix(transform);
-      if (!inverse) return { x: dx, y: dy };
+      if (!inverse) return worldPoint(dx, dy);
       return applyMatrixToVector(inverse, { x: dx, y: dy });
     })();
     const localLen = Math.hypot(localDirection.x, localDirection.y);
@@ -1096,9 +1100,9 @@ function intersectNodeBorder(geometry: NamedNodeGeometry | null, direction: Worl
   if (geometry.shape === "rectangle") {
     const transform = geometry.anchorTransform;
     const localDirection = (() => {
-      if (!transform) return { x: dx, y: dy };
+      if (!transform) return worldPoint(dx, dy);
       const inverse = inverseMatrix(transform);
-      if (!inverse) return { x: dx, y: dy };
+      if (!inverse) return worldPoint(dx, dy);
       return applyMatrixToVector(inverse, { x: dx, y: dy });
     })();
     const hw = geometry.anchorHalfWidth;
@@ -1124,9 +1128,9 @@ function intersectNodeBorder(geometry: NamedNodeGeometry | null, direction: Worl
   if (geometry.shape === "ellipse") {
     const transform = geometry.anchorTransform;
     const localDirection = (() => {
-      if (!transform) return { x: dx, y: dy };
+      if (!transform) return worldPoint(dx, dy);
       const inverse = inverseMatrix(transform);
-      if (!inverse) return { x: dx, y: dy };
+      if (!inverse) return worldPoint(dx, dy);
       return applyMatrixToVector(inverse, { x: dx, y: dy });
     })();
     const rx = geometry.anchorHalfWidth;

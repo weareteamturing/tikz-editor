@@ -10,6 +10,7 @@ import { applyMatrixToVector } from "../transform.js";
 import { expandPathMacroBindings } from "./macro-expansion.js";
 
 type BasisVector = Readonly<{ x: number; y: number }>;
+type ArcEndpoint = WorldPoint;
 
 export function extractArcParameters(
   item: PathOptionItem,
@@ -178,13 +179,13 @@ function computeArcGeometry(
     x: from.x - transformedStart.x,
     y: from.y - transformedStart.y
   };
-  const endpoint = {
+  const endpoint: ArcEndpoint = {
     x: center.x + transformedEnd.x,
     y: center.y + transformedEnd.y
   };
 
-  const basisX = applyMatrixToVector(transform, { x: params.rx, y: 0 });
-  const basisY = applyMatrixToVector(transform, { x: 0, y: params.ry });
+  const basisX = applyMatrixToVector(transform, { x: params.rx, y: 0 }) satisfies BasisVector;
+  const basisY = applyMatrixToVector(transform, { x: 0, y: params.ry }) satisfies BasisVector;
   const ellipse = ellipseGeometryFromBasis(basisX, basisY);
   const delta = params.endAngle - params.startAngle;
   const baseSweep = delta >= 0;

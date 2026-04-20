@@ -6,7 +6,11 @@ import type { WorldPoint } from "../../coords/points.js";
 import type { ResolvedStyle } from "../types.js";
 import { DEFAULT_TEXT_FONT_SIZE, FONT_SIZE_COMMAND_FACTORS } from "./constants.js";
 
-type AxisVector = Readonly<{ x: number; y: number }>;
+type TransformAxisVector = Readonly<{ x: number; y: number }>;
+
+function transformAxisVector(x: number, y: number): TransformAxisVector {
+  return { x, y };
+}
 
 export function parseStyleValueAsOptionList(valueRaw: string, absoluteFrom = 0): OptionListAst | null {
   const trimmed = valueRaw.trim();
@@ -134,7 +138,7 @@ export function parseFontStyle(
   return Object.keys(parsed).length > 0 ? parsed : null;
 }
 
-export function parseAxisVector(raw: string, axis: "x" | "y"): AxisVector | null {
+export function parseAxisVector(raw: string, axis: "x" | "y"): TransformAxisVector | null {
   const pair = parseCoordinateLike(raw);
   if (pair) {
     const x = parseLength(pair.x, "cm");
@@ -142,14 +146,16 @@ export function parseAxisVector(raw: string, axis: "x" | "y"): AxisVector | null
     if (x == null || y == null) {
       return null;
     }
-    return { x, y };
+    return transformAxisVector(x, y);
   }
 
   const length = parseLength(raw, "cm");
   if (length == null) {
     return null;
   }
-  return axis === "x" ? { x: length, y: 0 } : { x: 0, y: length };
+  return axis === "x"
+    ? transformAxisVector(length, 0)
+    : transformAxisVector(0, length);
 }
 
 export function parseCmTransformValue(

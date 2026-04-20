@@ -20,6 +20,10 @@ export type UseCanvasElementInteractionsArgs = {
   [key: string]: any;
 };
 
+function clientPointFromEvent(event: Pick<PointerEvent | ReactPointerEvent<SVGElement> | ReactMouseEvent<SVGElement>, "clientX" | "clientY">): ClientPoint {
+  return unsafePoint<ClientPoint>(event.clientX, event.clientY);
+}
+
 export function useCanvasElementInteractions(args: UseCanvasElementInteractionsArgs) {
   const {
     svgResult,
@@ -214,7 +218,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       if (!pending || pending.pointerId !== event.pointerId || pending.dragStarted) {
         return;
       }
-      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const clientPoint = clientPointFromEvent(event);
       const dx = clientPoint.x - pending.startClient.x;
       const dy = clientPoint.y - pending.startClient.y;
       if ((dx * dx) + (dy * dy) <= 16) {
@@ -268,7 +272,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       if (!pending || pending.pointerId !== event.pointerId || pending.dragStarted) {
         return;
       }
-      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const clientPoint = clientPointFromEvent(event);
       const dx = clientPoint.x - pending.startClient.x;
       const dy = clientPoint.y - pending.startClient.y;
       if ((dx * dx) + (dy * dy) <= 16) {
@@ -360,7 +364,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       }
       if (toolMode !== "select") return;
       const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
-      const clientPoint = unsafePoint<ClientPoint>(event.clientX, event.clientY);
+      const clientPoint = clientPointFromEvent(event);
       const hitSourceId = typeof region?.sourceId === "string" ? region.sourceId : targetId;
       const matrixEdgeSelection =
         region?.shape === "rect" && region.matrixEdgeSelection
@@ -538,7 +542,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       if (resolved.kind !== "eligible") return false;
       const analysis = resolved.analysis;
 
-      const world = clientToWorldPoint(unsafePoint<ClientPoint>(event.clientX, event.clientY), interactionSvgRef.current, svgResult.viewBox);
+      const world = clientToWorldPoint(clientPointFromEvent(event), interactionSvgRef.current, svgResult.viewBox);
       if (!world) return false;
 
       const result = findClosestSegmentWorldPoint(snapshot.editHandles, sourceId, analysis, world);

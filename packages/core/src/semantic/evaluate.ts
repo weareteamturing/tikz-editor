@@ -2005,8 +2005,12 @@ function pathBoundsPoints(commands: ScenePathCommand[]): WorldPoint[] {
   return points;
 }
 
-type WorldUnitVector = Readonly<{ x: number; y: number }>;
+type ArcUnitVector = Readonly<{ x: number; y: number }>;
 type ArcBoundsCommand = Extract<ScenePathCommand, { kind: "A" }>;
+
+function arcUnitVector(x: number, y: number): ArcUnitVector {
+  return { x, y };
+}
 
 function arcExtremaPoints(
   from: WorldPoint,
@@ -2083,8 +2087,8 @@ function solveArcCenter(
   const cx = cosPhi * cxp - sinPhi * cyp + (from.x + arc.to.x) / 2;
   const cy = sinPhi * cxp + cosPhi * cyp + (from.y + arc.to.y) / 2;
 
-  const startUnit: WorldUnitVector = { x: (x1p - cxp) / rx, y: (y1p - cyp) / ry };
-  const endUnit: WorldUnitVector = { x: (-x1p - cxp) / rx, y: (-y1p - cyp) / ry };
+  const startUnit = arcUnitVector((x1p - cxp) / rx, (y1p - cyp) / ry);
+  const endUnit = arcUnitVector((-x1p - cxp) / rx, (-y1p - cyp) / ry);
   const theta1 = angleFromUnit(startUnit);
   let deltaTheta = angleBetweenUnits(startUnit, endUnit);
 
@@ -2121,11 +2125,11 @@ function pointOnEllipse(
   );
 }
 
-function angleFromUnit(unit: WorldUnitVector): number {
+function angleFromUnit(unit: ArcUnitVector): number {
   return Math.atan2(unit.y, unit.x);
 }
 
-function angleBetweenUnits(from: WorldUnitVector, to: WorldUnitVector): number {
+function angleBetweenUnits(from: ArcUnitVector, to: ArcUnitVector): number {
   const cross = from.x * to.y - from.y * to.x;
   const dot = from.x * to.x + from.y * to.y;
   return Math.atan2(cross, dot);

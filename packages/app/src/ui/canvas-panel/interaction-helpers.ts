@@ -6,10 +6,10 @@ import { unsafeBounds, unsafePoint } from "tikz-editor/coords/index";
 
 import { distanceSquared } from "./geometry";
 import { shouldConstrainToolCreateToSquare, type ToolCreateMode } from "../tool-config";
-import type { DragState, DragTooltipRow } from "./types";
+import type { DragState, DragTooltipRow, SelectionAnchorRatio } from "./types";
 import type { ResizeFrame } from "./resize-frames";
 import { resolveAddShapeDraft } from "./add-shape-draft";
-import type { SvgBounds, SvgPoint, WorldPoint } from "../coords/types";
+import type { SvgBounds, SvgPoint, WorldBounds, WorldPoint } from "../coords/types";
 
 const DEFAULT_BEZIER_LENGTH_PT = 2 * PT_PER_CM;
 const STEP_SNAP_EPSILON = 1e-9;
@@ -39,7 +39,7 @@ export function collectSourceIdsInBounds(boundsBySource: ReadonlyMap<string, Svg
 export function deriveSelectionTranslationDeltaFromAnchor(
   initialSelection: SelectionGeometry,
   currentSelection: SelectionGeometry | null,
-  anchorRatio: { x: number; y: number } | null
+  anchorRatio: SelectionAnchorRatio | null
 ): WorldPoint {
   if (!currentSelection) {
     return unsafePoint<WorldPoint>(0, 0);
@@ -279,7 +279,7 @@ function boundsContainedWithin(inner: SvgBounds, outer: SvgBounds): boolean {
   return inner.minX >= outer.minX && inner.maxX <= outer.maxX && inner.minY >= outer.minY && inner.maxY <= outer.maxY;
 }
 
-function pointFromBoundsAnchorRatio(bounds: SvgBounds, ratio: { x: number; y: number }): WorldPoint {
+function pointFromBoundsAnchorRatio(bounds: WorldBounds, ratio: SelectionAnchorRatio): WorldPoint {
   return unsafePoint<WorldPoint>(
     bounds.minX + (bounds.maxX - bounds.minX) * ratio.x,
     bounds.minY + (bounds.maxY - bounds.minY) * ratio.y

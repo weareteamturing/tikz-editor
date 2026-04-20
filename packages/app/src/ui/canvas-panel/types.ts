@@ -36,6 +36,11 @@ export type GuideDragState = {
   overDeleteZone: boolean;
 };
 
+export type SelectionAnchorRatio = Readonly<{
+  x: number;
+  y: number;
+}>;
+
 export type GridResizeSnapConfig = {
   anchorWorld: WorldPoint;
   stepX: number;
@@ -102,7 +107,7 @@ export type DragState =
       };
       snapContext: SnapContext | null;
       initialSelection: SelectionGeometry | null;
-      selectionAnchorRatio: { x: number; y: number } | null;
+      selectionAnchorRatio: SelectionAnchorRatio | null;
       historyMergeKey: string;
     }
   | {

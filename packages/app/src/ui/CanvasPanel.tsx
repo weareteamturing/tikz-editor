@@ -245,7 +245,6 @@ import {
   resolveScenePathShapeHint,
   resizeCursorForRole,
   selectNudgeAnchorHandle,
-  selectionAnchorRatioFromPoint,
   sourceHasSingleResizablePathShape,
   upsertGuideValue
 } from "./canvas-panel/panel-helpers";
@@ -692,11 +691,9 @@ function estimateTextOffsetFromClient(
 ): number {
   const contentBox = resolveRectHitRegionContentBox(target.region);
   const svgPoint = clientToSvgPoint(clientPoint, interactionSvgElement) ?? (() => {
-    const viewportRect = viewportRef.current?.getBoundingClientRect();
-    const localViewportX = viewportRect ? clientPoint.x - viewportRect.left : clientPoint.x;
-    const localViewportY = viewportRect ? clientPoint.y - viewportRect.top : clientPoint.y;
+    const viewportPoint = viewportPointFromClient(clientPoint, viewportRef.current);
     return svgResult
-      ? viewportToSvgPoint(unsafePoint<ViewportPoint>(localViewportX, localViewportY), canvasTransform, svgResult.viewBox)
+      ? viewportToSvgPoint(viewportPoint, canvasTransform, svgResult.viewBox)
       : unsafePoint<SvgPoint>(clientPoint.x, clientPoint.y);
   })();
   const localPoint = mapPointToRectRegionLocal(svgPoint, target.region);
@@ -725,11 +722,9 @@ function estimateTextLineRangeFromClient(
 
   const contentBox = resolveRectHitRegionContentBox(target.region);
   const svgPoint = clientToSvgPoint(clientPoint, interactionSvgElement) ?? (() => {
-    const viewportRect = viewportRef.current?.getBoundingClientRect();
-    const localViewportX = viewportRect ? clientPoint.x - viewportRect.left : clientPoint.x;
-    const localViewportY = viewportRect ? clientPoint.y - viewportRect.top : clientPoint.y;
+    const viewportPoint = viewportPointFromClient(clientPoint, viewportRef.current);
     return svgResult
-      ? viewportToSvgPoint(unsafePoint<ViewportPoint>(localViewportX, localViewportY), canvasTransform, svgResult.viewBox)
+      ? viewportToSvgPoint(viewportPoint, canvasTransform, svgResult.viewBox)
       : unsafePoint<SvgPoint>(clientPoint.x, clientPoint.y);
   })();
   const localPoint = mapPointToRectRegionLocal(svgPoint, target.region);
@@ -739,6 +734,14 @@ function estimateTextLineRangeFromClient(
       : clamp((localPoint.y - contentBox.y) / contentBox.height, 0, 0.999999);
   const index = Math.min(ranges.length - 1, Math.max(0, Math.floor(yRatio * ranges.length)));
   return ranges[index] ?? ranges[ranges.length - 1]!;
+}
+
+function viewportPointFromClient(clientPoint: ClientPoint, viewport: HTMLDivElement | null): ViewportPoint {
+  const rect = viewport?.getBoundingClientRect();
+  return unsafePoint<ViewportPoint>(
+    rect ? clientPoint.x - rect.left : clientPoint.x,
+    rect ? clientPoint.y - rect.top : clientPoint.y
+  );
 }
 
 function resolveFallbackTextLayoutKind(text: string, hasFixedWidth: boolean | undefined, isMatrixCell: boolean): NodeTextLayoutKind {
@@ -1281,7 +1284,6 @@ export const CanvasPanel = memo(function CanvasPanel({
       return;
     }
 
-    const rect = viewport.getBoundingClientRect();
     const resolution = resolveCanvasContextMenuTarget({
       source,
       toolMode,
@@ -1295,10 +1297,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       clickedWorld:
         svgResult
           ? viewportToWorldPoint(
-              unsafePoint<ViewportPoint>(
-                pendingNativeContextMenuRequest.clientPoint.x - rect.left,
-                pendingNativeContextMenuRequest.clientPoint.y - rect.top
-              ),
+              viewportPointFromClient(pendingNativeContextMenuRequest.clientPoint, viewportRef.current),
               canvasTransform,
               svgResult.viewBox
             )
@@ -1940,7 +1939,11 @@ export const CanvasPanel = memo(function CanvasPanel({
       return;
     }
 
-    const svgPoint = viewportToSvgPoint(unsafePoint<ViewportPoint>(centerX, centerY), currentTransform, svgResult.viewBox);
+    const svgPoint = viewportToSvgPoint(
+      unsafePoint<ViewportPoint>(centerX, centerY),
+      currentTransform,
+      svgResult.viewBox
+    );
     const translateX = centerX - (svgPoint.x - svgResult.viewBox.x) * nextScale;
     const translateY = centerY - (svgPoint.y - svgResult.viewBox.y) * nextScale;
 
@@ -2968,10 +2971,11 @@ export const CanvasPanel = memo(function CanvasPanel({
       if (!viewport) {
         return null;
       }
-      const rect = viewport.getBoundingClientRect();
-      const localX = clientPoint.x - rect.left;
-      const localY = clientPoint.y - rect.top;
-      return viewportToWorldPoint(unsafePoint<ViewportPoint>(localX, localY), canvasTransform, svgResult.viewBox);
+      return viewportToWorldPoint(
+        viewportPointFromClient(clientPoint, viewport),
+        canvasTransform,
+        svgResult.viewBox
+      );
     },
     [canvasTransform, svgResult]
   );
@@ -3036,7 +3040,6 @@ export const CanvasPanel = memo(function CanvasPanel({
         return;
       }
 
-      const rect = viewport.getBoundingClientRect();
       const resolution = resolveCanvasContextMenuTarget({
         source,
         toolMode,
@@ -3083,7 +3086,7 @@ export const CanvasPanel = memo(function CanvasPanel({
         clickedWorld:
           svgResult
             ? viewportToWorldPoint(
-                unsafePoint<ViewportPoint>(clientPoint.x - rect.left, clientPoint.y - rect.top),
+                viewportPointFromClient(clientPoint, viewport),
                 canvasTransform,
                 svgResult.viewBox
               )
@@ -3104,7 +3107,7 @@ export const CanvasPanel = memo(function CanvasPanel({
 
       const nextContextMenuState: CanvasContextMenuState = {
         target: effectiveTarget,
-        anchor: unsafePoint<ViewportPoint>(clientPoint.x - rect.left, clientPoint.y - rect.top),
+        anchor: viewportPointFromClient(clientPoint, viewport),
         handleIdOverride: clickedHandleId,
         includeEditEquationForSingleNode,
         includeMatrixMultiInsertRowAbove: matrixMultiOptions.includeMatrixMultiInsertRowAbove,

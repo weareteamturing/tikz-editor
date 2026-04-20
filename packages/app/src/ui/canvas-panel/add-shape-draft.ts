@@ -1,5 +1,6 @@
 import type { ScenePathCommand } from "tikz-editor/semantic/types";
-import type { WorldPoint } from "../coords/types";
+import { unsafeBounds, unsafePoint } from "tikz-editor/coords/index";
+import type { WorldBounds, WorldPoint } from "../coords/types";
 import type { NodeShape } from "tikz-editor/semantic/nodes/types";
 import {
   makeCircularSector,
@@ -28,17 +29,13 @@ import {
 const DEFAULT_NODE_MINIMUM_DIMENSION_PT = 1;
 const PREVIEW_CONSTRAINT_PENALTY = 0.01;
 
-type Bounds = {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-};
+type DraftPreviewPoint = WorldPoint;
+type DraftPreviewBounds = WorldBounds;
 
 export type AddShapeDraftPreviewGeometry =
-  | { kind: "path"; commands: ScenePathCommand[]; bounds: Bounds }
-  | { kind: "ellipse"; rx: number; ry: number; bounds: Bounds }
-  | { kind: "circle"; radius: number; bounds: Bounds };
+  | { kind: "path"; commands: ScenePathCommand[]; bounds: DraftPreviewBounds }
+  | { kind: "ellipse"; rx: number; ry: number; bounds: DraftPreviewBounds }
+  | { kind: "circle"; radius: number; bounds: DraftPreviewBounds };
 
 export type AddShapeDraftResolution = {
   minimumWidthPt?: number;
@@ -60,10 +57,7 @@ export function resolveAddShapeOriginFromDrag(
   const dy = endWorld.y - startWorld.y;
   const anchorX = dx >= 0 ? draft.preview.bounds.minX : draft.preview.bounds.maxX;
   const anchorY = dy >= 0 ? draft.preview.bounds.minY : draft.preview.bounds.maxY;
-  return {
-    x: startWorld.x - anchorX,
-    y: startWorld.y - anchorY
-  };
+  return unsafePoint<WorldPoint>(startWorld.x - anchorX, startWorld.y - anchorY);
 }
 
 type ShapeConstraintCandidate = {
@@ -166,7 +160,7 @@ function buildPreviewGeometry(
     return {
       kind: "circle",
       radius,
-      bounds: { minX: -radius, minY: -radius, maxX: radius, maxY: radius }
+      bounds: unsafeBounds<DraftPreviewBounds>(-radius, -radius, radius, radius)
     };
   }
 
@@ -177,7 +171,7 @@ function buildPreviewGeometry(
       kind: "ellipse",
       rx,
       ry,
-      bounds: { minX: -rx, minY: -ry, maxX: rx, maxY: ry }
+      bounds: unsafeBounds<DraftPreviewBounds>(-rx, -ry, rx, ry)
     };
   }
 
@@ -372,23 +366,23 @@ function buildPreviewGeometry(
   ]]);
 }
 
-function pathPreviewFromPolygons(polygons: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>): AddShapeDraftPreviewGeometry {
+function pathPreviewFromPolygons(polygons: ReadonlyArray<ReadonlyArray<DraftPreviewPoint>>): AddShapeDraftPreviewGeometry {
   const commands: ScenePathCommand[] = [];
-  let bounds: Bounds | null = null;
+  let bounds: DraftPreviewBounds | null = null;
 
   for (const polygon of polygons) {
     const first = polygon[0];
     if (!first) {
       continue;
     }
-    commands.push({ kind: "M", to: { x: first.x, y: first.y } });
+    commands.push({ kind: "M", to: unsafePoint<WorldPoint>(first.x, first.y) });
     bounds = expandBounds(bounds, first);
     for (let index = 1; index < polygon.length; index += 1) {
       const point = polygon[index];
       if (!point) {
         continue;
       }
-      commands.push({ kind: "L", to: { x: point.x, y: point.y } });
+      commands.push({ kind: "L", to: unsafePoint<WorldPoint>(point.x, point.y) });
       bounds = expandBounds(bounds, point);
     }
     commands.push({ kind: "Z" });
@@ -397,20 +391,20 @@ function pathPreviewFromPolygons(polygons: ReadonlyArray<ReadonlyArray<{ x: numb
   return {
     kind: "path",
     commands,
-    bounds: bounds ?? { minX: 0, minY: 0, maxX: 0, maxY: 0 }
+    bounds: bounds ?? unsafeBounds<DraftPreviewBounds>(0, 0, 0, 0)
   };
 }
 
-function expandBounds(bounds: Bounds | null, point: { x: number; y: number }): Bounds {
+function expandBounds(bounds: DraftPreviewBounds | null, point: DraftPreviewPoint): DraftPreviewBounds {
   if (!bounds) {
-    return { minX: point.x, minY: point.y, maxX: point.x, maxY: point.y };
+    return unsafeBounds<DraftPreviewBounds>(point.x, point.y, point.x, point.y);
   }
-  return {
-    minX: Math.min(bounds.minX, point.x),
-    minY: Math.min(bounds.minY, point.y),
-    maxX: Math.max(bounds.maxX, point.x),
-    maxY: Math.max(bounds.maxY, point.y)
-  };
+  return unsafeBounds<DraftPreviewBounds>(
+    Math.min(bounds.minX, point.x),
+    Math.min(bounds.minY, point.y),
+    Math.max(bounds.maxX, point.x),
+    Math.max(bounds.maxY, point.y)
+  );
 }
 
 function normalizeNodeShape(shapeRaw: string): NodeShape {
