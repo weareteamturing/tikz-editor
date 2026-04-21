@@ -1,4 +1,5 @@
 import { worldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { WorldPoint } from "../../coords/points.js";
 import { buildSnapContext, resolveSnapSettings } from "./context.js";
 import { createGapSnapLines, collectGapSnaps } from "./gap-snaps.js";
@@ -54,7 +55,7 @@ export function snapSelectionTranslation(input: SnapSelectionTranslationInput): 
 
   if (shouldBypassSnapping(settings, input.modifiers)) {
     return {
-      offset: worldPoint(0, 0),
+      offset: worldPoint(pt(0), pt(0)),
       snappedDelta: input.rawDelta,
       lines: []
     };
@@ -75,7 +76,7 @@ export function snapSelectionTranslation(input: SnapSelectionTranslationInput): 
 
   return {
     offset: snap.offset,
-    snappedDelta: worldPoint(input.rawDelta.x + snap.offset.x, input.rawDelta.y + snap.offset.y),
+    snappedDelta: worldPoint(pt(input.rawDelta.x + snap.offset.x), pt(input.rawDelta.y + snap.offset.y)),
     lines: snap.lines
   };
 }
@@ -85,7 +86,7 @@ export function snapHandlePosition(input: SnapHandlePositionInput): SnapResult {
 
   if (shouldBypassSnapping(settings, input.modifiers)) {
     return {
-      offset: worldPoint(0, 0),
+      offset: worldPoint(pt(0), pt(0)),
       snappedPoint: input.point,
       lines: []
     };
@@ -118,11 +119,11 @@ export function snapKeyboardNudge(input: SnapKeyboardNudgeInput): SnapResult {
   }
 
   const rawDelta = input.axis === "x"
-    ? worldPoint(axisDelta, 0)
-    : worldPoint(0, axisDelta);
+    ? worldPoint(pt(axisDelta), pt(0))
+    : worldPoint(pt(0), pt(axisDelta));
 
   return {
-    offset: worldPoint(0, 0),
+    offset: worldPoint(pt(0), pt(0)),
     snappedDelta: rawDelta,
     lines: []
   };
@@ -133,7 +134,7 @@ export function snapToolPointer(input: SnapToolPointerInput): SnapResult {
 
   if (shouldBypassSnapping(settings, input.modifiers)) {
     return {
-      offset: worldPoint(0, 0),
+      offset: worldPoint(pt(0), pt(0)),
       snappedPoint: input.pointer,
       lines: []
     };
@@ -180,7 +181,7 @@ function snapPointerWithPointsAndGrid({
   });
 
   const offset = pointSnapOffset(firstPass.nearest);
-  const snappedPoint = worldPoint(pointer.x + offset.x, pointer.y + offset.y);
+  const snappedPoint = worldPoint(pt(pointer.x + offset.x), pt(pointer.y + offset.y));
 
   const secondPass = collectPointAndGridSnaps({
     context,
@@ -227,7 +228,7 @@ function runSelectionSnapPasses({
     thresholdWorld
   });
 
-  const offset = worldPoint(firstPass.nearest.x[0]?.offset ?? 0, firstPass.nearest.y[0]?.offset ?? 0);
+  const offset = worldPoint(pt(firstPass.nearest.x[0]?.offset ?? 0), pt(firstPass.nearest.y[0]?.offset ?? 0));
 
   const snappedSelection: SelectionGeometry = {
     bounds: translateBounds(selection.bounds, offset),

@@ -1,6 +1,7 @@
 export type {
   ClientBounds,
   ClientPoint,
+  FrameTransform,
   SvgBounds,
   SvgPoint,
   TextRectLocalPoint,
@@ -8,5 +9,6 @@ export type {
   ViewportBounds,
   ViewportPoint,
   WorldBounds,
-  WorldPoint
+  WorldPoint,
+  WorldVector
 } from "tikz-editor/coords/index";

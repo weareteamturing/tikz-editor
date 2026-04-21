@@ -1,45 +1,94 @@
-type AffineTransform = Readonly<{
+declare const transformBrand: unique symbol;
+
+type AffineTransform<Brand extends string> = Readonly<{
   a: number;
   b: number;
   c: number;
   d: number;
   e: number;
   f: number;
+  [transformBrand]: Brand;
 }>;
 
-export type FrameTransform = AffineTransform;
-export type WorldToFrameTransform = AffineTransform;
-export type WorldTransform = AffineTransform;
-export type SvgTransform = AffineTransform;
-export type AnchorTransform = AffineTransform;
+export type FrameToWorldTransform = AffineTransform<"transform:frame-to-world">;
+export type WorldToFrameTransform = AffineTransform<"transform:world-to-frame">;
+export type WorldToSvgTransform = AffineTransform<"transform:world-to-svg">;
+export type SvgToWorldTransform = AffineTransform<"transform:svg-to-world">;
+export type AnchorToWorldTransform = AffineTransform<"transform:anchor-to-world">;
+export type WorldTransform = AffineTransform<"transform:world-to-world">;
+export type FrameTransform = FrameToWorldTransform;
+export type AnchorTransform = AnchorToWorldTransform;
+export type SvgTransform = WorldToSvgTransform;
 
-function createTransform<TTransform>(
+function createTransform<Brand extends string>(
+  a: number,
+  b: number,
+  c: number,
+  d: number,
+  e: number,
+  f: number,
+  brand: Brand
+): AffineTransform<Brand> {
+  return { a, b, c, d, e, f, [transformBrand]: brand };
+}
+
+export function frameToWorldTransform(
   a: number,
   b: number,
   c: number,
   d: number,
   e: number,
   f: number
-): TTransform {
-  return { a, b, c, d, e, f } as TTransform;
+): FrameToWorldTransform {
+  return createTransform(a, b, c, d, e, f, "transform:frame-to-world");
 }
 
-export function frameTransform(a: number, b: number, c: number, d: number, e: number, f: number): FrameTransform {
-  return createTransform<FrameTransform>(a, b, c, d, e, f);
+export const frameTransform = frameToWorldTransform;
+
+export function worldToFrameTransform(
+  a: number,
+  b: number,
+  c: number,
+  d: number,
+  e: number,
+  f: number
+): WorldToFrameTransform {
+  return createTransform(a, b, c, d, e, f, "transform:world-to-frame");
 }
 
-export function worldToFrameTransform(a: number, b: number, c: number, d: number, e: number, f: number): WorldToFrameTransform {
-  return createTransform<WorldToFrameTransform>(a, b, c, d, e, f);
+export function worldToSvgTransform(
+  a: number,
+  b: number,
+  c: number,
+  d: number,
+  e: number,
+  f: number
+): WorldToSvgTransform {
+  return createTransform(a, b, c, d, e, f, "transform:world-to-svg");
+}
+
+export function svgToWorldTransform(
+  a: number,
+  b: number,
+  c: number,
+  d: number,
+  e: number,
+  f: number
+): SvgToWorldTransform {
+  return createTransform(a, b, c, d, e, f, "transform:svg-to-world");
+}
+
+export function anchorToWorldTransform(
+  a: number,
+  b: number,
+  c: number,
+  d: number,
+  e: number,
+  f: number
+): AnchorToWorldTransform {
+  return createTransform(a, b, c, d, e, f, "transform:anchor-to-world");
 }
 
 export function worldTransform(a: number, b: number, c: number, d: number, e: number, f: number): WorldTransform {
-  return createTransform<WorldTransform>(a, b, c, d, e, f);
-}
-
-export function svgTransform(a: number, b: number, c: number, d: number, e: number, f: number): SvgTransform {
-  return createTransform<SvgTransform>(a, b, c, d, e, f);
-}
-
-export function anchorTransform(a: number, b: number, c: number, d: number, e: number, f: number): AnchorTransform {
-  return createTransform<AnchorTransform>(a, b, c, d, e, f);
+  return createTransform(a, b, c, d, e, f, "transform:world-to-world");
 }

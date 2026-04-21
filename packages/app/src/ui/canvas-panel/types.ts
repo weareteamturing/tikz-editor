@@ -5,10 +5,11 @@ import type { SelectionGeometry, SnapContext, SnapLine } from "tikz-editor/edit/
 import type { EditHandle, NodeAnchorTarget, SceneElement, SceneText } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/index";
 import type { NodeTextLayoutKind } from "tikz-editor/text/types";
+import type { FrameTransform } from "tikz-editor/coords/index";
 
 import type { CanvasTransform } from "../../store/types";
 import type { ToolCreateMode } from "../tool-config";
-import type { ClientPoint, SvgBounds, SvgPoint, ViewportBounds, ViewportPoint, WorldBounds, WorldPoint } from "../coords/types";
+import type { ClientPoint, SvgBounds, SvgPoint, ViewportBounds, ViewportPoint, WorldBounds, WorldPoint, WorldVector } from "../coords/types";
 import type { HitRegion } from "./hit-regions";
 import type { ResizeFrame } from "./resize-frames";
 
@@ -45,7 +46,7 @@ export type GridResizeSnapConfig = {
   anchorWorld: WorldPoint;
   stepX: number;
   stepY: number;
-  transform: EditHandle["transform"];
+  transform: FrameTransform;
 };
 
 export type DragTooltipRow = {
@@ -79,14 +80,14 @@ export type DragState =
       elementIds: string[];
       startWorld: WorldPoint;
       adornmentDragFromText?: boolean;
-      lastAppliedTotalDelta: WorldPoint;
+      lastAppliedTotalDelta: WorldVector;
       adornmentDrag?: {
         ownerPoint: WorldPoint;
         ownerGeometry?: AdornmentOwnerGeometry;
         allowCenter: boolean;
-        pointerOffsetFromReference: WorldPoint;
+        pointerOffsetFromReference: WorldVector;
         textDrag?: {
-          pointerOffsetFromCenter: WorldPoint;
+          pointerOffsetFromCenter: WorldVector;
           halfWidth: number;
           halfHeight: number;
         };
@@ -94,15 +95,15 @@ export type DragState =
       pathAttachedNodeDrag?: {
         nodeId: string;
         hostPathSourceId: string;
-        pointerOffsetFromCenter: WorldPoint;
+        pointerOffsetFromCenter: WorldVector;
         initialCenter: WorldPoint;
         initialAnchorPoint: WorldPoint;
-        initialAnchorOffset: WorldPoint;
+        initialAnchorOffset: WorldVector;
         initialDistancePt: number;
         initialDirectionalAnchorPt: number;
         segment: NonNullable<EditHandle["pathAttachmentContext"]>["segment"];
         regime: NonNullable<EditHandle["pathAttachmentContext"]>["regime"];
-        lastPreviewDelta?: WorldPoint;
+        lastPreviewDelta?: WorldVector;
         lastAppliedPlacementKey?: string;
       };
       snapContext: SnapContext | null;

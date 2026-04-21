@@ -1,4 +1,5 @@
 import { worldPoint, worldVector } from "../coords/points.js";
+import { pt } from "../coords/scalars.js";
 import type { WorldPoint, WorldVector } from "../coords/points.js";
 import type { ScenePathCommand } from "../semantic/types.js";
 
@@ -48,19 +49,19 @@ export type PathSegment =
     };
 
 export function clonePoint(point: WorldPoint): WorldPoint {
-  return worldPoint(point.x, point.y);
+  return worldPoint(pt(point.x), pt(point.y));
 }
 
 export function addPoint(left: WorldPoint, right: WorldVector): WorldPoint {
-  return worldPoint(left.x + right.x, left.y + right.y);
+  return worldPoint(pt(left.x + right.x), pt(left.y + right.y));
 }
 
 export function subtractPoint(left: WorldPoint, right: WorldPoint): WorldVector {
-  return worldVector(left.x - right.x, left.y - right.y);
+  return worldVector(pt(left.x - right.x), pt(left.y - right.y));
 }
 
 export function scaleVector(vector: WorldVector, factor: number): WorldVector {
-  return worldVector(vector.x * factor, vector.y * factor);
+  return worldVector(pt(vector.x * factor), pt(vector.y * factor));
 }
 
 export function lengthOfVector(vector: WorldVector): number {
@@ -70,13 +71,13 @@ export function lengthOfVector(vector: WorldVector): number {
 export function normalizeVector(vector: WorldVector): WorldVector {
   const length = lengthOfVector(vector);
   if (length <= EPSILON) {
-    return worldVector(1, 0);
+    return worldVector(pt(1), pt(0));
   }
-  return worldVector(vector.x / length, vector.y / length);
+  return worldVector(pt(vector.x / length), pt(vector.y / length));
 }
 
 export function perpendicular(vector: WorldVector): WorldVector {
-  return worldVector(-vector.y, vector.x);
+  return worldVector(pt(-vector.y), pt(vector.x));
 }
 
 export function clonePathCommand(command: ScenePathCommand): ScenePathCommand {
@@ -492,12 +493,12 @@ function derivativeOnCubic(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: W
   const u = clamp(t, 0, 1);
   const oneMinus = 1 - u;
   return worldVector(
-    3 * oneMinus * oneMinus * (p1.x - p0.x) +
+    pt(3 * oneMinus * oneMinus * (p1.x - p0.x) +
       6 * oneMinus * u * (p2.x - p1.x) +
-      3 * u * u * (p3.x - p2.x),
-    3 * oneMinus * oneMinus * (p1.y - p0.y) +
+      3 * u * u * (p3.x - p2.x)),
+    pt(3 * oneMinus * oneMinus * (p1.y - p0.y) +
       6 * oneMinus * u * (p2.y - p1.y) +
-      3 * u * u * (p3.y - p2.y)
+      3 * u * u * (p3.y - p2.y))
   );
 }
 
@@ -654,8 +655,8 @@ function derivativeOnArc(arc: ArcGeometry, t: number): WorldVector {
   const sinTheta = Math.sin(theta);
   const dTheta = arc.deltaAngle;
   return worldVector(
-    dTheta * (-arc.rx * cosPhi * sinTheta - arc.ry * sinPhi * cosTheta),
-    dTheta * (-arc.rx * sinPhi * sinTheta + arc.ry * cosPhi * cosTheta)
+    pt(dTheta * (-arc.rx * cosPhi * sinTheta - arc.ry * sinPhi * cosTheta)),
+    pt(dTheta * (-arc.rx * sinPhi * sinTheta + arc.ry * cosPhi * cosTheta))
   );
 }
 

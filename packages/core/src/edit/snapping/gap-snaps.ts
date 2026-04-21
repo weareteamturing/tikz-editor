@@ -1,4 +1,5 @@
 import { worldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { WorldBounds, WorldPoint } from "../../coords/points.js";
 import { roundSnapValue } from "./point-snaps.js";
 import {
@@ -47,12 +48,12 @@ export function buildVisibleGaps(
         startBounds: start,
         endBounds: end,
         startSide: [
-          worldPoint(start.maxX, start.minY),
-          worldPoint(start.maxX, start.maxY)
+          worldPoint(pt(start.maxX), pt(start.minY)),
+          worldPoint(pt(start.maxX), pt(start.maxY))
         ],
         endSide: [
-          worldPoint(end.minX, end.minY),
-          worldPoint(end.minX, end.maxY)
+          worldPoint(pt(end.minX), pt(end.minY)),
+          worldPoint(pt(end.minX), pt(end.maxY))
         ],
         overlap,
         length: end.minX - start.maxX
@@ -84,12 +85,12 @@ export function buildVisibleGaps(
         startBounds: start,
         endBounds: end,
         startSide: [
-          worldPoint(start.minX, start.maxY),
-          worldPoint(start.maxX, start.maxY)
+          worldPoint(pt(start.minX), pt(start.maxY)),
+          worldPoint(pt(start.maxX), pt(start.maxY))
         ],
         endSide: [
-          worldPoint(end.minX, end.minY),
-          worldPoint(end.maxX, end.minY)
+          worldPoint(pt(end.minX), pt(end.minY)),
+          worldPoint(pt(end.maxX), pt(end.minY))
         ],
         overlap,
         length: end.minY - start.maxY
@@ -300,12 +301,12 @@ function segmentsForGapCandidate(
       const y = (verticalIntersection[0] + verticalIntersection[1]) / 2;
       segments.push(
         [
-          worldPoint(gap.startSide[0].x, y),
-          worldPoint(selectionBounds.minX, y)
+          worldPoint(pt(gap.startSide[0].x), pt(y)),
+          worldPoint(pt(selectionBounds.minX), pt(y))
         ],
         [
-          worldPoint(selectionBounds.maxX, y),
-          worldPoint(gap.endSide[0].x, y)
+          worldPoint(pt(selectionBounds.maxX), pt(y)),
+          worldPoint(pt(gap.endSide[0].x), pt(y))
         ]
       );
       return segments;
@@ -316,12 +317,12 @@ function segmentsForGapCandidate(
       const x = (horizontalIntersection[0] + horizontalIntersection[1]) / 2;
       segments.push(
         [
-          worldPoint(x, gap.startSide[0].y),
-          worldPoint(x, selectionBounds.minY)
+          worldPoint(pt(x), pt(gap.startSide[0].y)),
+          worldPoint(pt(x), pt(selectionBounds.minY))
         ],
         [
-          worldPoint(x, selectionBounds.maxY),
-          worldPoint(x, gap.endSide[0].y)
+          worldPoint(pt(x), pt(selectionBounds.maxY)),
+          worldPoint(pt(x), pt(gap.endSide[0].y))
         ]
       );
       return segments;
@@ -332,12 +333,12 @@ function segmentsForGapCandidate(
       const y = (verticalIntersection[0] + verticalIntersection[1]) / 2;
       segments.push(
         [
-          worldPoint(gap.startBounds.maxX, y),
-          worldPoint(gap.endBounds.minX, y)
+          worldPoint(pt(gap.startBounds.maxX), pt(y)),
+          worldPoint(pt(gap.endBounds.minX), pt(y))
         ],
         [
-          worldPoint(gap.endBounds.maxX, y),
-          worldPoint(selectionBounds.minX, y)
+          worldPoint(pt(gap.endBounds.maxX), pt(y)),
+          worldPoint(pt(selectionBounds.minX), pt(y))
         ]
       );
       return segments;
@@ -348,12 +349,12 @@ function segmentsForGapCandidate(
       const y = (verticalIntersection[0] + verticalIntersection[1]) / 2;
       segments.push(
         [
-          worldPoint(selectionBounds.maxX, y),
-          worldPoint(gap.startBounds.minX, y)
+          worldPoint(pt(selectionBounds.maxX), pt(y)),
+          worldPoint(pt(gap.startBounds.minX), pt(y))
         ],
         [
-          worldPoint(gap.startBounds.maxX, y),
-          worldPoint(gap.endBounds.minX, y)
+          worldPoint(pt(gap.startBounds.maxX), pt(y)),
+          worldPoint(pt(gap.endBounds.minX), pt(y))
         ]
       );
       return segments;
@@ -364,12 +365,12 @@ function segmentsForGapCandidate(
       const x = (horizontalIntersection[0] + horizontalIntersection[1]) / 2;
       segments.push(
         [
-          worldPoint(x, selectionBounds.maxY),
-          worldPoint(x, gap.startBounds.minY)
+          worldPoint(pt(x), pt(selectionBounds.maxY)),
+          worldPoint(pt(x), pt(gap.startBounds.minY))
         ],
         [
-          worldPoint(x, gap.startBounds.maxY),
-          worldPoint(x, gap.endBounds.minY)
+          worldPoint(pt(x), pt(gap.startBounds.maxY)),
+          worldPoint(pt(x), pt(gap.endBounds.minY))
         ]
       );
       return segments;
@@ -380,12 +381,12 @@ function segmentsForGapCandidate(
       const x = (horizontalIntersection[0] + horizontalIntersection[1]) / 2;
       segments.push(
         [
-          worldPoint(x, gap.startBounds.maxY),
-          worldPoint(x, gap.endBounds.minY)
+          worldPoint(pt(x), pt(gap.startBounds.maxY)),
+          worldPoint(pt(x), pt(gap.endBounds.minY))
         ],
         [
-          worldPoint(x, gap.endBounds.maxY),
-          worldPoint(x, selectionBounds.minY)
+          worldPoint(pt(x), pt(gap.endBounds.maxY)),
+          worldPoint(pt(x), pt(selectionBounds.minY))
         ]
       );
       return segments;
@@ -415,8 +416,8 @@ function dedupeGapLines(lines: SnapLine[]): SnapLine[] {
         const [ax, ay] = a.split(",").map(Number);
         const [bx, by] = b.split(",").map(Number);
         return [
-          worldPoint(ax, ay),
-          worldPoint(bx, by)
+          worldPoint(pt(ax), pt(ay)),
+          worldPoint(pt(bx), pt(by))
         ];
       })
     });

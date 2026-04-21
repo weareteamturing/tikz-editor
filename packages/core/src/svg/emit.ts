@@ -7,6 +7,7 @@ import type {
   ScenePathCommand,
   ShadowLayer
 } from "../semantic/types.js";
+import { pt } from "../coords/scalars.js";
 import { svgBounds, svgPoint } from "../coords/points.js";
 import type { SvgBounds, SvgPoint, WorldPoint } from "../coords/points.js";
 import type { SvgTransform, WorldTransform } from "../coords/transforms.js";
@@ -435,10 +436,10 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
       const center = toSvgPoint(element.center, viewBox);
       const svgElementTransform = element.transform ? worldTransformToSvgTransform(element.transform, viewBox) : null;
       const circleBounds: SvgBounds = svgBounds(
-        center.x - element.radius,
-        center.y - element.radius,
-        center.x + element.radius,
-        center.y + element.radius
+        pt(center.x - element.radius),
+        pt(center.y - element.radius),
+        pt(center.x + element.radius),
+        pt(center.y + element.radius)
       );
       const transformedCircleBounds = svgElementTransform ? transformSvgBounds(circleBounds, svgElementTransform) : circleBounds;
       emitShadowCircle({
@@ -1404,8 +1405,8 @@ function polygonPathFromPolarAngles(centerX: number, centerY: number, radius: nu
 function polarPoint(angleDeg: number, radius: number): SvgPoint {
   const radians = (angleDeg * Math.PI) / 180;
   return svgPoint(
-    radius * Math.cos(radians),
-    -radius * Math.sin(radians)
+    pt(radius * Math.cos(radians)),
+    pt(-radius * Math.sin(radians))
   );
 }
 

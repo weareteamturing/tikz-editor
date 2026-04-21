@@ -1,36 +1,37 @@
-import type { SvgBounds, SvgPoint, WorldBounds, WorldPoint } from "./points.js";
 import { svgBounds, svgPoint, worldPoint } from "./points.js";
-import type { SvgTransform, WorldTransform } from "./transforms.js";
-import { svgTransform } from "./transforms.js";
+import type { SvgBounds, SvgPoint, WorldBounds, WorldPoint } from "./points.js";
+import { pt, scalarValue } from "./scalars.js";
+import type { WorldToSvgTransform, WorldTransform } from "./transforms.js";
+import { worldToSvgTransform as createWorldToSvgTransform } from "./transforms.js";
 
 export type SvgViewBoxLike = Pick<{ y: number; height: number }, "y" | "height">;
 
-export function worldToSvgY(worldY: number, viewBox: SvgViewBoxLike): number {
-  return viewBox.y + viewBox.height - (worldY - viewBox.y);
+export function worldToSvgY(worldY: WorldPoint["y"], viewBox: SvgViewBoxLike): SvgPoint["y"] {
+  return pt(viewBox.y + viewBox.height - (scalarValue(worldY) - viewBox.y));
 }
 
 export function worldToSvgPoint(point: WorldPoint, viewBox: SvgViewBoxLike): SvgPoint {
-  return svgPoint(point.x, worldToSvgY(point.y, viewBox));
+  return svgPoint(pt(point.x), pt(worldToSvgY(point.y, viewBox)));
 }
 
 export function svgToWorldPoint(point: SvgPoint, viewBox: SvgViewBoxLike): WorldPoint {
-  return worldPoint(point.x, viewBox.y + viewBox.height - (point.y - viewBox.y));
+  return worldPoint(pt(point.x), pt(viewBox.y + viewBox.height - (scalarValue(point.y) - viewBox.y)));
 }
 
 export function worldToSvgBounds(bounds: WorldBounds, viewBox: SvgViewBoxLike): SvgBounds {
-  const topLeft = worldToSvgPoint(worldPoint(bounds.minX, bounds.maxY), viewBox);
-  const bottomRight = worldToSvgPoint(worldPoint(bounds.maxX, bounds.minY), viewBox);
-  return svgBounds(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y);
+  const topLeft = worldToSvgPoint(worldPoint(pt(bounds.minX), pt(bounds.maxY)), viewBox);
+  const bottomRight = worldToSvgPoint(worldPoint(pt(bounds.maxX), pt(bounds.minY)), viewBox);
+  return svgBounds(pt(topLeft.x), pt(topLeft.y), pt(bottomRight.x), pt(bottomRight.y));
 }
 
-export function worldToSvgTransform(matrix: WorldTransform, viewBox: SvgViewBoxLike): SvgTransform {
+export function mapWorldTransformToSvgTransform(matrix: WorldTransform, viewBox: SvgViewBoxLike): WorldToSvgTransform {
   const k = 2 * viewBox.y + viewBox.height;
-  const flip = svgTransform(1, 0, 0, -1, 0, k);
-  return multiplyAffine(multiplyAffine(flip, svgTransform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f)), flip);
+  const flip = createWorldToSvgTransform(1, 0, 0, -1, 0, k);
+  return multiplyAffine(multiplyAffine(flip, createWorldToSvgTransform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f)), flip);
 }
 
-function multiplyAffine(left: SvgTransform, right: SvgTransform): SvgTransform {
-  return svgTransform(
+function multiplyAffine(left: WorldToSvgTransform, right: WorldToSvgTransform): WorldToSvgTransform {
+  return createWorldToSvgTransform(
     left.a * right.a + left.c * right.b,
     left.b * right.a + left.d * right.b,
     left.a * right.c + left.c * right.d,

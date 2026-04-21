@@ -1,4 +1,5 @@
 import type { GraphOperationItem, GraphSpecChain, GraphSpecSegment, Span } from "../../ast/types.js";
+import { pt } from "../../coords/scalars.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
 import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
@@ -35,7 +36,7 @@ type GraphVector2 = {
 };
 
 function graphPoint(x: number, y: number): WorldPoint {
-  return makeWorldPoint(x, y);
+  return makeWorldPoint(pt(x), pt(y));
 }
 
 type GraphCircularPlacementState = {

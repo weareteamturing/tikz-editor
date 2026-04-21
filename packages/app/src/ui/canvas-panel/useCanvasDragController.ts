@@ -1,6 +1,16 @@
 import { useEffect, useRef } from "react";
 import type { AdornmentOwnerGeometry } from "tikz-editor/ast/types";
-import { worldPoint, clientPoint, worldBounds } from "tikz-editor/coords/index";
+import {
+  applyFrameTransform,
+  frameLocalPoint,
+  worldPoint,
+  worldVector,
+  worldBounds,
+  worldTransform,
+  clientPoint,
+  pt,
+  px
+} from "tikz-editor/coords/index";
 import type { EditAction } from "tikz-editor/edit/actions";
 import { parseEditableTargetId } from "tikz-editor/edit/editable-targets";
 import { formatNumber } from "tikz-editor/edit/format";
@@ -16,7 +26,7 @@ import {
   type SnapLine
 } from "tikz-editor/edit/snapping";
 import type { EditHandle, NodeAnchorTarget, SceneElement } from "tikz-editor/semantic/types";
-import type { WorldPoint } from "../coords/types";
+import type { WorldPoint, WorldVector } from "../coords/types";
 import { applyMatrix, applyMatrixToVector, inverseMatrix } from "tikz-editor/semantic/transform";
 import {
   closestPointOnPlacementSegment,
@@ -71,7 +81,15 @@ const SNAP_FEEDBACK_EPSILON = 1e-6;
 const ADORNMENT_OWNER_CENTER_EPSILON = 1e-6;
 
 function clientPointFromEvent(event: Pick<PointerEvent, "clientX" | "clientY">): ClientPoint {
-  return clientPoint(event.clientX, event.clientY);
+  return clientPoint(px(event.clientX), px(event.clientY));
+}
+
+function makeWorldPoint(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
+
+function makeWorldVector(x: number, y: number): WorldVector {
+  return worldVector(pt(x), pt(y));
 }
 
 export function useCanvasDragController(params: UseCanvasDragControllerParams) {
@@ -186,7 +204,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
           phase: "drag-pan-move",
           snapshotMatchesSource: snapshotSource === source,
           dragKind: "pan",
-          rawDelta: { x: deltaX, y: deltaY },
+          rawDelta: makeWorldPoint(deltaX, deltaY),
           lines: []
         });
 
@@ -535,10 +553,10 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
               const bodyDragBox = resolveAdornmentBodyDragBox(adornmentElements);
               const textDrag = bodyDragBox
                 ? {
-                    pointerOffsetFromCenter: {
-                      x: dragStartWorld.x - bodyDragBox.center.x,
-                      y: dragStartWorld.y - bodyDragBox.center.y
-                    },
+                    pointerOffsetFromCenter: makeWorldVector(
+                      dragStartWorld.x - bodyDragBox.center.x,
+                      dragStartWorld.y - bodyDragBox.center.y
+                    ),
                     halfWidth: Math.max(0.5, bodyDragBox.width / 2),
                     halfHeight: Math.max(0.5, bodyDragBox.height / 2)
                   }
@@ -547,13 +565,18 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
                 ownerPoint,
                 ownerGeometry: adornmentElement?.adornment?.ownerGeometry,
                 allowCenter: adornmentElement?.adornment?.kind === "label",
-                pointerOffsetFromReference: {
-                  x: dragStartWorld.x - referenceWorld.x,
-                  y: dragStartWorld.y - referenceWorld.y
-                },
+                pointerOffsetFromReference: makeWorldVector(
+                  dragStartWorld.x - referenceWorld.x,
+                  dragStartWorld.y - referenceWorld.y
+                ),
                 textDrag
               };
               drag.adornmentDrag = adornmentDrag;
+            }
+            if (!adornmentDrag) {
+              setSnapLines([]);
+              maybeTriggerSnapFeedback(false);
+              return;
             }
             const placementWorldPoint = adornmentDrag.textDrag
               ? rawWorld
@@ -599,16 +622,10 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
               pathAttachedNodeDrag = {
                 nodeId: drag.elementIds[0]!,
                 hostPathSourceId: handle.pathAttachmentContext.hostPathSourceId,
-                pointerOffsetFromCenter: {
-                  x: dragStartWorld.x - center.x,
-                  y: dragStartWorld.y - center.y
-                },
+                pointerOffsetFromCenter: makeWorldVector(dragStartWorld.x - center.x, dragStartWorld.y - center.y),
                 initialCenter: center,
                 initialAnchorPoint,
-                initialAnchorOffset: {
-                  x: center.x - initialAnchorPoint.x,
-                  y: center.y - initialAnchorPoint.y
-                },
+                initialAnchorOffset: makeWorldVector(center.x - initialAnchorPoint.x, center.y - initialAnchorPoint.y),
                 initialDistancePt:
                   handle.pathAttachmentContext.regime.kind === "explicit-direction"
                     ? resolvePathAttachedDirectionalDistancePt(source, drag.elementIds[0]!, handle.pathAttachmentContext.regime.direction)
@@ -631,16 +648,16 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
                   })(),
                 segment: handle.pathAttachmentContext.segment,
                 regime: handle.pathAttachmentContext.regime,
-                lastPreviewDelta: { x: 0, y: 0 }
+                lastPreviewDelta: makeWorldVector(0, 0)
               };
               drag.pathAttachedNodeDrag = pathAttachedNodeDrag;
             }
           }
           if (pathAttachedNodeDrag) {
-            const desiredCenter = {
-              x: rawWorld.x - pathAttachedNodeDrag.pointerOffsetFromCenter.x,
-              y: rawWorld.y - pathAttachedNodeDrag.pointerOffsetFromCenter.y
-            };
+            const desiredCenter = makeWorldPoint(
+              rawWorld.x - pathAttachedNodeDrag.pointerOffsetFromCenter.x,
+              rawWorld.y - pathAttachedNodeDrag.pointerOffsetFromCenter.y
+            );
             const closest = closestPointOnPlacementSegment(pathAttachedNodeDrag.segment, desiredCenter);
             const snapped = resolvePathPositionPreset(closest.t, pathAttachedNodeDrag.segment);
             const targetWorldPoint = pointAtPlacementSegment(pathAttachedNodeDrag.segment, snapped.snappedT);
@@ -648,26 +665,20 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
               resolvePrimarySourceCenter(snapshotScene?.elements ?? [], pathAttachedNodeDrag.nodeId) ??
               pathAttachedNodeDrag.initialCenter;
             const anchorOffset = pathAttachedNodeDrag.initialAnchorOffset;
-            const previewCenter = {
-              x: targetWorldPoint.x + anchorOffset.x,
-              y: targetWorldPoint.y + anchorOffset.y
-            };
+            const previewCenter = makeWorldPoint(targetWorldPoint.x + anchorOffset.x, targetWorldPoint.y + anchorOffset.y);
             const tangent = tangentAtPlacementSegment(pathAttachedNodeDrag.segment, snapped.snappedT);
-            const previewDelta = {
-              x: previewCenter.x - currentCenter.x,
-              y: previewCenter.y - currentCenter.y
-            };
+            const previewDelta = makeWorldVector(previewCenter.x - currentCenter.x, previewCenter.y - currentCenter.y);
             const tangentLength = Math.hypot(tangent.x, tangent.y);
             const tangentUnit =
               tangentLength > 1e-6
-                ? { x: tangent.x / tangentLength, y: tangent.y / tangentLength }
-                : { x: 1, y: 0 };
+                ? makeWorldVector(tangent.x / tangentLength, tangent.y / tangentLength)
+                : makeWorldVector(1, 0);
             const tangentialDelta =
               previewDelta.x * tangentUnit.x + previewDelta.y * tangentUnit.y;
-            const normalPreviewDelta = {
-              x: previewDelta.x - tangentialDelta * tangentUnit.x,
-              y: previewDelta.y - tangentialDelta * tangentUnit.y
-            };
+            const normalPreviewDelta = makeWorldVector(
+              previewDelta.x - tangentialDelta * tangentUnit.x,
+              previewDelta.y - tangentialDelta * tangentUnit.y
+            );
             const previousPreviewDelta = pathAttachedNodeDrag.lastPreviewDelta;
             if (
               !previousPreviewDelta ||
@@ -681,10 +692,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
               });
               pathAttachedNodeDrag.lastPreviewDelta = normalPreviewDelta;
             }
-            const offset = {
-              x: desiredCenter.x - targetWorldPoint.x,
-              y: desiredCenter.y - targetWorldPoint.y
-            };
+            const offset = makeWorldVector(desiredCenter.x - targetWorldPoint.x, desiredCenter.y - targetWorldPoint.y);
             const cross = tangent.x * offset.y - tangent.y * offset.x;
             let sideUpdate:
               | { kind: "auto-side"; side: "left" | "right" }
@@ -741,28 +749,24 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
             return;
           }
         }
-        const rawTotalDelta = {
-          x: world.x - drag.startWorld.x,
-          y: world.y - drag.startWorld.y
-        };
+        const rawTotalDelta = makeWorldVector(world.x - drag.startWorld.x, world.y - drag.startWorld.y);
         const snapped = drag.snapContext && drag.initialSelection
           ? snapSelectionTranslation({
               context: drag.snapContext,
               selection: drag.initialSelection,
-              rawDelta: rawTotalDelta,
+              rawDelta: makeWorldPoint(rawTotalDelta.x, rawTotalDelta.y),
               modifiers: { ctrlOrMeta }
             })
           : {
-              snappedDelta: rawTotalDelta,
+              snappedDelta: makeWorldPoint(rawTotalDelta.x, rawTotalDelta.y),
               offset: undefined,
               lines: [] as SnapLine[]
             };
-        const totalDelta = snapped.snappedDelta ?? rawTotalDelta;
+        const totalDelta = snapped.snappedDelta
+          ? makeWorldVector(snapped.snappedDelta.x, snapped.snappedDelta.y)
+          : rawTotalDelta;
         const actualTotalDelta = drag.lastAppliedTotalDelta;
-        const incremental = {
-          x: totalDelta.x - actualTotalDelta.x,
-          y: totalDelta.y - actualTotalDelta.y
-        };
+        const incremental = makeWorldVector(totalDelta.x - actualTotalDelta.x, totalDelta.y - actualTotalDelta.y);
         setSnapLines(snapped.lines);
         maybeTriggerSnapFeedback(snapped.lines.length > 0);
         logSnapDebug({
@@ -770,8 +774,8 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
           snapshotMatchesSource: true,
           dragKind: "element",
           context: drag.snapContext,
-          rawDelta: rawTotalDelta,
-          snappedDelta: totalDelta,
+          rawDelta: makeWorldPoint(rawTotalDelta.x, rawTotalDelta.y),
+          snappedDelta: makeWorldPoint(totalDelta.x, totalDelta.y),
           offset: snapped.offset,
           lines: snapped.lines
         });
@@ -784,7 +788,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
           {
             kind: "moveElements",
             elementIds: drag.elementIds,
-            delta: incremental
+            delta: makeWorldPoint(incremental.x, incremental.y)
           },
           drag.historyMergeKey
         );
@@ -1028,10 +1032,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
         setSnapLines(snapped.lines);
         setToolCursorWorld(finalBend);
 
-        queueSelectionForAddedElement({
-          x: (drag.startWorld.x + drag.endWorld.x) / 2,
-          y: (drag.startWorld.y + drag.endWorld.y) / 2
-        });
+        queueSelectionForAddedElement(makeWorldPoint((drag.startWorld.x + drag.endWorld.x) / 2, (drag.startWorld.y + drag.endWorld.y) / 2));
         const template = createBezierTemplateFromBend(drag.startWorld, drag.endWorld, finalBend);
         const ok = applyActionWithFeedback({
           kind: "addElement",
@@ -1189,11 +1190,11 @@ function snapGridResizeWorldPoint(point: WorldPoint, config: GridResizeSnapConfi
     return point;
   }
 
-  const snappedLocal = {
-    x: anchorLocal.x + snapDeltaToStep(localWorldPoint.x - anchorLocal.x, config.stepX),
-    y: anchorLocal.y + snapDeltaToStep(localWorldPoint.y - anchorLocal.y, config.stepY)
-  };
-  return applyMatrix(config.transform, snappedLocal);
+  const snappedLocal = frameLocalPoint(
+    pt(anchorLocal.x + snapDeltaToStep(localWorldPoint.x - anchorLocal.x, config.stepX)),
+    pt(anchorLocal.y + snapDeltaToStep(localWorldPoint.y - anchorLocal.y, config.stepY))
+  );
+  return applyFrameTransform(config.transform, snappedLocal);
 }
 
 function snapDeltaToStep(delta: number, step: number): number {
@@ -1220,7 +1221,9 @@ function resolveAdornmentDragReferenceWorld(element: SceneElement | null): World
 }
 
 function resolveAdornmentReferenceWorld(adornment: NonNullable<SceneElement["adornment"]>): WorldPoint | null {
-  const ownerCenter = adornment.ownerGeometry?.center ?? adornment.ownerPoint;
+  const ownerCenter = adornment.ownerGeometry
+    ? makeWorldPoint(adornment.ownerGeometry.center.x, adornment.ownerGeometry.center.y)
+    : adornment.ownerPoint;
   if (!ownerCenter) {
     return null;
   }
@@ -1229,16 +1232,16 @@ function resolveAdornmentReferenceWorld(adornment: NonNullable<SceneElement["ado
     return null;
   }
   if (parsedAngle.kind === "center") {
-    return { ...ownerCenter };
+    return makeWorldPoint(ownerCenter.x, ownerCenter.y);
   }
   const radians = (parsedAngle.degrees * Math.PI) / 180;
-  const direction = { x: Math.cos(radians), y: Math.sin(radians) };
+  const direction = makeWorldPoint(Math.cos(radians), Math.sin(radians));
   const borderDistance = resolveAdornmentOwnerBorderDistance(adornment.ownerGeometry, direction);
   const distancePt = Math.max(0, adornment.distancePt ?? 0);
-  return {
-    x: ownerCenter.x + direction.x * (borderDistance + distancePt),
-    y: ownerCenter.y + direction.y * (borderDistance + distancePt)
-  };
+  return makeWorldPoint(
+    ownerCenter.x + direction.x * (borderDistance + distancePt),
+    ownerCenter.y + direction.y * (borderDistance + distancePt)
+  );
 }
 
 function parseAdornmentAngleDegrees(raw: string | undefined): { kind: "center" } | { kind: "angle"; degrees: number } | null {
@@ -1281,11 +1284,11 @@ function parseAdornmentAngleDegrees(raw: string | undefined): { kind: "center" }
   return { kind: "angle", degrees };
 }
 
-export function applyAdornmentWorldPointerOffset(pointerWorld: WorldPoint, pointerOffsetFromReference: WorldPoint): WorldPoint {
-  return {
-    x: pointerWorld.x - pointerOffsetFromReference.x,
-    y: pointerWorld.y - pointerOffsetFromReference.y
-  };
+export function applyAdornmentWorldPointerOffset(pointerWorld: WorldPoint, pointerOffsetFromReference: WorldVector): WorldPoint {
+  return makeWorldPoint(
+    pointerWorld.x - pointerOffsetFromReference.x,
+    pointerWorld.y - pointerOffsetFromReference.y
+  );
 }
 
 export function resolveAdornmentDragPlacement(
@@ -1295,17 +1298,17 @@ export function resolveAdornmentDragPlacement(
   options: {
     allowCenter: boolean;
     textDrag?: {
-      pointerOffsetFromCenter: WorldPoint;
+      pointerOffsetFromCenter: WorldVector;
       halfWidth: number;
       halfHeight: number;
     };
   }
 ): { angleRaw: string; distancePt: number } | null {
   if (options.textDrag) {
-    const desiredCenter = {
-      x: point.x - options.textDrag.pointerOffsetFromCenter.x,
-      y: point.y - options.textDrag.pointerOffsetFromCenter.y
-    };
+    const desiredCenter = makeWorldPoint(
+      point.x - options.textDrag.pointerOffsetFromCenter.x,
+      point.y - options.textDrag.pointerOffsetFromCenter.y
+    );
     const bodyPlacement = resolvePlacementFromDesiredCenter({
       desiredCenter,
       ownerPoint,
@@ -1329,7 +1332,7 @@ export function resolveAdornmentDragPlacement(
   }
 
   const resolvedReferenceWorldPoint = point;
-  const center = ownerGeometry?.center ?? ownerPoint;
+  const center = ownerGeometry ? makeWorldPoint(ownerGeometry.center.x, ownerGeometry.center.y) : ownerPoint;
   const dx = resolvedReferenceWorldPoint.x - center.x;
   const dy = resolvedReferenceWorldPoint.y - center.y;
   const radius = Math.sqrt(dx * dx + dy * dy);
@@ -1374,22 +1377,22 @@ function resolvePlacementFromDesiredCenter(input: {
     const geometry = derivePlacementGeometryForAngle(angleDeg, input.ownerPoint, input.ownerGeometry);
     const anchor = geometry.anchor;
     const anchorOffset = anchorOffsetFromCenter(anchor, input.halfWidth, input.halfHeight);
-    const desiredReference = {
-      x: input.desiredCenter.x + anchorOffset.x,
-      y: input.desiredCenter.y + anchorOffset.y
-    };
+    const desiredReference = makeWorldPoint(
+      input.desiredCenter.x + anchorOffset.x,
+      input.desiredCenter.y + anchorOffset.y
+    );
     const projectedDistance =
       (desiredReference.x - geometry.borderWorldPoint.x) * geometry.shiftDirection.x +
       (desiredReference.y - geometry.borderWorldPoint.y) * geometry.shiftDirection.y;
     const distancePt = Math.max(0, projectedDistance);
-    const referenceWorldPoint = {
-      x: geometry.borderWorldPoint.x + geometry.shiftDirection.x * distancePt,
-      y: geometry.borderWorldPoint.y + geometry.shiftDirection.y * distancePt
-    };
-    const resolvedCenter = {
-      x: referenceWorldPoint.x - anchorOffset.x,
-      y: referenceWorldPoint.y - anchorOffset.y
-    };
+    const referenceWorldPoint = makeWorldPoint(
+      geometry.borderWorldPoint.x + geometry.shiftDirection.x * distancePt,
+      geometry.borderWorldPoint.y + geometry.shiftDirection.y * distancePt
+    );
+    const resolvedCenter = makeWorldPoint(
+      referenceWorldPoint.x - anchorOffset.x,
+      referenceWorldPoint.y - anchorOffset.y
+    );
     const errorSq = distanceSquared(resolvedCenter, input.desiredCenter);
     if (!best || errorSq < best.errorSq) {
       best = {
@@ -1439,28 +1442,22 @@ function derivePlacementGeometryForAngle(
   shiftDirection: WorldPoint;
   anchor: string;
 } {
-  const ownerCenter = ownerGeometry?.center ?? ownerPoint;
+  const ownerCenter = ownerGeometry ? makeWorldPoint(ownerGeometry.center.x, ownerGeometry.center.y) : ownerPoint;
   const normalizedAngle = normalizeDegrees(angleDeg);
   const polarDirection = pointOnUnitCircle(normalizedAngle);
   const borderDistance = resolveAdornmentOwnerBorderDistance(ownerGeometry, polarDirection);
-  const borderWorldPoint = {
-    x: ownerCenter.x + polarDirection.x * borderDistance,
-    y: ownerCenter.y + polarDirection.y * borderDistance
-  };
-  const centerToBorder = {
-    x: borderWorldPoint.x - ownerCenter.x,
-    y: borderWorldPoint.y - ownerCenter.y
-  };
+  const borderWorldPoint = makeWorldPoint(
+    ownerCenter.x + polarDirection.x * borderDistance,
+    ownerCenter.y + polarDirection.y * borderDistance
+  );
+  const centerToBorder = makeWorldVector(borderWorldPoint.x - ownerCenter.x, borderWorldPoint.y - ownerCenter.y);
   const centerToBorderLength = Math.hypot(centerToBorder.x, centerToBorder.y);
   const shiftDirection = centerToBorderLength <= ADORNMENT_OWNER_CENTER_EPSILON
     ? polarDirection
-    : {
-        x: centerToBorder.x / centerToBorderLength,
-        y: centerToBorder.y / centerToBorderLength
-      };
+    : makeWorldPoint(centerToBorder.x / centerToBorderLength, centerToBorder.y / centerToBorderLength);
   const anchor = centerToBorderLength <= ADORNMENT_OWNER_CENTER_EPSILON
     ? anchorFacingAway(normalizedAngle)
-    : autoAnchorFromVector({ x: shiftDirection.y, y: -shiftDirection.x });
+    : autoAnchorFromVector(makeWorldPoint(shiftDirection.y, -shiftDirection.x));
   return {
     ownerCenter,
     polarDirection,
@@ -1483,26 +1480,20 @@ function derivePlacementFromReferenceWorldPoint(
   radialDistanceFromCenter: number;
   referenceWorldPoint: WorldPoint;
 } {
-  const ownerCenter = ownerGeometry?.center ?? ownerPoint;
+  const ownerCenter = ownerGeometry ? makeWorldPoint(ownerGeometry.center.x, ownerGeometry.center.y) : ownerPoint;
   const angleDeg = normalizeDegrees((Math.atan2(referenceWorldPoint.y - ownerCenter.y, referenceWorldPoint.x - ownerCenter.x) * 180) / Math.PI);
   const polarDirection = pointOnUnitCircle(angleDeg);
   const borderDistance = resolveAdornmentOwnerBorderDistance(ownerGeometry, polarDirection);
-  const borderWorldPoint = {
-    x: ownerCenter.x + polarDirection.x * borderDistance,
-    y: ownerCenter.y + polarDirection.y * borderDistance
-  };
-  const centerToBorder = {
-    x: borderWorldPoint.x - ownerCenter.x,
-    y: borderWorldPoint.y - ownerCenter.y
-  };
+  const borderWorldPoint = makeWorldPoint(
+    ownerCenter.x + polarDirection.x * borderDistance,
+    ownerCenter.y + polarDirection.y * borderDistance
+  );
+  const centerToBorder = makeWorldVector(borderWorldPoint.x - ownerCenter.x, borderWorldPoint.y - ownerCenter.y);
   const centerToBorderLength = Math.hypot(centerToBorder.x, centerToBorder.y);
   const simple = centerToBorderLength <= ADORNMENT_OWNER_CENTER_EPSILON;
   const shiftDirection = simple
     ? polarDirection
-    : {
-        x: centerToBorder.x / centerToBorderLength,
-        y: centerToBorder.y / centerToBorderLength
-      };
+    : makeWorldPoint(centerToBorder.x / centerToBorderLength, centerToBorder.y / centerToBorderLength);
   const radialDistanceFromCenter = Math.max(0, (referenceWorldPoint.x - ownerCenter.x) * polarDirection.x + (referenceWorldPoint.y - ownerCenter.y) * polarDirection.y);
   const distancePt = Math.max(
     0,
@@ -1511,8 +1502,8 @@ function derivePlacementFromReferenceWorldPoint(
   );
   const anchor = simple
     ? anchorFacingAway(angleDeg)
-    : autoAnchorFromVector(worldPoint(shiftDirection.y, -shiftDirection.x));
-  const resolvedReferenceWorldPoint = worldPoint(
+    : autoAnchorFromVector(makeWorldPoint(shiftDirection.y, -shiftDirection.x));
+  const resolvedReferenceWorldPoint = makeWorldPoint(
     borderWorldPoint.x + shiftDirection.x * distancePt,
     borderWorldPoint.y + shiftDirection.y * distancePt
   );
@@ -1528,7 +1519,7 @@ function derivePlacementFromReferenceWorldPoint(
 
 function pointOnUnitCircle(angleDeg: number): WorldPoint {
   const radians = (angleDeg * Math.PI) / 180;
-  return worldPoint(Math.cos(radians), Math.sin(radians));
+  return makeWorldPoint(Math.cos(radians), Math.sin(radians));
 }
 
 function autoAnchorFromVector(vector: WorldPoint): string {
@@ -1554,15 +1545,16 @@ function resolveAdornmentOwnerBorderDistance(
   if (!ownerGeometry || ownerGeometry.shape === "coordinate") {
     return 0;
   }
-  if (ownerGeometry.anchorPolygon && ownerGeometry.anchorPolygon.length >= 3) {
-    const hit = intersectRayWithPolygon({ x: 0, y: 0 }, direction, ownerGeometry.anchorPolygon);
+  const anchorPolygon = ownerGeometry.anchorPolygon?.map((point) => makeWorldPoint(point.x, point.y));
+  if (anchorPolygon && anchorPolygon.length >= 3) {
+    const hit = intersectRayWithPolygon(makeWorldPoint(0, 0), makeWorldVector(direction.x, direction.y), anchorPolygon);
     return hit ? Math.sqrt(hit.x * hit.x + hit.y * hit.y) : 0;
   }
   if (ownerGeometry.shape === "circle") {
     const transform = ownerGeometry.anchorTransform;
     const localDirection = (() => {
       if (!transform) return direction;
-      const inverse = inverseMatrix(transform);
+      const inverse = inverseMatrix(worldTransform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f));
       if (!inverse) return direction;
       return applyMatrixToVector(inverse, direction);
     })();
@@ -1571,18 +1563,17 @@ function resolveAdornmentOwnerBorderDistance(
       return 0;
     }
     const radius = Math.max(0, ownerGeometry.anchorRadius);
-    const localWorldPoint = worldPoint(
-      (localDirection.x / localLen) * radius,
-      (localDirection.y / localLen) * radius
-    );
-    const mapped = transform ? applyMatrixToVector(transform, localWorldPoint) : localWorldPoint;
+    const localWorldPoint = makeWorldPoint((localDirection.x / localLen) * radius, (localDirection.y / localLen) * radius);
+    const mapped = transform
+      ? applyMatrixToVector(worldTransform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f), localWorldPoint)
+      : localWorldPoint;
     return Math.hypot(mapped.x, mapped.y);
   }
   if (ownerGeometry.shape === "rectangle") {
     const transform = ownerGeometry.anchorTransform;
     const localDirection = (() => {
       if (!transform) return direction;
-      const inverse = inverseMatrix(transform);
+      const inverse = inverseMatrix(worldTransform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f));
       if (!inverse) return direction;
       return applyMatrixToVector(inverse, direction);
     })();
@@ -1592,15 +1583,17 @@ function resolveAdornmentOwnerBorderDistance(
     if (!Number.isFinite(scale)) {
       return 0;
     }
-    const localWorldPoint = worldPoint(localDirection.x * scale, localDirection.y * scale);
-    const mapped = transform ? applyMatrixToVector(transform, localWorldPoint) : localWorldPoint;
+    const localWorldPoint = makeWorldPoint(localDirection.x * scale, localDirection.y * scale);
+    const mapped = transform
+      ? applyMatrixToVector(worldTransform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f), localWorldPoint)
+      : localWorldPoint;
     return Math.hypot(mapped.x, mapped.y);
   }
   if (ownerGeometry.shape === "ellipse") {
     const transform = ownerGeometry.anchorTransform;
     const localDirection = (() => {
       if (!transform) return direction;
-      const inverse = inverseMatrix(transform);
+      const inverse = inverseMatrix(worldTransform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f));
       if (!inverse) return direction;
       return applyMatrixToVector(inverse, direction);
     })();
@@ -1610,8 +1603,10 @@ function resolveAdornmentOwnerBorderDistance(
     if (!Number.isFinite(scale)) {
       return 0;
     }
-    const localWorldPoint = worldPoint(localDirection.x * scale, localDirection.y * scale);
-    const mapped = transform ? applyMatrixToVector(transform, localWorldPoint) : localWorldPoint;
+    const localWorldPoint = makeWorldPoint(localDirection.x * scale, localDirection.y * scale);
+    const mapped = transform
+      ? applyMatrixToVector(worldTransform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f), localWorldPoint)
+      : localWorldPoint;
     return Math.hypot(mapped.x, mapped.y);
   }
   return 0;
@@ -1658,23 +1653,23 @@ function anchorFacingAway(degrees: number): string {
 function anchorOffsetFromCenter(anchor: string, halfWidth: number, halfHeight: number): WorldPoint {
   switch (anchor) {
     case "west":
-      return worldPoint(-halfWidth, 0);
+      return worldPoint(pt(-halfWidth), pt(0));
     case "east":
-      return worldPoint(halfWidth, 0);
+      return worldPoint(pt(halfWidth), pt(0));
     case "north":
-      return worldPoint(0, halfHeight);
+      return worldPoint(pt(0), pt(halfHeight));
     case "south":
-      return worldPoint(0, -halfHeight);
+      return worldPoint(pt(0), pt(-halfHeight));
     case "north west":
-      return worldPoint(-halfWidth, halfHeight);
+      return worldPoint(pt(-halfWidth), pt(halfHeight));
     case "north east":
-      return worldPoint(halfWidth, halfHeight);
+      return worldPoint(pt(halfWidth), pt(halfHeight));
     case "south west":
-      return worldPoint(-halfWidth, -halfHeight);
+      return worldPoint(pt(-halfWidth), pt(-halfHeight));
     case "south east":
-      return worldPoint(halfWidth, -halfHeight);
+      return worldPoint(pt(halfWidth), pt(-halfHeight));
     default:
-      return worldPoint(0, 0);
+      return worldPoint(pt(0), pt(0));
   }
 }
 
@@ -1701,10 +1696,10 @@ function resizeFrameWorldBounds(frame: ResizeFrame): WorldBounds {
     frame.cornersByRole["bottom-left"].world
   ];
   return worldBounds(
-    Math.min(...worldCorners.map((corner) => corner.x)),
-    Math.min(...worldCorners.map((corner) => corner.y)),
-    Math.max(...worldCorners.map((corner) => corner.x)),
-    Math.max(...worldCorners.map((corner) => corner.y))
+    pt(Math.min(...worldCorners.map((corner) => corner.x))),
+    pt(Math.min(...worldCorners.map((corner) => corner.y))),
+    pt(Math.max(...worldCorners.map((corner) => corner.x))),
+    pt(Math.max(...worldCorners.map((corner) => corner.y)))
   );
 }
 
@@ -1726,10 +1721,7 @@ function resolveAdornmentBodyDragBox(
     return null;
   }
   return {
-    center: {
-      x: (bounds.minX + bounds.maxX) / 2,
-      y: (bounds.minY + bounds.maxY) / 2
-    },
+    center: makeWorldPoint((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2),
     width: Math.max(1, bounds.maxX - bounds.minX),
     height: Math.max(1, bounds.maxY - bounds.minY)
   };
@@ -1761,10 +1753,7 @@ function resolvePrimarySourceCenter(
   if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
     return null;
   }
-  return {
-    x: (minX + maxX) / 2,
-    y: (minY + maxY) / 2
-  };
+  return makeWorldPoint((minX + maxX) / 2, (minY + maxY) / 2);
 }
 
 function resolvePathAttachedDirectionalDistancePt(source: string, nodeId: string, direction: string): number {
@@ -1797,12 +1786,15 @@ function elementBoundsInWorld(element: SceneElement): WorldBounds | null {
     return bounds ? applyTransformToBounds(bounds, element.transform) : null;
   }
   if (element.kind === "Circle") {
-    return applyTransformToBounds({
-      minX: element.center.x - element.radius,
-      minY: element.center.y - element.radius,
-      maxX: element.center.x + element.radius,
-      maxY: element.center.y + element.radius
-    }, element.transform);
+    return applyTransformToBounds(
+      worldBounds(
+        pt(element.center.x - element.radius),
+        pt(element.center.y - element.radius),
+        pt(element.center.x + element.radius),
+        pt(element.center.y + element.radius)
+      ),
+      element.transform
+    );
   }
   if (element.kind === "Ellipse") {
     return applyTransformToBounds(
@@ -1844,11 +1836,11 @@ function pathBoundsInWorld(path: Extract<SceneElement, { kind: "Path" }>): World
     }
     if (command.kind === "A") {
       if (previous) {
-        includeWorldPoint({ x: previous.x - command.rx, y: previous.y - command.ry });
-        includeWorldPoint({ x: previous.x + command.rx, y: previous.y + command.ry });
+        includeWorldPoint(makeWorldPoint(previous.x - command.rx, previous.y - command.ry));
+        includeWorldPoint(makeWorldPoint(previous.x + command.rx, previous.y + command.ry));
       }
-      includeWorldPoint({ x: command.to.x - command.rx, y: command.to.y - command.ry });
-      includeWorldPoint({ x: command.to.x + command.rx, y: command.to.y + command.ry });
+      includeWorldPoint(makeWorldPoint(command.to.x - command.rx, command.to.y - command.ry));
+      includeWorldPoint(makeWorldPoint(command.to.x + command.rx, command.to.y + command.ry));
       previous = command.to;
       continue;
     }
@@ -1859,7 +1851,7 @@ function pathBoundsInWorld(path: Extract<SceneElement, { kind: "Path" }>): World
   if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
     return null;
   }
-  return { minX, minY, maxX, maxY };
+  return worldBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
 }
 
 function computeRotatedRectLikeEllipseBounds(cx: number, cy: number, rx: number, ry: number, rotation: number): WorldBounds {
@@ -1868,36 +1860,21 @@ function computeRotatedRectLikeEllipseBounds(cx: number, cy: number, rx: number,
   const sin = Math.sin(theta);
   const extentX = Math.sqrt(rx * rx * cos * cos + ry * ry * sin * sin);
   const extentY = Math.sqrt(rx * rx * sin * sin + ry * ry * cos * cos);
-  return {
-    minX: cx - extentX,
-    maxX: cx + extentX,
-    minY: cy - extentY,
-    maxY: cy + extentY
-  };
+  return worldBounds(pt(cx - extentX), pt(cy - extentY), pt(cx + extentX), pt(cy + extentY));
 }
 
 function computeRotatedRectBoundsLocal(cx: number, cy: number, width: number, height: number, rotation: number): WorldBounds {
   const halfWidth = width / 2;
   const halfHeight = height / 2;
   if (Math.abs(rotation) <= 1e-6) {
-    return {
-      minX: cx - halfWidth,
-      maxX: cx + halfWidth,
-      minY: cy - halfHeight,
-      maxY: cy + halfHeight
-    };
+    return worldBounds(pt(cx - halfWidth), pt(cy - halfHeight), pt(cx + halfWidth), pt(cy + halfHeight));
   }
   const theta = (rotation * Math.PI) / 180;
   const cos = Math.abs(Math.cos(theta));
   const sin = Math.abs(Math.sin(theta));
   const extentX = halfWidth * cos + halfHeight * sin;
   const extentY = halfWidth * sin + halfHeight * cos;
-  return {
-    minX: cx - extentX,
-    maxX: cx + extentX,
-    minY: cy - extentY,
-    maxY: cy + extentY
-  };
+  return worldBounds(pt(cx - extentX), pt(cy - extentY), pt(cx + extentX), pt(cy + extentY));
 }
 
 function applyTransformToBounds(bounds: WorldBounds, transform: SceneElement["transform"]): WorldBounds {
@@ -1905,33 +1882,23 @@ function applyTransformToBounds(bounds: WorldBounds, transform: SceneElement["tr
     return bounds;
   }
   const corners = [
-    applyMatrix(transform, { x: bounds.minX, y: bounds.minY }),
-    applyMatrix(transform, { x: bounds.minX, y: bounds.maxY }),
-    applyMatrix(transform, { x: bounds.maxX, y: bounds.minY }),
-    applyMatrix(transform, { x: bounds.maxX, y: bounds.maxY })
+    applyMatrix(transform, worldPoint(bounds.minX, bounds.minY)),
+    applyMatrix(transform, worldPoint(bounds.minX, bounds.maxY)),
+    applyMatrix(transform, worldPoint(bounds.maxX, bounds.minY)),
+    applyMatrix(transform, worldPoint(bounds.maxX, bounds.maxY))
   ];
-  let next = {
-    minX: corners[0]!.x,
-    minY: corners[0]!.y,
-    maxX: corners[0]!.x,
-    maxY: corners[0]!.y
-  };
+  let next = worldBounds(corners[0]!.x, corners[0]!.y, corners[0]!.x, corners[0]!.y);
   for (const corner of corners.slice(1)) {
-    next = mergeWorldBounds(next, {
-      minX: corner!.x,
-      minY: corner!.y,
-      maxX: corner!.x,
-      maxY: corner!.y
-    });
+    next = mergeWorldBounds(next, worldBounds(corner!.x, corner!.y, corner!.x, corner!.y));
   }
   return next;
 }
 
 function mergeWorldBounds(a: WorldBounds, b: WorldBounds): WorldBounds {
-  return {
-    minX: Math.min(a.minX, b.minX),
-    minY: Math.min(a.minY, b.minY),
-    maxX: Math.max(a.maxX, b.maxX),
-    maxY: Math.max(a.maxY, b.maxY)
-  };
+  return worldBounds(
+    pt(Math.min(a.minX, b.minX)),
+    pt(Math.min(a.minY, b.minY)),
+    pt(Math.max(a.maxX, b.maxX)),
+    pt(Math.max(a.maxY, b.maxY))
+  );
 }

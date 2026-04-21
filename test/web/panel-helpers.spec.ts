@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { pt, svgPoint, worldBounds, worldPoint } from "../../packages/core/src/coords/index.js";
 import type { SceneClipPath, ScenePath, SceneText } from "../../packages/core/src/semantic/types.js";
 import { parseTikz } from "../../packages/core/src/parser/index.js";
 import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js";
@@ -15,6 +16,11 @@ import {
 } from "../../packages/app/src/ui/canvas-panel/panel-helpers.js";
 import type { HitRegion } from "../../packages/app/src/ui/canvas-panel/hit-regions.js";
 import { renderTikzToSvg } from "../../packages/core/src/render/index.js";
+
+const wp = (x: number, y: number) => worldPoint(pt(x), pt(y));
+const wb = (minX: number, minY: number, maxX: number, maxY: number) =>
+  worldBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
+const sp = (x: number, y: number) => svgPoint(pt(x), pt(y));
 
 describe("rectHitRegionsForTargetId", () => {
   it("matches rect regions by target id rather than statement source id", () => {
@@ -76,8 +82,8 @@ describe("rectHitRegionsForTargetId", () => {
       width: 12,
       height: 4
     });
-    expect(isPointInsideRectHitRegionContentBox({ x: 0, y: 0 }, region)).toBe(true);
-    expect(isPointInsideRectHitRegionContentBox({ x: 8, y: 0 }, region)).toBe(false);
+    expect(isPointInsideRectHitRegionContentBox(sp(0, 0), region)).toBe(true);
+    expect(isPointInsideRectHitRegionContentBox(sp(8, 0), region)).toBe(false);
   });
 
   it("adds an invisible halo around adornment text hit regions", () => {
@@ -94,7 +100,7 @@ describe("rectHitRegionsForTargetId", () => {
         fontSize: 10
       } as SceneText["style"],
       styleChain: [],
-      position: { x: 20, y: 30 },
+      position: wp(20, 30),
       text: "Pin",
       textBlockWidth: 12,
       textBlockHeight: 4,
@@ -145,7 +151,7 @@ describe("rectHitRegionsForTargetId", () => {
         fontSize: 10
       } as SceneText["style"],
       styleChain: [],
-      position: { x: 20, y: 20 },
+      position: wp(20, 20),
       text: "A",
       textBlockWidth: 10,
       textBlockHeight: 6
@@ -155,7 +161,7 @@ describe("rectHitRegionsForTargetId", () => {
       [text],
       { x: 0, y: 0, width: 100, height: 100 },
       2,
-      [{ scopeId: "scope:0", bounds: { minX: 10, minY: 15, maxX: 30, maxY: 25 } }]
+      [{ scopeId: "scope:0", bounds: wb(10, 15, 30, 25) }]
     );
     const scopeRegion = regions.find(
       (region): region is Extract<HitRegion, { shape: "rect" }> => region.key === "scope-hit:scope:0"
@@ -182,10 +188,10 @@ describe("rectHitRegionsForTargetId", () => {
         sourceFingerprint: "test-fingerprint"
       },
       commands: [
-        { kind: "M", to: { x: 0, y: 0 } },
-        { kind: "L", to: { x: 20, y: 0 } },
-        { kind: "L", to: { x: 20, y: 20 } },
-        { kind: "L", to: { x: 0, y: 20 } },
+        { kind: "M", to: wp(0, 0) },
+        { kind: "L", to: wp(20, 0) },
+        { kind: "L", to: wp(20, 20) },
+        { kind: "L", to: wp(0, 20) },
         { kind: "Z" }
       ],
       fillRule: "evenodd"
@@ -209,10 +215,10 @@ describe("rectHitRegionsForTargetId", () => {
       styleChain: [],
       clipChain: [clipPath],
       commands: [
-        { kind: "M", to: { x: 0, y: 0 } },
-        { kind: "L", to: { x: 40, y: 0 } },
-        { kind: "L", to: { x: 40, y: 20 } },
-        { kind: "L", to: { x: 0, y: 20 } },
+        { kind: "M", to: wp(0, 0) },
+        { kind: "L", to: wp(40, 0) },
+        { kind: "L", to: wp(40, 20) },
+        { kind: "L", to: wp(0, 20) },
         { kind: "Z" }
       ]
     };
@@ -234,10 +240,10 @@ describe("rectHitRegionsForTargetId", () => {
       } as ScenePath["style"],
       styleChain: [],
       commands: [
-        { kind: "M", to: { x: 0, y: 0 } },
-        { kind: "L", to: { x: 20, y: 0 } },
-        { kind: "L", to: { x: 20, y: 20 } },
-        { kind: "L", to: { x: 0, y: 20 } },
+        { kind: "M", to: wp(0, 0) },
+        { kind: "L", to: wp(20, 0) },
+        { kind: "L", to: wp(20, 20) },
+        { kind: "L", to: wp(0, 20) },
         { kind: "Z" }
       ]
     };
@@ -313,7 +319,7 @@ describe("rectHitRegionsForTargetId", () => {
         fontSize: 10
       } as SceneText["style"],
       styleChain: [],
-      position: { x: 40, y: 20 },
+      position: wp(40, 20),
       text: "P",
       textBlockWidth: 12,
       textBlockHeight: 4,
@@ -344,8 +350,8 @@ describe("rectHitRegionsForTargetId", () => {
       style: {} as ScenePath["style"],
       styleChain: [],
       commands: [
-        { kind: "M", to: { x: 0, y: 0 } },
-        { kind: "L", to: { x: 40, y: 20 } }
+        { kind: "M", to: wp(0, 0) },
+        { kind: "L", to: wp(40, 20) }
       ],
       adornment: pinText.adornment
     };
@@ -442,10 +448,10 @@ describe("rectHitRegionsForTargetId", () => {
         sourceFingerprint: "test-fingerprint"
       },
       commands: [
-        { kind: "M", to: { x: 0, y: 0 } },
-        { kind: "L", to: { x: 20, y: 0 } },
-        { kind: "L", to: { x: 20, y: 20 } },
-        { kind: "L", to: { x: 0, y: 20 } },
+        { kind: "M", to: wp(0, 0) },
+        { kind: "L", to: wp(20, 0) },
+        { kind: "L", to: wp(20, 20) },
+        { kind: "L", to: wp(0, 20) },
         { kind: "Z" }
       ],
       fillRule: "nonzero"
@@ -469,10 +475,10 @@ describe("rectHitRegionsForTargetId", () => {
       styleChain: [],
       clipChain: [clipPath],
       commands: [
-        { kind: "M", to: { x: 0, y: 0 } },
-        { kind: "L", to: { x: 40, y: 0 } },
-        { kind: "L", to: { x: 40, y: 20 } },
-        { kind: "L", to: { x: 0, y: 20 } },
+        { kind: "M", to: wp(0, 0) },
+        { kind: "L", to: wp(40, 0) },
+        { kind: "L", to: wp(40, 20) },
+        { kind: "L", to: wp(0, 20) },
         { kind: "Z" }
       ]
     };
@@ -489,10 +495,10 @@ describe("rectHitRegionsForTargetId", () => {
       styleChain: [],
       clipChain: [clipPath],
       commands: [
-        { kind: "M", to: { x: 30, y: 0 } },
-        { kind: "L", to: { x: 40, y: 0 } },
-        { kind: "L", to: { x: 40, y: 10 } },
-        { kind: "L", to: { x: 30, y: 10 } },
+        { kind: "M", to: wp(30, 0) },
+        { kind: "L", to: wp(40, 0) },
+        { kind: "L", to: wp(40, 10) },
+        { kind: "L", to: wp(30, 10) },
         { kind: "Z" }
       ]
     };
@@ -500,12 +506,7 @@ describe("rectHitRegionsForTargetId", () => {
 
     const boundsBySource = collectSourceBounds([partiallyClippedPath, fullyClippedPath], viewBox);
 
-    expect(boundsBySource.get("path:visible")).toEqual({
-      minX: 0,
-      minY: 80,
-      maxX: 20,
-      maxY: 100
-    });
+    expect(boundsBySource.get("path:visible")).toEqual(wb(0, 80, 20, 100));
     expect(boundsBySource.has("path:hidden")).toBe(false);
   });
 
@@ -518,10 +519,10 @@ describe("rectHitRegionsForTargetId", () => {
         sourceFingerprint: "test-fingerprint"
       },
       commands: [
-        { kind: "M", to: { x: 0, y: 0 } },
-        { kind: "L", to: { x: 20, y: 0 } },
-        { kind: "L", to: { x: 20, y: 20 } },
-        { kind: "L", to: { x: 0, y: 20 } },
+        { kind: "M", to: wp(0, 0) },
+        { kind: "L", to: wp(20, 0) },
+        { kind: "L", to: wp(20, 20) },
+        { kind: "L", to: wp(0, 20) },
         { kind: "Z" }
       ],
       fillRule: "nonzero"
@@ -545,10 +546,10 @@ describe("rectHitRegionsForTargetId", () => {
       styleChain: [],
       clipChain: [clipPath],
       commands: [
-        { kind: "M", to: { x: 0, y: 0 } },
-        { kind: "L", to: { x: 40, y: 0 } },
-        { kind: "L", to: { x: 40, y: 20 } },
-        { kind: "L", to: { x: 0, y: 20 } },
+        { kind: "M", to: wp(0, 0) },
+        { kind: "L", to: wp(40, 0) },
+        { kind: "L", to: wp(40, 20) },
+        { kind: "L", to: wp(0, 20) },
         { kind: "Z" }
       ]
     };
@@ -559,12 +560,7 @@ describe("rectHitRegionsForTargetId", () => {
       null
     );
 
-    expect(preferred).toEqual({
-      minX: 0,
-      minY: 80,
-      maxX: 20,
-      maxY: 100
-    });
+    expect(preferred).toEqual(wb(0, 80, 20, 100));
   });
 });
 

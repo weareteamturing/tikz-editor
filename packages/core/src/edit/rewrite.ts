@@ -3,6 +3,7 @@ import {
   isRelativeCoordinateEditHandle,
   type EditHandle
 } from "../semantic/types.js";
+import { pt } from "../coords/scalars.js";
 import { worldVector } from "../coords/points.js";
 import type { WorldPoint } from "../coords/points.js";
 import { worldToLocal, worldDeltaToLocalDelta, localToSourceUnits } from "./coords.js";
@@ -110,7 +111,7 @@ function rewriteDelta(
   if (!base) {
     return null;
   }
-  const delta = worldVector(newWorld.x - base.x, newWorld.y - base.y);
+  const delta = worldVector(pt(newWorld.x - base.x), pt(newWorld.y - base.y));
   const localDelta = worldDeltaToLocalDelta(delta, handle.transform);
   if (!localDelta) {
     return null;

@@ -1,10 +1,12 @@
 import type { OptionListAst } from "../../options/types.js";
+import { pt } from "../../coords/scalars.js";
 import {
   writeNamedCoordinate,
   writeNamedNodeGeometry,
   type SemanticContext
 } from "../context.js";
-import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
+import { worldPoint as makeWorldPoint, worldVector as makeWorldVector, type WorldPoint, type WorldVector } from "../../coords/points.js";
+import { worldTransform } from "../../coords/transforms.js";
 import type { WorldTransform } from "../../coords/transforms.js";
 import { applyMatrix, identityMatrix } from "../transform.js";
 import {
@@ -38,7 +40,11 @@ import { resolveRectangleSplitHorizontal, resolveRectangleSplitParts } from "./m
 import type { NodeLayout, NodeShape } from "./types.js";
 
 function worldPoint(x: number, y: number): WorldPoint {
-  return makeWorldPoint(x, y);
+  return makeWorldPoint(pt(x), pt(y));
+}
+
+function worldVector(x: number, y: number): WorldVector {
+  return makeWorldVector(pt(x), pt(y));
 }
 
 export function placeNodeCenter(
@@ -51,7 +57,7 @@ export function placeNodeCenter(
 ): WorldPoint {
   const rawOffset = nodeAnchorOffset(shape, layout, anchor, options);
   const offset = applyMatrix(nodeTransform, rawOffset);
-  return worldPoint(target.x - offset.x, target.y - offset.y);
+  return worldPoint(pt(target.x - offset.x), pt(target.y - offset.y));
 }
 
 export function nodeAnchorOffset(
@@ -64,20 +70,20 @@ export function nodeAnchorOffset(
   const shapeGeometry = resolveNodeShapeGeometryParams(options);
 
   if (anchor === "text") {
-    return worldPoint(-layout.textBlockWidth / 2, layout.baseLineY);
+    return worldPoint(pt(-layout.textBlockWidth / 2), pt(layout.baseLineY));
   }
 
   if (shape === "coordinate") {
-    return worldPoint(0, 0);
+    return worldPoint(pt(0), pt(0));
   }
 
   if (shape === "magnifying glass" || shape === "circle split" || shape === "circle solidus") {
     const base = nodeAnchorOffset("circle", layout, anchor, options);
     if (anchor === "upper") {
-      return worldPoint(0, layout.anchorRadius * 0.5);
+      return worldPoint(pt(0), pt(layout.anchorRadius * 0.5));
     }
     if (anchor === "lower") {
-      return worldPoint(0, -layout.anchorRadius * 0.5);
+      return worldPoint(pt(0), pt(-layout.anchorRadius * 0.5));
     }
     return base;
   }
@@ -87,48 +93,36 @@ export function nodeAnchorOffset(
     const d = r / Math.sqrt(2);
     switch (anchor) {
       case "north":
-        return worldPoint(0, r);
+        return worldPoint(pt(0), pt(r));
       case "south":
-        return worldPoint(0, -r);
+        return worldPoint(pt(0), pt(-r));
       case "east":
-        return worldPoint(r, 0);
+        return worldPoint(pt(r), pt(0));
       case "west":
-        return worldPoint(-r, 0);
+        return worldPoint(pt(-r), pt(0));
       case "north east":
-        return worldPoint(d, d);
+        return worldPoint(pt(d), pt(d));
       case "north west":
-        return worldPoint(-d, d);
+        return worldPoint(pt(-d), pt(d));
       case "south east":
-        return worldPoint(d, -d);
+        return worldPoint(pt(d), pt(-d));
       case "south west":
-        return worldPoint(-d, -d);
+        return worldPoint(pt(-d), pt(-d));
       case "base":
-        return worldPoint(0, layout.baseLineY);
+        return worldPoint(pt(0), pt(layout.baseLineY));
       case "base east":
-        return {
-          x: circleHorizontalOffsetAtY(r, layout.baseLineY, 1),
-          y: layout.baseLineY
-        };
+        return worldPoint(circleHorizontalOffsetAtY(r, layout.baseLineY, 1), layout.baseLineY);
       case "base west":
-        return {
-          x: circleHorizontalOffsetAtY(r, layout.baseLineY, -1),
-          y: layout.baseLineY
-        };
+        return worldPoint(circleHorizontalOffsetAtY(r, layout.baseLineY, -1), layout.baseLineY);
       case "mid":
-        return worldPoint(0, layout.midLineY);
+        return worldPoint(pt(0), pt(layout.midLineY));
       case "mid east":
-        return {
-          x: circleHorizontalOffsetAtY(r, layout.midLineY, 1),
-          y: layout.midLineY
-        };
+        return worldPoint(circleHorizontalOffsetAtY(r, layout.midLineY, 1), layout.midLineY);
       case "mid west":
-        return {
-          x: circleHorizontalOffsetAtY(r, layout.midLineY, -1),
-          y: layout.midLineY
-        };
+        return worldPoint(circleHorizontalOffsetAtY(r, layout.midLineY, -1), layout.midLineY);
       case "center":
       default:
-        return worldPoint(0, 0);
+        return worldPoint(pt(0), pt(0));
     }
   }
 
@@ -137,13 +131,13 @@ export function nodeAnchorOffset(
     const ry = layout.anchorHalfHeight;
     switch (anchor) {
       case "north":
-        return worldPoint(0, ry);
+        return worldPoint(pt(0), pt(ry));
       case "south":
-        return worldPoint(0, -ry);
+        return worldPoint(pt(0), pt(-ry));
       case "east":
-        return worldPoint(rx, 0);
+        return worldPoint(pt(rx), pt(0));
       case "west":
-        return worldPoint(-rx, 0);
+        return worldPoint(pt(-rx), pt(0));
       case "north east":
         return ellipseCompassOffset(rx, ry, 1, 1);
       case "north west":
@@ -153,30 +147,30 @@ export function nodeAnchorOffset(
       case "south west":
         return ellipseCompassOffset(rx, ry, -1, -1);
       case "base east":
-        return worldPoint(rx, layout.baseLineY);
+        return worldPoint(pt(rx), pt(layout.baseLineY));
       case "base west":
-        return worldPoint(-rx, layout.baseLineY);
+        return worldPoint(pt(-rx), pt(layout.baseLineY));
       case "mid":
-        return worldPoint(0, layout.midLineY);
+        return worldPoint(pt(0), pt(layout.midLineY));
       case "mid east":
-        return worldPoint(rx, layout.midLineY);
+        return worldPoint(pt(rx), pt(layout.midLineY));
       case "mid west":
-        return worldPoint(-rx, layout.midLineY);
+        return worldPoint(pt(-rx), pt(layout.midLineY));
       case "base":
-        return worldPoint(0, layout.baseLineY);
+        return worldPoint(pt(0), pt(layout.baseLineY));
       case "center":
       default:
-        return worldPoint(0, 0);
+        return worldPoint(pt(0), pt(0));
     }
   }
 
   if (shape === "ellipse split") {
     const base = nodeAnchorOffset("ellipse", layout, anchor, options);
     if (anchor === "upper") {
-      return worldPoint(0, layout.anchorHalfHeight * 0.5);
+      return worldPoint(pt(0), pt(layout.anchorHalfHeight * 0.5));
     }
     if (anchor === "lower") {
-      return worldPoint(0, -layout.anchorHalfHeight * 0.5);
+      return worldPoint(pt(0), pt(-layout.anchorHalfHeight * 0.5));
     }
     return base;
   }
@@ -189,10 +183,10 @@ export function nodeAnchorOffset(
   if (shape === "diamond split") {
     const base = nodeAnchorOffset("diamond", layout, anchor, options);
     if (anchor === "upper") {
-      return worldPoint(0, layout.anchorHalfHeight * 0.5);
+      return worldPoint(pt(0), pt(layout.anchorHalfHeight * 0.5));
     }
     if (anchor === "lower") {
-      return worldPoint(0, -layout.anchorHalfHeight * 0.5);
+      return worldPoint(pt(0), pt(-layout.anchorHalfHeight * 0.5));
     }
     return base;
   }
@@ -482,14 +476,14 @@ export function nodeAnchorOffset(
     const indexed = resolveRectangleSplitIndexedAnchor(anchor, parts);
     if (indexed != null) {
       return horizontal
-        ? worldPoint(-layout.anchorHalfWidth + ((indexed - 0.5) * 2 * layout.anchorHalfWidth) / parts, 0)
-        : worldPoint(0, layout.anchorHalfHeight - ((indexed - 0.5) * 2 * layout.anchorHalfHeight) / parts);
+        ? worldPoint(pt(-layout.anchorHalfWidth + ((indexed - 0.5) * 2 * layout.anchorHalfWidth) / parts), pt(0))
+        : worldPoint(pt(0), pt(layout.anchorHalfHeight - ((indexed - 0.5) * 2 * layout.anchorHalfHeight) / parts));
     }
     const split = resolveRectangleSplitDividerAnchor(anchor, parts);
     if (split != null) {
       return horizontal
-        ? worldPoint(-layout.anchorHalfWidth + (split * 2 * layout.anchorHalfWidth) / parts, 0)
-        : worldPoint(0, layout.anchorHalfHeight - (split * 2 * layout.anchorHalfHeight) / parts);
+        ? worldPoint(pt(-layout.anchorHalfWidth + (split * 2 * layout.anchorHalfWidth) / parts), pt(0))
+        : worldPoint(pt(0), pt(layout.anchorHalfHeight - (split * 2 * layout.anchorHalfHeight) / parts));
     }
   }
 
@@ -497,36 +491,36 @@ export function nodeAnchorOffset(
   const hh = layout.anchorHalfHeight;
   switch (anchor) {
     case "north":
-      return worldPoint(0, hh);
+      return worldPoint(pt(0), pt(hh));
     case "south":
-      return worldPoint(0, -hh);
+      return worldPoint(pt(0), pt(-hh));
     case "east":
-      return worldPoint(hw, 0);
+      return worldPoint(pt(hw), pt(0));
     case "west":
-      return worldPoint(-hw, 0);
+      return worldPoint(pt(-hw), pt(0));
     case "north east":
-      return worldPoint(hw, hh);
+      return worldPoint(pt(hw), pt(hh));
     case "north west":
-      return worldPoint(-hw, hh);
+      return worldPoint(pt(-hw), pt(hh));
     case "south east":
-      return worldPoint(hw, -hh);
+      return worldPoint(pt(hw), pt(-hh));
     case "south west":
-      return worldPoint(-hw, -hh);
+      return worldPoint(pt(-hw), pt(-hh));
     case "base east":
-      return worldPoint(hw, layout.baseLineY);
+      return worldPoint(pt(hw), pt(layout.baseLineY));
     case "base west":
-      return worldPoint(-hw, layout.baseLineY);
+      return worldPoint(pt(-hw), pt(layout.baseLineY));
     case "mid":
-      return worldPoint(0, layout.midLineY);
+      return worldPoint(pt(0), pt(layout.midLineY));
     case "mid east":
-      return worldPoint(hw, layout.midLineY);
+      return worldPoint(pt(hw), pt(layout.midLineY));
     case "mid west":
-      return worldPoint(-hw, layout.midLineY);
+      return worldPoint(pt(-hw), pt(layout.midLineY));
     case "base":
-      return worldPoint(0, layout.baseLineY);
+      return worldPoint(pt(0), pt(layout.baseLineY));
     case "center":
     default:
-      return worldPoint(0, 0);
+      return worldPoint(pt(0), pt(0));
   }
 }
 
@@ -643,10 +637,10 @@ function resolveAnchorPolygon(
   }
   if (shape === "rectangle callout") {
     return [
-      { x: -layout.anchorHalfWidth, y: layout.anchorHalfHeight },
-      { x: layout.anchorHalfWidth, y: layout.anchorHalfHeight },
-      { x: layout.anchorHalfWidth, y: -layout.anchorHalfHeight },
-      { x: -layout.anchorHalfWidth, y: -layout.anchorHalfHeight }
+      worldPoint(-layout.anchorHalfWidth, layout.anchorHalfHeight),
+      worldPoint(layout.anchorHalfWidth, layout.anchorHalfHeight),
+      worldPoint(layout.anchorHalfWidth, -layout.anchorHalfHeight),
+      worldPoint(-layout.anchorHalfWidth, -layout.anchorHalfHeight)
     ];
   }
   if (shape === "ellipse callout") {
@@ -682,10 +676,10 @@ function resolveAnchorPolygon(
   }
   if (shape === "cross out" || shape === "strike out" || shape === "rectangle split") {
     return [
-      { x: -layout.anchorHalfWidth, y: layout.anchorHalfHeight },
-      { x: layout.anchorHalfWidth, y: layout.anchorHalfHeight },
-      { x: layout.anchorHalfWidth, y: -layout.anchorHalfHeight },
-      { x: -layout.anchorHalfWidth, y: -layout.anchorHalfHeight }
+      worldPoint(-layout.anchorHalfWidth, layout.anchorHalfHeight),
+      worldPoint(layout.anchorHalfWidth, layout.anchorHalfHeight),
+      worldPoint(layout.anchorHalfWidth, -layout.anchorHalfHeight),
+      worldPoint(-layout.anchorHalfWidth, -layout.anchorHalfHeight)
     ];
   }
   if (shape === "magnifying glass" || shape === "circle split" || shape === "circle solidus") {
@@ -724,10 +718,7 @@ function makeEllipseAnchorPolygon(rx: number, ry: number, steps = 64): WorldPoin
   const count = Math.max(8, steps);
   for (let index = 0; index < count; index += 1) {
     const angle = (2 * Math.PI * index) / count;
-    points.push({
-      x: rx * Math.cos(angle),
-      y: ry * Math.sin(angle)
-    });
+    points.push(worldPoint(rx * Math.cos(angle), ry * Math.sin(angle)));
   }
   return points;
 }
@@ -998,60 +989,60 @@ function doubleArrowSpecialAnchor(
 
 function polygonShapeAnchorOffset(anchor: string, polygon: WorldPoint[], baseLineY: number, midLineY: number): WorldPoint {
   if (anchor === "center") {
-    return worldPoint(0, 0);
+    return worldPoint(pt(0), pt(0));
   }
   if (anchor === "base") {
-    return worldPoint(0, baseLineY);
+    return worldPoint(pt(0), pt(baseLineY));
   }
   if (anchor === "mid") {
-    return worldPoint(0, midLineY);
+    return worldPoint(pt(0), pt(midLineY));
   }
   if (anchor === "base east") {
-    return polygonDirectionalOffset(polygon, worldPoint(0, baseLineY), worldPoint(1, 0));
+    return polygonDirectionalOffset(polygon, worldPoint(pt(0), pt(baseLineY)), worldVector(1, 0));
   }
   if (anchor === "base west") {
-    return polygonDirectionalOffset(polygon, worldPoint(0, baseLineY), worldPoint(-1, 0));
+    return polygonDirectionalOffset(polygon, worldPoint(pt(0), pt(baseLineY)), worldVector(-1, 0));
   }
   if (anchor === "mid east") {
-    return polygonDirectionalOffset(polygon, worldPoint(0, midLineY), worldPoint(1, 0));
+    return polygonDirectionalOffset(polygon, worldPoint(pt(0), pt(midLineY)), worldVector(1, 0));
   }
   if (anchor === "mid west") {
-    return polygonDirectionalOffset(polygon, worldPoint(0, midLineY), worldPoint(-1, 0));
+    return polygonDirectionalOffset(polygon, worldPoint(pt(0), pt(midLineY)), worldVector(-1, 0));
   }
 
   const direction = anchorDirection(anchor);
   if (!direction) {
-    return worldPoint(0, 0);
+    return worldPoint(pt(0), pt(0));
   }
-  return polygonDirectionalOffset(polygon, worldPoint(0, 0), direction);
+  return polygonDirectionalOffset(polygon, worldPoint(pt(0), pt(0)), direction);
 }
 
-function polygonDirectionalOffset(polygon: WorldPoint[], reference: WorldPoint, direction: WorldPoint): WorldPoint {
+function polygonDirectionalOffset(polygon: WorldPoint[], reference: WorldPoint, direction: WorldVector): WorldPoint {
   const hit = intersectRayWithPolygon(reference, direction, polygon);
   if (!hit) {
-    return worldPoint(0, 0);
+    return worldPoint(pt(0), pt(0));
   }
   return hit;
 }
 
-function anchorDirection(anchor: string): WorldPoint | null {
+function anchorDirection(anchor: string): WorldVector | null {
   switch (anchor) {
     case "north":
-      return worldPoint(0, 1);
+      return worldVector(0, 1);
     case "south":
-      return worldPoint(0, -1);
+      return worldVector(0, -1);
     case "east":
-      return worldPoint(1, 0);
+      return worldVector(1, 0);
     case "west":
-      return worldPoint(-1, 0);
+      return worldVector(-1, 0);
     case "north east":
-      return worldPoint(1, 1);
+      return worldVector(1, 1);
     case "north west":
-      return worldPoint(-1, 1);
+      return worldVector(-1, 1);
     case "south east":
-      return worldPoint(1, -1);
+      return worldVector(1, -1);
     case "south west":
-      return worldPoint(-1, -1);
+      return worldVector(-1, -1);
     default:
       return null;
   }
@@ -1059,10 +1050,10 @@ function anchorDirection(anchor: string): WorldPoint | null {
 
 function ellipseCompassOffset(rx: number, ry: number, xSign: -1 | 1, ySign: -1 | 1): WorldPoint {
   if (!Number.isFinite(rx) || !Number.isFinite(ry) || rx <= 1e-9 || ry <= 1e-9) {
-    return worldPoint(0, 0);
+    return worldPoint(pt(0), pt(0));
   }
   const factor = Math.SQRT1_2;
-  return worldPoint(xSign * rx * factor, ySign * ry * factor);
+  return worldPoint(pt(xSign * rx * factor), pt(ySign * ry * factor));
 }
 
 function circleHorizontalOffsetAtY(radius: number, y: number, direction: -1 | 1): number {
@@ -1109,10 +1100,10 @@ export function registerNamedNodeAnchors(
   if (!anchorPolygon && needsFallbackPolygon) {
     if (shape === "rectangle") {
       anchorPolygon = [
-        { x: -layout.anchorHalfWidth, y: layout.anchorHalfHeight },
-        { x: layout.anchorHalfWidth, y: layout.anchorHalfHeight },
-        { x: layout.anchorHalfWidth, y: -layout.anchorHalfHeight },
-        { x: -layout.anchorHalfWidth, y: -layout.anchorHalfHeight }
+        worldPoint(-layout.anchorHalfWidth, layout.anchorHalfHeight),
+        worldPoint(layout.anchorHalfWidth, layout.anchorHalfHeight),
+        worldPoint(layout.anchorHalfWidth, -layout.anchorHalfHeight),
+        worldPoint(-layout.anchorHalfWidth, -layout.anchorHalfHeight)
       ];
     } else if (shape === "circle") {
       anchorPolygon = makeEllipseAnchorPolygon(layout.anchorRadius, layout.anchorRadius);
@@ -1123,10 +1114,7 @@ export function registerNamedNodeAnchors(
   if (anchorPolygon) {
     anchorPolygon = anchorPolygon.map((point) => applyMatrix(nodeTransform, point));
   }
-  const transformedCenter = {
-    x: center.x + nodeTransform.e,
-    y: center.y + nodeTransform.f
-  };
+  const transformedCenter = worldPoint(center.x + nodeTransform.e, center.y + nodeTransform.f);
 
   writeNamedNodeGeometry(
     context,
@@ -1134,14 +1122,7 @@ export function registerNamedNodeAnchors(
     {
       shape,
       center: transformedCenter,
-      anchorTransform: {
-        a: nodeTransform.a,
-        b: nodeTransform.b,
-        c: nodeTransform.c,
-        d: nodeTransform.d,
-        e: 0,
-        f: 0
-      },
+      anchorTransform: worldTransform(nodeTransform.a, nodeTransform.b, nodeTransform.c, nodeTransform.d, 0, 0),
       anchorHalfWidth: layout.anchorHalfWidth,
       anchorHalfHeight: layout.anchorHalfHeight,
       anchorRadius: layout.anchorRadius,
@@ -1378,10 +1359,7 @@ export function registerNamedNodeAnchors(
 
   for (const [anchor, offset] of Object.entries(offsets)) {
     const transformedOffset = applyMatrix(nodeTransform, offset);
-    const point = {
-      x: center.x + transformedOffset.x,
-      y: center.y + transformedOffset.y
-    };
+    const point = worldPoint(center.x + transformedOffset.x, center.y + transformedOffset.y);
     if (anchor === "center") {
       writeNamedCoordinate(context, name, point, producerSourceId);
     }

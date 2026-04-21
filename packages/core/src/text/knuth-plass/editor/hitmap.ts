@@ -1,4 +1,5 @@
 import type { LineSegmentReport, ParagraphLayoutReport } from '../paragraph/report.js';
+import { px } from "../../../coords/scalars.js";
 import {
   parseSourceSpans,
   type SourceSpan,
@@ -442,8 +443,8 @@ function lineLocalClientPoint(
   const localReportX = Number.isFinite(lineStart) ? x - lineStart : x;
   const svgX = localReportX * line.reportToSvgScaleX;
   return makeClientPoint(
-    line.screenMatrix.a * svgX + line.screenMatrix.c * 0 + line.screenMatrix.e,
-    line.screenMatrix.b * svgX + line.screenMatrix.d * 0 + line.screenMatrix.f
+    px(line.screenMatrix.a * svgX + line.screenMatrix.c * 0 + line.screenMatrix.e),
+    px(line.screenMatrix.b * svgX + line.screenMatrix.d * 0 + line.screenMatrix.f)
   );
 }
 
@@ -1647,8 +1648,8 @@ export async function getKnuthPlassPointFromOffset(
   const normal = lineNormalUnit(selected.line);
   const normalOffset = lineBoxNormalOffset(selected.line, reportLine);
   const clientPoint = makeClientPoint(
-    baselinePoint.x + normal.x * normalOffset,
-    baselinePoint.y + normal.y * normalOffset
+    px(baselinePoint.x + normal.x * normalOffset),
+    px(baselinePoint.y + normal.y * normalOffset)
   );
 
   return {

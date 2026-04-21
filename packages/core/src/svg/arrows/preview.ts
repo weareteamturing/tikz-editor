@@ -1,4 +1,5 @@
 import { arrowLocalPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { ArrowTip } from "../../semantic/types.js";
 import { buildArrowTipMetrics, normalizeArrowTip } from "./metrics.js";
 import { buildLocalTipPaths } from "./shapes.js";
@@ -126,15 +127,15 @@ function shiftPath(commands: ArrowLocalPathCommand[], deltaX: number): ArrowLoca
     if (command.kind === "M" || command.kind === "L" || command.kind === "A") {
       return {
         ...command,
-        to: arrowLocalPoint(command.to.x + deltaX, command.to.y)
+        to: arrowLocalPoint(pt(command.to.x + deltaX), pt(command.to.y))
       };
     }
     if (command.kind === "C") {
       return {
         ...command,
-        c1: arrowLocalPoint(command.c1.x + deltaX, command.c1.y),
-        c2: arrowLocalPoint(command.c2.x + deltaX, command.c2.y),
-        to: arrowLocalPoint(command.to.x + deltaX, command.to.y)
+        c1: arrowLocalPoint(pt(command.c1.x + deltaX), pt(command.c1.y)),
+        c2: arrowLocalPoint(pt(command.c2.x + deltaX), pt(command.c2.y)),
+        to: arrowLocalPoint(pt(command.to.x + deltaX), pt(command.to.y))
       };
     }
     return command;

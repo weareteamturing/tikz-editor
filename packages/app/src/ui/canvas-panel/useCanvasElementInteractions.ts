@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { clientPoint } from "tikz-editor/coords/index";
+import { clientPoint, px, pt, worldBounds, worldVector } from "tikz-editor/coords/index";
 import { buildSnapContext, collectSelectionGeometryFromBounds, collectSourceWorldBounds, type SnapBounds } from "tikz-editor/edit/snapping";
 import type { EditHandle, SceneElement } from "tikz-editor/semantic/types";
 import type { ClientPoint, WorldBounds, WorldPoint } from "../coords/types";
@@ -21,7 +21,7 @@ export type UseCanvasElementInteractionsArgs = {
 };
 
 function clientPointFromEvent(event: Pick<PointerEvent | ReactPointerEvent<SVGElement> | ReactMouseEvent<SVGElement>, "clientX" | "clientY">): ClientPoint {
-  return clientPoint(event.clientX, event.clientY);
+  return clientPoint(px(event.clientX), px(event.clientY));
 }
 
 export function useCanvasElementInteractions(args: UseCanvasElementInteractionsArgs) {
@@ -134,29 +134,23 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
             continue;
           }
           mergedBounds = mergedBounds
-            ? {
-                minX: Math.min(mergedBounds.minX, sourceBounds.minX),
-                minY: Math.min(mergedBounds.minY, sourceBounds.minY),
-                maxX: Math.max(mergedBounds.maxX, sourceBounds.maxX),
-                maxY: Math.max(mergedBounds.maxY, sourceBounds.maxY)
-              }
-            : {
-                minX: sourceBounds.minX,
-                minY: sourceBounds.minY,
-                maxX: sourceBounds.maxX,
-                maxY: sourceBounds.maxY
-              };
+            ? worldBounds(
+                pt(Math.min(mergedBounds.minX, sourceBounds.minX)),
+                pt(Math.min(mergedBounds.minY, sourceBounds.minY)),
+                pt(Math.max(mergedBounds.maxX, sourceBounds.maxX)),
+                pt(Math.max(mergedBounds.maxY, sourceBounds.maxY))
+              )
+            : worldBounds(sourceBounds.minX, sourceBounds.minY, sourceBounds.maxX, sourceBounds.maxY);
         }
         if (!mergedBounds) {
           continue;
         }
-        worldInteractionBoundsBySource.set(scopeId, {
-          minX: mergedBounds.minX,
-          minY: mergedBounds.minY,
-          maxX: mergedBounds.maxX,
-          maxY: mergedBounds.maxY,
-          sourceId: scopeId
-        });
+        worldInteractionBoundsBySource.set(scopeId, Object.assign(worldBounds(
+          mergedBounds.minX,
+          mergedBounds.minY,
+          mergedBounds.maxX,
+          mergedBounds.maxY
+        ), { sourceId: scopeId }));
       }
 
       const initialSelection = collectSelectionGeometryFromBounds(worldInteractionBoundsBySource, draggedIds);
@@ -174,7 +168,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
           draggedIds.length === 1 && draggedIds[0]?.startsWith("node-adornment:")
             ? options.adornmentDragFromText === true
             : undefined,
-        lastAppliedTotalDelta: { x: 0, y: 0 },
+        lastAppliedTotalDelta: worldVector(pt(0), pt(0)),
         snapContext,
         initialSelection,
         selectionAnchorRatio,

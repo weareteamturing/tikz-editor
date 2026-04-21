@@ -1,3 +1,5 @@
+import { worldBounds, worldPoint } from "../coords/points.js";
+import { pt } from "../coords/scalars.js";
 import type { WorldBounds, WorldPoint } from "../coords/points.js";
 
 export type AlignMode = "left" | "center" | "right" | "top" | "middle" | "bottom";
@@ -13,6 +15,14 @@ export type ArrangePlanResult =
   | { kind: "unsupported"; reason: string };
 
 const DEFAULT_EPSILON = 1e-6;
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
+
+function wb(minX: number, minY: number, maxX: number, maxY: number): WorldBounds {
+  return worldBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
+}
 
 export function planAlignDeltas(
   boundsBySource: ReadonlyMap<string, WorldBounds>,
@@ -70,10 +80,7 @@ export function planAlignDeltas(
             ? targetY - entry.maxY
             : 0;
 
-    deltas.set(entry.sourceId, {
-      x: Math.abs(dx) <= epsilon ? 0 : dx,
-      y: Math.abs(dy) <= epsilon ? 0 : dy
-    });
+    deltas.set(entry.sourceId, wp(Math.abs(dx) <= epsilon ? 0 : dx, Math.abs(dy) <= epsilon ? 0 : dy));
   }
 
   if (allZeroDeltas(deltas, epsilon)) {
@@ -129,18 +136,15 @@ export function planDistributeDeltas(
     const totalWidth = sorted.reduce((sum, entry) => sum + (entry.maxX - entry.minX), 0);
     const gap = (totalSpan - totalWidth) / (sorted.length - 1);
 
-    deltas.set(first.sourceId, { x: 0, y: 0 });
-    deltas.set(last.sourceId, { x: 0, y: 0 });
+    deltas.set(first.sourceId, wp(0, 0));
+    deltas.set(last.sourceId, wp(0, 0));
 
     let cursor = first.maxX + gap;
     for (let index = 1; index < sorted.length - 1; index += 1) {
       const entry = sorted[index]!;
       const targetMinX = cursor;
       const dx = targetMinX - entry.minX;
-      deltas.set(entry.sourceId, {
-        x: Math.abs(dx) <= epsilon ? 0 : dx,
-        y: 0
-      });
+      deltas.set(entry.sourceId, wp(Math.abs(dx) <= epsilon ? 0 : dx, 0));
       cursor = targetMinX + (entry.maxX - entry.minX) + gap;
     }
   } else {
@@ -150,8 +154,8 @@ export function planDistributeDeltas(
     const totalHeight = sorted.reduce((sum, entry) => sum + (entry.maxY - entry.minY), 0);
     const gap = (totalSpan - totalHeight) / (sorted.length - 1);
 
-    deltas.set(top.sourceId, { x: 0, y: 0 });
-    deltas.set(bottom.sourceId, { x: 0, y: 0 });
+    deltas.set(top.sourceId, wp(0, 0));
+    deltas.set(bottom.sourceId, wp(0, 0));
 
     let previousTargetMinY = top.minY;
     for (let index = 1; index < sorted.length - 1; index += 1) {
@@ -160,10 +164,7 @@ export function planDistributeDeltas(
       const height = entry.maxY - entry.minY;
       const targetMinY = targetMaxY - height;
       const dy = targetMinY - entry.minY;
-      deltas.set(entry.sourceId, {
-        x: 0,
-        y: Math.abs(dy) <= epsilon ? 0 : dy
-      });
+      deltas.set(entry.sourceId, wp(0, Math.abs(dy) <= epsilon ? 0 : dy));
       previousTargetMinY = targetMinY;
     }
   }
@@ -171,7 +172,7 @@ export function planDistributeDeltas(
   // Ensure all selected ids exist in the map.
   for (const sourceId of normalized) {
     if (!deltas.has(sourceId)) {
-      deltas.set(sourceId, { x: 0, y: 0 });
+      deltas.set(sourceId, wp(0, 0));
     }
   }
 
@@ -195,13 +196,7 @@ function resolveSelectedBounds(
         reason: `Could not resolve geometry bounds for selected element: ${sourceId}`
       };
     }
-    selected.push({
-      sourceId,
-      minX: bounds.minX,
-      minY: bounds.minY,
-      maxX: bounds.maxX,
-      maxY: bounds.maxY
-    });
+    selected.push({ ...wb(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY), sourceId });
   }
   return { kind: "success", value: selected };
 }
@@ -219,7 +214,7 @@ function mergeSourceBounds(boundsList: readonly SourceBounds[]): WorldBounds {
     maxY = Math.max(maxY, bounds.maxY);
   }
 
-  return { minX, minY, maxX, maxY };
+  return wb(minX, minY, maxX, maxY);
 }
 
 function normalizeSourceIds(sourceIds: readonly string[]): string[] {

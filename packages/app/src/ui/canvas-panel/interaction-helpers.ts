@@ -2,7 +2,7 @@ import type { ElementTemplate } from "tikz-editor/edit/actions";
 import type { SelectionGeometry } from "tikz-editor/edit/snapping";
 import type { EditHandle, SceneElement, ScenePathCommand } from "tikz-editor/semantic/types";
 import { CM_PER_PT, PT_PER_CM, formatNumber } from "tikz-editor/edit/format";
-import { worldPoint, svgBounds } from "tikz-editor/coords/index";
+import { worldPoint, worldVector, svgBounds, pt } from "tikz-editor/coords/index";
 
 import { distanceSquared } from "./geometry";
 import { shouldConstrainToolCreateToSquare, type ToolCreateMode } from "../tool-config";
@@ -10,6 +10,7 @@ import type { DragState, DragTooltipRow, SelectionAnchorRatio } from "./types";
 import type { ResizeFrame } from "./resize-frames";
 import { resolveAddShapeDraft } from "./add-shape-draft";
 import type { SvgBounds, SvgPoint, WorldBounds, WorldPoint } from "../coords/types";
+import type { WorldVector } from "tikz-editor/coords/index";
 
 const DEFAULT_BEZIER_LENGTH_PT = 2 * PT_PER_CM;
 const STEP_SNAP_EPSILON = 1e-9;
@@ -19,10 +20,10 @@ const MIN_SHAPE_DRAG_DIMENSION_PT = 0.1 * PT_PER_CM;
 
 export function boundsFromPoints(a: SvgPoint, b: SvgPoint): SvgBounds {
   return svgBounds(
-    Math.min(a.x, b.x),
-    Math.min(a.y, b.y),
-    Math.max(a.x, b.x),
-    Math.max(a.y, b.y)
+    pt(Math.min(a.x, b.x)),
+    pt(Math.min(a.y, b.y)),
+    pt(Math.max(a.x, b.x)),
+    pt(Math.max(a.y, b.y))
   );
 }
 
@@ -42,15 +43,15 @@ export function deriveSelectionTranslationDeltaFromAnchor(
   anchorRatio: SelectionAnchorRatio | null
 ): WorldPoint {
   if (!currentSelection) {
-    return worldPoint(0, 0);
+    return worldPoint(pt(0), pt(0));
   }
 
   const ratio = anchorRatio ?? { x: 0.5, y: 0.5 };
   const initialCenter = pointFromBoundsAnchorRatio(initialSelection.bounds, ratio);
   const currentCenter = pointFromBoundsAnchorRatio(currentSelection.bounds, ratio);
   return worldPoint(
-    currentCenter.x - initialCenter.x,
-    currentCenter.y - initialCenter.y
+    pt(currentCenter.x - initialCenter.x),
+    pt(currentCenter.y - initialCenter.y)
   );
 }
 
@@ -94,8 +95,8 @@ export function createTemplateForToolDrag(
 
   if (mode === "addBezier") {
     const bend = worldPoint(
-      (startWorld.x + endWorld.x) / 2,
-      (startWorld.y + endWorld.y) / 2
+      pt((startWorld.x + endWorld.x) / 2),
+      pt((startWorld.y + endWorld.y) / 2)
     );
     if (hasDrag) {
       const bezierTemplate = createBezierTemplateFromBend(startWorld, endWorld, bend);
@@ -162,7 +163,7 @@ export function resolveBezierControlsFromBend(
   let dy = resolvedEnd.y - startWorld.y;
   let length = Math.hypot(dx, dy);
   if (length <= 1e-6) {
-    resolvedEnd = worldPoint(startWorld.x + DEFAULT_BEZIER_LENGTH_PT, startWorld.y);
+    resolvedEnd = worldPoint(pt(startWorld.x + DEFAULT_BEZIER_LENGTH_PT), pt(startWorld.y));
     dx = resolvedEnd.x - startWorld.x;
     dy = resolvedEnd.y - startWorld.y;
     length = Math.hypot(dx, dy);
@@ -171,8 +172,8 @@ export function resolveBezierControlsFromBend(
   const unitTangent = { x: dx / length, y: dy / length };
   const unitNormal = { x: -unitTangent.y, y: unitTangent.x };
   const midpoint = worldPoint(
-    (startWorld.x + resolvedEnd.x) / 2,
-    (startWorld.y + resolvedEnd.y) / 2
+    pt((startWorld.x + resolvedEnd.x) / 2),
+    pt((startWorld.y + resolvedEnd.y) / 2)
   );
   const signedNormalOffset =
     (bendWorld.x - midpoint.x) * unitNormal.x +
@@ -180,12 +181,12 @@ export function resolveBezierControlsFromBend(
   const controlNormalOffset = (4 / 3) * signedNormalOffset;
 
   const control1 = worldPoint(
-    startWorld.x + dx / 3 + unitNormal.x * controlNormalOffset,
-    startWorld.y + dy / 3 + unitNormal.y * controlNormalOffset
+    pt(startWorld.x + dx / 3 + unitNormal.x * controlNormalOffset),
+    pt(startWorld.y + dy / 3 + unitNormal.y * controlNormalOffset)
   );
   const control2 = worldPoint(
-    startWorld.x + (2 * dx) / 3 + unitNormal.x * controlNormalOffset,
-    startWorld.y + (2 * dy) / 3 + unitNormal.y * controlNormalOffset
+    pt(startWorld.x + (2 * dx) / 3 + unitNormal.x * controlNormalOffset),
+    pt(startWorld.y + (2 * dy) / 3 + unitNormal.y * controlNormalOffset)
   );
 
   return {
@@ -227,8 +228,8 @@ export function snapPointDeltaToAxisStepMultiples(
   stepY: number
 ): WorldPoint {
   return worldPoint(
-    anchorWorld.x + snapDeltaToStep(currentWorld.x - anchorWorld.x, stepX),
-    anchorWorld.y + snapDeltaToStep(currentWorld.y - anchorWorld.y, stepY)
+    pt(anchorWorld.x + snapDeltaToStep(currentWorld.x - anchorWorld.x, stepX)),
+    pt(anchorWorld.y + snapDeltaToStep(currentWorld.y - anchorWorld.y, stepY))
   );
 }
 
@@ -281,8 +282,8 @@ function boundsContainedWithin(inner: SvgBounds, outer: SvgBounds): boolean {
 
 function pointFromBoundsAnchorRatio(bounds: WorldBounds, ratio: SelectionAnchorRatio): WorldPoint {
   return worldPoint(
-    bounds.minX + (bounds.maxX - bounds.minX) * ratio.x,
-    bounds.minY + (bounds.maxY - bounds.minY) * ratio.y
+    pt(bounds.minX + (bounds.maxX - bounds.minX) * ratio.x),
+    pt(bounds.minY + (bounds.maxY - bounds.minY) * ratio.y)
   );
 }
 
@@ -297,8 +298,8 @@ function constrainRectCornerToSquare(startWorld: WorldPoint, cornerWorld: WorldP
   const xSign = dx < 0 ? -1 : 1;
   const ySign = dy < 0 ? -1 : 1;
   return worldPoint(
-    startWorld.x + xSign * side,
-    startWorld.y + ySign * side
+    pt(startWorld.x + xSign * side),
+    pt(startWorld.y + ySign * side)
   );
 }
 
@@ -325,10 +326,10 @@ export function sourceIdAnchorWorld(elements: SceneElement[], sourceId: string):
   }
 
   if (count === 0) {
-    return worldPoint(0, 0);
+    return worldPoint(pt(0), pt(0));
   }
 
-  return worldPoint(sumX / count, sumY / count);
+  return worldPoint(pt(sumX / count), pt(sumY / count));
 }
 
 export function formatTooltipLengthRows(widthPt: number, heightPt: number): DragTooltipRow[] {
@@ -354,8 +355,8 @@ export function formatTooltipGridCountRow(columns: number, rows: number): DragTo
 }
 
 export function resolveFrameBasis(frame: ResizeFrame): {
-  widthUnit: WorldPoint;
-  heightUnit: WorldPoint;
+  widthUnit: WorldVector;
+  heightUnit: WorldVector;
   width: number;
   height: number;
 } {
@@ -373,8 +374,14 @@ export function resolveFrameBasis(frame: ResizeFrame): {
   const width = Math.hypot(widthVector.x, widthVector.y);
   const height = Math.hypot(heightVector.x, heightVector.y);
   return {
-    widthUnit: width > TOOLTIP_ZERO_EPSILON ? { x: widthVector.x / width, y: widthVector.y / width } : { x: 1, y: 0 },
-    heightUnit: height > TOOLTIP_ZERO_EPSILON ? { x: heightVector.x / height, y: heightVector.y / height } : { x: 0, y: 1 },
+    widthUnit:
+      width > TOOLTIP_ZERO_EPSILON
+        ? worldVector(pt(widthVector.x / width), pt(widthVector.y / width))
+        : worldVector(pt(1), pt(0)),
+    heightUnit:
+      height > TOOLTIP_ZERO_EPSILON
+        ? worldVector(pt(heightVector.x / height), pt(heightVector.y / height))
+        : worldVector(pt(0), pt(1)),
     width,
     height
   };
@@ -396,10 +403,10 @@ export function projectResizeDimensionsFromCenter(
   preserveAspectDuringResize: boolean
 ): { width: number; height: number } {
   const basis = resolveFrameBasis(frame);
-  const relative = {
-    x: pointerWorld.x - frame.centerWorld.x,
-    y: pointerWorld.y - frame.centerWorld.y
-  };
+  const relative = worldVector(
+    pt(pointerWorld.x - frame.centerWorld.x),
+    pt(pointerWorld.y - frame.centerWorld.y)
+  );
   let width = 2 * Math.abs(dotPoint(relative, basis.widthUnit));
   let height = 2 * Math.abs(dotPoint(relative, basis.heightUnit));
   const aspectRatio =
@@ -427,10 +434,7 @@ export function projectResizeDimensionsFromOppositeCorner(
 ): { width: number; height: number } {
   const basis = resolveFrameBasis(frame);
   const fixed = oppositeCornerWorld(frame, role);
-  const delta = {
-    x: pointerWorld.x - fixed.x,
-    y: pointerWorld.y - fixed.y
-  };
+  const delta = worldVector(pt(pointerWorld.x - fixed.x), pt(pointerWorld.y - fixed.y));
   return {
     width: clampTooltipScalar(Math.abs(dotPoint(delta, basis.widthUnit))),
     height: clampTooltipScalar(Math.abs(dotPoint(delta, basis.heightUnit)))
@@ -472,7 +476,7 @@ function clampTooltipScalar(value: number): number {
   return Math.abs(value) <= TOOLTIP_ZERO_EPSILON ? 0 : value;
 }
 
-function dotPoint(a: WorldPoint, b: WorldPoint): number {
+function dotPoint(a: WorldVector, b: WorldVector): number {
   return a.x * b.x + a.y * b.y;
 }
 
@@ -485,7 +489,7 @@ function elementAnchorWorld(element: SceneElement): WorldPoint {
   }
 
   const firstPoint = firstPathPoint(element.commands);
-  return firstPoint ?? { x: 0, y: 0 };
+  return firstPoint ?? worldPoint(pt(0), pt(0));
 }
 
 function firstPathPoint(commands: ScenePathCommand[]): WorldPoint | null {

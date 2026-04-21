@@ -1,4 +1,5 @@
 import { arrowLocalPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { ArrowLocalPoint } from "../../coords/points.js";
 import { computeLatexShapeParameters, computeStealthShapeParameters } from "./metrics.js";
 import type { ArrowLocalPathCommand, ArrowTipMetrics, NormalizedArrowTip } from "./types.js";
@@ -185,30 +186,30 @@ function quadraticAsCubic(start: ArrowLocalPathCommand, cx: number, cy: number, 
   }
   const p0 = start.to;
   const c1 = arrowLocalPoint(
-    p0.x + (2 / 3) * (cx - p0.x),
-    p0.y + (2 / 3) * (cy - p0.y)
+    pt(p0.x + (2 / 3) * (cx - p0.x)),
+    pt(p0.y + (2 / 3) * (cy - p0.y))
   );
   const c2 = arrowLocalPoint(
-    x + (2 / 3) * (cx - x),
-    y + (2 / 3) * (cy - y)
+    pt(x + (2 / 3) * (cx - x)),
+    pt(y + (2 / 3) * (cy - y))
   );
-  return [start, { kind: "C", c1, c2, to: arrowLocalPoint(x, y) }];
+  return [start, { kind: "C", c1, c2, to: arrowLocalPoint(pt(x), pt(y)) }];
 }
 
 function moveTo(x: number, y: number): ArrowLocalPathCommand {
-  return { kind: "M", to: arrowLocalPoint(x, y) };
+  return { kind: "M", to: arrowLocalPoint(pt(x), pt(y)) };
 }
 
 function lineTo(x: number, y: number): ArrowLocalPathCommand {
-  return { kind: "L", to: arrowLocalPoint(x, y) };
+  return { kind: "L", to: arrowLocalPoint(pt(x), pt(y)) };
 }
 
 function cubicTo(c1x: number, c1y: number, c2x: number, c2y: number, x: number, y: number): ArrowLocalPathCommand {
   return {
     kind: "C",
-    c1: arrowLocalPoint(c1x, c1y),
-    c2: arrowLocalPoint(c2x, c2y),
-    to: arrowLocalPoint(x, y)
+    c1: arrowLocalPoint(pt(c1x), pt(c1y)),
+    c2: arrowLocalPoint(pt(c2x), pt(c2y)),
+    to: arrowLocalPoint(pt(x), pt(y))
   };
 }
 
@@ -228,7 +229,7 @@ function arcTo(
     xAxisRotation,
     largeArc,
     sweep,
-    to: arrowLocalPoint(x, y)
+    to: arrowLocalPoint(pt(x), pt(y))
   };
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { viewportBounds } from "../../packages/core/src/coords/index";
+import { viewportBounds, px } from "../../packages/core/src/coords/index";
 
 import {
   INITIAL_CANVAS_TEXT_EDIT_STATE,
@@ -378,7 +378,7 @@ describe("canvas text edit machine", () => {
         sourceId: target.sourceId,
         selectionStart: 0,
         selectionEnd: 0,
-        caret: { bounds: viewportBounds(0, 0, 0, 1) },
+        caret: { bounds: viewportBounds(px(0), px(0), px(0), px(1)) },
         rects: []
       }
     }).state;
@@ -451,7 +451,7 @@ describe("canvas text edit machine", () => {
         sourceId: target.sourceId,
         selectionStart: 0,
         selectionEnd: 0,
-        caret: { bounds: viewportBounds(0, 0, 0, 1) },
+        caret: { bounds: viewportBounds(px(0), px(0), px(0), px(1)) },
         rects: []
       }
     }).state;
@@ -555,7 +555,7 @@ describe("canvas text edit machine", () => {
               sourceId: state.session.sourceId,
               selectionStart: 0,
               selectionEnd: 0,
-              caret: { bounds: viewportBounds(0, 0, 0, 1) },
+              caret: { bounds: viewportBounds(px(0), px(0), px(0), px(1)) },
               rects: []
             }
           });

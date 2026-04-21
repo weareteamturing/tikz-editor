@@ -1,7 +1,7 @@
 import { PT_PER_CM } from "tikz-editor/edit/format";
 import { GRID_MINOR_TARGET_PX } from "tikz-editor/edit/snapping/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
-import { svgPoint, viewportPoint } from "tikz-editor/coords/index";
+import { svgPoint, viewportPoint, pt, px } from "tikz-editor/coords/index";
 import type { CanvasTransform } from "../../store/types";
 import {
   clientToSvg as typedClientToSvg,
@@ -12,6 +12,7 @@ import {
   worldToSvg as typedWorldToSvg
 } from "../coords/convert";
 import type { ClientPoint, SvgPoint, TextRectLocalPoint, ViewportPoint, WorldPoint } from "../coords/types";
+import type { WorldVector } from "tikz-editor/coords/index";
 
 export type RulerTick = {
   viewportPos: number;
@@ -41,11 +42,11 @@ export function computeVisibleRanges(
   viewportWidth: number,
   viewportHeight: number
 ): VisibleRanges {
-  const worldTopLeft = viewportToWorldPoint(viewportPoint(0, 0), transform, viewBox);
-  const worldBottomRight = viewportToWorldPoint(viewportPoint(viewportWidth, viewportHeight), transform, viewBox);
+  const worldTopLeft = viewportToWorldPoint(viewportPoint(px(0), px(0)), transform, viewBox);
+  const worldBottomRight = viewportToWorldPoint(viewportPoint(px(viewportWidth), px(viewportHeight)), transform, viewBox);
 
-  const svgTopLeft = viewportToSvgPoint(viewportPoint(0, 0), transform, viewBox);
-  const svgBottomRight = viewportToSvgPoint(viewportPoint(viewportWidth, viewportHeight), transform, viewBox);
+  const svgTopLeft = viewportToSvgPoint(viewportPoint(px(0), px(0)), transform, viewBox);
+  const svgBottomRight = viewportToSvgPoint(viewportPoint(px(viewportWidth), px(viewportHeight)), transform, viewBox);
 
   return {
     worldMinX: Math.min(worldTopLeft.x, worldBottomRight.x),
@@ -181,11 +182,11 @@ export function viewportToWorldPoint(
 }
 
 export function toViewportXFromWorld(worldX: number, viewBox: SvgViewBox, transform: CanvasTransform): number {
-  return svgToViewport(svgPoint(worldX, viewBox.y), transform, viewBox).x;
+  return svgToViewport(svgPoint(pt(worldX), pt(viewBox.y)), transform, viewBox).x;
 }
 
 export function toViewportYFromWorld(worldY: number, viewBox: SvgViewBox, transform: CanvasTransform): number {
-  return svgToViewport(svgPoint(viewBox.x, worldToSvgY(worldY, viewBox)), transform, viewBox).y;
+  return svgToViewport(svgPoint(pt(viewBox.x), pt(worldToSvgY(worldY, viewBox))), transform, viewBox).y;
 }
 
 export function worldToSvgPoint(point: WorldPoint, viewBox: Pick<SvgViewBox, "y" | "height">): SvgPoint {
@@ -249,7 +250,7 @@ export function fmt(value: number): string {
   return Number(value.toFixed(4)).toString();
 }
 
-export function resizeCursorForVector(vector: WorldPoint): string {
+export function resizeCursorForVector(vector: WorldVector): string {
   const screenVector = { x: vector.x, y: -vector.y };
   const angle = ((Math.atan2(screenVector.y, screenVector.x) * 180) / Math.PI + 180) % 180;
   const candidates: Array<{ angle: number; cursor: string }> = [
@@ -272,7 +273,7 @@ export function resizeCursorForVector(vector: WorldPoint): string {
   return best.cursor;
 }
 
-export function vectorLengthSquared(vector: WorldPoint): number {
+export function vectorLengthSquared(vector: Pick<WorldPoint, "x" | "y">): number {
   return vector.x * vector.x + vector.y * vector.y;
 }
 

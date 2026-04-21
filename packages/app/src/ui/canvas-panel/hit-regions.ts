@@ -1,6 +1,6 @@
 import { applyMatrix } from "tikz-editor/semantic/transform";
 import type { SvgTransform, WorldBounds, WorldPoint, WorldTransform } from "tikz-editor/coords/index";
-import { worldToSvgTransform, worldPoint } from "tikz-editor/coords/index";
+import { mapWorldTransformToSvgTransform, worldPoint, pt } from "tikz-editor/coords/index";
 import type { SceneClipPath, SceneElement, ScenePathCommand, SceneText } from "tikz-editor/semantic/types";
 import type { SvgBounds, SvgPoint } from "../coords/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
@@ -350,9 +350,9 @@ function resolveTextRectTransformInSvg(
   const halfHeight = localRect.height / 2;
   const rotation = element.rotation ?? 0;
   const localCornersWorld = {
-    topLeft: rotateWorldPointAroundCenter(worldPoint(center.x - halfWidth, center.y + halfHeight), center, rotation),
-    topRight: rotateWorldPointAroundCenter(worldPoint(center.x + halfWidth, center.y + halfHeight), center, rotation),
-    bottomLeft: rotateWorldPointAroundCenter(worldPoint(center.x - halfWidth, center.y - halfHeight), center, rotation)
+    topLeft: rotateWorldPointAroundCenter(worldPoint(pt(center.x - halfWidth), pt(center.y + halfHeight)), center, rotation),
+    topRight: rotateWorldPointAroundCenter(worldPoint(pt(center.x + halfWidth), pt(center.y + halfHeight)), center, rotation),
+    bottomLeft: rotateWorldPointAroundCenter(worldPoint(pt(center.x - halfWidth), pt(center.y - halfHeight)), center, rotation)
   };
   const actualCornersWorld = element.transform
     ? {
@@ -381,8 +381,8 @@ function rotateWorldPointAroundCenter(point: WorldPoint, center: WorldPoint, deg
   const dx = point.x - center.x;
   const dy = point.y - center.y;
   return worldPoint(
-    center.x + dx * cos - dy * sin,
-    center.y + dx * sin + dy * cos
+    pt(center.x + dx * cos - dy * sin),
+    pt(center.y + dx * sin + dy * cos)
   );
 }
 
@@ -466,5 +466,5 @@ function worldTransformToSvgTransform(
   matrix: WorldTransform,
   viewBox: Pick<SvgViewBox, "y" | "height">
 ): SvgTransform {
-  return worldToSvgTransform(matrix, viewBox);
+  return mapWorldTransformToSvgTransform(matrix, viewBox);
 }

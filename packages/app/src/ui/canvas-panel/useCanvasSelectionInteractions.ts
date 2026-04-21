@@ -1,5 +1,5 @@
 import { useCallback, type MouseEvent as ReactMouseEvent } from "react";
-import { clientPoint as makeClientPoint } from "tikz-editor/coords/index";
+import { clientPoint as makeClientPoint, px } from "tikz-editor/coords/index";
 import type { EditHandle } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 import type { ClientPoint } from "../coords/types";
@@ -37,7 +37,7 @@ export function useCanvasSelectionInteractions(args: UseCanvasSelectionInteracti
       });
 
       let resolvedHandleId = handleId ?? null;
-      const clientPoint = makeClientPoint(event.clientX, event.clientY);
+      const clientPoint = makeClientPoint(px(event.clientX), px(event.clientY));
       if (!resolvedHandleId && resolvedSourceId && svgResult) {
         resolvedHandleId = findNearestPathPointHandle(
           clientPoint,
@@ -59,7 +59,7 @@ export function useCanvasSelectionInteractions(args: UseCanvasSelectionInteracti
       event.preventDefault();
       event.stopPropagation();
       closeTextEditingSession();
-      openCanvasContextMenuAt(makeClientPoint(event.clientX, event.clientY), null);
+      openCanvasContextMenuAt(makeClientPoint(px(event.clientX), px(event.clientY)), null);
     },
     [closeTextEditingSession, openCanvasContextMenuAt]
   );

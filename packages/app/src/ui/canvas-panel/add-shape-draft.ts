@@ -1,5 +1,5 @@
 import type { ScenePathCommand } from "tikz-editor/semantic/types";
-import { worldBounds, worldPoint } from "tikz-editor/coords/index";
+import { worldBounds, worldPoint, pt } from "tikz-editor/coords/index";
 import type { WorldBounds, WorldPoint } from "../coords/types";
 import type { NodeShape } from "tikz-editor/semantic/nodes/types";
 import {
@@ -57,7 +57,7 @@ export function resolveAddShapeOriginFromDrag(
   const dy = endWorld.y - startWorld.y;
   const anchorX = dx >= 0 ? draft.preview.bounds.minX : draft.preview.bounds.maxX;
   const anchorY = dy >= 0 ? draft.preview.bounds.minY : draft.preview.bounds.maxY;
-  return worldPoint(startWorld.x - anchorX, startWorld.y - anchorY);
+  return worldPoint(pt(startWorld.x - anchorX), pt(startWorld.y - anchorY));
 }
 
 type ShapeConstraintCandidate = {
@@ -160,7 +160,7 @@ function buildPreviewGeometry(
     return {
       kind: "circle",
       radius,
-      bounds: worldBounds(-radius, -radius, radius, radius)
+      bounds: worldBounds(pt(-radius), pt(-radius), pt(radius), pt(radius))
     };
   }
 
@@ -171,7 +171,7 @@ function buildPreviewGeometry(
       kind: "ellipse",
       rx,
       ry,
-      bounds: worldBounds(-rx, -ry, rx, ry)
+      bounds: worldBounds(pt(-rx), pt(-ry), pt(rx), pt(ry))
     };
   }
 
@@ -375,14 +375,14 @@ function pathPreviewFromPolygons(polygons: ReadonlyArray<ReadonlyArray<DraftPrev
     if (!first) {
       continue;
     }
-    commands.push({ kind: "M", to: worldPoint(first.x, first.y) });
+    commands.push({ kind: "M", to: worldPoint(pt(first.x), pt(first.y)) });
     bounds = expandBounds(bounds, first);
     for (let index = 1; index < polygon.length; index += 1) {
       const point = polygon[index];
       if (!point) {
         continue;
       }
-      commands.push({ kind: "L", to: worldPoint(point.x, point.y) });
+      commands.push({ kind: "L", to: worldPoint(pt(point.x), pt(point.y)) });
       bounds = expandBounds(bounds, point);
     }
     commands.push({ kind: "Z" });
@@ -391,19 +391,19 @@ function pathPreviewFromPolygons(polygons: ReadonlyArray<ReadonlyArray<DraftPrev
   return {
     kind: "path",
     commands,
-    bounds: bounds ?? worldBounds(0, 0, 0, 0)
+    bounds: bounds ?? worldBounds(pt(0), pt(0), pt(0), pt(0))
   };
 }
 
 function expandBounds(bounds: DraftPreviewBounds | null, point: DraftPreviewPoint): DraftPreviewBounds {
   if (!bounds) {
-    return worldBounds(point.x, point.y, point.x, point.y);
+    return worldBounds(pt(point.x), pt(point.y), pt(point.x), pt(point.y));
   }
   return worldBounds(
-    Math.min(bounds.minX, point.x),
-    Math.min(bounds.minY, point.y),
-    Math.max(bounds.maxX, point.x),
-    Math.max(bounds.maxY, point.y)
+    pt(Math.min(bounds.minX, point.x)),
+    pt(Math.min(bounds.minY, point.y)),
+    pt(Math.max(bounds.maxX, point.x)),
+    pt(Math.max(bounds.maxY, point.y))
   );
 }
 

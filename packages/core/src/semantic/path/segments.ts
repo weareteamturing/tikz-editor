@@ -1,9 +1,10 @@
 import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { PlacementSegment } from "./types.js";
 import type { ScenePathCommand } from "../types.js";
 
 function worldPoint(x: number, y: number): WorldPoint {
-  return makeWorldPoint(x, y);
+  return makeWorldPoint(pt(x), pt(y));
 }
 
 export function appendPathPoint(
@@ -28,7 +29,7 @@ export function appendPathPoint(
   }
 
   if (operator === "-|") {
-    const bend = worldPoint(next.x, current.y);
+    const bend = worldPoint(pt(next.x), pt(current.y));
     appendSingleLine(commands, current, bend, previousSegmentRoundedCorners);
     appendSingleLine(commands, bend, next, currentSegmentRoundedCorners);
     return {
@@ -38,7 +39,7 @@ export function appendPathPoint(
   }
 
   if (operator === "|-") {
-    const bend = worldPoint(current.x, next.y);
+    const bend = worldPoint(pt(current.x), pt(next.y));
     appendSingleLine(commands, current, bend, previousSegmentRoundedCorners);
     appendSingleLine(commands, bend, next, currentSegmentRoundedCorners);
     return {
@@ -184,7 +185,7 @@ function normalize(vector: WorldPoint): WorldPoint | null {
   if (!Number.isFinite(len) || len <= 1e-9) {
     return null;
   }
-  return worldPoint(vector.x / len, vector.y / len);
+  return worldPoint(pt(vector.x / len), pt(vector.y / len));
 }
 
 function distance(a: WorldPoint, b: WorldPoint): number {

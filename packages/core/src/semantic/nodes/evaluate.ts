@@ -1,6 +1,8 @@
 import type { NodeItem, PathStatement } from "../../ast/types.js";
+import { pt } from "../../coords/scalars.js";
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import { worldPoint } from "../../coords/points.js";
+import { worldTransform } from "../../coords/transforms.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings } from "../../macros/index.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
@@ -104,6 +106,10 @@ import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 import { applyMatrixToVector, identityMatrix, multiplyMatrix, rotationMatrix } from "../transform.js";
 import type { PgfRandom } from "../pgfmath/rng.js";
 
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
+
 type RectangleSplitInnerSep = Readonly<{ x: number; y: number }>;
 
 function rectangleSplitInnerSep(x: number, y: number): RectangleSplitInnerSep {
@@ -159,7 +165,7 @@ function computePositioningAnchorOffsetsByDirection(params: {
       nodeTransform,
       nodeAnchorOffset(nodeShape, nodeLayout, currentAnchorForDirection(direction), nodeOptions)
     );
-    let targetAnchor: WorldPoint = worldPoint(0, 0);
+    let targetAnchor: WorldPoint = worldPoint(pt(0), pt(0));
 
     if (!legacyOf) {
       const targetAnchorWorldPoint = evaluateRawCoordinate(
@@ -168,18 +174,15 @@ function computePositioningAnchorOffsetsByDirection(params: {
       ).world;
       if (targetAnchorWorldPoint) {
         targetAnchor = worldPoint(
-          targetAnchorWorldPoint.x - targetCenter.x,
-          targetAnchorWorldPoint.y - targetCenter.y
+          pt(targetAnchorWorldPoint.x - targetCenter.x),
+          pt(targetAnchorWorldPoint.y - targetCenter.y)
         );
       }
     }
 
     offsets[direction] = {
       targetAnchor,
-      currentAnchor: {
-        x: currentAnchor.x,
-        y: currentAnchor.y
-      }
+      currentAnchor: wp(currentAnchor.x, currentAnchor.y)
     };
   }
 
@@ -645,7 +648,7 @@ export function evaluateNodeItem(
   const shapeGeometry = resolveNodeShapeGeometryParams(expandedNodeOptions, () => context.mathRandom.nextRaw());
   const slopedRotation = resolveSlopedNodeRotation(expandedNodeOptions, segment, effectiveBaseStyleChain);
   const inheritedNodeTransform: WorldTransform = frame.transformShape
-    ? { a: frame.transform.a, b: frame.transform.b, c: frame.transform.c, d: frame.transform.d, e: 0, f: 0 }
+    ? worldTransform(frame.transform.a, frame.transform.b, frame.transform.c, frame.transform.d, 0, 0)
     : identityMatrix();
   const nodeOptionTransform = resolveNodeOptionTransform(expandedNodeLocalOptions, style, context);
   const baseNodeTransform = multiplyMatrix(inheritedNodeTransform, nodeOptionTransform);
@@ -850,8 +853,8 @@ export function evaluateNodeItem(
         makeNodeLineElement(
           nodeSourceId,
           `${item.id}:cross-a`,
-          { x: center.x - halfWidth, y: center.y - halfHeight },
-          { x: center.x + halfWidth, y: center.y + halfHeight },
+          wp(center.x - halfWidth, center.y - halfHeight),
+          wp(center.x + halfWidth, center.y + halfHeight),
           nodeDividerStyle,
           item.span
         )
@@ -860,8 +863,8 @@ export function evaluateNodeItem(
         makeNodeLineElement(
           nodeSourceId,
           `${item.id}:cross-b`,
-          { x: center.x - halfWidth, y: center.y + halfHeight },
-          { x: center.x + halfWidth, y: center.y - halfHeight },
+          wp(center.x - halfWidth, center.y + halfHeight),
+          wp(center.x + halfWidth, center.y - halfHeight),
           nodeDividerStyle,
           item.span
         )
@@ -875,8 +878,8 @@ export function evaluateNodeItem(
         makeNodeLineElement(
           nodeSourceId,
           `${item.id}:strike`,
-          { x: center.x - halfWidth, y: center.y - halfHeight },
-          { x: center.x + halfWidth, y: center.y + halfHeight },
+          wp(center.x - halfWidth, center.y - halfHeight),
+          wp(center.x + halfWidth, center.y + halfHeight),
           nodeDividerStyle,
           item.span
         )
@@ -908,8 +911,8 @@ export function evaluateNodeItem(
           makeNodeLineElement(
             nodeSourceId,
             `${item.id}:split`,
-            { x: center.x - r, y: center.y },
-            { x: center.x + r, y: center.y },
+            wp(center.x - r, center.y),
+            wp(center.x + r, center.y),
             nodeDividerStyle,
             item.span
           )
@@ -920,8 +923,8 @@ export function evaluateNodeItem(
           makeNodeLineElement(
             nodeSourceId,
             `${item.id}:solidus`,
-            { x: center.x - r * 0.437, y: center.y - r * 0.437 },
-            { x: center.x + r * 0.437, y: center.y + r * 0.437 },
+            wp(center.x - r * 0.437, center.y - r * 0.437),
+            wp(center.x + r * 0.437, center.y + r * 0.437),
             nodeDividerStyle,
             item.span
           )
@@ -936,8 +939,8 @@ export function evaluateNodeItem(
           makeNodeLineElement(
             nodeSourceId,
             `${item.id}:split`,
-            { x: center.x - nodeLayout.visualWidth / 2, y: center.y },
-            { x: center.x + nodeLayout.visualWidth / 2, y: center.y },
+            wp(center.x - nodeLayout.visualWidth / 2, center.y),
+            wp(center.x + nodeLayout.visualWidth / 2, center.y),
             nodeDividerStyle,
             item.span
           )
@@ -961,8 +964,8 @@ export function evaluateNodeItem(
           makeNodeLineElement(
             nodeSourceId,
             `${item.id}:split`,
-            { x: center.x - nodeLayout.visualWidth / 2, y: center.y },
-            { x: center.x + nodeLayout.visualWidth / 2, y: center.y },
+            wp(center.x - nodeLayout.visualWidth / 2, center.y),
+            wp(center.x + nodeLayout.visualWidth / 2, center.y),
             nodeDividerStyle,
             item.span
           )
@@ -987,7 +990,7 @@ export function evaluateNodeItem(
       const partFills = resolveRectangleSplitPartFills(expandedNodeOptions, context, statement.id, nodeTextStyle.textColor ?? "#000000");
       const segments = splitLayout.segments.map((segment) => ({
         ...segment,
-        center: { x: center.x + segment.center.x, y: center.y + segment.center.y },
+        center: wp(center.x + segment.center.x, center.y + segment.center.y),
         minX: center.x + segment.minX,
         maxX: center.x + segment.maxX,
         minY: center.y + segment.minY,
@@ -1045,8 +1048,8 @@ export function evaluateNodeItem(
                 makeNodeLineElement(
                   nodeSourceId,
                   `${item.id}:split-${index}`,
-                  { x, y: center.y - effectiveSplitHeight / 2 },
-                  { x, y: center.y + effectiveSplitHeight / 2 },
+                  wp(x, center.y - effectiveSplitHeight / 2),
+                  wp(x, center.y + effectiveSplitHeight / 2),
                   nodeDividerStyle,
                   item.span
                 )
@@ -1057,8 +1060,8 @@ export function evaluateNodeItem(
                 makeNodeLineElement(
                   nodeSourceId,
                   `${item.id}:split-${index}`,
-                  { x: center.x - effectiveSplitWidth / 2, y },
-                  { x: center.x + effectiveSplitWidth / 2, y },
+                  wp(center.x - effectiveSplitWidth / 2, y),
+                  wp(center.x + effectiveSplitWidth / 2, y),
                   nodeDividerStyle,
                   item.span
                 )
@@ -1504,10 +1507,7 @@ export function evaluateNodeItem(
             makeTextElement(
               nodeSourceId,
               `${item.id}:upper`,
-              {
-                x: center.x,
-                y: center.y + resolveCircleSplitTextOffset(nodeLayout.visualHeight, upperLayout.textBlockHeight)
-              },
+              wp(center.x, center.y + resolveCircleSplitTextOffset(nodeLayout.visualHeight, upperLayout.textBlockHeight)),
               splitTextStyle,
               item.span,
               mainNodeText,
@@ -1537,10 +1537,7 @@ export function evaluateNodeItem(
             makeTextElement(
               nodeSourceId,
               `${item.id}:lower`,
-              {
-                x: center.x,
-                y: center.y - resolveCircleSplitTextOffset(nodeLayout.visualHeight, lowerLayout.textBlockHeight)
-              },
+              wp(center.x, center.y - resolveCircleSplitTextOffset(nodeLayout.visualHeight, lowerLayout.textBlockHeight)),
               splitTextStyle,
               item.span,
               lower.text,
@@ -1574,10 +1571,7 @@ export function evaluateNodeItem(
             makeTextElement(
               nodeSourceId,
               `${item.id}:upper`,
-              {
-                x: center.x - nodeLayout.visualWidth * 0.22,
-                y: center.y + nodeLayout.visualHeight * 0.22
-              },
+              wp(center.x - nodeLayout.visualWidth * 0.22, center.y + nodeLayout.visualHeight * 0.22),
               solidusTextStyle,
               item.span,
               mainNodeText,
@@ -1607,10 +1601,7 @@ export function evaluateNodeItem(
             makeTextElement(
               nodeSourceId,
               `${item.id}:lower`,
-              {
-                x: center.x + nodeLayout.visualWidth * 0.22,
-                y: center.y - nodeLayout.visualHeight * 0.22
-              },
+              wp(center.x + nodeLayout.visualWidth * 0.22, center.y - nodeLayout.visualHeight * 0.22),
               solidusTextStyle,
               item.span,
               lower.text,
@@ -2061,31 +2052,19 @@ function resolveAutoNodeAnchor(
       return null;
     }
 
-    let normal = {
-      x: -tangent.y,
-      y: tangent.x
-    };
+    let normal = wp(-tangent.y, tangent.x);
     if (autoSide === "right") {
-      normal = {
-        x: -normal.x,
-        y: -normal.y
-      };
+      normal = wp(-normal.x, -normal.y);
     }
     if (swap) {
-      normal = {
-        x: -normal.x,
-        y: -normal.y
-      };
+      normal = wp(-normal.x, -normal.y);
     }
 
     const slopedRotation =
       resolveSlopedNodeRotation(options, segment, styleChain) ??
       (Math.atan2(tangent.y, tangent.x) * 180) / Math.PI;
     const theta = (slopedRotation * Math.PI) / 180;
-    const northDirection = {
-      x: -Math.sin(theta),
-      y: Math.cos(theta)
-    };
+    const northDirection = wp(-Math.sin(theta), Math.cos(theta));
     const dot = normal.x * northDirection.x + normal.y * northDirection.y;
     return dot >= 0 ? "south" : "north";
   }
@@ -2095,27 +2074,15 @@ function resolveAutoNodeAnchor(
     return null;
   }
 
-  let normal = {
-    x: -tangent.y,
-    y: tangent.x
-  };
+  let normal = wp(-tangent.y, tangent.x);
   if (autoSide === "right") {
-    normal = {
-      x: -normal.x,
-      y: -normal.y
-    };
+    normal = wp(-normal.x, -normal.y);
   }
   if (swap) {
-    normal = {
-      x: -normal.x,
-      y: -normal.y
-    };
+    normal = wp(-normal.x, -normal.y);
   }
 
-  const anchorDirection = {
-    x: -normal.x,
-    y: -normal.y
-  };
+  const anchorDirection = wp(-normal.x, -normal.y);
   return directionToAnchor(anchorDirection);
 }
 
@@ -2235,41 +2202,23 @@ function expandNodePlacementOptions(options: OptionListAst | undefined, context:
 function segmentTangent(segment: PlacementSegment): WorldPoint | null {
   let tangent: WorldPoint;
   if (segment.kind === "line") {
-    tangent = {
-      x: segment.to.x - segment.from.x,
-      y: segment.to.y - segment.from.y
-    };
+    tangent = wp(segment.to.x - segment.from.x, segment.to.y - segment.from.y);
   } else if (segment.kind === "hv") {
-    tangent = {
-      x: segment.to.x - segment.bend.x,
-      y: segment.to.y - segment.bend.y
-    };
+    tangent = wp(segment.to.x - segment.bend.x, segment.to.y - segment.bend.y);
   } else if (segment.kind === "cubic") {
-    tangent = {
-      x: segment.to.x - segment.c2.x,
-      y: segment.to.y - segment.c2.y
-    };
+    tangent = wp(segment.to.x - segment.c2.x, segment.to.y - segment.c2.y);
     if (Math.hypot(tangent.x, tangent.y) <= 1e-9) {
-      tangent = {
-        x: segment.to.x - segment.from.x,
-        y: segment.to.y - segment.from.y
-      };
+      tangent = wp(segment.to.x - segment.from.x, segment.to.y - segment.from.y);
     }
   } else {
-    tangent = {
-      x: segment.to.x - segment.from.x,
-      y: segment.to.y - segment.from.y
-    };
+    tangent = wp(segment.to.x - segment.from.x, segment.to.y - segment.from.y);
   }
 
   const len = Math.hypot(tangent.x, tangent.y);
   if (!Number.isFinite(len) || len <= 1e-9) {
     return null;
   }
-  return {
-    x: tangent.x / len,
-    y: tangent.y / len
-  };
+  return wp(tangent.x / len, tangent.y / len);
 }
 
 function directionToAnchor(direction: WorldPoint): string {
@@ -2340,14 +2289,7 @@ function resolveNodeElementTransform(center: WorldPoint, nodeTransform: WorldTra
 
   const e = center.x - nodeTransform.a * center.x - nodeTransform.c * center.y + nodeTransform.e;
   const f = center.y - nodeTransform.b * center.x - nodeTransform.d * center.y + nodeTransform.f;
-  return {
-    a: nodeTransform.a,
-    b: nodeTransform.b,
-    c: nodeTransform.c,
-    d: nodeTransform.d,
-    e,
-    f
-  };
+  return worldTransform(nodeTransform.a, nodeTransform.b, nodeTransform.c, nodeTransform.d, e, f);
 }
 
 function rotateNodeElementGeometry(element: SceneElement, center: WorldPoint, rotation: number): SceneElement {
@@ -2416,10 +2358,7 @@ function rotateWorldPointAround(point: WorldPoint, center: WorldPoint, degrees: 
   const dx = point.x - center.x;
   const dy = point.y - center.y;
 
-  return {
-    x: center.x + dx * cos - dy * sin,
-    y: center.y + dx * sin + dy * cos
-  };
+  return wp(center.x + dx * cos - dy * sin, center.y + dx * sin + dy * cos);
 }
 
 function normalizeRotationDegrees(degrees: number): number {
@@ -2847,10 +2786,7 @@ function computeFitWorldBounds(
     return null;
   }
 
-  const centerRotated = {
-    x: (minX + maxX) / 2,
-    y: (minY + maxY) / 2
-  };
+  const centerRotated = wp((minX + maxX) / 2, (minY + maxY) / 2);
   const center = hasRotate ? rotateWorldPoint(centerRotated, rotateFitDegrees!) : centerRotated;
   return {
     center,
@@ -2863,10 +2799,7 @@ function rotateWorldPoint(point: WorldPoint, degrees: number): WorldPoint {
   const radians = (degrees * Math.PI) / 180;
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
-  return {
-    x: point.x * cos - point.y * sin,
-    y: point.x * sin + point.y * cos
-  };
+  return wp(point.x * cos - point.y * sin, point.x * sin + point.y * cos);
 }
 
 function formatFitNumber(value: number): string {
@@ -3049,7 +2982,7 @@ function resolveRectangleSplitLayoutGeometry(params: {
   const partAlignments = resolveRectangleSplitPartAlignments(params.options, horizontal, parts.length);
 
   const segments = computeRectangleSplitSegments({
-    center: { x: 0, y: 0 },
+    center: wp(0, 0),
     width,
     height,
     horizontal,
@@ -3126,27 +3059,24 @@ function resolveRectangleSplitPartTextPosition(params: {
 
   if (params.splitLayout.horizontal) {
     if (partAlign === "top") {
-      y = segment.maxY - halfMetricHeight;
+      y = pt(segment.maxY - halfMetricHeight);
     } else if (partAlign === "bottom") {
-      y = segment.minY + halfMetricHeight;
+      y = pt(segment.minY + halfMetricHeight);
     } else if (partAlign === "base") {
       const baseY = resolveRectangleSplitSharedBaseline(params.splitLayout);
       const minCenterY = segment.minY + halfMetricHeight;
       const maxCenterY = segment.maxY - halfMetricHeight;
-      y = clamp(baseY - part.layout.baseLineY, minCenterY, maxCenterY);
+      y = pt(clamp(baseY - part.layout.baseLineY, minCenterY, maxCenterY));
     }
   } else {
     if (partAlign === "left") {
-      x = segment.minX + halfMetricWidth;
+      x = pt(segment.minX + halfMetricWidth);
     } else if (partAlign === "right") {
-      x = segment.maxX - halfMetricWidth;
+      x = pt(segment.maxX - halfMetricWidth);
     }
   }
 
-  return {
-    x: params.center.x + x,
-    y: params.center.y + y
-  };
+  return wp(params.center.x + x, params.center.y + y);
 }
 
 function resolveRectangleSplitSharedBaseline(splitLayout: RectangleSplitLayoutGeometry): number {
@@ -3321,7 +3251,7 @@ function computeRectangleSplitSegments(params: {
       const minX = cursor;
       const maxX = index === count - 1 ? left + params.width : cursor + span;
       segments.push({
-        center: { x: (minX + maxX) / 2, y: params.center.y },
+        center: wp((minX + maxX) / 2, params.center.y),
         minX,
         maxX,
         minY: params.center.y - params.height / 2,
@@ -3341,7 +3271,7 @@ function computeRectangleSplitSegments(params: {
     const maxY = cursor;
     const minY = index === count - 1 ? top - params.height : cursor - span;
     segments.push({
-      center: { x: params.center.x, y: (minY + maxY) / 2 },
+      center: wp(params.center.x, (minY + maxY) / 2),
       minX: params.center.x - params.width / 2,
       maxX: params.center.x + params.width / 2,
       minY,

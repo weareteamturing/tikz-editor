@@ -1,4 +1,5 @@
 import type { WorldTransform } from "../../coords/transforms.js";
+import { pt } from "../../coords/scalars.js";
 import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import type { Span } from "../../ast/types.js";
@@ -79,7 +80,7 @@ const IDENTITY_MATRIX: WorldTransform = {
 const PT_PER_CM = parseLength("1cm", "cm") ?? 28.4527559055;
 
 function worldPoint(x: number, y: number): WorldPoint {
-  return makeWorldPoint(x, y);
+  return makeWorldPoint(pt(x), pt(y));
 }
 
 type RelativePlacementSpec = {
@@ -185,12 +186,12 @@ export function resolveNodePositioningTarget(
     horizontal: { kind: "dimension", value: PT_PER_CM }
   };
   let relativePlacement: RelativePlacementSpec | null = null;
-  let additiveOffset: WorldPoint = makeWorldPoint(0, 0);
+  let additiveOffset: WorldPoint = makeWorldPoint(pt(0), pt(0));
 
   for (const entry of options.entries) {
     if (entry.kind === "flag") {
       if (entry.key === "centered") {
-        additiveOffset = makeWorldPoint(0, 0);
+        additiveOffset = makeWorldPoint(pt(0), pt(0));
       } else if (entry.key === "on grid") {
         onGrid = true;
       }
@@ -466,12 +467,12 @@ function shiftVectorForDirection(direction: PositioningDirection, shift: NodeDis
     };
   }
 
-  return worldPoint(meta.xSign * base.x, meta.ySign * base.y);
+  return worldPoint(pt(meta.xSign * base.x), pt(meta.ySign * base.y));
 }
 
 function horizontalPositioningVector(component: NodeDistanceValue, transform: WorldTransform): WorldPoint {
   if (component.kind === "dimension") {
-    return worldPoint(component.value, 0);
+    return worldPoint(pt(component.value), pt(0));
   }
 
   return applyMatrixToVector(transform, {
@@ -482,7 +483,7 @@ function horizontalPositioningVector(component: NodeDistanceValue, transform: Wo
 
 function verticalPositioningVector(component: NodeDistanceValue, transform: WorldTransform): WorldPoint {
   if (component.kind === "dimension") {
-    return worldPoint(0, component.value);
+    return worldPoint(pt(0), pt(component.value));
   }
 
   return applyMatrixToVector(transform, {

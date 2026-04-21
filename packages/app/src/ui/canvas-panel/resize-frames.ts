@@ -1,8 +1,20 @@
 import { worldToLocal } from "tikz-editor/edit/coords";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import { EditHandle, isFrameLocalCoordinateEditHandle, SceneCircle, SceneElement, SceneEllipse, ScenePath, ScenePathShapeHint, SceneText } from "tikz-editor/semantic/types";
-import { applyFrameTransform, applyFrameVector, frameLocalPoint, frameLocalVector, worldPoint } from "tikz-editor/coords/index";
-import type { FrameLocalPoint, WorldTransform } from "tikz-editor/coords/index";
+import {
+  applyFrameTransform,
+  applyFrameVector,
+  frameTransform,
+  frameLocalPoint,
+  frameLocalVector,
+  svgBounds,
+  worldBounds,
+  worldPoint,
+  worldTransform,
+  worldVector,
+  pt
+} from "tikz-editor/coords/index";
+import type { FrameLocalPoint, FrameTransform, WorldBounds, WorldTransform, WorldVector } from "tikz-editor/coords/index";
 import { applyMatrix, applyMatrixToVector } from "tikz-editor/semantic/transform";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 import { svgPoint } from "tikz-editor/coords/index";
@@ -34,14 +46,7 @@ export type ResizeFrame = {
 
 const EPSILON = 1e-6;
 
-const IDENTITY_MATRIX: WorldTransform = {
-  a: 1,
-  b: 0,
-  c: 0,
-  d: 1,
-  e: 0,
-  f: 0
-};
+const IDENTITY_MATRIX: WorldTransform = worldTransform(1, 0, 0, 1, 0, 0);
 
 export function resolveResizeFrameForSource(
   elements: readonly SceneElement[],
@@ -98,13 +103,13 @@ export function resolveResizeFrameFromBounds(
   }
 
   const cornersByRoleSvg: Record<ResizeFrameCornerRole, SvgPoint> = {
-    "top-left": svgPoint(bounds.minX, bounds.minY),
-    "top-right": svgPoint(bounds.maxX, bounds.minY),
-    "bottom-right": svgPoint(bounds.maxX, bounds.maxY),
-    "bottom-left": svgPoint(bounds.minX, bounds.maxY)
+    "top-left": svgPoint(pt(bounds.minX), pt(bounds.minY)),
+    "top-right": svgPoint(pt(bounds.maxX), pt(bounds.minY)),
+    "bottom-right": svgPoint(pt(bounds.maxX), pt(bounds.maxY)),
+    "bottom-left": svgPoint(pt(bounds.minX), pt(bounds.maxY))
   };
   const centerWorld = svgToWorldPoint(
-    svgPoint((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2),
+    svgPoint(pt((bounds.minX + bounds.maxX) / 2), pt((bounds.minY + bounds.maxY) / 2)),
     viewBox
   );
   const cornersByRoleWorld: Record<ResizeFrameCornerRole, WorldPoint> = {
@@ -146,7 +151,14 @@ function resolvePathResizeFrame(
       radii.rx,
       radii.ry,
       viewBox,
-      centerHandle.transform
+      frameTransform(
+        centerHandle.transform.a,
+        centerHandle.transform.b,
+        centerHandle.transform.c,
+        centerHandle.transform.d,
+        centerHandle.transform.e,
+        centerHandle.transform.f
+      )
     );
   }
   return null;
@@ -173,10 +185,10 @@ function resolveNodePathResizeFrame(
   const transformedCorners = path.transform
     ? corners.map((corner) => applyMatrix(path.transform!, corner))
     : corners;
-  const centerWorld = {
-    x: transformedCorners.reduce((sum, point) => sum + point.x, 0) / transformedCorners.length,
-    y: transformedCorners.reduce((sum, point) => sum + point.y, 0) / transformedCorners.length
-  };
+  const centerWorld = worldPoint(
+    pt(transformedCorners.reduce((sum, point) => sum + point.x, 0) / transformedCorners.length),
+    pt(transformedCorners.reduce((sum, point) => sum + point.y, 0) / transformedCorners.length)
+  );
   const basis = resolveRectangleBasis(transformedCorners);
   if (!basis) {
     return null;
@@ -204,10 +216,10 @@ function resolveGenericNodePathResizeFrame(
   }
 
   const roleLocal: Record<ResizeFrameCornerRole, WorldPoint> = {
-    "top-left": { x: localBounds.minX, y: localBounds.maxY },
-    "top-right": { x: localBounds.maxX, y: localBounds.maxY },
-    "bottom-right": { x: localBounds.maxX, y: localBounds.minY },
-    "bottom-left": { x: localBounds.minX, y: localBounds.minY }
+    "top-left": worldPoint(pt(localBounds.minX), pt(localBounds.maxY)),
+    "top-right": worldPoint(pt(localBounds.maxX), pt(localBounds.maxY)),
+    "bottom-right": worldPoint(pt(localBounds.maxX), pt(localBounds.minY)),
+    "bottom-left": worldPoint(pt(localBounds.minX), pt(localBounds.minY))
   };
   const transform = path.transform;
   const roleWorld: Record<ResizeFrameCornerRole, WorldPoint> = transform
@@ -218,15 +230,15 @@ function resolveGenericNodePathResizeFrame(
         "bottom-left": applyMatrix(transform, roleLocal["bottom-left"])
       }
     : roleLocal;
-  const centerLocal = {
-    x: (localBounds.minX + localBounds.maxX) / 2,
-    y: (localBounds.minY + localBounds.maxY) / 2
-  };
+  const centerLocal = worldPoint(
+    pt((localBounds.minX + localBounds.maxX) / 2),
+    pt((localBounds.minY + localBounds.maxY) / 2)
+  );
   const centerWorld = transform ? applyMatrix(transform, centerLocal) : centerLocal;
   return buildResizeFrame(sourceId, centerWorld, roleWorld, viewBox);
 }
 
-function approximatePathBoundsInWorld(path: ScenePath): SvgBounds | null {
+function approximatePathBoundsInWorld(path: ScenePath): WorldBounds | null {
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
@@ -260,11 +272,11 @@ function approximatePathBoundsInWorld(path: ScenePath): SvgBounds | null {
     }
     if (command.kind === "A") {
       if (current) {
-        includePoint({ x: current.x - command.rx, y: current.y - command.ry });
-        includePoint({ x: current.x + command.rx, y: current.y + command.ry });
+        includePoint(worldPoint(pt(current.x - command.rx), pt(current.y - command.ry)));
+        includePoint(worldPoint(pt(current.x + command.rx), pt(current.y + command.ry)));
       }
-      includePoint({ x: command.to.x - command.rx, y: command.to.y - command.ry });
-      includePoint({ x: command.to.x + command.rx, y: command.to.y + command.ry });
+      includePoint(worldPoint(pt(command.to.x - command.rx), pt(command.to.y - command.ry)));
+      includePoint(worldPoint(pt(command.to.x + command.rx), pt(command.to.y + command.ry)));
       current = command.to;
       continue;
     }
@@ -277,7 +289,7 @@ function approximatePathBoundsInWorld(path: ScenePath): SvgBounds | null {
     return null;
   }
 
-  return { minX, minY, maxX, maxY };
+  return worldBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
 }
 
 function resolvePathRectangleResizeFrame(
@@ -300,7 +312,14 @@ function resolvePathRectangleResizeFrame(
     return null;
   }
 
-  const transform = startHandle.transform;
+  const transform = frameTransform(
+    startHandle.transform.a,
+    startHandle.transform.b,
+    startHandle.transform.c,
+    startHandle.transform.d,
+    startHandle.transform.e,
+    startHandle.transform.f
+  );
   const startLocal = isFrameLocalCoordinateEditHandle(startHandle)
     ? startHandle.local
     : worldToLocal(startHandle.world, transform);
@@ -316,10 +335,10 @@ function resolvePathRectangleResizeFrame(
   const minY = Math.min(startLocal.y, oppositeLocal.y);
   const maxY = Math.max(startLocal.y, oppositeLocal.y);
   const roleLocal: Record<ResizeFrameCornerRole, FrameLocalPoint> = {
-    "top-left": frameLocalPoint(minX, maxY),
-    "top-right": frameLocalPoint(maxX, maxY),
-    "bottom-right": frameLocalPoint(maxX, minY),
-    "bottom-left": frameLocalPoint(minX, minY)
+    "top-left": frameLocalPoint(pt(minX), pt(maxY)),
+    "top-right": frameLocalPoint(pt(maxX), pt(maxY)),
+    "bottom-right": frameLocalPoint(pt(maxX), pt(minY)),
+    "bottom-left": frameLocalPoint(pt(minX), pt(minY))
   };
   const roleWorld: Record<ResizeFrameCornerRole, WorldPoint> = {
     "top-left": applyFrameTransform(transform, roleLocal["top-left"]),
@@ -329,7 +348,7 @@ function resolvePathRectangleResizeFrame(
   };
   const centerWorld = applyFrameTransform(
     transform,
-    frameLocalPoint((startLocal.x + oppositeLocal.x) / 2, (startLocal.y + oppositeLocal.y) / 2)
+    frameLocalPoint(pt((startLocal.x + oppositeLocal.x) / 2), pt((startLocal.y + oppositeLocal.y) / 2))
   );
   return buildResizeFrame(sourceId, centerWorld, roleWorld, viewBox);
 }
@@ -350,7 +369,14 @@ function resolveCircleResizeFrame(
     circle.radius,
     circle.radius,
     viewBox,
-    centerHandle.transform
+    frameTransform(
+      centerHandle.transform.a,
+      centerHandle.transform.b,
+      centerHandle.transform.c,
+      centerHandle.transform.d,
+      centerHandle.transform.e,
+      centerHandle.transform.f
+    )
   );
 }
 
@@ -374,7 +400,7 @@ function resolveEllipseResizeFrame(
     ellipse.rx,
     ellipse.ry,
     viewBox,
-    transform,
+    frameTransform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f),
     shouldApplyEllipseRotation ? (ellipse.rotation ?? 0) : 0
   );
 }
@@ -385,7 +411,7 @@ function resolveEllipseLikeResizeFrame(
   rx: number,
   ry: number,
   viewBox: SvgViewBox,
-  transform: WorldTransform,
+  transform: FrameTransform,
   extraRotation = 0
 ): ResizeFrame | null {
   if (!(rx > EPSILON) || !(ry > EPSILON)) {
@@ -393,17 +419,17 @@ function resolveEllipseLikeResizeFrame(
   }
 
   const localByRole: Record<ResizeFrameCornerRole, FrameLocalPoint> = {
-    "top-left": frameLocalPoint(-rx, ry),
-    "top-right": frameLocalPoint(rx, ry),
-    "bottom-right": frameLocalPoint(rx, -ry),
-    "bottom-left": frameLocalPoint(-rx, -ry)
+    "top-left": frameLocalPoint(pt(-rx), pt(ry)),
+    "top-right": frameLocalPoint(pt(rx), pt(ry)),
+    "bottom-right": frameLocalPoint(pt(rx), pt(-ry)),
+    "bottom-left": frameLocalPoint(pt(-rx), pt(-ry))
   };
   const toWorldCorner = (localCorner: FrameLocalPoint): WorldPoint => {
-    let worldOffset = applyFrameVector(transform, frameLocalVector(localCorner.x, localCorner.y));
+    let worldOffset = applyFrameVector(transform, frameLocalVector(pt(localCorner.x), pt(localCorner.y)));
     if (Math.abs(extraRotation) > EPSILON) {
       worldOffset = rotateVector(worldOffset, extraRotation);
     }
-    return worldPoint(centerWorld.x + worldOffset.x, centerWorld.y + worldOffset.y);
+    return worldPoint(pt(centerWorld.x + worldOffset.x), pt(centerWorld.y + worldOffset.y));
   };
   const roleWorld: Record<ResizeFrameCornerRole, WorldPoint> = {
     "top-left": toWorldCorner(localByRole["top-left"]),
@@ -430,10 +456,10 @@ function resolveTextResizeFrame(
   const halfHeight = height / 2;
   const rotation = text.rotation ?? 0;
   const localByRole: Record<ResizeFrameCornerRole, FrameLocalPoint> = {
-    "top-left": frameLocalPoint(-halfWidth, halfHeight),
-    "top-right": frameLocalPoint(halfWidth, halfHeight),
-    "bottom-right": frameLocalPoint(halfWidth, -halfHeight),
-    "bottom-left": frameLocalPoint(-halfWidth, -halfHeight)
+    "top-left": frameLocalPoint(pt(-halfWidth), pt(halfHeight)),
+    "top-right": frameLocalPoint(pt(halfWidth), pt(halfHeight)),
+    "bottom-right": frameLocalPoint(pt(halfWidth), pt(-halfHeight)),
+    "bottom-left": frameLocalPoint(pt(-halfWidth), pt(-halfHeight))
   };
   const cornersByRole = {
     "top-left": rotateAndTranslatePoint(localByRole["top-left"], text.position, rotation),
@@ -552,7 +578,7 @@ function resolveRectanglePathCorners(path: ScenePath): WorldPoint[] | null {
   return resolveRectangleBasis(corners) ? corners : null;
 }
 
-function resolveRectangleBasis(corners: readonly WorldPoint[]): { u: WorldPoint; v: WorldPoint } | null {
+function resolveRectangleBasis(corners: readonly WorldPoint[]): { u: WorldVector; v: WorldVector } | null {
   if (corners.length !== 4) {
     return null;
   }
@@ -585,16 +611,16 @@ function resolveRectangleBasis(corners: readonly WorldPoint[]): { u: WorldPoint;
   }
 
   return {
-    u: { x: edge01.x / len01, y: edge01.y / len01 },
-    v: { x: edge12.x / len12, y: edge12.y / len12 }
+    u: worldVector(pt(edge01.x / len01), pt(edge01.y / len01)),
+    v: worldVector(pt(edge12.x / len12), pt(edge12.y / len12))
   };
 }
 
 function assignCornersByRoleWithBasis(
   points: readonly WorldPoint[],
   center: WorldPoint,
-  uAxis: WorldPoint,
-  vAxis: WorldPoint
+  uAxis: WorldVector,
+  vAxis: WorldVector
 ): Record<ResizeFrameCornerRole, WorldPoint> | null {
   if (points.length !== 4) {
     return null;
@@ -703,29 +729,35 @@ function boundsFromPoints(points: readonly SvgPoint[]): SvgBounds {
     maxY = Math.max(maxY, point.y);
   }
 
-  return { minX, minY, maxX, maxY };
+  return svgBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
 }
 
-function rotateVector(vector: Pick<WorldPoint, "x" | "y"> | Pick<FrameLocalPoint, "x" | "y">, degrees: number): { x: number; y: number } {
+function rotateVector(
+  vector: Pick<WorldPoint, "x" | "y"> | Pick<FrameLocalPoint, "x" | "y">,
+  degrees: number
+): WorldVector {
   if (Math.abs(degrees) <= EPSILON) {
-    return vector;
+    return worldVector(pt(vector.x), pt(vector.y));
   }
   const theta = (degrees * Math.PI) / 180;
   const cos = Math.cos(theta);
   const sin = Math.sin(theta);
-  return { x: vector.x * cos - vector.y * sin, y: vector.x * sin + vector.y * cos };
+  return worldVector(
+    pt(vector.x * cos - vector.y * sin),
+    pt(vector.x * sin + vector.y * cos)
+  );
 }
 
 function rotateAndTranslatePoint(localPoint: FrameLocalPoint, center: WorldPoint, degrees: number): WorldPoint {
   const rotated = rotateVector(localPoint, degrees);
-  return worldPoint(center.x + rotated.x, center.y + rotated.y);
+  return worldPoint(pt(center.x + rotated.x), pt(center.y + rotated.y));
 }
 
-function subtractPoints(left: WorldPoint, right: WorldPoint): WorldPoint {
-  return worldPoint(left.x - right.x, left.y - right.y);
+function subtractPoints(left: WorldPoint, right: WorldPoint): WorldVector {
+  return worldVector(pt(left.x - right.x), pt(left.y - right.y));
 }
 
-function dot(left: WorldPoint, right: WorldPoint): number {
+function dot(left: WorldVector, right: WorldVector): number {
   return left.x * right.x + left.y * right.y;
 }
 

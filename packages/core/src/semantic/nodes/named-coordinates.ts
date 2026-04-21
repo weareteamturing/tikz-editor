@@ -1,16 +1,21 @@
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
+import { pt } from "../../coords/scalars.js";
 import type { CoordinateItem, PathItem } from "../../ast/types.js";
 import {
   readNamedNodeGeometry,
   type NamedNodeGeometry,
   type SemanticContext
 } from "../context.js";
-import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
+import { worldPoint as makeWorldPoint, worldVector as makeWorldVector, type WorldPoint, type WorldVector } from "../../coords/points.js";
 import { intersectRayWithPolygon } from "./shape-geometry.js";
 import { applyMatrixToVector, inverseMatrix } from "../transform.js";
 
 function worldPoint(x: number, y: number): WorldPoint {
-  return makeWorldPoint(x, y);
+  return makeWorldPoint(pt(x), pt(y));
+}
+
+function worldVector(x: number, y: number): WorldVector {
+  return makeWorldVector(pt(x), pt(y));
 }
 
 export function collectScopedNodeNames(name: string | undefined, aliases: string[] | undefined, context: SemanticContext): string[] {
@@ -156,10 +161,10 @@ function maybeResolveNamedNodeBorderWorldPointAlongAngle(
   }
 
   const radians = (angleDegrees * Math.PI) / 180;
-  const probeWorldPoint = {
-    x: geometry.center.x + Math.cos(radians),
-    y: geometry.center.y + Math.sin(radians)
-  };
+  const probeWorldPoint = worldPoint(
+    geometry.center.x + Math.cos(radians),
+    geometry.center.y + Math.sin(radians)
+  );
   const borderWorldPoint = intersectNodeBorder(geometry, probeWorldPoint);
   return borderWorldPoint ?? fallbackWorldPoint;
 }
@@ -186,25 +191,23 @@ function intersectNodeBorder(
   if (!Number.isFinite(len) || len <= 1e-9) {
     return null;
   }
+  const direction = worldVector(dx, dy);
 
   if (geometry.anchorPolygon && geometry.anchorPolygon.length >= 3) {
-    const border = intersectRayWithPolygon({ x: 0, y: 0 }, { x: dx, y: dy }, geometry.anchorPolygon);
+    const border = intersectRayWithPolygon(worldPoint(0, 0), direction, geometry.anchorPolygon);
     if (!border) {
       return null;
     }
-    return {
-      x: geometry.center.x + border.x,
-      y: geometry.center.y + border.y
-    };
+    return worldPoint(geometry.center.x + border.x, geometry.center.y + border.y);
   }
 
   if (geometry.shape === "circle") {
     const transform = geometry.anchorTransform;
     const localDirection = (() => {
-      if (!transform) return worldPoint(dx, dy);
+      if (!transform) return direction;
       const inverse = inverseMatrix(transform);
-      if (!inverse) return worldPoint(dx, dy);
-      return applyMatrixToVector(inverse, { x: dx, y: dy });
+      if (!inverse) return direction;
+      return applyMatrixToVector(inverse, direction);
     })();
     const localLen = Math.hypot(localDirection.x, localDirection.y);
     if (!Number.isFinite(localLen) || localLen <= 1e-9) {
@@ -215,30 +218,21 @@ function intersectNodeBorder(
       return null;
     }
     const scale = radius / localLen;
-    const localWorldPoint = {
-      x: localDirection.x * scale,
-      y: localDirection.y * scale
-    };
+    const localWorldPoint = worldVector(localDirection.x * scale, localDirection.y * scale);
     if (!transform) {
-      return {
-        x: geometry.center.x + localWorldPoint.x,
-        y: geometry.center.y + localWorldPoint.y
-      };
+      return worldPoint(geometry.center.x + localWorldPoint.x, geometry.center.y + localWorldPoint.y);
     }
     const mapped = applyMatrixToVector(transform, localWorldPoint);
-    return {
-      x: geometry.center.x + mapped.x,
-      y: geometry.center.y + mapped.y
-    };
+    return worldPoint(geometry.center.x + mapped.x, geometry.center.y + mapped.y);
   }
 
   if (geometry.shape === "rectangle") {
     const transform = geometry.anchorTransform;
     const localDirection = (() => {
-      if (!transform) return worldPoint(dx, dy);
+      if (!transform) return direction;
       const inverse = inverseMatrix(transform);
-      if (!inverse) return worldPoint(dx, dy);
-      return applyMatrixToVector(inverse, { x: dx, y: dy });
+      if (!inverse) return direction;
+      return applyMatrixToVector(inverse, direction);
     })();
     const hw = geometry.anchorHalfWidth;
     const hh = geometry.anchorHalfHeight;
@@ -246,30 +240,21 @@ function intersectNodeBorder(
       return null;
     }
     const scale = 1 / Math.max(Math.abs(localDirection.x) / hw, Math.abs(localDirection.y) / hh);
-    const localWorldPoint = {
-      x: localDirection.x * scale,
-      y: localDirection.y * scale
-    };
+    const localWorldPoint = worldVector(localDirection.x * scale, localDirection.y * scale);
     if (!transform) {
-      return {
-        x: geometry.center.x + localWorldPoint.x,
-        y: geometry.center.y + localWorldPoint.y
-      };
+      return worldPoint(geometry.center.x + localWorldPoint.x, geometry.center.y + localWorldPoint.y);
     }
     const mapped = applyMatrixToVector(transform, localWorldPoint);
-    return {
-      x: geometry.center.x + mapped.x,
-      y: geometry.center.y + mapped.y
-    };
+    return worldPoint(geometry.center.x + mapped.x, geometry.center.y + mapped.y);
   }
 
   if (geometry.shape === "ellipse") {
     const transform = geometry.anchorTransform;
     const localDirection = (() => {
-      if (!transform) return worldPoint(dx, dy);
+      if (!transform) return direction;
       const inverse = inverseMatrix(transform);
-      if (!inverse) return worldPoint(dx, dy);
-      return applyMatrixToVector(inverse, { x: dx, y: dy });
+      if (!inverse) return direction;
+      return applyMatrixToVector(inverse, direction);
     })();
     const rx = geometry.anchorHalfWidth;
     const ry = geometry.anchorHalfHeight;
@@ -280,21 +265,12 @@ function intersectNodeBorder(
     if (!Number.isFinite(scale)) {
       return null;
     }
-    const localWorldPoint = {
-      x: localDirection.x * scale,
-      y: localDirection.y * scale
-    };
+    const localWorldPoint = worldVector(localDirection.x * scale, localDirection.y * scale);
     if (!transform) {
-      return {
-        x: geometry.center.x + localWorldPoint.x,
-        y: geometry.center.y + localWorldPoint.y
-      };
+      return worldPoint(geometry.center.x + localWorldPoint.x, geometry.center.y + localWorldPoint.y);
     }
     const mapped = applyMatrixToVector(transform, localWorldPoint);
-    return {
-      x: geometry.center.x + mapped.x,
-      y: geometry.center.y + mapped.y
-    };
+    return worldPoint(geometry.center.x + mapped.x, geometry.center.y + mapped.y);
   }
 
   return null;

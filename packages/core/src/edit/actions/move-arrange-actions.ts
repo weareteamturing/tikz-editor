@@ -1,4 +1,5 @@
 import type { CoordinateItem, NodeItem, PathStatement, Span, Statement } from "../../ast/types.js";
+import { pt } from "../../coords/scalars.js";
 import type { OptionEntry } from "../../options/types.js";
 import { evaluateTikzFigure } from "../../semantic/evaluate.js";
 import { worldPoint } from "../../coords/points.js";
@@ -288,7 +289,7 @@ function applyMoveElementsUsingHandleRewrites(
       continue;
     }
 
-    const newWorld: WorldPoint = worldPoint(handle.world.x + delta.x, handle.world.y + delta.y);
+    const newWorld: WorldPoint = worldPoint(pt(handle.world.x + delta.x), pt(handle.world.y + delta.y));
     const text = rewriteCoordinate(newWorld, handle, source);
     if (text != null) {
       pending.push({ span: handle.sourceRef.sourceSpan, text });
@@ -756,8 +757,8 @@ function rewriteSingleMatrixPlacement(
   }
 
   const nextCenterWorld: WorldPoint = worldPoint(
-    (bounds.minX + bounds.maxX) / 2 + delta.x,
-    (bounds.minY + bounds.maxY) / 2 + delta.y
+    pt((bounds.minX + bounds.maxX) / 2 + delta.x),
+    pt((bounds.minY + bounds.maxY) / 2 + delta.y)
   );
   const nextCoordinate = formatPlacementCoordinateFromWorld(nextCenterWorld, placementHandle?.transform);
 
@@ -872,8 +873,8 @@ function rewriteSingleTreeRootPlacement(
     return { kind: "unsupported", reason: `Could not resolve semantic placement for tree root ${elementId}` };
   }
   const nextPlacementWorld: WorldPoint = worldPoint(
-    currentPlacementWorld.x + delta.x,
-    currentPlacementWorld.y + delta.y
+    pt(currentPlacementWorld.x + delta.x),
+    pt(currentPlacementWorld.y + delta.y)
   );
   const nextCoordinate = formatPlacementCoordinateFromWorld(nextPlacementWorld, placementHandle?.transform);
 

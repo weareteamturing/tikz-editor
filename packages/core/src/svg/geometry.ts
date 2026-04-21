@@ -1,4 +1,5 @@
 import { worldToSvgPoint } from "../coords/svg.js";
+import { pt } from "../coords/scalars.js";
 import { svgPoint, svgBounds } from "../coords/points.js";
 import type { SvgBounds, SvgPoint } from "../coords/points.js";
 import type { SvgTransform } from "../coords/transforms.js";
@@ -58,7 +59,7 @@ export function computeSvgPathBounds(commands: ScenePathCommand[], viewBox: Pick
     return null;
   }
 
-  return svgBounds(minX, minY, maxX, maxY);
+  return svgBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
 }
 
 export function includeSvgArcBounds(args: {
@@ -133,8 +134,8 @@ export function includeSvgArcBounds(args: {
     const sinT = Math.sin(angle);
     includePoint(
       svgPoint(
-        cx + rx * cosPhi * cosT - ry * sinPhi * sinT,
-        cy + rx * sinPhi * cosT + ry * cosPhi * sinT
+        pt(cx + rx * cosPhi * cosT - ry * sinPhi * sinT),
+        pt(cy + rx * sinPhi * cosT + ry * cosPhi * sinT)
       )
     );
   }
@@ -146,15 +147,15 @@ export function computeSvgEllipseBounds(cx: number, cy: number, rx: number, ry: 
   const sin = Math.sin(theta);
   const extentX = Math.sqrt(rx * rx * cos * cos + ry * ry * sin * sin);
   const extentY = Math.sqrt(rx * rx * sin * sin + ry * ry * cos * cos);
-  return svgBounds(cx - extentX, cy - extentY, cx + extentX, cy + extentY);
+  return svgBounds(pt(cx - extentX), pt(cy - extentY), pt(cx + extentX), pt(cy + extentY));
 }
 
 export function transformSvgBounds(bounds: SvgBounds, transform: SvgTransform): SvgBounds {
   const corners: SvgPoint[] = [
-    svgPoint(bounds.minX, bounds.minY),
-    svgPoint(bounds.maxX, bounds.minY),
-    svgPoint(bounds.maxX, bounds.maxY),
-    svgPoint(bounds.minX, bounds.maxY)
+    svgPoint(pt(bounds.minX), pt(bounds.minY)),
+    svgPoint(pt(bounds.maxX), pt(bounds.minY)),
+    svgPoint(pt(bounds.maxX), pt(bounds.maxY)),
+    svgPoint(pt(bounds.minX), pt(bounds.maxY))
   ];
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
@@ -162,15 +163,15 @@ export function transformSvgBounds(bounds: SvgBounds, transform: SvgTransform): 
   let maxY = Number.NEGATIVE_INFINITY;
   for (const point of corners) {
     const mapped = svgPoint(
-      transform.a * point.x + transform.c * point.y + transform.e,
-      transform.b * point.x + transform.d * point.y + transform.f
+      pt(transform.a * point.x + transform.c * point.y + transform.e),
+      pt(transform.b * point.x + transform.d * point.y + transform.f)
     );
     minX = Math.min(minX, mapped.x);
     minY = Math.min(minY, mapped.y);
     maxX = Math.max(maxX, mapped.x);
     maxY = Math.max(maxY, mapped.y);
   }
-  return svgBounds(minX, minY, maxX, maxY);
+  return svgBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
 }
 
 function isAngleOnArc(angle: number, startAngle: number, deltaAngle: number): boolean {

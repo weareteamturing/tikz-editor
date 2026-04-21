@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { worldPoint } from "tikz-editor/coords/index";
+import { worldPoint, pt } from "tikz-editor/coords/index";
 import type { PathItem, Statement } from "tikz-editor/ast/types";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import { FIT_DIRECT_MANIPULATION_BLOCK_REASON, sourceUsesFitNodeFromParseResult } from "tikz-editor/edit/fit";
@@ -560,8 +560,8 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
         continue;
       }
       const labelCenterWorld: WorldPoint = worldPoint(
-        (bounds.minX + bounds.maxX) / 2,
-        svgResult.viewBox.y + svgResult.viewBox.height - (((bounds.minY + bounds.maxY) / 2) - svgResult.viewBox.y)
+        pt((bounds.minX + bounds.maxX) / 2),
+        pt(svgResult.viewBox.y + svgResult.viewBox.height - (((bounds.minY + bounds.maxY) / 2) - svgResult.viewBox.y))
       );
       const connectorOwnerPoint = resolveAdornmentOwnerBoundaryPoint(
         adornment.ownerGeometry,
@@ -954,8 +954,8 @@ function buildResizeHandleDisplaysForFrame({
   for (const role of RESIZE_FRAME_CORNER_ROLES) {
     const corner = resizeFrame.cornersByRole[role];
     const resizeVector = worldPoint(
-      corner.world.x - resizeFrame.centerWorld.x,
-      corner.world.y - resizeFrame.centerWorld.y
+      pt(corner.world.x - resizeFrame.centerWorld.x),
+      pt(corner.world.y - resizeFrame.centerWorld.y)
     );
     displays.push({
       key: `node-handle:${sourceId}:${role}`,

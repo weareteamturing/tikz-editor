@@ -1,4 +1,5 @@
 import type { WorldTransform } from "../../coords/transforms.js";
+import { pt } from "../../coords/scalars.js";
 import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
 import type { ScenePathCommand } from "../types.js";
 import { applyMatrix, inverseMatrix } from "../transform.js";
@@ -10,7 +11,7 @@ const MAX_ARC_SEGMENT_ANGLE = Math.PI / 2;
 const SVG_COMMANDS = new Set(["M", "m", "L", "l", "H", "h", "V", "v", "C", "c", "S", "s", "Q", "q", "T", "t", "A", "a", "Z", "z"]);
 
 function worldPoint(x: number, y: number): WorldPoint {
-  return makeWorldPoint(x, y);
+  return makeWorldPoint(pt(x), pt(y));
 }
 
 type SvgToken =
@@ -461,7 +462,7 @@ function readPointPair(tokens: SvgToken[], start: number, current: WorldPoint, r
       y: current.y + y
     };
   }
-  return worldPoint(x, y);
+  return worldPoint(pt(x), pt(y));
 }
 
 function getNumber(token: SvgToken | undefined): number {

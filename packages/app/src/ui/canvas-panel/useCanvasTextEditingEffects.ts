@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { svgPoint, svgBounds, viewportBounds } from "tikz-editor/coords/index";
+import { svgPoint, svgBounds, viewportBounds, pt, px } from "tikz-editor/coords/index";
 import { getActiveMathJaxOutputJax } from "tikz-editor/text/mathjax-engine";
 import { getKnuthPlassPointFromOffset, getKnuthPlassSelectionRects } from "tikz-editor/text/knuth-plass";
 import type { ClientPoint, SvgBounds, SvgPoint, ViewportPoint } from "../coords/types";
@@ -106,7 +106,7 @@ function resolveRegionSelectionOverlay(
     const height = Math.max(1, lineHeight);
     return {
       caret: {
-        bounds: svgBounds(left, top, left, top + height)
+        bounds: svgBounds(pt(left), pt(top), pt(left), pt(top + height))
       },
       rects: []
     };
@@ -131,8 +131,8 @@ function resolveRegionSelectionOverlay(
     const height = Math.max(1, lineHeight);
     const width = Math.max(1, right - left);
     rects.push({
-      bounds: svgBounds(left, top, left + width, top + height),
-      center: svgPoint(left + width / 2, top + height / 2),
+      bounds: svgBounds(pt(left), pt(top), pt(left + width), pt(top + height)),
+      center: svgPoint(pt(left + width / 2), pt(top + height / 2)),
       rotationDeg: Number.isFinite(target.region.rotation) ? Number(target.region.rotation) : undefined
     });
   }
@@ -357,10 +357,10 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
             selectionEnd: boundedEnd,
             caret: {
               bounds: viewportBounds(
-                point.clientPoint.x - viewportRect.left,
-                point.clientPoint.y - viewportRect.top - height / 2,
-                point.clientPoint.x - viewportRect.left,
-                point.clientPoint.y - viewportRect.top + height / 2
+                px(point.clientPoint.x - viewportRect.left),
+                px(point.clientPoint.y - viewportRect.top - height / 2),
+                px(point.clientPoint.x - viewportRect.left),
+                px(point.clientPoint.y - viewportRect.top + height / 2)
               ),
               center: clientToViewport(point.clientPoint, viewportRect),
               rotationDeg:

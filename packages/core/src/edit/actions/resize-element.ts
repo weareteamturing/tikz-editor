@@ -9,9 +9,12 @@ import {
   ScenePath,
   ScenePathShapeHint
 } from "../../semantic/types.js";
+import { pt } from "../../coords/scalars.js";
 import { applyFrameTransform } from "../../coords/frame.js";
-import { frameLocalPoint } from "../../coords/points.js";
+import { frameLocalPoint, worldPoint } from "../../coords/points.js";
 import type { FrameLocalPoint, WorldPoint } from "../../coords/points.js";
+import type { FrameTransform } from "../../coords/transforms.js";
+import { frameTransform, worldTransform } from "../../coords/transforms.js";
 import type { CoordinateItem, NodeItem, PathItem, PathOptionItem, Statement, Span } from "../../ast/types.js";
 import type { PropertyTarget } from "../property-target.js";
 import { resolvePropertyTarget } from "../property-target.js";
@@ -40,6 +43,21 @@ import { parseTikzForEdit, type EditParseOptions } from "../parse-options.js";
 import { FIT_DIRECT_MANIPULATION_BLOCK_REASON, propertyTargetUsesFit, sourceUsesFitNodeFromParseResult } from "../fit.js";
 
 const RESIZE_EPSILON = 1e-3;
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
+
+function asFrameTransform(transform: {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  e: number;
+  f: number;
+}): FrameTransform {
+  return frameTransform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f);
+}
 
 type ResizeRole =
   | "top-left"
@@ -175,10 +193,7 @@ export function applyResizeElementAction(
     return { kind: "unsupported", reason: "Could not resolve intrinsic node bounds for resize." };
   }
 
-  const pointerDelta = {
-    x: action.newWorld.x - center.x,
-    y: action.newWorld.y - center.y
-  };
+  const pointerDelta = wp(action.newWorld.x - center.x, action.newWorld.y - center.y);
   const localPointerDelta = nodeLinearTransform
     ? worldVectorToLocal(pointerDelta, nodeLinearTransform)
     : pointerDelta;
@@ -623,21 +638,21 @@ function resolveFixedScopePoint(
 ): WorldPoint {
   switch (role) {
     case "top-left":
-      return { x: bounds.maxX, y: bounds.minY };
+      return wp(bounds.maxX, bounds.minY);
     case "top-right":
-      return { x: bounds.minX, y: bounds.minY };
+      return wp(bounds.minX, bounds.minY);
     case "bottom-left":
-      return { x: bounds.maxX, y: bounds.maxY };
+      return wp(bounds.maxX, bounds.maxY);
     case "bottom-right":
-      return { x: bounds.minX, y: bounds.maxY };
+      return wp(bounds.minX, bounds.maxY);
     case "left":
-      return { x: bounds.maxX, y: (bounds.minY + bounds.maxY) / 2 };
+      return wp(bounds.maxX, (bounds.minY + bounds.maxY) / 2);
     case "right":
-      return { x: bounds.minX, y: (bounds.minY + bounds.maxY) / 2 };
+      return wp(bounds.minX, (bounds.minY + bounds.maxY) / 2);
     case "top":
-      return { x: (bounds.minX + bounds.maxX) / 2, y: bounds.minY };
+      return wp((bounds.minX + bounds.maxX) / 2, bounds.minY);
     case "bottom":
-      return { x: (bounds.minX + bounds.maxX) / 2, y: bounds.maxY };
+      return wp((bounds.minX + bounds.maxX) / 2, bounds.maxY);
   }
 }
 
@@ -777,7 +792,9 @@ function applyResizePathRectangle(
     return { kind: "unsupported", reason: `Unsupported resize role: ${action.role}` };
   }
 
-  const transform = context.startHandle.transform;
+  const transform = isFrameLocalCoordinateEditHandle(context.startHandle)
+    ? context.startHandle.frame
+    : asFrameTransform(context.startHandle.transform);
   const localPointer = worldToLocal(action.newWorld, transform);
   const startLocal = isFrameLocalCoordinateEditHandle(context.startHandle)
     ? context.startHandle.local
@@ -823,8 +840,8 @@ function applyResizePathRectangle(
   const startUsesMinX = startLocal.x <= oppositeLocal.x;
   const startUsesMinY = startLocal.y <= oppositeLocal.y;
 
-  const nextStartLocal = frameLocalPoint(startUsesMinX ? minX : maxX, startUsesMinY ? minY : maxY);
-  const nextOppositeLocal = frameLocalPoint(startUsesMinX ? maxX : minX, startUsesMinY ? maxY : minY);
+  const nextStartLocal = frameLocalPoint(pt(startUsesMinX ? minX : maxX), pt(startUsesMinY ? minY : maxY));
+  const nextOppositeLocal = frameLocalPoint(pt(startUsesMinX ? maxX : minX), pt(startUsesMinY ? maxY : minY));
 
   const nextStartWorld = applyFrameTransform(transform, nextStartLocal);
   const nextOppositeWorld = applyFrameTransform(transform, nextOppositeLocal);
@@ -1019,11 +1036,14 @@ function applyResizePathCircleOrEllipse(
     return { kind: "unsupported", reason: `Unsupported resize role: ${action.role}` };
   }
 
-  const localPointer = worldToLocal(action.newWorld, context.centerHandle.transform);
+  const centerTransform = isFrameLocalCoordinateEditHandle(context.centerHandle)
+    ? context.centerHandle.frame
+    : asFrameTransform(context.centerHandle.transform);
+  const localPointer = worldToLocal(action.newWorld, centerTransform);
   const localCenter =
     isFrameLocalCoordinateEditHandle(context.centerHandle)
       ? context.centerHandle.local
-      : worldToLocal(context.center, context.centerHandle.transform);
+      : worldToLocal(context.center, centerTransform);
   if (!localPointer || !localCenter) {
     return { kind: "unsupported", reason: "Could not resolve local geometry for circle/ellipse resize." };
   }
@@ -1470,10 +1490,10 @@ function resolveRectangleRoleCorners(
   const maxY = Math.max(startLocal.y, oppositeLocal.y);
 
   return {
-    "top-left": { x: minX, y: maxY },
-    "top-right": { x: maxX, y: maxY },
-    "bottom-left": { x: minX, y: minY },
-    "bottom-right": { x: maxX, y: minY }
+    "top-left": frameLocalPoint(pt(minX), pt(maxY)),
+    "top-right": frameLocalPoint(pt(maxX), pt(maxY)),
+    "bottom-left": frameLocalPoint(pt(minX), pt(minY)),
+    "bottom-right": frameLocalPoint(pt(maxX), pt(minY))
   };
 }
 
@@ -1837,13 +1857,13 @@ function worldVectorToLocal(
     e: 0,
     f: 0
   };
-  const inverse = inverseMatrix(matrix);
+  const inverse = inverseMatrix(worldTransform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f));
   if (!inverse) {
-    return frameLocalPoint(vector.x, vector.y);
+    return frameLocalPoint(pt(vector.x), pt(vector.y));
   }
   return frameLocalPoint(
-    inverse.a * vector.x + inverse.c * vector.y,
-    inverse.b * vector.x + inverse.d * vector.y
+    pt(inverse.a * vector.x + inverse.c * vector.y),
+    pt(inverse.b * vector.x + inverse.d * vector.y)
   );
 }
 
@@ -1856,7 +1876,7 @@ function worldSizeToLocalSize(
     e: 0,
     f: 0
   };
-  const inverse = inverseMatrix(matrix);
+  const inverse = inverseMatrix(worldTransform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f));
   if (!inverse) {
     return size;
   }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ParagraphLayoutReport } from "../packages/core/src/text/knuth-plass/paragraph/report.js";
 import { getKnuthPlassLineRangeFromPoint } from "../packages/core/src/text/knuth-plass/editor/hitmap.js";
-import { clientPoint } from "../packages/core/src/coords/index.js";
+import { clientPoint, px } from "../packages/core/src/coords/index.js";
 
 function makeLineElement(bounds: { left: number; top: number; right: number; bottom: number }, viewBoxWidth: number): any {
   return {
@@ -131,7 +131,7 @@ describe("knuth-plass hitmap line ranges", () => {
       paragraphId: report.paragraphId,
       sourceText: "Hello World Again",
       containerElement,
-      clientPoint: clientPoint(3, 16)
+      clientPoint: clientPoint(px(3), px(16))
     });
 
     expect(result).toEqual({
@@ -155,7 +155,7 @@ describe("knuth-plass hitmap line ranges", () => {
         paragraphId: "missing",
         sourceText: "Hello",
         containerElement: {},
-        clientPoint: clientPoint(0, 0)
+        clientPoint: clientPoint(px(0), px(0))
       }
     );
 
@@ -176,7 +176,7 @@ describe("knuth-plass hitmap line ranges", () => {
       containerElement: {
         querySelectorAll: () => []
       },
-      clientPoint: clientPoint(0, 0)
+      clientPoint: clientPoint(px(0), px(0))
     });
 
     expect(result.ok).toBe(false);

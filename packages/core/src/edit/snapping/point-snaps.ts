@@ -1,4 +1,5 @@
 import { worldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { WorldPoint } from "../../coords/points.js";
 import type {
   Axis,
@@ -40,8 +41,8 @@ export function collectPointSnaps({
           nearest.x.push({
             kind,
             axis: "x",
-            from: worldPoint(from.x, from.y),
-            to: worldPoint(to.x, to.y),
+            from: worldPoint(pt(from.x), pt(from.y)),
+            to: worldPoint(pt(to.x), pt(to.y)),
             offset: offsetX,
             key: roundSnapValue(to.x)
           });
@@ -59,8 +60,8 @@ export function collectPointSnaps({
           nearest.y.push({
             kind,
             axis: "y",
-            from: worldPoint(from.x, from.y),
-            to: worldPoint(to.x, to.y),
+            from: worldPoint(pt(from.x), pt(from.y)),
+            to: worldPoint(pt(to.x), pt(to.y)),
             offset: offsetY,
             key: roundSnapValue(to.y)
           });
@@ -97,8 +98,8 @@ export function collectGuideSnaps({
           nearest.x.push({
             kind: "guide",
             axis: "x",
-            from: worldPoint(from.x, from.y),
-            to: worldPoint(guideX, from.y),
+            from: worldPoint(pt(from.x), pt(from.y)),
+            to: worldPoint(pt(guideX), pt(from.y)),
             offset: offsetX,
             key: roundSnapValue(guideX)
           });
@@ -119,8 +120,8 @@ export function collectGuideSnaps({
           nearest.y.push({
             kind: "guide",
             axis: "y",
-            from: worldPoint(from.x, from.y),
-            to: worldPoint(from.x, guideY),
+            from: worldPoint(pt(from.x), pt(from.y)),
+            to: worldPoint(pt(from.x), pt(guideY)),
             offset: offsetY,
             key: roundSnapValue(guideY)
           });
@@ -135,7 +136,7 @@ export function pointSnapOffset(nearest: AxisSnapBuckets): WorldPoint {
   const xSnap = nearest.x.find((snap): snap is PointSnapCandidate => snap.kind !== "gap");
   const ySnap = nearest.y.find((snap): snap is PointSnapCandidate => snap.kind !== "gap");
 
-  return worldPoint(xSnap?.offset ?? 0, ySnap?.offset ?? 0);
+  return worldPoint(pt(xSnap?.offset ?? 0), pt(ySnap?.offset ?? 0));
 }
 
 export function createPointSnapLines(nearest: AxisSnapBuckets): SnapLine[] {
@@ -146,8 +147,8 @@ export function createPointSnapLines(nearest: AxisSnapBuckets): SnapLine[] {
     if (snap.kind !== "point") {
       continue;
     }
-    const from = worldPoint(snap.to.x, snap.from.y);
-    const to = worldPoint(snap.to.x, snap.to.y);
+    const from = worldPoint(pt(snap.to.x), pt(snap.from.y));
+    const to = worldPoint(pt(snap.to.x), pt(snap.to.y));
     const key = makeLineKey("x", from, to);
     if (seen.has(key)) {
       continue;
@@ -164,8 +165,8 @@ export function createPointSnapLines(nearest: AxisSnapBuckets): SnapLine[] {
     if (snap.kind !== "point") {
       continue;
     }
-    const from = worldPoint(snap.from.x, snap.to.y);
-    const to = worldPoint(snap.to.x, snap.to.y);
+    const from = worldPoint(pt(snap.from.x), pt(snap.to.y));
+    const to = worldPoint(pt(snap.to.x), pt(snap.to.y));
     const key = makeLineKey("y", from, to);
     if (seen.has(key)) {
       continue;
@@ -189,8 +190,8 @@ export function createPointerLinesForPointSnap(nearest: AxisSnapBuckets, snapped
     lines.push({
       type: "pointer",
       axis: "x",
-      from: worldPoint(xSnap.to.x, xSnap.to.y),
-      to: worldPoint(xSnap.to.x, snappedPoint.y)
+      from: worldPoint(pt(xSnap.to.x), pt(xSnap.to.y)),
+      to: worldPoint(pt(xSnap.to.x), pt(snappedPoint.y))
     });
   }
 
@@ -199,8 +200,8 @@ export function createPointerLinesForPointSnap(nearest: AxisSnapBuckets, snapped
     lines.push({
       type: "pointer",
       axis: "y",
-      from: worldPoint(ySnap.to.x, ySnap.to.y),
-      to: worldPoint(snappedPoint.x, ySnap.to.y)
+      from: worldPoint(pt(ySnap.to.x), pt(ySnap.to.y)),
+      to: worldPoint(pt(snappedPoint.x), pt(ySnap.to.y))
     });
   }
 

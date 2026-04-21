@@ -1,4 +1,6 @@
 import type { WorldTransform } from "../../coords/transforms.js";
+import { worldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { WorldPoint } from "../../coords/points.js";
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import type { OptionListAst } from "../../options/types.js";
@@ -13,6 +15,10 @@ import type { StyleChainEntry } from "../style-chain.js";
 import { cloneStyleChain } from "../style-chain.js";
 import { expandPathMacroBindings } from "./macro-expansion.js";
 import type { MacroBinding } from "../../macros/index.js";
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
 
 type GridPolarStep = Readonly<{ x: number; y: number }>;
 
@@ -171,8 +177,8 @@ function resolveGridAxisStep(
 
   const delta =
     axis === "x"
-      ? applyMatrixToVector(transform, { x: step, y: 0 })
-      : applyMatrixToVector(transform, { x: 0, y: step });
+      ? applyMatrixToVector(transform, wp(step, 0))
+      : applyMatrixToVector(transform, wp(0, step));
   const magnitude = Math.hypot(delta.x, delta.y);
   if (!Number.isFinite(magnitude) || magnitude <= 1e-9) {
     return Math.abs(step);
@@ -223,8 +229,8 @@ export function makeGridElements(
         style: { ...style },
         styleChain: cloneStyleChain(styleChain),
         commands: [
-          { kind: "M", to: { x, y: minY } },
-          { kind: "L", to: { x, y: maxY } }
+          { kind: "M", to: wp(x, minY) },
+          { kind: "L", to: wp(x, maxY) }
         ]
       });
     }
@@ -239,8 +245,8 @@ export function makeGridElements(
         style: { ...style },
         styleChain: cloneStyleChain(styleChain),
         commands: [
-          { kind: "M", to: { x: minX, y } },
-          { kind: "L", to: { x: maxX, y } }
+          { kind: "M", to: wp(minX, y) },
+          { kind: "L", to: wp(maxX, y) }
         ]
       });
     }
@@ -273,8 +279,8 @@ function makeAffineGridElements(
 
   const spacingX = stepX >= 0 ? stepX : DEFAULT_GRID_STEP;
   const spacingY = stepY >= 0 ? stepY : DEFAULT_GRID_STEP;
-  const axisX = applyMatrixToVector(transform, { x: 1, y: 0 });
-  const axisY = applyMatrixToVector(transform, { x: 0, y: 1 });
+  const axisX = applyMatrixToVector(transform, wp(1, 0));
+  const axisY = applyMatrixToVector(transform, wp(0, 1));
   const axisXScale = Math.hypot(axisX.x, axisX.y);
   const axisYScale = Math.hypot(axisY.x, axisY.y);
   const localStepX = axisXScale > 1e-9 ? spacingX / axisXScale : spacingX;
@@ -283,8 +289,8 @@ function makeAffineGridElements(
   const paths: ScenePath[] = [];
   if (localStepX > 1e-9) {
     for (let x = minLocalX; x <= maxLocalX + 1e-6; x += localStepX) {
-      const fromPoint = applyMatrix(transform, { x, y: minLocalY });
-      const toPoint = applyMatrix(transform, { x, y: maxLocalY });
+      const fromPoint = applyMatrix(transform, wp(x, minLocalY));
+      const toPoint = applyMatrix(transform, wp(x, maxLocalY));
       paths.push({
         kind: "Path",
         id: `scene-grid-x:${sourceId}:${itemId}:${x.toFixed(3)}`,
@@ -302,8 +308,8 @@ function makeAffineGridElements(
 
   if (localStepY > 1e-9) {
     for (let y = minLocalY; y <= maxLocalY + 1e-6; y += localStepY) {
-      const fromPoint = applyMatrix(transform, { x: minLocalX, y });
-      const toPoint = applyMatrix(transform, { x: maxLocalX, y });
+      const fromPoint = applyMatrix(transform, wp(minLocalX, y));
+      const toPoint = applyMatrix(transform, wp(maxLocalX, y));
       paths.push({
         kind: "Path",
         id: `scene-grid-y:${sourceId}:${itemId}:${y.toFixed(3)}`,
@@ -330,8 +336,8 @@ function applyInverseMatrix(matrix: WorldTransform, point: WorldPoint): WorldPoi
 
   const translatedX = point.x - matrix.e;
   const translatedY = point.y - matrix.f;
-  return {
-    x: (matrix.d * translatedX - matrix.c * translatedY) / determinant,
-    y: (-matrix.b * translatedX + matrix.a * translatedY) / determinant
-  };
+  return wp(
+    (matrix.d * translatedX - matrix.c * translatedY) / determinant,
+    (-matrix.b * translatedX + matrix.a * translatedY) / determinant
+  );
 }

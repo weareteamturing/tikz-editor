@@ -1,4 +1,6 @@
-import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
+import { worldPoint as makeWorldPoint, worldVector as makeWorldVector, type WorldPoint, type WorldVector } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
+import { worldTransform, type WorldTransform } from "../../coords/transforms.js";
 import type { AdornmentOwnerGeometry, EdgeOperationItem, NodeItem, Span, ToOperationItem } from "../../ast/types.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
@@ -17,7 +19,11 @@ import { applyMatrixToVector, inverseMatrix } from "../transform.js";
 import { stripWrappingBraces } from "../../utils/braces.js";
 
 function worldPoint(x: number, y: number): WorldPoint {
-  return makeWorldPoint(x, y);
+  return makeWorldPoint(pt(x), pt(y));
+}
+
+function worldVector(x: number, y: number): WorldVector {
+  return makeWorldVector(pt(x), pt(y));
 }
 
 type QuotesMode = NodeQuotesMode;
@@ -340,14 +346,7 @@ export function materializeNodeAdornment(params: {
   adornmentIndex: number;
 }): MaterializedNodeAdornment {
   const { spec, context, mainNodeNameRaw, ownerId, adornmentIndex } = params;
-  const frameTransform = context.stack[context.stack.length - 1]?.transform ?? {
-    a: 1,
-    b: 0,
-    c: 0,
-    d: 1,
-    e: 0,
-    f: 0
-  };
+  const frameTransform = context.stack[context.stack.length - 1]?.transform ?? worldTransform(1, 0, 0, 1, 0, 0);
   const generatedName = `generated_pin_${sanitizeName(mainNodeNameRaw)}_${adornmentIndex}`;
   const explicitName = extractOptionValue(spec.options, "name");
   const resolvedName = explicitName ?? (spec.kind === "pin" ? generatedName : undefined);
@@ -355,7 +354,7 @@ export function materializeNodeAdornment(params: {
   const mainGeometry = resolveNamedGeometry(mainNodeNameRaw, context);
 
   const parsedAngle = parseAdornmentAngle(spec.angleRaw, mainNodeNameRaw, context, mainPoint);
-  const center = mainPoint ?? { x: 0, y: 0 };
+  const center = mainPoint ?? worldPoint(0, 0);
   let target = center;
   let anchor = "center";
 
@@ -365,25 +364,19 @@ export function materializeNodeAdornment(params: {
       parsedAngle.borderPoint ??
       intersectNodeBorder(mainGeometry, direction) ??
       center;
-    const centerToBorder = {
-      x: borderPoint.x - center.x,
-      y: borderPoint.y - center.y
-    };
+    const centerToBorder = worldVector(borderPoint.x - center.x, borderPoint.y - center.y);
     const centerToBorderLength = Math.hypot(centerToBorder.x, centerToBorder.y);
     const isSimple = centerToBorderLength <= 1e-6;
     const shiftDirection = isSimple
       ? direction
-      : {
-          x: centerToBorder.x / centerToBorderLength,
-          y: centerToBorder.y / centerToBorderLength
-        };
-    target = {
-      x: borderPoint.x + shiftDirection.x * spec.distancePt,
-      y: borderPoint.y + shiftDirection.y * spec.distancePt
-    };
+      : worldVector(centerToBorder.x / centerToBorderLength, centerToBorder.y / centerToBorderLength);
+    target = worldPoint(
+      borderPoint.x + shiftDirection.x * spec.distancePt,
+      borderPoint.y + shiftDirection.y * spec.distancePt
+    );
     anchor = isSimple
       ? anchorFacingAway(parsedAngle.degrees)
-      : autoAnchorFromVector({ x: shiftDirection.y, y: -shiftDirection.x });
+      : autoAnchorFromVector(worldVector(shiftDirection.y, -shiftDirection.x));
   }
 
   const filteredBase = sanitizeAdornmentOptions(spec.options);
@@ -445,15 +438,15 @@ export function materializeNodeAdornment(params: {
   };
 }
 
-function worldPointToLocalPoint(point: WorldPoint, transform: { a: number; b: number; c: number; d: number; e: number; f: number }): WorldPoint {
+function worldPointToLocalPoint(point: WorldPoint, transform: WorldTransform): WorldPoint {
   const inverse = inverseMatrix(transform);
   if (!inverse) {
     return point;
   }
-  return {
-    x: inverse.a * point.x + inverse.c * point.y + inverse.e,
-    y: inverse.b * point.x + inverse.d * point.y + inverse.f
-  };
+  return worldPoint(
+    inverse.a * point.x + inverse.c * point.y + inverse.e,
+    inverse.b * point.x + inverse.d * point.y + inverse.f
+  );
 }
 
 export function cloneAdornmentOwnerGeometry(
@@ -1071,67 +1064,52 @@ function intersectNodeBorder(geometry: NamedNodeGeometry | null, direction: Worl
     const radius = geometry.anchorRadius;
     const transform = geometry.anchorTransform;
     const localDirection = (() => {
-      if (!transform) return worldPoint(dx, dy);
+      if (!transform) return worldVector(dx, dy);
       const inverse = inverseMatrix(transform);
-      if (!inverse) return worldPoint(dx, dy);
-      return applyMatrixToVector(inverse, { x: dx, y: dy });
+      if (!inverse) return worldVector(dx, dy);
+      return applyMatrixToVector(inverse, worldVector(dx, dy));
     })();
     const localLen = Math.hypot(localDirection.x, localDirection.y);
     if (!Number.isFinite(localLen) || localLen <= 1e-9) {
       return geometry.center;
     }
-    const localPoint = {
-      x: (localDirection.x / localLen) * radius,
-      y: (localDirection.y / localLen) * radius
-    };
+    const localPoint = worldVector(
+      (localDirection.x / localLen) * radius,
+      (localDirection.y / localLen) * radius
+    );
     if (!transform) {
-      return {
-        x: geometry.center.x + localPoint.x,
-        y: geometry.center.y + localPoint.y
-      };
+      return worldPoint(geometry.center.x + localPoint.x, geometry.center.y + localPoint.y);
     }
     const mapped = applyMatrixToVector(transform, localPoint);
-    return {
-      x: geometry.center.x + mapped.x,
-      y: geometry.center.y + mapped.y
-    };
+    return worldPoint(geometry.center.x + mapped.x, geometry.center.y + mapped.y);
   }
 
   if (geometry.shape === "rectangle") {
     const transform = geometry.anchorTransform;
     const localDirection = (() => {
-      if (!transform) return worldPoint(dx, dy);
+      if (!transform) return worldVector(dx, dy);
       const inverse = inverseMatrix(transform);
-      if (!inverse) return worldPoint(dx, dy);
-      return applyMatrixToVector(inverse, { x: dx, y: dy });
+      if (!inverse) return worldVector(dx, dy);
+      return applyMatrixToVector(inverse, worldVector(dx, dy));
     })();
     const hw = geometry.anchorHalfWidth;
     const hh = geometry.anchorHalfHeight;
     const scale = 1 / Math.max(Math.abs(localDirection.x) / hw, Math.abs(localDirection.y) / hh);
-    const localPoint = {
-      x: localDirection.x * scale,
-      y: localDirection.y * scale
-    };
+    const localPoint = worldVector(localDirection.x * scale, localDirection.y * scale);
     if (!transform) {
-      return {
-        x: geometry.center.x + localPoint.x,
-        y: geometry.center.y + localPoint.y
-      };
+      return worldPoint(geometry.center.x + localPoint.x, geometry.center.y + localPoint.y);
     }
     const mapped = applyMatrixToVector(transform, localPoint);
-    return {
-      x: geometry.center.x + mapped.x,
-      y: geometry.center.y + mapped.y
-    };
+    return worldPoint(geometry.center.x + mapped.x, geometry.center.y + mapped.y);
   }
 
   if (geometry.shape === "ellipse") {
     const transform = geometry.anchorTransform;
     const localDirection = (() => {
-      if (!transform) return worldPoint(dx, dy);
+      if (!transform) return worldVector(dx, dy);
       const inverse = inverseMatrix(transform);
-      if (!inverse) return worldPoint(dx, dy);
-      return applyMatrixToVector(inverse, { x: dx, y: dy });
+      if (!inverse) return worldVector(dx, dy);
+      return applyMatrixToVector(inverse, worldVector(dx, dy));
     })();
     const rx = geometry.anchorHalfWidth;
     const ry = geometry.anchorHalfHeight;
@@ -1139,30 +1117,18 @@ function intersectNodeBorder(geometry: NamedNodeGeometry | null, direction: Worl
     if (!Number.isFinite(scale)) {
       return geometry.center;
     }
-    const localPoint = {
-      x: localDirection.x * scale,
-      y: localDirection.y * scale
-    };
+    const localPoint = worldVector(localDirection.x * scale, localDirection.y * scale);
     if (!transform) {
-      return {
-        x: geometry.center.x + localPoint.x,
-        y: geometry.center.y + localPoint.y
-      };
+      return worldPoint(geometry.center.x + localPoint.x, geometry.center.y + localPoint.y);
     }
     const mapped = applyMatrixToVector(transform, localPoint);
-    return {
-      x: geometry.center.x + mapped.x,
-      y: geometry.center.y + mapped.y
-    };
+    return worldPoint(geometry.center.x + mapped.x, geometry.center.y + mapped.y);
   }
 
   if (geometry.anchorPolygon && geometry.anchorPolygon.length >= 3) {
-    const hit = intersectRayWithPolygon({ x: 0, y: 0 }, { x: dx, y: dy }, geometry.anchorPolygon);
+    const hit = intersectRayWithPolygon(worldPoint(0, 0), worldVector(dx, dy), geometry.anchorPolygon);
     if (hit) {
-      return {
-        x: geometry.center.x + hit.x,
-        y: geometry.center.y + hit.y
-      };
+      return worldPoint(geometry.center.x + hit.x, geometry.center.y + hit.y);
     }
   }
 
@@ -1203,7 +1169,7 @@ function anchorFacingAway(degrees: number): string {
   return "north west";
 }
 
-function autoAnchorFromVector(vector: WorldPoint): string {
+function autoAnchorFromVector(vector: Pick<WorldPoint | WorldVector, "x" | "y">): string {
   if (vector.x > 0.05) {
     if (vector.y > 0.05) {
       return "south east";
@@ -1227,10 +1193,7 @@ function autoAnchorFromVector(vector: WorldPoint): string {
 
 function pointOnUnitCircle(degrees: number): WorldPoint {
   const radians = (degrees * Math.PI) / 180;
-  return {
-    x: Math.cos(radians),
-    y: Math.sin(radians)
-  };
+  return worldPoint(Math.cos(radians), Math.sin(radians));
 }
 
 function normalizeDegrees(value: number): number {

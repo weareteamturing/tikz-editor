@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { viewportPoint as makeViewportPoint, clientPoint } from "tikz-editor/coords/index";
+import { viewportPoint as makeViewportPoint, clientPoint, px } from "tikz-editor/coords/index";
 import { clamp, distanceSquared, viewportToSvgPoint } from "./geometry";
 import { resolveToolCreateCurrentWorld } from "./interaction-helpers";
 import type { ClientPoint, SvgPoint, ViewportPoint } from "../coords/types";
@@ -237,7 +237,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
       }
 
       const rect = viewport.getBoundingClientRect();
-      const viewportPoint = makeViewportPoint(event.clientX - rect.left, event.clientY - rect.top);
+      const viewportPoint = makeViewportPoint(px(event.clientX - rect.left), px(event.clientY - rect.top));
 
       if (event.ctrlKey || event.metaKey) {
         if (fitToContentModeActiveRef.current) {
@@ -270,7 +270,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
       if (event.pointerType !== "touch") {
         return;
       }
-      activeTouchPointers.set(event.pointerId, clientPoint(event.clientX, event.clientY));
+      activeTouchPointers.set(event.pointerId, clientPoint(px(event.clientX), px(event.clientY)));
       if (activeTouchPointers.size < 2) {
         return;
       }
@@ -287,7 +287,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
       if (event.pointerType !== "touch" || !activeTouchPointers.has(event.pointerId)) {
         return;
       }
-      activeTouchPointers.set(event.pointerId, clientPoint(event.clientX, event.clientY));
+      activeTouchPointers.set(event.pointerId, clientPoint(px(event.clientX), px(event.clientY)));
       if (!pinchGesture) {
         return;
       }
@@ -345,8 +345,8 @@ function midpointLocal(
 ): ViewportPoint {
   const rect = viewport.getBoundingClientRect();
   return makeViewportPoint(
-    (first.x + second.x) / 2 - rect.left,
-    (first.y + second.y) / 2 - rect.top
+    px((first.x + second.x) / 2 - rect.left),
+    px((first.y + second.y) / 2 - rect.top)
   );
 }
 

@@ -1,4 +1,6 @@
 import type { PathOptionItem } from "../../ast/types.js";
+import { worldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { NodeTextRenderInfo } from "../../text/types.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "../path/segments.js";
 import type { WorldPoint } from "../../coords/points.js";
@@ -32,6 +34,14 @@ import {
   makeTrapeziumPolygon
 } from "./shape-geometry.js";
 import { normalizeOptionValue } from "./utils.js";
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
+
+function translatePolygon(center: WorldPoint, polygon: readonly WorldPoint[]): WorldPoint[] {
+  return polygon.map((point) => wp(center.x + point.x, center.y + point.y));
+}
 
 export function makeCircleElement(
   sourceId: string,
@@ -188,10 +198,10 @@ export function makeNodeBoxElement(
 ): ScenePath {
   const halfWidth = width / 2;
   const halfHeight = height / 2;
-  const topLeft = { x: center.x - halfWidth, y: center.y - halfHeight };
-  const topRight = { x: center.x + halfWidth, y: center.y - halfHeight };
-  const bottomRight = { x: center.x + halfWidth, y: center.y + halfHeight };
-  const bottomLeft = { x: center.x - halfWidth, y: center.y + halfHeight };
+  const topLeft = wp(center.x - halfWidth, center.y - halfHeight);
+  const topRight = wp(center.x + halfWidth, center.y - halfHeight);
+  const bottomRight = wp(center.x + halfWidth, center.y + halfHeight);
+  const bottomLeft = wp(center.x - halfWidth, center.y + halfHeight);
   const roundedCorners = style.roundedCorners;
 
   let commands: ScenePathCommand[];
@@ -267,10 +277,7 @@ export function makeNodeDiamondElement(
   span: { from: number; to: number },
   styleChain: StyleChainEntry[] = []
 ): ScenePath {
-  const corners = makeDiamondPolygon(width / 2, height / 2, aspect).map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const corners = translatePolygon(center, makeDiamondPolygon(width / 2, height / 2, aspect));
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -287,10 +294,7 @@ export function makeNodeRoundedRectangleElement(
   span: { from: number; to: number },
   styleChain: StyleChainEntry[] = []
 ): ScenePath {
-  const corners = makeRoundedRectanglePolygon(width, height, arcLength, westArc, eastArc).map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const corners = translatePolygon(center, makeRoundedRectanglePolygon(width, height, arcLength, westArc, eastArc));
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -308,10 +312,10 @@ export function makeNodeChamferedRectangleElement(
   span: { from: number; to: number },
   styleChain: StyleChainEntry[] = []
 ): ScenePath {
-  const corners = makeChamferedRectanglePolygon(width, height, chamferX, chamferY, chamferAngle, cornersRaw).map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const corners = translatePolygon(
+    center,
+    makeChamferedRectanglePolygon(width, height, chamferX, chamferY, chamferAngle, cornersRaw)
+  );
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -354,8 +358,8 @@ export function makeNodeMagnifyingHandleElement(
   return makeNodeLineElement(
     sourceId,
     itemId,
-    { x: center.x + handle.from.x, y: center.y + handle.from.y },
-    { x: center.x + handle.to.x, y: center.y + handle.to.y },
+    wp(center.x + handle.from.x, center.y + handle.from.y),
+    wp(center.x + handle.to.x, center.y + handle.to.y),
     style,
     span,
     styleChain
@@ -379,7 +383,7 @@ export function makeNodeTrapeziumElement(
   span: { from: number; to: number },
   styleChain: StyleChainEntry[] = []
 ): ScenePath {
-  const corners = makeTrapeziumPolygon(
+  const corners = translatePolygon(center, makeTrapeziumPolygon(
     {
       naturalHalfWidth: naturalWidth / 2,
       naturalHalfHeight: naturalHeight / 2,
@@ -391,10 +395,7 @@ export function makeNodeTrapeziumElement(
     rotation,
     stretches,
     stretchesBody
-  ).map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  ));
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -413,7 +414,7 @@ export function makeNodeIsoscelesTriangleElement(
   span: { from: number; to: number },
   styleChain: StyleChainEntry[] = []
 ): ScenePath {
-  const corners = makeIsoscelesTrianglePolygon(
+  const corners = translatePolygon(center, makeIsoscelesTrianglePolygon(
     {
       naturalWidth,
       naturalHeight,
@@ -423,10 +424,7 @@ export function makeNodeIsoscelesTriangleElement(
     apexAngle,
     rotation,
     stretches
-  ).map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  ));
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -445,7 +443,7 @@ export function makeNodeKiteElement(
   span: { from: number; to: number },
   styleChain: StyleChainEntry[] = []
 ): ScenePath {
-  const corners = makeKitePolygon(
+  const corners = translatePolygon(center, makeKitePolygon(
     {
       naturalWidth,
       naturalHeight,
@@ -455,10 +453,7 @@ export function makeNodeKiteElement(
     upperVertexAngle,
     lowerVertexAngle,
     rotation
-  ).map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  ));
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -477,7 +472,7 @@ export function makeNodeDartElement(
   span: { from: number; to: number },
   styleChain: StyleChainEntry[] = []
 ): ScenePath {
-  const corners = makeDartPolygon(
+  const corners = translatePolygon(center, makeDartPolygon(
     {
       naturalWidth,
       naturalHeight,
@@ -487,10 +482,7 @@ export function makeNodeDartElement(
     tipAngle,
     tailAngle,
     rotation
-  ).map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  ));
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -517,10 +509,7 @@ export function makeNodeSemicircleElement(
     rotation,
     0
   );
-  const corners = semicircle.polygon.map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const corners = translatePolygon(center, semicircle.polygon);
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -549,10 +538,7 @@ export function makeNodeCircularSectorElement(
     rotation,
     0
   );
-  const corners = sector.polygon.map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const corners = translatePolygon(center, sector.polygon);
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -570,7 +556,7 @@ export function makeNodeRegularPolygonElement(
   span: { from: number; to: number },
   styleChain: StyleChainEntry[] = []
 ): ScenePath {
-  const corners = makeRegularPolygon(
+  const corners = translatePolygon(center, makeRegularPolygon(
     {
       naturalWidth,
       naturalHeight,
@@ -579,10 +565,7 @@ export function makeNodeRegularPolygonElement(
     },
     sides,
     rotation
-  ).map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  ));
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -611,10 +594,7 @@ export function makeNodeCylinderElement(
     rotation,
     0
   );
-  const corners = cylinder.polygon.map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const corners = translatePolygon(center, cylinder.polygon);
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -648,10 +628,7 @@ export function makeNodeStarElement(
     usesRatio,
     rotation
   );
-  const corners = star.polygon.map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const corners = translatePolygon(center, star.polygon);
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -685,10 +662,7 @@ export function makeNodeCloudElement(
     ignoresAspect,
     rotation
   );
-  const corners = cloud.polygon.map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const corners = translatePolygon(center, cloud.polygon);
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -720,10 +694,7 @@ export function makeNodeStarburstElement(
     randomSeed,
     rotation
   );
-  const corners = starburst.polygon.map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const corners = translatePolygon(center, starburst.polygon);
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -753,10 +724,7 @@ export function makeNodeSignalElement(
     toSides,
     fromSides
   );
-  const corners = signal.polygon.map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const corners = translatePolygon(center, signal.polygon);
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -786,10 +754,7 @@ export function makeNodeTapeElement(
     bendBottom,
     bendHeightPt
   );
-  const corners = tape.polygon.map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const corners = translatePolygon(center, tape.polygon);
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -821,10 +786,7 @@ export function makeNodeRectangleCalloutElement(
     pointerIsAbsolute,
     pointerShortenPt
   );
-  const corners = callout.polygon.map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const corners = translatePolygon(center, callout.polygon);
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -856,10 +818,7 @@ export function makeNodeEllipseCalloutElement(
     pointerIsAbsolute,
     pointerShortenPt
   );
-  const corners = callout.polygon.map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const corners = translatePolygon(center, callout.polygon);
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -905,14 +864,8 @@ export function makeNodeCloudCalloutElement(
     pointerIsAbsolute,
     pointerShortenPt
   );
-  const cloudPolygon = callout.polygon.map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
-  const pointerPolygon = callout.pointerPolygon.map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const cloudPolygon = translatePolygon(center, callout.polygon);
+  const pointerPolygon = translatePolygon(center, callout.pointerPolygon);
   return makeNodeMultiPolygonElement(sourceId, itemId, [cloudPolygon, pointerPolygon], style, span, styleChain);
 }
 
@@ -944,10 +897,7 @@ export function makeNodeSingleArrowElement(
     headIndentPt,
     rotation
   );
-  const corners = arrow.polygon.map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const corners = translatePolygon(center, arrow.polygon);
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -979,10 +929,7 @@ export function makeNodeDoubleArrowElement(
     headIndentPt,
     rotation
   );
-  const corners = arrow.polygon.map((point) => ({
-    x: center.x + point.x,
-    y: center.y + point.y
-  }));
+  const corners = translatePolygon(center, arrow.polygon);
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 

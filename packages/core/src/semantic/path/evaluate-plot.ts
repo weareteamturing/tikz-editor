@@ -1,3 +1,5 @@
+import { worldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { WorldPoint } from "../../coords/points.js";
 import type { PlotOperationItem } from "../../ast/types.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings } from "../../macros/index.js";
@@ -11,6 +13,10 @@ import type { StyleChainEntry } from "../style-chain.js";
 import { appendCircleSubpath, appendRectangleSubpath, hasDrawablePathSegments, makePath } from "./elements.js";
 import { formatPlotSampleValue, resolvePlotSampleValues, type PlotSettings } from "./plot.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.js";
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
 
 export function extractPlotCoordinateEntries(rawGroup: string): Array<{ raw: string; relativePrefix?: "+" | "++" }> {
   const trimmed = rawGroup.trim();
@@ -116,19 +122,19 @@ function appendPlotXMarks(commands: ScenePath["commands"], points: WorldPoint[])
   for (const point of points) {
     commands.push({
       kind: "M",
-      to: { x: point.x - halfSize, y: point.y - halfSize }
+      to: wp(point.x - halfSize, point.y - halfSize)
     });
     commands.push({
       kind: "L",
-      to: { x: point.x + halfSize, y: point.y + halfSize }
+      to: wp(point.x + halfSize, point.y + halfSize)
     });
     commands.push({
       kind: "M",
-      to: { x: point.x - halfSize, y: point.y + halfSize }
+      to: wp(point.x - halfSize, point.y + halfSize)
     });
     commands.push({
       kind: "L",
-      to: { x: point.x + halfSize, y: point.y - halfSize }
+      to: wp(point.x + halfSize, point.y - halfSize)
     });
   }
 }
@@ -138,19 +144,19 @@ function appendPlotPlusMarks(commands: ScenePath["commands"], points: WorldPoint
   for (const point of points) {
     commands.push({
       kind: "M",
-      to: { x: point.x - halfSize, y: point.y }
+      to: wp(point.x - halfSize, point.y)
     });
     commands.push({
       kind: "L",
-      to: { x: point.x + halfSize, y: point.y }
+      to: wp(point.x + halfSize, point.y)
     });
     commands.push({
       kind: "M",
-      to: { x: point.x, y: point.y - halfSize }
+      to: wp(point.x, point.y - halfSize)
     });
     commands.push({
       kind: "L",
-      to: { x: point.x, y: point.y + halfSize }
+      to: wp(point.x, point.y + halfSize)
     });
   }
 }
@@ -268,17 +274,17 @@ export function emitPlotPath(params: {
       const c1 =
         pointIndex === 0
           ? current
-          : {
-              x: current.x + tensionFactor * (next.x - prev.x),
-              y: current.y + tensionFactor * (next.y - prev.y)
-            };
+          : wp(
+              current.x + tensionFactor * (next.x - prev.x),
+              current.y + tensionFactor * (next.y - prev.y)
+            );
       const c2 =
-        pointIndex === points.length - 2
+          pointIndex === points.length - 2
           ? next
-          : {
-              x: next.x - tensionFactor * (nextNext.x - current.x),
-              y: next.y - tensionFactor * (nextNext.y - current.y)
-            };
+          : wp(
+              next.x - tensionFactor * (nextNext.x - current.x),
+              next.y - tensionFactor * (nextNext.y - current.y)
+            );
       addCurve(current, c1, c2, next);
     }
     markPoints.push(...points);
@@ -295,14 +301,14 @@ export function emitPlotPath(params: {
         const current = points[pointIndex]!;
         const next = points[(pointIndex + 1) % count]!;
         const nextNext = points[(pointIndex + 2) % count]!;
-        const c1 = {
-          x: current.x + tensionFactor * (next.x - previous.x),
-          y: current.y + tensionFactor * (next.y - previous.y)
-        };
-        const c2 = {
-          x: next.x - tensionFactor * (nextNext.x - current.x),
-          y: next.y - tensionFactor * (nextNext.y - current.y)
-        };
+        const c1 = wp(
+          current.x + tensionFactor * (next.x - previous.x),
+          current.y + tensionFactor * (next.y - previous.y)
+        );
+        const c2 = wp(
+          next.x - tensionFactor * (nextNext.x - current.x),
+          next.y - tensionFactor * (nextNext.y - current.y)
+        );
         addCurve(current, c1, c2, next);
       }
       lastSegment = { from: points[count - 1]!, to: first };
@@ -328,39 +334,39 @@ export function emitPlotPath(params: {
       const previous = points[pointIndex - 1]!;
       const current = points[pointIndex]!;
       if (settings.handler === "const-left") {
-        const step = { x: current.x, y: previous.y };
+        const step = wp(current.x, previous.y);
         addLine(previous, step);
         addLine(step, current);
         continue;
       }
       if (settings.handler === "const-right") {
-        const step = { x: previous.x, y: current.y };
+        const step = wp(previous.x, current.y);
         addLine(previous, step);
         addLine(step, current);
         continue;
       }
       if (settings.handler === "const-mid") {
-        const mid = { x: 0.5 * (previous.x + current.x), y: previous.y };
-        const midTop = { x: mid.x, y: current.y };
+        const mid = wp(0.5 * (previous.x + current.x), previous.y);
+        const midTop = wp(mid.x, current.y);
         addLine(previous, mid);
         addLine(mid, midTop);
         addLine(midTop, current);
         continue;
       }
       if (settings.handler === "jump-left") {
-        const end = { x: current.x, y: previous.y };
+        const end = wp(current.x, previous.y);
         addLine(previous, end);
         commands.push({ kind: "M", to: current });
         continue;
       }
       if (settings.handler === "jump-right") {
-        const start = { x: previous.x, y: current.y };
+        const start = wp(previous.x, current.y);
         commands.push({ kind: "M", to: start });
         addLine(start, current);
         continue;
       }
-      const mid = { x: 0.5 * (previous.x + current.x), y: previous.y };
-      const midTop = { x: mid.x, y: current.y };
+      const mid = wp(0.5 * (previous.x + current.x), previous.y);
+      const midTop = wp(mid.x, current.y);
       addLine(previous, mid);
       commands.push({ kind: "M", to: midTop });
       addLine(midTop, current);
@@ -383,10 +389,7 @@ export function emitPlotPath(params: {
         for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
           const previous = points[pointIndex - 1]!;
           const current = points[pointIndex]!;
-          markPoints.push({
-            x: 0.5 * (previous.x + current.x),
-            y: previous.y
-          });
+          markPoints.push(wp(0.5 * (previous.x + current.x), previous.y));
         }
       } else {
         markPoints.push(...points);
@@ -397,7 +400,7 @@ export function emitPlotPath(params: {
       addConnectionToFirstPoint(points[0]!);
     }
     for (const point of points) {
-      const base = { x: point.x, y: 0 };
+      const base = wp(point.x, 0);
       commands.push({ kind: "M", to: base });
       addLine(base, point);
     }
@@ -407,7 +410,7 @@ export function emitPlotPath(params: {
       addConnectionToFirstPoint(points[0]!);
     }
     for (const point of points) {
-      const base = { x: 0, y: point.y };
+      const base = wp(0, point.y);
       commands.push({ kind: "M", to: base });
       addLine(base, point);
     }
@@ -416,7 +419,7 @@ export function emitPlotPath(params: {
     if (connectFrom) {
       addConnectionToFirstPoint(points[0]!);
     }
-    const origin = { x: 0, y: 0 };
+    const origin = wp(0, 0);
     for (const point of points) {
       commands.push({ kind: "M", to: origin });
       addLine(origin, point);
@@ -428,11 +431,11 @@ export function emitPlotPath(params: {
     }
     for (const point of points) {
       const left = point.x - 0.5 * settings.barWidth + settings.barShift;
-      const from = { x: left, y: 0 };
-      const to = { x: left + settings.barWidth, y: point.y };
+      const from = wp(left, 0);
+      const to = wp(left + settings.barWidth, point.y);
       appendRectangleSubpath(commands, from, to);
-      if (!pointsClose(from, { x: left, y: point.y })) {
-        lastSegment = { from: { x: left, y: 0 }, to: { x: left, y: point.y } };
+      if (!pointsClose(from, wp(left, point.y))) {
+        lastSegment = { from: wp(left, 0), to: wp(left, point.y) };
       }
     }
     markPoints.push(...points);
@@ -442,11 +445,11 @@ export function emitPlotPath(params: {
     }
     for (const point of points) {
       const bottom = point.y - 0.5 * settings.barWidth + settings.barShift;
-      const from = { x: 0, y: bottom };
-      const to = { x: point.x, y: bottom + settings.barWidth };
+      const from = wp(0, bottom);
+      const to = wp(point.x, bottom + settings.barWidth);
       appendRectangleSubpath(commands, from, to);
-      if (!pointsClose(from, { x: point.x, y: bottom })) {
-        lastSegment = { from: { x: 0, y: bottom }, to: { x: point.x, y: bottom } };
+      if (!pointsClose(from, wp(point.x, bottom))) {
+        lastSegment = { from: wp(0, bottom), to: wp(point.x, bottom) };
       }
     }
     markPoints.push(...points);
@@ -461,11 +464,11 @@ export function emitPlotPath(params: {
       const center = current.x + settings.barIntervalShift * interval;
       const width = settings.barIntervalWidth * interval;
       const left = center - 0.5 * width;
-      const from = { x: left, y: 0 };
-      const to = { x: left + width, y: current.y };
+      const from = wp(left, 0);
+      const to = wp(left + width, current.y);
       appendRectangleSubpath(commands, from, to);
-      if (!pointsClose(from, { x: left, y: current.y })) {
-        lastSegment = { from: { x: left, y: 0 }, to: { x: left, y: current.y } };
+      if (!pointsClose(from, wp(left, current.y))) {
+        lastSegment = { from: wp(left, 0), to: wp(left, current.y) };
       }
     }
     markPoints.push(...points);
@@ -480,11 +483,11 @@ export function emitPlotPath(params: {
       const center = current.y + settings.barIntervalShift * interval;
       const width = settings.barIntervalWidth * interval;
       const bottom = center - 0.5 * width;
-      const from = { x: 0, y: bottom };
-      const to = { x: current.x, y: bottom + width };
+      const from = wp(0, bottom);
+      const to = wp(current.x, bottom + width);
       appendRectangleSubpath(commands, from, to);
-      if (!pointsClose(from, { x: current.x, y: bottom })) {
-        lastSegment = { from: { x: 0, y: bottom }, to: { x: current.x, y: bottom } };
+      if (!pointsClose(from, wp(current.x, bottom))) {
+        lastSegment = { from: wp(0, bottom), to: wp(current.x, bottom) };
       }
     }
     markPoints.push(...points);

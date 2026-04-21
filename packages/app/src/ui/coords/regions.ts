@@ -1,4 +1,4 @@
-import { textRectLocalPoint } from "tikz-editor/coords/index";
+import { textRectLocalPoint, px } from "tikz-editor/coords/index";
 import type { HitRegion } from "../canvas-panel/hit-regions";
 import { rotatePointAroundCenter } from "../canvas-panel/geometry";
 import { applyMatrix, inverseMatrix } from "tikz-editor/semantic/transform";
@@ -25,13 +25,13 @@ export function svgPointToTextRectLocal(point: SvgPoint, region: Extract<HitRegi
     const inverse = inverseMatrix(region.transform);
     if (inverse) {
       return textRectLocalPoint(
-        inverse.a * point.x + inverse.c * point.y + inverse.e,
-        inverse.b * point.x + inverse.d * point.y + inverse.f
+        px(inverse.a * point.x + inverse.c * point.y + inverse.e),
+        px(inverse.b * point.x + inverse.d * point.y + inverse.f)
       );
     }
   }
   const rotated = rotatePointAroundCenter(point, region.cx, region.cy, region.rotation);
-  return textRectLocalPoint(rotated.x, rotated.y);
+  return textRectLocalPoint(px(rotated.x), px(rotated.y));
 }
 
 export function isSvgPointInsideRectHitRegionContentBox(

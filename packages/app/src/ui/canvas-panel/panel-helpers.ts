@@ -1,10 +1,19 @@
 import type { AdornmentOwnerGeometry, NodeItem, PathItem, Span, Statement } from "tikz-editor/ast/types";
 import type { ResizeRole } from "tikz-editor/edit/actions";
-import { svgPoint, svgBounds } from "tikz-editor/coords/index";
+import { mapWorldTransformToSvgTransform, svgPoint, svgBounds, worldPoint, worldVector, worldTransform, pt } from "tikz-editor/coords/index";
 import { parseCoordinateLike, parseLength } from "tikz-editor/semantic/coords/parse-length";
 import type { OptionListAst } from "tikz-editor/options/types";
-import type { EditHandle, SceneClipPath, SceneElement, ScenePath, ScenePathCommand, ScenePathShapeHint, SceneText } from "tikz-editor/semantic/types";
-import type { SvgTransform, WorldTransform } from "tikz-editor/coords/index";
+import {
+  isFrameLocalCoordinateEditHandle,
+  type EditHandle,
+  type SceneClipPath,
+  type SceneElement,
+  type ScenePath,
+  type ScenePathCommand,
+  type ScenePathShapeHint,
+  type SceneText
+} from "tikz-editor/semantic/types";
+import type { SvgTransform, WorldTransform, WorldVector } from "tikz-editor/coords/index";
 import { intersectRayWithPolygon } from "tikz-editor/semantic/nodes/shape-geometry";
 import type { SvgViewBox } from "tikz-editor/svg/index";
 import { applyMatrix, applyMatrixToVector, inverseMatrix } from "tikz-editor/semantic/transform";
@@ -118,28 +127,37 @@ export function resolveAdornmentOwnerBoundaryPoint(
   ownerPoint: WorldPoint,
   targetPoint: WorldPoint
 ): WorldPoint {
-  const center = ownerGeometry?.center ?? ownerPoint;
+  const center = ownerGeometry
+    ? worldPoint(pt(ownerGeometry.center.x), pt(ownerGeometry.center.y))
+    : ownerPoint;
+  const anchorPolygon = ownerGeometry?.anchorPolygon?.map((point) => worldPoint(pt(point.x), pt(point.y)));
   const dx = targetPoint.x - center.x;
   const dy = targetPoint.y - center.y;
   const radius = Math.hypot(dx, dy);
   if (radius <= 1e-6 || !ownerGeometry || ownerGeometry.shape === "coordinate") {
     return center;
   }
-  const direction = { x: dx / radius, y: dy / radius };
+  const direction = worldVector(pt(dx / radius), pt(dy / radius));
 
-  if (ownerGeometry.anchorPolygon && ownerGeometry.anchorPolygon.length >= 3) {
-    const hit = intersectRayWithPolygon({ x: 0, y: 0 }, direction, ownerGeometry.anchorPolygon);
+  if (anchorPolygon && anchorPolygon.length >= 3) {
+    const hit = intersectRayWithPolygon(worldPoint(pt(0), pt(0)), worldVector(pt(direction.x), pt(direction.y)), anchorPolygon);
     if (hit) {
-      return {
-        x: center.x + hit.x,
-        y: center.y + hit.y
-      };
+      return worldPoint(pt(center.x + hit.x), pt(center.y + hit.y));
     }
   }
 
   let borderDistance = 0;
   if (ownerGeometry.shape === "circle") {
-    const transform = ownerGeometry.anchorTransform;
+    const transform = ownerGeometry.anchorTransform
+      ? worldTransform(
+          ownerGeometry.anchorTransform.a,
+          ownerGeometry.anchorTransform.b,
+          ownerGeometry.anchorTransform.c,
+          ownerGeometry.anchorTransform.d,
+          ownerGeometry.anchorTransform.e,
+          ownerGeometry.anchorTransform.f
+        )
+      : undefined;
     const localDirection = (() => {
       if (!transform) return direction;
       const inverse = inverseMatrix(transform);
@@ -148,15 +166,24 @@ export function resolveAdornmentOwnerBoundaryPoint(
     })();
     const localLen = Math.hypot(localDirection.x, localDirection.y);
     if (Number.isFinite(localLen) && localLen > 1e-9) {
-      const localPoint = {
-        x: (localDirection.x / localLen) * Math.max(0, ownerGeometry.anchorRadius),
-        y: (localDirection.y / localLen) * Math.max(0, ownerGeometry.anchorRadius)
-      };
+      const localPoint = worldVector(
+        pt((localDirection.x / localLen) * Math.max(0, ownerGeometry.anchorRadius)),
+        pt((localDirection.y / localLen) * Math.max(0, ownerGeometry.anchorRadius))
+      );
       const mapped = transform ? applyMatrixToVector(transform, localPoint) : localPoint;
       borderDistance = Math.hypot(mapped.x, mapped.y);
     }
   } else if (ownerGeometry.shape === "rectangle") {
-    const transform = ownerGeometry.anchorTransform;
+    const transform = ownerGeometry.anchorTransform
+      ? worldTransform(
+          ownerGeometry.anchorTransform.a,
+          ownerGeometry.anchorTransform.b,
+          ownerGeometry.anchorTransform.c,
+          ownerGeometry.anchorTransform.d,
+          ownerGeometry.anchorTransform.e,
+          ownerGeometry.anchorTransform.f
+        )
+      : undefined;
     const localDirection = (() => {
       if (!transform) return direction;
       const inverse = inverseMatrix(transform);
@@ -167,15 +194,21 @@ export function resolveAdornmentOwnerBoundaryPoint(
     const hh = Math.max(ownerGeometry.anchorHalfHeight, 1e-6);
     const scale = 1 / Math.max(Math.abs(localDirection.x) / hw, Math.abs(localDirection.y) / hh);
     if (Number.isFinite(scale)) {
-      const localPoint = {
-        x: localDirection.x * scale,
-        y: localDirection.y * scale
-      };
+      const localPoint = worldVector(pt(localDirection.x * scale), pt(localDirection.y * scale));
       const mapped = transform ? applyMatrixToVector(transform, localPoint) : localPoint;
       borderDistance = Math.hypot(mapped.x, mapped.y);
     }
   } else if (ownerGeometry.shape === "ellipse") {
-    const transform = ownerGeometry.anchorTransform;
+    const transform = ownerGeometry.anchorTransform
+      ? worldTransform(
+          ownerGeometry.anchorTransform.a,
+          ownerGeometry.anchorTransform.b,
+          ownerGeometry.anchorTransform.c,
+          ownerGeometry.anchorTransform.d,
+          ownerGeometry.anchorTransform.e,
+          ownerGeometry.anchorTransform.f
+        )
+      : undefined;
     const localDirection = (() => {
       if (!transform) return direction;
       const inverse = inverseMatrix(transform);
@@ -186,40 +219,31 @@ export function resolveAdornmentOwnerBoundaryPoint(
     const ry = Math.max(ownerGeometry.anchorHalfHeight, 1e-6);
     const scale = 1 / Math.sqrt((localDirection.x * localDirection.x) / (rx * rx) + (localDirection.y * localDirection.y) / (ry * ry));
     if (Number.isFinite(scale)) {
-      const localPoint = {
-        x: localDirection.x * scale,
-        y: localDirection.y * scale
-      };
+      const localPoint = worldVector(pt(localDirection.x * scale), pt(localDirection.y * scale));
       const mapped = transform ? applyMatrixToVector(transform, localPoint) : localPoint;
       borderDistance = Math.hypot(mapped.x, mapped.y);
     }
   }
 
-  return {
-    x: center.x + direction.x * borderDistance,
-    y: center.y + direction.y * borderDistance
-  };
+  return worldPoint(
+    pt(center.x + direction.x * borderDistance),
+    pt(center.y + direction.y * borderDistance)
+  );
 }
 
 export function resolveBoundsEdgePointToward(bounds: SvgBounds, from: SvgPoint): SvgPoint {
-  const center = {
-    x: (bounds.minX + bounds.maxX) / 2,
-    y: (bounds.minY + bounds.maxY) / 2
-  };
-  const vector = {
-    x: from.x - center.x,
-    y: from.y - center.y
-  };
+  const center = svgPoint(
+    pt((bounds.minX + bounds.maxX) / 2),
+    pt((bounds.minY + bounds.maxY) / 2)
+  );
+  const vector = worldVector(pt(from.x - center.x), pt(from.y - center.y));
   const halfWidth = Math.max((bounds.maxX - bounds.minX) / 2, 1e-6);
   const halfHeight = Math.max((bounds.maxY - bounds.minY) / 2, 1e-6);
   const scale = Math.max(Math.abs(vector.x) / halfWidth, Math.abs(vector.y) / halfHeight);
   if (!Number.isFinite(scale) || scale <= 1e-6) {
     return center;
   }
-  return {
-    x: center.x + vector.x / scale,
-    y: center.y + vector.y / scale
-  };
+  return svgPoint(pt(center.x + vector.x / scale), pt(center.y + vector.y / scale));
 }
 
 export function elementBoundsInSvg(element: SceneElement, viewBox: SvgViewBox): SvgBounds | null {
@@ -230,12 +254,12 @@ export function elementBoundsInSvg(element: SceneElement, viewBox: SvgViewBox): 
 
   if (element.kind === "Circle") {
     const center = worldToSvgPoint(element.center, viewBox);
-    const bounds = {
-      minX: center.x - element.radius,
-      maxX: center.x + element.radius,
-      minY: center.y - element.radius,
-      maxY: center.y + element.radius
-    };
+    const bounds = svgBounds(
+      pt(center.x - element.radius),
+      pt(center.y - element.radius),
+      pt(center.x + element.radius),
+      pt(center.y + element.radius)
+    );
     return applyElementTransformToSvgBounds(bounds, element.transform, viewBox);
   }
 
@@ -297,7 +321,7 @@ export function constrainBoundsToClipChain(
   if (!bounds) {
     return null;
   }
-  let constrained: SvgBounds | null = svgBounds(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY);
+  let constrained: SvgBounds | null = svgBounds(pt(bounds.minX), pt(bounds.minY), pt(bounds.maxX), pt(bounds.maxY));
   for (const clipPath of clipChain) {
     const clipBounds = clipPathBoundsInSvg(clipPath, viewBox);
     if (!clipBounds) {
@@ -335,12 +359,12 @@ function pathCommandBoundsInSvg(commands: readonly ScenePathCommand[], viewBox: 
 
     if (command.kind === "A") {
       if (previous) {
-        includePoint(svgPoint(previous.x - command.rx, previous.y - command.ry));
-        includePoint(svgPoint(previous.x + command.rx, previous.y + command.ry));
+        includePoint(svgPoint(pt(previous.x - command.rx), pt(previous.y - command.ry)));
+        includePoint(svgPoint(pt(previous.x + command.rx), pt(previous.y + command.ry)));
       }
       const to = worldToSvgPoint(command.to, viewBox);
-      includePoint(svgPoint(to.x - command.rx, to.y - command.ry));
-      includePoint(svgPoint(to.x + command.rx, to.y + command.ry));
+      includePoint(svgPoint(pt(to.x - command.rx), pt(to.y - command.ry)));
+      includePoint(svgPoint(pt(to.x + command.rx), pt(to.y + command.ry)));
       previous = to;
       continue;
     }
@@ -354,7 +378,7 @@ function pathCommandBoundsInSvg(commands: readonly ScenePathCommand[], viewBox: 
     return null;
   }
 
-  return svgBounds(minX, minY, maxX, maxY);
+  return svgBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
 }
 
 function intersectBounds(a: SvgBounds, b: SvgBounds): SvgBounds | null {
@@ -365,7 +389,7 @@ function intersectBounds(a: SvgBounds, b: SvgBounds): SvgBounds | null {
   if (minX > maxX || minY > maxY) {
     return null;
   }
-  return svgBounds(minX, minY, maxX, maxY);
+  return svgBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
 }
 
 export function computeEllipseBounds(cx: number, cy: number, rx: number, ry: number, rotation: number): SvgBounds {
@@ -375,19 +399,14 @@ export function computeEllipseBounds(cx: number, cy: number, rx: number, ry: num
   const extentX = Math.sqrt(rx * rx * cos * cos + ry * ry * sin * sin);
   const extentY = Math.sqrt(rx * rx * sin * sin + ry * ry * cos * cos);
 
-  return {
-    minX: cx - extentX,
-    maxX: cx + extentX,
-    minY: cy - extentY,
-    maxY: cy + extentY
-  };
+  return svgBounds(pt(cx - extentX), pt(cy - extentY), pt(cx + extentX), pt(cy + extentY));
 }
 
 export function computeRotatedRectBounds(cx: number, cy: number, width: number, height: number, rotation: number): SvgBounds {
   const halfWidth = width / 2;
   const halfHeight = height / 2;
   if (Math.abs(rotation) <= 1e-6) {
-    return svgBounds(cx - halfWidth, cy - halfHeight, cx + halfWidth, cy + halfHeight);
+    return svgBounds(pt(cx - halfWidth), pt(cy - halfHeight), pt(cx + halfWidth), pt(cy + halfHeight));
   }
 
   const theta = (rotation * Math.PI) / 180;
@@ -396,15 +415,15 @@ export function computeRotatedRectBounds(cx: number, cy: number, width: number, 
   const extentX = halfWidth * cos + halfHeight * sin;
   const extentY = halfWidth * sin + halfHeight * cos;
 
-  return svgBounds(cx - extentX, cy - extentY, cx + extentX, cy + extentY);
+  return svgBounds(pt(cx - extentX), pt(cy - extentY), pt(cx + extentX), pt(cy + extentY));
 }
 
 export function mergeBounds(a: SvgBounds, b: SvgBounds): SvgBounds {
   return svgBounds(
-    Math.min(a.minX, b.minX),
-    Math.min(a.minY, b.minY),
-    Math.max(a.maxX, b.maxX),
-    Math.max(a.maxY, b.maxY)
+    pt(Math.min(a.minX, b.minX)),
+    pt(Math.min(a.minY, b.minY)),
+    pt(Math.max(a.maxX, b.maxX)),
+    pt(Math.max(a.maxY, b.maxY))
   );
 }
 
@@ -427,28 +446,15 @@ function worldTransformToSvgTransform(
   matrix: WorldTransform,
   viewBox: Pick<SvgViewBox, "y" | "height">
 ): SvgTransform {
-  const k = viewBox.y + viewBox.height + viewBox.y;
-  const flip: SvgTransform = { a: 1, b: 0, c: 0, d: -1, e: 0, f: k };
-  return multiplyAffine(multiplyAffine(flip, matrix), flip);
-}
-
-function multiplyAffine(left: SvgTransform, right: SvgTransform): SvgTransform {
-  return {
-    a: left.a * right.a + left.c * right.b,
-    b: left.b * right.a + left.d * right.b,
-    c: left.a * right.c + left.c * right.d,
-    d: left.b * right.c + left.d * right.d,
-    e: left.a * right.e + left.c * right.f + left.e,
-    f: left.b * right.e + left.d * right.f + left.f
-  };
+  return mapWorldTransformToSvgTransform(matrix, viewBox);
 }
 
 function transformBounds(bounds: SvgBounds, transform: SvgTransform): SvgBounds {
   const corners: SvgPoint[] = [
-    svgPoint(bounds.minX, bounds.minY),
-    svgPoint(bounds.maxX, bounds.minY),
-    svgPoint(bounds.maxX, bounds.maxY),
-    svgPoint(bounds.minX, bounds.maxY)
+    svgPoint(pt(bounds.minX), pt(bounds.minY)),
+    svgPoint(pt(bounds.maxX), pt(bounds.minY)),
+    svgPoint(pt(bounds.maxX), pt(bounds.maxY)),
+    svgPoint(pt(bounds.minX), pt(bounds.maxY))
   ];
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
@@ -457,8 +463,8 @@ function transformBounds(bounds: SvgBounds, transform: SvgTransform): SvgBounds 
 
   for (const point of corners) {
     const mapped = svgPoint(
-      transform.a * point.x + transform.c * point.y + transform.e,
-      transform.b * point.x + transform.d * point.y + transform.f
+      pt(transform.a * point.x + transform.c * point.y + transform.e),
+      pt(transform.b * point.x + transform.d * point.y + transform.f)
     );
     minX = Math.min(minX, mapped.x);
     minY = Math.min(minY, mapped.y);
@@ -466,7 +472,7 @@ function transformBounds(bounds: SvgBounds, transform: SvgTransform): SvgBounds 
     maxY = Math.max(maxY, mapped.y);
   }
 
-  return svgBounds(minX, minY, maxX, maxY);
+  return svgBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
 }
 
 export function selectionAnchorRatioFromPoint(bounds: WorldBounds, point: WorldPoint): SelectionAnchorRatio {
@@ -720,7 +726,7 @@ export function resolveGridResizeSnapForHandleDrag(
   editHandles: readonly EditHandle[],
   statements: readonly Statement[] | undefined
 ): GridResizeSnapConfig | null {
-  if (handle.kind !== "path-point" || !statements) {
+  if (handle.kind !== "path-point" || !statements || !isFrameLocalCoordinateEditHandle(handle)) {
     return null;
   }
   const siblingPathPointHandles = editHandles.filter(
@@ -730,7 +736,7 @@ export function resolveGridResizeSnapForHandleDrag(
     return null;
   }
   const anchorHandle = siblingPathPointHandles.find((candidate) => candidate.id !== handle.id);
-  if (!anchorHandle || !transformsApproximatelyEqual(handle.transform, anchorHandle.transform)) {
+  if (!anchorHandle || !isFrameLocalCoordinateEditHandle(anchorHandle) || !transformsApproximatelyEqual(handle.transform, anchorHandle.transform)) {
     return null;
   }
 
@@ -755,7 +761,7 @@ export function resolveGridResizeSnapForHandleDrag(
     anchorWorld: anchorHandle.world,
     stepX: gridCandidate.stepX,
     stepY: gridCandidate.stepY,
-    transform: handle.transform
+    transform: handle.frame
   };
 }
 
@@ -1071,10 +1077,10 @@ export function getHandleCursor(
   if (siblingPathHandles.length === 2) {
     const other = siblingPathHandles.find((candidate) => candidate.id !== handle.id);
     if (other) {
-      const vector = {
-        x: other.world.x - handle.world.x,
-        y: other.world.y - handle.world.y
-      };
+      const vector = worldVector(
+        pt(other.world.x - handle.world.x),
+        pt(other.world.y - handle.world.y)
+      );
       if (vectorLengthSquared(vector) > 1e-12) {
         return resizeCursorForVector(vector);
       }
@@ -1088,7 +1094,7 @@ export function getHandleCursor(
     return "move";
   }
 
-  let bestVector: WorldPoint | null = null;
+  let bestVector: WorldVector | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const path of sourcePaths) {
@@ -1103,7 +1109,10 @@ export function getHandleCursor(
 
       if (command.kind === "Z") {
         if (current && subpathStart) {
-          const vector = { x: subpathStart.x - current.x, y: subpathStart.y - current.y };
+          const vector = worldVector(
+            pt(subpathStart.x - current.x),
+            pt(subpathStart.y - current.y)
+          );
           const fromDist = distanceSquared(handle.world, current);
           if (fromDist < bestDistance && vectorLengthSquared(vector) > 1e-12) {
             bestDistance = fromDist;
@@ -1128,7 +1137,7 @@ export function getHandleCursor(
       const to = command.to;
 
       if (command.kind === "L" || command.kind === "A") {
-        const vector = { x: to.x - from.x, y: to.y - from.y };
+        const vector = worldVector(pt(to.x - from.x), pt(to.y - from.y));
         const fromDist = distanceSquared(handle.world, from);
         if (fromDist < bestDistance && vectorLengthSquared(vector) > 1e-12) {
           bestDistance = fromDist;
@@ -1140,8 +1149,8 @@ export function getHandleCursor(
           bestVector = vector;
         }
       } else {
-        const startVector = { x: command.c1.x - from.x, y: command.c1.y - from.y };
-        const endVector = { x: to.x - command.c2.x, y: to.y - command.c2.y };
+        const startVector = worldVector(pt(command.c1.x - from.x), pt(command.c1.y - from.y));
+        const endVector = worldVector(pt(to.x - command.c2.x), pt(to.y - command.c2.y));
 
         const fromDist = distanceSquared(handle.world, from);
         if (fromDist < bestDistance && vectorLengthSquared(startVector) > 1e-12) {

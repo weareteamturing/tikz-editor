@@ -57,7 +57,7 @@ import {
   ScenePath,
   SceneText
 } from "tikz-editor/semantic/types";
-import { svgPoint as makeSvgPoint, viewportPoint, clientPoint as makeClientPoint, svgBounds } from "tikz-editor/coords/index";
+import { svgPoint as makeSvgPoint, viewportPoint, clientPoint as makeClientPoint, svgBounds, pt, px } from "tikz-editor/coords/index";
 import { renderTikzToSvg } from "tikz-editor/render/index";
 import { type SvgDiffHints, type SvgViewBox } from "tikz-editor/svg/index";
 import type { SvgRenderModel } from "tikz-editor/svg";
@@ -694,7 +694,7 @@ function estimateTextOffsetFromClient(
     const viewportPoint = viewportPointFromClient(clientPoint, viewportRef.current);
     return svgResult
       ? viewportToSvgPoint(viewportPoint, canvasTransform, svgResult.viewBox)
-      : makeSvgPoint(clientPoint.x, clientPoint.y);
+      : makeSvgPoint(pt(clientPoint.x), pt(clientPoint.y));
   })();
   const localPoint = mapPointToRectRegionLocal(svgPoint, target.region);
   const xRatio =
@@ -725,7 +725,7 @@ function estimateTextLineRangeFromClient(
     const viewportPoint = viewportPointFromClient(clientPoint, viewportRef.current);
     return svgResult
       ? viewportToSvgPoint(viewportPoint, canvasTransform, svgResult.viewBox)
-      : makeSvgPoint(clientPoint.x, clientPoint.y);
+      : makeSvgPoint(pt(clientPoint.x), pt(clientPoint.y));
   })();
   const localPoint = mapPointToRectRegionLocal(svgPoint, target.region);
   const yRatio =
@@ -739,8 +739,8 @@ function estimateTextLineRangeFromClient(
 function viewportPointFromClient(clientPoint: ClientPoint, viewport: HTMLDivElement | null): ViewportPoint {
   const rect = viewport?.getBoundingClientRect();
   return viewportPoint(
-    rect ? clientPoint.x - rect.left : clientPoint.x,
-    rect ? clientPoint.y - rect.top : clientPoint.y
+    px(rect ? clientPoint.x - rect.left : clientPoint.x),
+    px(rect ? clientPoint.y - rect.top : clientPoint.y)
   );
 }
 
@@ -1529,7 +1529,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       }
       snapDebugDragRef.current = {
         kind: "move",
-        startClient: makeClientPoint(event.clientX, event.clientY),
+        startClient: makeClientPoint(px(event.clientX), px(event.clientY)),
         startLeft: snapDebugRect.left,
         startTop: snapDebugRect.top
       };
@@ -1547,7 +1547,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       }
       snapDebugDragRef.current = {
         kind: "resize",
-        startClient: makeClientPoint(event.clientX, event.clientY),
+        startClient: makeClientPoint(px(event.clientX), px(event.clientY)),
         startWidth: snapDebugRect.width,
         startHeight: snapDebugRect.height
       };
@@ -1940,7 +1940,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     }
 
     const svgPoint = viewportToSvgPoint(
-      viewportPoint(centerX, centerY),
+      viewportPoint(px(centerX), px(centerY)),
       currentTransform,
       svgResult.viewBox
     );
@@ -2255,12 +2255,12 @@ export const CanvasPanel = memo(function CanvasPanel({
         totalWidth: textBlockWidth,
         region,
         popupAnchorBox: preferredBounds
-          ? svgBounds(preferredBounds.minX, preferredBounds.minY, preferredBounds.maxX, preferredBounds.maxY)
+          ? svgBounds(pt(preferredBounds.minX), pt(preferredBounds.minY), pt(preferredBounds.maxX), pt(preferredBounds.maxY))
           : svgBounds(
-              region.cx - popupAnchorWidth / 2,
-              region.cy - popupAnchorHeight / 2,
-              region.cx + popupAnchorWidth / 2,
-              region.cy + popupAnchorHeight / 2
+              pt(region.cx - popupAnchorWidth / 2),
+              pt(region.cy - popupAnchorHeight / 2),
+              pt(region.cx + popupAnchorWidth / 2),
+              pt(region.cy + popupAnchorHeight / 2)
             )
       };
     },
@@ -2432,7 +2432,7 @@ export const CanvasPanel = memo(function CanvasPanel({
         textEditingSession?.sourceId === target.sourceId ? textEditingSession.historyMergeKey : undefined;
       const clickCount = event.detail >= 2 ? event.detail : 1;
       const mode = resolveTextSelectionModeFromClickCount(clickCount);
-      const clientPoint = makeClientPoint(event.clientX, event.clientY);
+      const clientPoint = makeClientPoint(px(event.clientX), px(event.clientY));
       const provisionalOffset = estimateTextOffsetFromClient(
         target,
         clientPoint,
@@ -2802,7 +2802,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       }
       const requestRevision = canvasTextEditStateRef.current.asyncRequestRevision;
       const baseInputRevision = canvasTextEditStateRef.current.inputRevision;
-      const clientPoint = makeClientPoint(event.clientX, event.clientY);
+      const clientPoint = makeClientPoint(px(event.clientX), px(event.clientY));
       const offsetPromise = resolveTextOffsetFromClient(target, clientPoint);
       const lineRangePromise = drag.mode === "line"
         ? resolveTextLineRangeFromClient(target, clientPoint)

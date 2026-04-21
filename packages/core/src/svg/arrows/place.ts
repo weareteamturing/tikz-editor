@@ -1,4 +1,5 @@
 import { worldVector } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { ArrowLocalPoint, WorldPoint } from "../../coords/points.js";
 import type { ScenePathCommand } from "../../semantic/types.js";
 import { addPoint, scaleVector } from "../../geometry/path-sampler.js";
@@ -11,7 +12,7 @@ export function placeLocalPathsRigid(localPaths: ArrowLocalPathCommand[][], fram
       const x = offset + point.x;
       const tangentOffset = scaleVector(frame.tangent, x);
       const normalOffset = scaleVector(frame.normal, point.y);
-      return addPoint(frame.point, worldVector(tangentOffset.x + normalOffset.x, tangentOffset.y + normalOffset.y));
+      return addPoint(frame.point, worldVector(pt(tangentOffset.x + normalOffset.x), pt(tangentOffset.y + normalOffset.y)));
     })
   );
 }

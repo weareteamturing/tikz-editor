@@ -13,6 +13,7 @@ import type {
   TikzFigure,
   Statement
 } from "../ast/types.js";
+import { pt } from "../coords/scalars.js";
 import type { Diagnostic } from "../diagnostics/types.js";
 import { FEATURE_IDS } from "../capabilities/feature-ids.js";
 import type { FeatureId } from "../capabilities/feature-ids.js";
@@ -599,7 +600,7 @@ export function collectNodeAnchorTargets(context: SemanticContext): NodeAnchorTa
       targets.push({
         nodeName,
         anchor: normalizedAnchor,
-        world: worldPoint(world.x, world.y),
+        world: worldPoint(pt(world.x), pt(world.y)),
         tier: BASIC_ANCHORS.has(normalizedAnchor) ? "basic" : "special"
       });
     };
@@ -1875,8 +1876,8 @@ export function computeBounds(elements: SceneElement[]): WorldBounds | undefined
     }
 
     if (element.kind === "Circle") {
-      const min = worldPoint(element.center.x - element.radius, element.center.y - element.radius);
-      const max = worldPoint(element.center.x + element.radius, element.center.y + element.radius);
+      const min = worldPoint(pt(element.center.x - element.radius), pt(element.center.y - element.radius));
+      const max = worldPoint(pt(element.center.x + element.radius), pt(element.center.y + element.radius));
       pushRectCorners(points, min, max, element.transform);
       continue;
     }
@@ -1887,8 +1888,8 @@ export function computeBounds(elements: SceneElement[]): WorldBounds | undefined
       const sin = Math.sin(rotation);
       const extentX = Math.sqrt(element.rx * element.rx * cos * cos + element.ry * element.ry * sin * sin);
       const extentY = Math.sqrt(element.rx * element.rx * sin * sin + element.ry * element.ry * cos * cos);
-      const min = worldPoint(element.center.x - extentX, element.center.y - extentY);
-      const max = worldPoint(element.center.x + extentX, element.center.y + extentY);
+      const min = worldPoint(pt(element.center.x - extentX), pt(element.center.y - extentY));
+      const max = worldPoint(pt(element.center.x + extentX), pt(element.center.y + extentY));
       pushRectCorners(points, min, max, element.transform);
       continue;
     }
@@ -1902,15 +1903,15 @@ export function computeBounds(elements: SceneElement[]): WorldBounds | undefined
     const cos = Math.cos(rotation);
     const sin = Math.sin(rotation);
     const corners = [
-      worldPoint(-halfWidth, -halfHeight),
-      worldPoint(halfWidth, -halfHeight),
-      worldPoint(halfWidth, halfHeight),
-      worldPoint(-halfWidth, halfHeight)
+      worldPoint(pt(-halfWidth), pt(-halfHeight)),
+      worldPoint(pt(halfWidth), pt(-halfHeight)),
+      worldPoint(pt(halfWidth), pt(halfHeight)),
+      worldPoint(pt(-halfWidth), pt(halfHeight))
     ];
     for (const corner of corners) {
       const rotatedCorner = worldPoint(
-        element.position.x + corner.x * cos - corner.y * sin,
-        element.position.y + corner.x * sin + corner.y * cos
+        pt(element.position.x + corner.x * cos - corner.y * sin),
+        pt(element.position.y + corner.x * sin + corner.y * cos)
       );
       points.push(applyOptionalTransform(rotatedCorner, element.transform));
     }
@@ -1925,7 +1926,7 @@ export function computeBounds(elements: SceneElement[]): WorldBounds | undefined
   const maxX = Math.max(...points.map((point) => point.x));
   const maxY = Math.max(...points.map((point) => point.y));
 
-  return worldBounds(minX, minY, maxX, maxY);
+  return worldBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
 }
 
 function applyOptionalTransform(
@@ -1936,7 +1937,7 @@ function applyOptionalTransform(
     return point;
   }
   const transformed = applyMatrix(transform, point);
-  return worldPoint(transformed.x, transformed.y);
+  return worldPoint(pt(transformed.x), pt(transformed.y));
 }
 
 function pushRectCorners(
@@ -1946,10 +1947,10 @@ function pushRectCorners(
   transform: SceneElement["transform"]
 ): void {
   const corners = [
-    worldPoint(min.x, min.y),
-    worldPoint(max.x, min.y),
-    worldPoint(max.x, max.y),
-    worldPoint(min.x, max.y)
+    worldPoint(pt(min.x), pt(min.y)),
+    worldPoint(pt(max.x), pt(min.y)),
+    worldPoint(pt(max.x), pt(max.y)),
+    worldPoint(pt(min.x), pt(max.y))
   ];
   for (const corner of corners) {
     points.push(applyOptionalTransform(corner, transform));
@@ -2099,7 +2100,7 @@ function solveArcCenter(
   }
 
   return {
-    center: worldPoint(cx, cy),
+    center: worldPoint(pt(cx), pt(cy)),
     rx,
     ry,
     phi,
@@ -2120,8 +2121,8 @@ function pointOnEllipse(
   const cosPhi = Math.cos(phi);
   const sinPhi = Math.sin(phi);
   return worldPoint(
-    center.x + rx * cosTheta * cosPhi - ry * sinTheta * sinPhi,
-    center.y + rx * cosTheta * sinPhi + ry * sinTheta * cosPhi
+    pt(center.x + rx * cosTheta * cosPhi - ry * sinTheta * sinPhi),
+    pt(center.y + rx * cosTheta * sinPhi + ry * sinTheta * cosPhi)
   );
 }
 

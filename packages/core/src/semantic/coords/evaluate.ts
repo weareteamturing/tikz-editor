@@ -1,4 +1,5 @@
 import type { CoordinateForm, CoordinateItem } from "../../ast/types.js";
+import { pt } from "../../coords/scalars.js";
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings, type MacroBinding } from "../../macros/index.js";
@@ -9,9 +10,10 @@ import {
   type SemanticContext
 } from "../context.js";
 import { applyFrameTransform, applyFrameVector } from "../../coords/frame.js";
-import { frameLocalPoint, frameLocalVector, worldPoint } from "../../coords/points.js";
-import type { FrameLocalPoint, WorldPoint } from "../../coords/points.js";
-import type { FrameTransform } from "../../coords/transforms.js";
+import { frameLocalPoint, frameLocalVector, worldPoint, worldVector } from "../../coords/points.js";
+import type { FrameLocalPoint, WorldPoint, WorldVector } from "../../coords/points.js";
+import { frameTransform, worldTransform } from "../../coords/transforms.js";
+import type { FrameTransform, WorldTransform } from "../../coords/transforms.js";
 import { applyMatrix, applyMatrixToVector, identityMatrix, inverseMatrix } from "../transform.js";
 import { parseLength, parseQuantityExpression } from "./parse-length.js";
 import { intersectRayWithPolygon } from "../nodes/shape-geometry.js";
@@ -27,6 +29,14 @@ export type EvaluatedCoordinate = {
   diagnostics: string[];
   advancesCurrentPoint: boolean;
 };
+
+function asFrameTransform(transform: { a: number; b: number; c: number; d: number; e: number; f: number }): FrameTransform {
+  return frameTransform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f);
+}
+
+function asWorldTransform(transform: { a: number; b: number; c: number; d: number; e: number; f: number }): WorldTransform {
+  return worldTransform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f);
+}
 
 type ParsedExplicitCoordinate =
   | { kind: "canvas"; x: string; y: string }
@@ -97,12 +107,13 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
         return invalidCoordinate("explicit", diagnostics, item.relativePrefix === "++");
       }
 
-      const localPt = frameLocalPoint(x, y);
+      const localPt = frameLocalPoint(pt(x), pt(y));
+      const frameMatrix = asFrameTransform(frame.transform);
       return transformedCoordinate(
         "explicit",
         localPt,
-        applyFrameTransform(frame.transform, localPt),
-        frame.transform,
+        applyFrameTransform(frameMatrix, localPt),
+        frameMatrix,
         diagnostics,
         item.relativePrefix === "++"
       );
@@ -118,7 +129,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
       }
       return worldOnlyCoordinate(
         "explicit",
-        worldPoint(vertical.world.x, horizontal.world.y),
+        worldPoint(pt(vertical.world.x), pt(horizontal.world.y)),
         diagnostics,
         item.relativePrefix === "++",
         "perpendicular"
@@ -165,12 +176,13 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
       diagnostics.push("unsupported-coordinate-z-component");
     }
 
-    const localPt = frameLocalPoint(x, y);
+    const localPt = frameLocalPoint(pt(x), pt(y));
+    const frameMatrix = asFrameTransform(frame.transform);
     return transformedCoordinate(
       "xyz",
       localPt,
-      applyFrameTransform(frame.transform, localPt),
-      frame.transform,
+      applyFrameTransform(frameMatrix, localPt),
+      frameMatrix,
       diagnostics,
       item.relativePrefix === "++"
     );
@@ -195,7 +207,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     // `\pgfmathparse{#1}` normalizes the angle expression numerically before trig.
     const angle = angleQuantity.value;
     const radians = (angle * Math.PI) / 180;
-    localPoint = frameLocalPoint(radius * Math.cos(radians), radius * Math.sin(radians));
+    localPoint = frameLocalPoint(pt(radius * Math.cos(radians)), pt(radius * Math.sin(radians)));
   } else {
     const x = parseLength(expandCoordinateComponent(item.x, frame.macroBindings, traceCollector), "cm");
     const y = parseLength(expandCoordinateComponent(item.y, frame.macroBindings, traceCollector), "cm");
@@ -204,7 +216,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
       return invalidCoordinate("cartesian", diagnostics, item.relativePrefix === "++");
     }
 
-    localPoint = frameLocalPoint(x, y);
+    localPoint = frameLocalPoint(pt(x), pt(y));
   }
 
   if (!localPoint) {
@@ -219,13 +231,14 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
       const form: CoordinateForm = item.form === "polar" ? "polar" : "cartesian";
       return invalidCoordinate(form, diagnostics, item.relativePrefix === "++", item.relativePrefix);
     }
-    const delta = applyFrameVector(frame.transform, frameLocalVector(localPoint.x, localPoint.y));
+    const frameMatrix = asFrameTransform(frame.transform);
+    const delta = applyFrameVector(frameMatrix, frameLocalVector(pt(localPoint.x), pt(localPoint.y)));
     const form: CoordinateForm = item.form === "polar" ? "polar" : "cartesian";
     return transformedCoordinate(
       form,
       localPoint,
-      worldPoint(current.x + delta.x, current.y + delta.y),
-      frame.transform,
+      worldPoint(pt(current.x + delta.x), pt(current.y + delta.y)),
+      frameMatrix,
       diagnostics,
       item.relativePrefix === "++",
       item.relativePrefix
@@ -233,11 +246,12 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
   }
 
   const coordinateForm: CoordinateForm = item.form === "polar" ? "polar" : "cartesian";
+  const frameMatrix = asFrameTransform(frame.transform);
   return transformedCoordinate(
     coordinateForm,
     localPoint,
-    applyFrameTransform(frame.transform, localPoint),
-    frame.transform,
+    applyFrameTransform(frameMatrix, localPoint),
+    frameMatrix,
     diagnostics,
     true
   );
@@ -417,14 +431,11 @@ function normalizeDegrees(value: number): number {
 
 function resolveNumericAnchorPoint(geometry: NamedNodeGeometry, degrees: number): WorldPoint | null {
   const radians = (degrees * Math.PI) / 180;
-  const direction = {
-    x: Math.cos(radians),
-    y: Math.sin(radians)
-  };
+  const direction = worldVector(pt(Math.cos(radians)), pt(Math.sin(radians)));
   return intersectNamedGeometryBorder(geometry, direction);
 }
 
-function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: WorldPoint): WorldPoint | null {
+function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: WorldVector): WorldPoint | null {
   const dx = direction.x;
   const dy = direction.y;
   const len = Math.hypot(dx, dy);
@@ -439,13 +450,13 @@ function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: Wo
   const transform = geometry.anchorTransform;
   const localDirection = (() => {
     if (!transform) {
-      return { x: dx, y: dy };
+      return direction;
     }
     const inverse = inverseMatrix(transform);
     if (!inverse) {
-      return { x: dx, y: dy };
+      return direction;
     }
-    return applyMatrixToVector(inverse, { x: dx, y: dy });
+    return applyMatrixToVector(inverse, direction);
   })();
   const localDx = localDirection.x;
   const localDy = localDirection.y;
@@ -453,18 +464,12 @@ function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: Wo
   if (!Number.isFinite(localLen) || localLen <= 1e-9) {
     return geometry.center;
   }
-  const fromLocal = (point: WorldPoint): WorldPoint => {
+  const fromLocal = (point: WorldVector): WorldPoint => {
     if (!transform) {
-      return {
-        x: geometry.center.x + point.x,
-        y: geometry.center.y + point.y
-      };
+      return worldPoint(pt(geometry.center.x + point.x), pt(geometry.center.y + point.y));
     }
     const mapped = applyMatrixToVector(transform, point);
-    return {
-      x: geometry.center.x + mapped.x,
-      y: geometry.center.y + mapped.y
-    };
+    return worldPoint(pt(geometry.center.x + mapped.x), pt(geometry.center.y + mapped.y));
   };
 
   if (geometry.shape === "circle") {
@@ -472,10 +477,7 @@ function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: Wo
     if (!Number.isFinite(radius) || radius <= 1e-9) {
       return geometry.center;
     }
-    return fromLocal({
-      x: (localDx / localLen) * radius,
-      y: (localDy / localLen) * radius
-    });
+    return fromLocal(worldVector(pt((localDx / localLen) * radius), pt((localDy / localLen) * radius)));
   }
 
   if (geometry.shape === "rectangle") {
@@ -485,10 +487,7 @@ function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: Wo
       return geometry.center;
     }
     const scale = 1 / Math.max(Math.abs(localDx) / hw, Math.abs(localDy) / hh);
-    return fromLocal({
-      x: localDx * scale,
-      y: localDy * scale
-    });
+    return fromLocal(worldVector(pt(localDx * scale), pt(localDy * scale)));
   }
 
   if (geometry.shape === "ellipse") {
@@ -501,19 +500,13 @@ function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: Wo
     if (!Number.isFinite(scale)) {
       return geometry.center;
     }
-    return fromLocal({
-      x: localDx * scale,
-      y: localDy * scale
-    });
+    return fromLocal(worldVector(pt(localDx * scale), pt(localDy * scale)));
   }
 
   if (geometry.anchorPolygon && geometry.anchorPolygon.length >= 3) {
-    const border = intersectRayWithPolygon({ x: 0, y: 0 }, { x: dx, y: dy }, geometry.anchorPolygon);
+    const border = intersectRayWithPolygon(worldPoint(pt(0), pt(0)), direction, geometry.anchorPolygon);
     if (border) {
-      return {
-        x: geometry.center.x + border.x,
-        y: geometry.center.y + border.y
-      };
+      return worldPoint(pt(geometry.center.x + border.x), pt(geometry.center.y + border.y));
     }
   }
 
@@ -523,7 +516,7 @@ function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: Wo
 function evaluateCalcCoordinate(
   calcRaw: string,
   context: SemanticContext,
-  frame: { a: number; b: number; c: number; d: number; e: number; f: number }
+  frame: WorldTransform
 ): { point: WorldPoint | null; diagnostics: string[] } {
   const diagnostics: string[] = [];
   const trimmed = calcRaw.trim();
@@ -541,8 +534,8 @@ function evaluateCalcCoordinate(
     return { point: null, diagnostics: ["invalid-calc-coordinate"] };
   }
 
-  const origin = applyMatrix(frame, { x: 0, y: 0 });
-  let acc = { ...origin };
+  const origin = applyMatrix(frame, worldPoint(pt(0), pt(0)));
+  let acc = origin;
   let evaluatedAny = false;
 
   for (const term of terms) {
@@ -552,11 +545,14 @@ function evaluateCalcCoordinate(
       return { point: null, diagnostics };
     }
 
-    const vector = {
-      x: termResult.point.x - origin.x,
-      y: termResult.point.y - origin.y
-    };
-    acc = term.op === "-" ? { x: acc.x - vector.x, y: acc.y - vector.y } : { x: acc.x + vector.x, y: acc.y + vector.y };
+    const vector = worldVector(
+      pt(termResult.point.x - origin.x),
+      pt(termResult.point.y - origin.y)
+    );
+    acc =
+      term.op === "-"
+        ? worldPoint(pt(acc.x - vector.x), pt(acc.y - vector.y))
+        : worldPoint(pt(acc.x + vector.x), pt(acc.y + vector.y));
     evaluatedAny = true;
   }
 
@@ -633,10 +629,10 @@ function evaluateCalcTerm(term: string, context: SemanticContext): { point: Worl
       return { point: null, diagnostics };
     }
     return {
-      point: {
-        x: left.world.x + interpolation.factor * (right.world.x - left.world.x),
-        y: left.world.y + interpolation.factor * (right.world.y - left.world.y)
-      },
+      point: worldPoint(
+        pt(left.world.x + interpolation.factor * (right.world.x - left.world.x)),
+        pt(left.world.y + interpolation.factor * (right.world.y - left.world.y))
+      ),
       diagnostics
     };
   }
@@ -684,19 +680,13 @@ function tryEvaluatePerpendicularCoordinate(
 
   if (parsed.operator === "|-") {
     return {
-      point: {
-        x: left.world.x,
-        y: right.world.y
-      },
+      point: worldPoint(pt(left.world.x), pt(right.world.y)),
       diagnostics
     };
   }
 
   return {
-    point: {
-      x: right.world.x,
-      y: left.world.y
-    },
+    point: worldPoint(pt(right.world.x), pt(left.world.y)),
     diagnostics
   };
 }
@@ -1008,31 +998,22 @@ function intersectInfiniteLines(
   first: { start: WorldPoint; end: WorldPoint },
   second: { start: WorldPoint; end: WorldPoint }
 ): WorldPoint | null {
-  const firstDirection = {
-    x: first.end.x - first.start.x,
-    y: first.end.y - first.start.y
-  };
-  const secondDirection = {
-    x: second.end.x - second.start.x,
-    y: second.end.y - second.start.y
-  };
+  const firstDirection = worldVector(pt(first.end.x - first.start.x), pt(first.end.y - first.start.y));
+  const secondDirection = worldVector(pt(second.end.x - second.start.x), pt(second.end.y - second.start.y));
   const denominator = cross(firstDirection, secondDirection);
   if (Math.abs(denominator) <= 1e-9) {
     return null;
   }
 
-  const delta = {
-    x: second.start.x - first.start.x,
-    y: second.start.y - first.start.y
-  };
+  const delta = worldVector(pt(second.start.x - first.start.x), pt(second.start.y - first.start.y));
   const t = cross(delta, secondDirection) / denominator;
-  return {
-    x: first.start.x + t * firstDirection.x,
-    y: first.start.y + t * firstDirection.y
-  };
+  return worldPoint(
+    pt(first.start.x + t * firstDirection.x),
+    pt(first.start.y + t * firstDirection.y)
+  );
 }
 
-function cross(left: WorldPoint, right: WorldPoint): number {
+function cross(left: Pick<WorldPoint | WorldVector, "x" | "y">, right: Pick<WorldPoint | WorldVector, "x" | "y">): number {
   return left.x * right.y - left.y * right.x;
 }
 

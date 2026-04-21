@@ -1,4 +1,5 @@
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
+import { pt } from "../../coords/scalars.js";
 import { multiplyMatrix, rotationMatrix, scaleMatrix, translationMatrix } from "../transform.js";
 import { worldPoint, worldVector } from "../../coords/points.js";
 import type { WorldPoint, WorldVector } from "../../coords/points.js";
@@ -507,8 +508,8 @@ function sampleTextAlongPathFrame(segments: PathSegment[], distance: number, rev
   }
   return {
     point: sampled.point,
-    tangent: worldVector(-sampled.tangent.x, -sampled.tangent.y),
-    normal: worldVector(-sampled.normal.x, -sampled.normal.y)
+    tangent: worldVector(pt(-sampled.tangent.x), pt(-sampled.tangent.y)),
+    normal: worldVector(pt(-sampled.normal.x), pt(-sampled.normal.y))
   };
 }
 
@@ -961,11 +962,11 @@ function makeShapeBackgroundPolylines(
   if (shapeName === "rectangle") {
     return [
       pointsToPolyline([
-        worldPoint(-width / 2, -height / 2),
-        worldPoint(width / 2, -height / 2),
-        worldPoint(width / 2, height / 2),
-        worldPoint(-width / 2, height / 2),
-        worldPoint(-width / 2, -height / 2)
+        worldPoint(pt(-width / 2), pt(-height / 2)),
+        worldPoint(pt(width / 2), pt(-height / 2)),
+        worldPoint(pt(width / 2), pt(height / 2)),
+        worldPoint(pt(-width / 2), pt(height / 2)),
+        worldPoint(pt(-width / 2), pt(-height / 2))
       ])
     ];
   }
@@ -973,10 +974,10 @@ function makeShapeBackgroundPolylines(
   if (shapeName === "triangle" || shapeName === "triangles") {
     return [
       pointsToPolyline([
-        worldPoint(0, height / 2),
-        worldPoint(width / 2, -height / 2),
-        worldPoint(-width / 2, -height / 2),
-        worldPoint(0, height / 2)
+        worldPoint(pt(0), pt(height / 2)),
+        worldPoint(pt(width / 2), pt(-height / 2)),
+        worldPoint(pt(-width / 2), pt(-height / 2)),
+        worldPoint(pt(0), pt(height / 2))
       ])
     ];
   }
@@ -987,8 +988,8 @@ function makeShapeBackgroundPolylines(
   for (let index = 0; index <= samples; index += 1) {
     const angle = (index / samples) * Math.PI * 2;
     points.push(worldPoint(
-      Math.cos(angle) * width * 0.5,
-      Math.sin(angle) * height * 0.5
+      pt(Math.cos(angle) * width * 0.5),
+      pt(Math.sin(angle) * height * 0.5)
     ));
   }
   return [pointsToPolyline(points)];
@@ -1018,33 +1019,33 @@ function decorateBrace(segments: PathSegment[], decoration: DecorationStyle, tra
 
   const localWorldPoints: WorldPoint[] = [];
   localWorldPoints.push(...sampleCubic(
-    worldPoint(0, 0),
-    worldPoint(0.15 * yc, 0.3 * amplitude),
-    worldPoint(0.5 * yc, 0.5 * amplitude),
-    worldPoint(yc, 0.5 * amplitude),
+    worldPoint(pt(0), pt(0)),
+    worldPoint(pt(0.15 * yc), pt(0.3 * amplitude)),
+    worldPoint(pt(0.5 * yc), pt(0.5 * amplitude)),
+    worldPoint(pt(yc), pt(0.5 * amplitude)),
     10
   ));
-  localWorldPoints.push(worldPoint(aspect * total - yc, 0.5 * amplitude));
+  localWorldPoints.push(worldPoint(pt(aspect * total - yc), pt(0.5 * amplitude)));
   localWorldPoints.push(...sampleCubic(
-    worldPoint(aspect * total - yc, 0.5 * amplitude),
-    worldPoint(aspect * total - 0.5 * yc, 0.5 * amplitude),
-    worldPoint(aspect * total - 0.15 * yc, 0.7 * amplitude),
-    worldPoint(aspect * total, 1 * amplitude),
+    worldPoint(pt(aspect * total - yc), pt(0.5 * amplitude)),
+    worldPoint(pt(aspect * total - 0.5 * yc), pt(0.5 * amplitude)),
+    worldPoint(pt(aspect * total - 0.15 * yc), pt(0.7 * amplitude)),
+    worldPoint(pt(aspect * total), pt(1 * amplitude)),
     10
   ));
   localWorldPoints.push(...sampleCubic(
-    worldPoint(aspect * total, 1 * amplitude),
-    worldPoint(aspect * total + 0.15 * xc, 0.7 * amplitude),
-    worldPoint(aspect * total + 0.5 * xc, 0.5 * amplitude),
-    worldPoint(aspect * total + xc, 0.5 * amplitude),
+    worldPoint(pt(aspect * total), pt(1 * amplitude)),
+    worldPoint(pt(aspect * total + 0.15 * xc), pt(0.7 * amplitude)),
+    worldPoint(pt(aspect * total + 0.5 * xc), pt(0.5 * amplitude)),
+    worldPoint(pt(aspect * total + xc), pt(0.5 * amplitude)),
     10
   ));
-  localWorldPoints.push(worldPoint(total - xc, 0.5 * amplitude));
+  localWorldPoints.push(worldPoint(pt(total - xc), pt(0.5 * amplitude)));
   localWorldPoints.push(...sampleCubic(
-    worldPoint(total - xc, 0.5 * amplitude),
-    worldPoint(total - 0.5 * xc, 0.5 * amplitude),
-    worldPoint(total - 0.15 * xc, 0.3 * amplitude),
-    worldPoint(total, 0),
+    worldPoint(pt(total - xc), pt(0.5 * amplitude)),
+    worldPoint(pt(total - 0.5 * xc), pt(0.5 * amplitude)),
+    worldPoint(pt(total - 0.15 * xc), pt(0.3 * amplitude)),
+    worldPoint(pt(total), pt(0)),
     10
   ));
 
@@ -1457,14 +1458,14 @@ function sampleCubic(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPo
     const oneMinusT = 1 - t;
     points.push(
       worldPoint(
-        oneMinusT * oneMinusT * oneMinusT * p0.x +
+        pt(oneMinusT * oneMinusT * oneMinusT * p0.x +
           3 * oneMinusT * oneMinusT * t * p1.x +
           3 * oneMinusT * t * t * p2.x +
-          t * t * t * p3.x,
-        oneMinusT * oneMinusT * oneMinusT * p0.y +
+          t * t * t * p3.x),
+        pt(oneMinusT * oneMinusT * oneMinusT * p0.y +
           3 * oneMinusT * oneMinusT * t * p1.y +
           3 * oneMinusT * t * t * p2.y +
-          t * t * t * p3.y
+          t * t * t * p3.y)
       )
     );
   }
