@@ -1,10 +1,14 @@
-import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
+import { worldPoint as makeWorldPoint, worldVector as makeWorldVector, type WorldPoint, type WorldVector } from "../../coords/points.js";
 import { pt } from "../../coords/scalars.js";
 import type { PlacementSegment } from "./types.js";
 import type { ScenePathCommand } from "../types.js";
 
 function worldPoint(x: number, y: number): WorldPoint {
   return makeWorldPoint(pt(x), pt(y));
+}
+
+function worldVector(x: number, y: number): WorldVector {
+  return makeWorldVector(pt(x), pt(y));
 }
 
 export function appendPathPoint(
@@ -146,8 +150,8 @@ function computeRoundedCorner(prev: WorldPoint, corner: WorldPoint, next: WorldP
   c1: WorldPoint;
   c2: WorldPoint;
 } | null {
-  const incoming = normalize({ x: corner.x - prev.x, y: corner.y - prev.y });
-  const outgoing = normalize({ x: next.x - corner.x, y: next.y - corner.y });
+  const incoming = normalize(worldVector(corner.x - prev.x, corner.y - prev.y));
+  const outgoing = normalize(worldVector(next.x - corner.x, next.y - corner.y));
   if (!incoming || !outgoing) {
     return null;
   }
@@ -172,20 +176,26 @@ function computeRoundedCorner(prev: WorldPoint, corner: WorldPoint, next: WorldP
   // inserting a quarter-circle cubic approximation with kappa = 0.5522847.
   const kappa = 0.5522847;
 
-  const entry = { x: corner.x - incoming.x * inDistance, y: corner.y - incoming.y * inDistance };
-  const exit = { x: corner.x + outgoing.x * outDistance, y: corner.y + outgoing.y * outDistance };
-  const c1 = { x: entry.x + incoming.x * inDistance * kappa, y: entry.y + incoming.y * inDistance * kappa };
-  const c2 = { x: exit.x - outgoing.x * outDistance * kappa, y: exit.y - outgoing.y * outDistance * kappa };
+  const entry = worldPoint(corner.x - incoming.x * inDistance, corner.y - incoming.y * inDistance);
+  const exit = worldPoint(corner.x + outgoing.x * outDistance, corner.y + outgoing.y * outDistance);
+  const c1 = worldPoint(
+    entry.x + incoming.x * inDistance * kappa,
+    entry.y + incoming.y * inDistance * kappa
+  );
+  const c2 = worldPoint(
+    exit.x - outgoing.x * outDistance * kappa,
+    exit.y - outgoing.y * outDistance * kappa
+  );
 
   return { entry, exit, c1, c2 };
 }
 
-function normalize(vector: WorldPoint): WorldPoint | null {
+function normalize(vector: WorldVector): WorldVector | null {
   const len = Math.hypot(vector.x, vector.y);
   if (!Number.isFinite(len) || len <= 1e-9) {
     return null;
   }
-  return worldPoint(pt(vector.x / len), pt(vector.y / len));
+  return worldVector(vector.x / len, vector.y / len);
 }
 
 function distance(a: WorldPoint, b: WorldPoint): number {

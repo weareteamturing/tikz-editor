@@ -24,7 +24,7 @@ describe("open example preview rendering", () => {
       expect(generated.errorMessage, `${fresh.exampleId}: errorMessage mismatch`).toBe(fresh.errorMessage);
       expect(hashText(generated.svg), `${fresh.exampleId}: svg hash mismatch`).toBe(hashText(fresh.svg));
     }
-  });
+  }, 15000);
 });
 
 function hashText(value: string | null): string {

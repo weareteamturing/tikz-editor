@@ -1,3 +1,4 @@
+import { svgPoint, pt } from "tikz-editor/coords/index";
 import type { SvgPoint, WorldPoint } from "../coords/types";
 import type { ResizeFrame } from "./resize-frames";
 
@@ -81,10 +82,7 @@ export function resolveRotateHandlePosition(
 ): { anchorSvg: SvgPoint; handleSvg: SvgPoint } {
   const topLeft = frame.cornersByRole["top-left"].svg;
   const topRight = frame.cornersByRole["top-right"].svg;
-  const anchorSvg = {
-    x: (topLeft.x + topRight.x) / 2,
-    y: (topLeft.y + topRight.y) / 2
-  };
+  const anchorSvg = svgPoint(pt((topLeft.x + topRight.x) / 2), pt((topLeft.y + topRight.y) / 2));
   const outward = {
     x: anchorSvg.x - frame.centerSvg.x,
     y: anchorSvg.y - frame.centerSvg.y
@@ -100,9 +98,9 @@ export function resolveRotateHandlePosition(
         }
       : { x: 0, y: -1 };
 
-  const handleSvg = {
-    x: anchorSvg.x + outwardUnit.x * offsetSvg,
-    y: anchorSvg.y + outwardUnit.y * offsetSvg
-  };
+  const handleSvg = svgPoint(
+    pt(anchorSvg.x + outwardUnit.x * offsetSvg),
+    pt(anchorSvg.y + outwardUnit.y * offsetSvg)
+  );
   return { anchorSvg, handleSvg };
 }

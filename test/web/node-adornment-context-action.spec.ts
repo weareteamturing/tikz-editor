@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { applyEditAction } from "../../packages/core/src/edit/actions.js";
 import { renderTikzToSvg } from "../../packages/core/src/render/index.js";
 import { resolveNodeAdornmentContextAction } from "../../packages/app/src/ui/canvas-panel/node-adornment-context-action.js";
+import { wp } from "../coords-helpers.js";
 
 describe("resolveNodeAdornmentContextAction", () => {
   it("resolves a rendered node selection into an add-label action with a nearest-side keyword", () => {
@@ -14,7 +15,7 @@ describe("resolveNodeAdornmentContextAction", () => {
       source,
       clickedTargetId: "path:0",
       selectedTargetId: "path:0",
-      clickedWorld: { x: 20, y: 0 },
+      clickedWorld: wp(20, 0),
       sceneElements: rendered.semantic.scene.elements,
       viewBox: rendered.svg?.viewBox ?? null,
       adornmentKind: "label",
@@ -45,7 +46,7 @@ describe("resolveNodeAdornmentContextAction", () => {
       source,
       clickedTargetId: "path:0",
       selectedTargetId: "path:0",
-      clickedWorld: { x: -1, y: -2 },
+      clickedWorld: wp(-1, -2),
       sceneElements: rendered.semantic.scene.elements,
       viewBox: rendered.svg?.viewBox ?? null,
       adornmentKind: "label",
@@ -76,7 +77,7 @@ describe("resolveNodeAdornmentContextAction", () => {
       source,
       clickedTargetId: "path:0",
       selectedTargetId: "path:0",
-      clickedWorld: { x: 0, y: 20 },
+      clickedWorld: wp(0, 20),
       sceneElements: rendered.semantic.scene.elements,
       viewBox: rendered.svg?.viewBox ?? null,
       adornmentKind: "pin",
@@ -102,7 +103,7 @@ describe("resolveNodeAdornmentContextAction", () => {
       source,
       clickedTargetId: "path:0",
       selectedTargetId: "path:0",
-      clickedWorld: { x: 1, y: 0 },
+      clickedWorld: wp(1, 0),
       sceneElements: rendered.semantic.scene.elements,
       viewBox: rendered.svg?.viewBox ?? null,
       adornmentKind: "label",

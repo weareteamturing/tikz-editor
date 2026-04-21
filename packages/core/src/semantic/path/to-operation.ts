@@ -1,3 +1,5 @@
+import { worldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { WorldPoint } from "../../coords/points.js";
 import type { EdgeOperationItem, ToOperationItem, PathStatement } from "../../ast/types.js";
 import { currentFrame, type SemanticContext } from "../context.js";
@@ -18,6 +20,10 @@ import { createEditHandle } from "../edit-handles.js";
 import type { StyleChainEntry } from "../style-chain.js";
 
 type ToCurveUiMode = "in-out" | "bend";
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
 
 export function applyToOperation(
   item: ToOperationItem,
@@ -624,14 +630,14 @@ function appendToCurve(
 
   const outRadians = toRadians(options.out);
   const inRadians = toRadians(options.in);
-  const c1 = {
-    x: from.x + outDistance * Math.cos(outRadians),
-    y: from.y + outDistance * Math.sin(outRadians)
-  };
-  const c2 = {
-    x: to.x + inDistance * Math.cos(inRadians),
-    y: to.y + inDistance * Math.sin(inRadians)
-  };
+  const c1 = wp(
+    from.x + outDistance * Math.cos(outRadians),
+    from.y + outDistance * Math.sin(outRadians)
+  );
+  const c2 = wp(
+    to.x + inDistance * Math.cos(inRadians),
+    to.y + inDistance * Math.sin(inRadians)
+  );
 
   commands.push({
     kind: "C",
@@ -753,7 +759,7 @@ function pushSyntheticCurveHandle(args: {
     },
     handleType: "curve-control",
     kind: args.kind,
-    world: { ...args.world },
+    world: args.world,
     transform: currentFrame(args.context).transform,
     sourceText: "",
     coordinateForm: "cartesian",
@@ -774,10 +780,7 @@ function bendHandlePoint(start: WorldPoint, end: WorldPoint, signedBendAngle: nu
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const length = Math.hypot(dx, dy);
-  const midpoint = {
-    x: (start.x + end.x) / 2,
-    y: (start.y + end.y) / 2
-  };
+  const midpoint = wp((start.x + end.x) / 2, (start.y + end.y) / 2);
   if (length <= 1e-9) {
     return midpoint;
   }
@@ -790,10 +793,7 @@ function bendHandlePoint(start: WorldPoint, end: WorldPoint, signedBendAngle: nu
   const unsignedOffset = 0.5 * length * Math.tan((clampedAngle * Math.PI) / 180);
   const signedOffset = signedBendAngle >= 0 ? unsignedOffset : -unsignedOffset;
 
-  return {
-    x: midpoint.x + unitNormal.x * signedOffset,
-    y: midpoint.y + unitNormal.y * signedOffset
-  };
+  return wp(midpoint.x + unitNormal.x * signedOffset, midpoint.y + unitNormal.y * signedOffset);
 }
 
 function parseCurveAngleOption(valueRaw: string): number | null {

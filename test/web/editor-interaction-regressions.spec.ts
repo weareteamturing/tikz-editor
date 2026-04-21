@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { computeSnapshot } from "../../packages/app/src/compute";
 import { applyEditAction } from "../../packages/core/src/edit/actions";
 import { PT_PER_CM } from "../../packages/core/src/edit/format";
+import { wp } from "../coords-helpers.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
 
@@ -33,8 +34,8 @@ describe("cutover regressions", () => {
       throw new Error("Expected text elements in both snapshots.");
     }
 
-    expect(firstText.position).toEqual({ x: 0, y: 0 });
-    expect(secondText.position).toEqual({ x: cm(2), y: cm(1) });
+    expect(firstText.position).toEqual(wp(0, 0));
+    expect(secondText.position).toEqual(wp(cm(2), cm(1)));
     expect(first.snapshot.svg?.svg).not.toEqual(second.snapshot.svg?.svg);
   });
 
@@ -71,10 +72,10 @@ describe("cutover regressions", () => {
     const moved = applyEditAction(editedSource, recomputed.snapshot.editHandles, {
       kind: "moveHandle",
       handleId: secondPathHandle.id,
-      newWorld: {
-        x: secondPathHandle.world.x + cm(1),
-        y: secondPathHandle.world.y + cm(1)
-      }
+      newWorld: wp(
+        secondPathHandle.world.x + cm(1),
+        secondPathHandle.world.y + cm(1)
+      )
     });
 
     expect(moved.kind).toBe("success");
@@ -101,7 +102,7 @@ describe("cutover regressions", () => {
     const moved = applyEditAction(source, initial.snapshot.editHandles, {
       kind: "moveElements",
       elementIds: ["path:1", "path:2"],
-      delta: { x: cm(0.2), y: cm(0.1) }
+      delta: wp(cm(0.2), cm(0.1))
     });
     expect(moved.kind === "success" || moved.kind === "partial").toBe(true);
     if (moved.kind !== "success" && moved.kind !== "partial") {

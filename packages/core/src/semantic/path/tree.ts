@@ -1,4 +1,6 @@
+import { worldPoint } from "../../coords/points.js";
 import type { WorldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { ChildOperationItem, NodeItem, PathItem, Span } from "../../ast/types.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionListAst } from "../../options/types.js";
@@ -153,10 +155,10 @@ export function computeTreeChildOrigin(
   const orderSign = growReverse ? -1 : 1;
   const offset = centeredIndex * siblingDistancePt * orderSign;
 
-  return {
-    x: parentOrigin.x + forward.x * levelDistancePt + perpendicular.x * offset,
-    y: parentOrigin.y + forward.y * levelDistancePt + perpendicular.y * offset
-  };
+  return worldPoint(
+    pt(parentOrigin.x + forward.x * levelDistancePt + perpendicular.x * offset),
+    pt(parentOrigin.y + forward.y * levelDistancePt + perpendicular.y * offset)
+  );
 }
 
 export function resolveNamedTreeAnchorPoint(

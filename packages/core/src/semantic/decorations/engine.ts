@@ -1,5 +1,6 @@
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
 import { pt } from "../../coords/scalars.js";
+import { worldTransform } from "../../coords/transforms.js";
 import { multiplyMatrix, rotationMatrix, scaleMatrix, translationMatrix } from "../transform.js";
 import { worldPoint, worldVector } from "../../coords/points.js";
 import type { WorldPoint, WorldVector } from "../../coords/points.js";
@@ -29,6 +30,10 @@ type DecorationTransformSpec = {
   matrix: WorldTransform;
   shiftOnly: boolean;
 };
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
 
 const DEFERRED_DECORATIONS = new Set(["markings", "show path construction", "text effects along path"]);
 
@@ -820,17 +825,17 @@ function decorateBumps(segments: PathSegment[], decoration: DecorationStyle, tra
       }
 
       const firstCurve = sampleCubic(
-        { x: 0, y: 0 },
-        { x: 0, y: 0.555 * amplitude },
-        { x: 0.11125 * bumpSegmentLength, y: amplitude },
-        { x: 0.25 * bumpSegmentLength, y: amplitude },
+        wp(0, 0),
+        wp(0, 0.555 * amplitude),
+        wp(0.11125 * bumpSegmentLength, amplitude),
+        wp(0.25 * bumpSegmentLength, amplitude),
         6
       );
       const secondCurve = sampleCubic(
-        { x: 0.25 * bumpSegmentLength, y: amplitude },
-        { x: 0.38875 * bumpSegmentLength, y: amplitude },
-        { x: 0.5 * bumpSegmentLength, y: 0.5 * amplitude },
-        { x: 0.5 * bumpSegmentLength, y: 0 },
+        wp(0.25 * bumpSegmentLength, amplitude),
+        wp(0.38875 * bumpSegmentLength, amplitude),
+        wp(0.5 * bumpSegmentLength, 0.5 * amplitude),
+        wp(0.5 * bumpSegmentLength, 0),
         6
       );
 
@@ -1130,10 +1135,7 @@ function applyFractal(
       if (index > 0 && patternIndex === 0) {
         continue;
       }
-      out.push({
-        x: from.x + dx * local.x - dy * local.y,
-        y: from.y + dy * local.x + dx * local.y
-      });
+      out.push(wp(from.x + dx * local.x - dy * local.y, from.y + dy * local.x + dx * local.y));
     }
   }
 
@@ -1185,31 +1187,25 @@ function pointFromFrame(
 ): WorldPoint {
   const raisedY = localY + decoration.raise;
   const mirroredY = decoration.mirror ? -raisedY : raisedY;
-  const transformed = applyDecorationMatrix(transformSpec.matrix, {
-    x: localX,
-    y: mirroredY
-  });
+  const transformed = applyDecorationMatrix(transformSpec.matrix, wp(localX, mirroredY));
   if (!followPath) {
-    return {
-      x: frame.point.x + transformed.x,
-      y: frame.point.y + transformed.y
-    };
+    return wp(frame.point.x + transformed.x, frame.point.y + transformed.y);
   }
-  return {
-    x: frame.point.x + frame.tangent.x * transformed.x + frame.normal.x * transformed.y,
-    y: frame.point.y + frame.tangent.y * transformed.x + frame.normal.y * transformed.y
-  };
+  return wp(
+    frame.point.x + frame.tangent.x * transformed.x + frame.normal.x * transformed.y,
+    frame.point.y + frame.tangent.y * transformed.x + frame.normal.y * transformed.y
+  );
 }
 
 function applyDecorationMatrix(matrix: WorldTransform, point: WorldPoint): WorldPoint {
-  return {
-    x: matrix.a * point.x + matrix.c * point.y + matrix.e,
-    y: matrix.b * point.x + matrix.d * point.y + matrix.f
-  };
+  return wp(
+    matrix.a * point.x + matrix.c * point.y + matrix.e,
+    matrix.b * point.x + matrix.d * point.y + matrix.f
+  );
 }
 
 function parseDecorationTransform(raw: string | null): DecorationTransformSpec {
-  const identity: WorldTransform = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+  const identity = worldTransform(1, 0, 0, 1, 0, 0);
   const defaultSpec: DecorationTransformSpec = {
     matrix: identity,
     shiftOnly: false
@@ -1551,10 +1547,7 @@ function makeDeterministicRandom(seedRaw: string): () => number {
 }
 
 function interpolateWorldPoint(from: WorldPoint, to: WorldPoint, t: number): WorldPoint {
-  return {
-    x: from.x + (to.x - from.x) * t,
-    y: from.y + (to.y - from.y) * t
-  };
+  return wp(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t);
 }
 
 export function isDecorationDeferred(name: string): boolean {

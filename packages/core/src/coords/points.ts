@@ -70,7 +70,8 @@ type BoundsBrand =
   | ClientBounds[typeof coordBrand];
 
 function createPoint<Unit, Brand extends PointBrand>(x: Unit, y: Unit, brand: Brand): Point2D<Unit, Brand extends `point:${infer Space}` ? Space : never> {
-  return { x, y, [coordBrand]: brand } as unknown as Point2D<Unit, Brand extends `point:${infer Space}` ? Space : never>;
+  void brand;
+  return { x, y } as unknown as Point2D<Unit, Brand extends `point:${infer Space}` ? Space : never>;
 }
 
 function createVector<Unit, Brand extends VectorBrand>(
@@ -78,7 +79,8 @@ function createVector<Unit, Brand extends VectorBrand>(
   y: Unit,
   brand: Brand
 ): Vector2D<Unit, Brand extends `vector:${infer Space}` ? Space : never> {
-  return { x, y, [coordBrand]: brand } as unknown as Vector2D<Unit, Brand extends `vector:${infer Space}` ? Space : never>;
+  void brand;
+  return { x, y } as unknown as Vector2D<Unit, Brand extends `vector:${infer Space}` ? Space : never>;
 }
 
 function createBounds<Unit, Brand extends BoundsBrand>(
@@ -88,7 +90,8 @@ function createBounds<Unit, Brand extends BoundsBrand>(
   maxY: Unit,
   brand: Brand
 ): Bounds2D<Unit, Brand extends `bounds:${infer Space}` ? Space : never> {
-  return { minX, minY, maxX, maxY, [coordBrand]: brand } as unknown as Bounds2D<
+  void brand;
+  return { minX, minY, maxX, maxY } as unknown as Bounds2D<
     Unit,
     Brand extends `bounds:${infer Space}` ? Space : never
   >;

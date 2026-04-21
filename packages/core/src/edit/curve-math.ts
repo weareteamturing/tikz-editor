@@ -1,4 +1,10 @@
+import { worldPoint } from "../coords/points.js";
+import { pt } from "../coords/scalars.js";
 import type { WorldPoint } from "../coords/points.js";
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
 
 /**
  * Find the closest point on a line segment to a given point.
@@ -8,12 +14,12 @@ export function closestPointOnLine(p: WorldPoint, a: WorldPoint, b: WorldPoint):
   const dy = b.y - a.y;
   const lengthSq = dx * dx + dy * dy;
   if (lengthSq < 1e-12) {
-    return { t: 0, point: { x: a.x, y: a.y } };
+    return { t: 0, point: wp(a.x, a.y) };
   }
   const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq));
   return {
     t,
-    point: { x: a.x + t * dx, y: a.y + t * dy }
+    point: wp(a.x + t * dx, a.y + t * dy)
   };
 }
 
@@ -24,10 +30,10 @@ export function evalCubic(t: number, c0: WorldPoint, c1: WorldPoint, c2: WorldPo
   const s = 1 - t;
   const s2 = s * s;
   const t2 = t * t;
-  return {
-    x: s2 * s * c0.x + 3 * s2 * t * c1.x + 3 * s * t2 * c2.x + t2 * t * c3.x,
-    y: s2 * s * c0.y + 3 * s2 * t * c1.y + 3 * s * t2 * c2.y + t2 * t * c3.y
-  };
+  return wp(
+    s2 * s * c0.x + 3 * s2 * t * c1.x + 3 * s * t2 * c2.x + t2 * t * c3.x,
+    s2 * s * c0.y + 3 * s2 * t * c1.y + 3 * s * t2 * c2.y + t2 * t * c3.y
+  );
 }
 
 /**
@@ -89,10 +95,8 @@ export function subdivideCubicAt(
   c2: WorldPoint,
   c3: WorldPoint
 ): { left: [WorldPoint, WorldPoint, WorldPoint, WorldPoint]; right: [WorldPoint, WorldPoint, WorldPoint, WorldPoint] } {
-  const lerp = (a: WorldPoint, b: WorldPoint): WorldPoint => ({
-    x: a.x + t * (b.x - a.x),
-    y: a.y + t * (b.y - a.y)
-  });
+  const lerp = (a: WorldPoint, b: WorldPoint): WorldPoint =>
+    wp(a.x + t * (b.x - a.x), a.y + t * (b.y - a.y));
 
   const p01 = lerp(c0, c1);
   const p12 = lerp(c1, c2);

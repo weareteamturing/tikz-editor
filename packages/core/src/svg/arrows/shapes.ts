@@ -4,11 +4,15 @@ import type { ArrowLocalPoint } from "../../coords/points.js";
 import { computeLatexShapeParameters, computeStealthShapeParameters } from "./metrics.js";
 import type { ArrowLocalPathCommand, ArrowTipMetrics, NormalizedArrowTip } from "./types.js";
 
+function alPoint(x: number, y: number): ArrowLocalPoint {
+  return arrowLocalPoint(pt(x), pt(y));
+}
+
 export function buildLocalTipPaths(tip: NormalizedArrowTip, metrics: ArrowTipMetrics): ArrowLocalPathCommand[][] {
   const rawPaths = buildRawTipPaths(tip);
-  const mirrored = tip.reversed ? rawPaths.map((path) => transformPath(path, (x, y) => ({ x: -x, y }))) : rawPaths;
+  const mirrored = tip.reversed ? rawPaths.map((path) => transformPath(path, (x, y) => alPoint(-x, y))) : rawPaths;
   const lineEndShift = -metrics.lineEnd;
-  return mirrored.map((path) => transformPath(path, (x, y) => ({ x: x + lineEndShift, y })));
+  return mirrored.map((path) => transformPath(path, (x, y) => alPoint(x + lineEndShift, y)));
 }
 
 function buildRawTipPaths(tip: NormalizedArrowTip): ArrowLocalPathCommand[][] {

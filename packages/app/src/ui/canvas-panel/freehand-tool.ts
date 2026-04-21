@@ -1,4 +1,5 @@
 import { CM_PER_PT, formatNumber } from "tikz-editor/edit/format";
+import { pt, worldPoint } from "tikz-editor/coords/index";
 import type { WorldPoint } from "../coords/types";
 
 const MIN_WORLD_DISTANCE_PT = 1e-3;
@@ -22,7 +23,7 @@ export type FreehandBezierSegment = {
 
 export function createFreehandToolDraft(startWorld: WorldPoint, zoom: number): FreehandToolDraft {
   return {
-    points: [{ ...startWorld }],
+    points: [startWorld],
     minSampleDistanceWorld: FREEHAND_LIVE_POINT_SPACING_PX / Math.max(zoom, 1e-3)
   };
 }
@@ -34,23 +35,23 @@ export function appendFreehandToolPoint(draft: FreehandToolDraft, point: WorldPo
   }
   return {
     ...draft,
-    points: [...draft.points, { ...point }]
+    points: [...draft.points, point]
   };
 }
 
 export function simplifyFreehandPoints(points: readonly WorldPoint[], toleranceWorld: number): WorldPoint[] {
   if (points.length <= 2) {
-    return points.map((point) => ({ ...point }));
+    return [...points];
   }
 
   const toleranceSq = toleranceWorld * toleranceWorld;
-  const simplified: WorldPoint[] = [{ ...points[0]! }];
+  const simplified: WorldPoint[] = [points[0]!];
   let lastKept = points[0]!;
 
   for (let i = 1; i < points.length - 1; i += 1) {
     const point = points[i]!;
     if (distanceSquared(lastKept, point) >= toleranceSq) {
-      simplified.push({ ...point });
+      simplified.push(point);
       lastKept = point;
     }
   }
@@ -58,7 +59,7 @@ export function simplifyFreehandPoints(points: readonly WorldPoint[], toleranceW
   const lastPoint = points[points.length - 1]!;
   const currentLast = simplified[simplified.length - 1]!;
   if (distanceSquared(currentLast, lastPoint) > 0) {
-    simplified.push({ ...lastPoint });
+    simplified.push(lastPoint);
   }
 
   return simplified;
@@ -77,15 +78,15 @@ export function catmullRomToBezierSegments(points: readonly WorldPoint[]): Freeh
     const p3 = i + 2 < points.length ? points[i + 2]! : p2;
 
     segments.push({
-      control1: {
-        x: p1.x + (p2.x - p0.x) / 6,
-        y: p1.y + (p2.y - p0.y) / 6
-      },
-      control2: {
-        x: p2.x - (p3.x - p1.x) / 6,
-        y: p2.y - (p3.y - p1.y) / 6
-      },
-      to: { ...p2 }
+      control1: worldPoint(
+        pt(p1.x + (p2.x - p0.x) / 6),
+        pt(p1.y + (p2.y - p0.y) / 6)
+      ),
+      control2: worldPoint(
+        pt(p2.x - (p3.x - p1.x) / 6),
+        pt(p2.y - (p3.y - p1.y) / 6)
+      ),
+      to: p2
     });
   }
 
@@ -108,8 +109,8 @@ export function resolveFreehandPreviewSegments(
     for (let i = 1; i < previewPoints.length; i += 1) {
       previewSegments.push({
         kind: "line",
-        from: { ...previewPoints[i - 1]! },
-        to: { ...previewPoints[i]! }
+        from: previewPoints[i - 1]!,
+        to: previewPoints[i]!
       });
     }
     return previewSegments;
@@ -121,10 +122,10 @@ export function resolveFreehandPreviewSegments(
   for (const segment of curves) {
     previewSegments.push({
       kind: "bezier",
-      from: { ...current },
-      control1: { ...segment.control1 },
-      control2: { ...segment.control2 },
-      to: { ...segment.to }
+      from: current,
+      control1: segment.control1,
+      control2: segment.control2,
+      to: segment.to
     });
     current = segment.to;
   }

@@ -1,4 +1,6 @@
+import { worldPoint } from "../../coords/points.js";
 import type { WorldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { ResolvedStyle, SceneElement, ScenePath } from "../types.js";
 import type { StyleChainEntry } from "../style-chain.js";
 import { applyMatrixToVector } from "../transform.js";
@@ -49,8 +51,8 @@ export function transformEllipseGeometry(
   const cos = Math.cos(theta);
   const sin = Math.sin(theta);
 
-  const axisX = { x: rx * cos, y: rx * sin };
-  const axisY = { x: -ry * sin, y: ry * cos };
+  const axisX = worldPoint(pt(rx * cos), pt(rx * sin));
+  const axisY = worldPoint(pt(-ry * sin), pt(ry * cos));
   const transformedAxisX = applyMatrixToVector(transform, axisX);
   const transformedAxisY = applyMatrixToVector(transform, axisY);
 

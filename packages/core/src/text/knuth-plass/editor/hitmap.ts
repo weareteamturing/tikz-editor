@@ -9,7 +9,7 @@ import {
   createMathPrefixCache,
   readPrefixUnitsFromTable,
 } from './mathPrefix.js';
-import { clientPoint as makeClientPoint } from '../../../coords/points.js';
+import { clientBounds, clientPoint as makeClientPoint } from '../../../coords/points.js';
 import type { ClientBounds, ClientPoint } from '../../../coords/points.js';
 
 // The core package builds without the DOM lib; keep the editor hit-testing
@@ -1800,16 +1800,13 @@ export async function getKnuthPlassSelectionRects(
       lineIndex: line.lineIndex,
       startOffset: startStop.offset,
       endOffset: endStop.offset,
-      bounds: {
-        minX: left,
-        minY: centerY - height / 2,
-        maxX: left + Math.max(1, segmentWidth),
-        maxY: centerY + height / 2,
-      },
-      center: {
-        x: centerX,
-        y: centerY,
-      },
+      bounds: clientBounds(
+        px(left),
+        px(centerY - height / 2),
+        px(left + Math.max(1, segmentWidth)),
+        px(centerY + height / 2)
+      ),
+      center: makeClientPoint(px(centerX), px(centerY)),
       rotationDeg: (Math.atan2(line.screenMatrix.b, line.screenMatrix.a) * 180) / Math.PI,
     });
   }

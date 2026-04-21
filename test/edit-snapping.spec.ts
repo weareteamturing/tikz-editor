@@ -11,6 +11,7 @@ import {
   snapToNextMultiple
 } from "../packages/core/src/edit/snapping/index.js";
 import type { SelectionGeometry } from "../packages/core/src/edit/snapping/types.js";
+import { wb, wp } from "./coords-helpers.js";
 
 function makeCircle(sourceId: string, centerX: number, centerY: number, radius: number): SceneElement {
   const circle: SceneCircle = {
@@ -24,7 +25,7 @@ function makeCircle(sourceId: string, centerX: number, centerY: number, radius: 
     },
     style: {} as SceneCircle["style"],
     styleChain: [],
-    center: { x: centerX, y: centerY },
+    center: wp(centerX, centerY),
     radius
   };
 
@@ -50,7 +51,7 @@ function makePath(sourceId: string, commands: ScenePathCommand[]): SceneElement 
 }
 
 function selectionFromBounds(minX: number, minY: number, maxX: number, maxY: number): SelectionGeometry {
-  const bounds = { minX, minY, maxX, maxY };
+  const bounds = wb(minX, minY, maxX, maxY);
   return {
     bounds,
     snapPoints: selectionSnapPointsFromBounds(bounds)
@@ -69,7 +70,7 @@ describe("edit snapping core", () => {
 
     const snapped = snapHandlePosition({
       context,
-      point: { x: 99, y: 101 }
+      point: wp(99, 101)
     });
 
     expect(snapped.snappedPoint?.x).toBeCloseTo(100, 6);
@@ -96,12 +97,12 @@ describe("edit snapping core", () => {
 
     const snappedAtZoom1 = snapHandlePosition({
       context: zoom1,
-      point: { x: 111, y: 100 }
+      point: wp(111, 100)
     });
 
     const snappedAtZoom2 = snapHandlePosition({
       context: zoom2,
-      point: { x: 111, y: 100 }
+      point: wp(111, 100)
     });
 
     expect(snappedAtZoom1.snappedPoint?.x).toBeCloseTo(105, 6);
@@ -117,7 +118,7 @@ describe("edit snapping core", () => {
       settings: { grid: { enabled: false }, gaps: { enabled: false } }
     });
 
-    const raw = { x: 99, y: 101 };
+    const raw = wp(99, 101);
     const snapped = snapHandlePosition({
       context,
       point: raw,
@@ -141,7 +142,7 @@ describe("edit snapping core", () => {
     const snapped = snapSelectionTranslation({
       context,
       selection,
-      rawDelta: { x: 7, y: 7 }
+      rawDelta: wp(7, 7)
     });
 
     expect(snapped.snappedDelta?.x).toBeCloseTo(6, 6);
@@ -166,7 +167,7 @@ describe("edit snapping core", () => {
 
     const snapped = snapHandlePosition({
       context,
-      point: { x: gridStep + 3, y: 0 }
+      point: wp(gridStep + 3, 0)
     });
 
     expect(snapped.snappedPoint?.x).toBeCloseTo(gridStep, 6);
@@ -184,10 +185,10 @@ describe("edit snapping core", () => {
 
     const snapped = snapHandlePosition({
       context,
-      point: { x: 44.2, y: 12.8 }
+      point: wp(44.2, 12.8)
     });
 
-    expect(snapped.snappedPoint).toEqual({ x: 40, y: 15 });
+    expect(snapped.snappedPoint).toEqual(wp(40, 15));
   });
 
   it("supports gap center snapping", () => {
@@ -207,7 +208,7 @@ describe("edit snapping core", () => {
     const snapped = snapSelectionTranslation({
       context,
       selection,
-      rawDelta: { x: 0, y: 0 }
+      rawDelta: wp(0, 0)
     });
 
     expect(snapped.snappedDelta?.x).toBeCloseTo(7, 6);
@@ -231,7 +232,7 @@ describe("edit snapping core", () => {
     const snapped = snapSelectionTranslation({
       context,
       selection,
-      rawDelta: { x: 0, y: 0 }
+      rawDelta: wp(0, 0)
     });
 
     expect(snapped.snappedDelta?.x).toBeCloseTo(3, 6);
@@ -256,7 +257,7 @@ describe("edit snapping core", () => {
     const snapped = snapSelectionTranslation({
       context,
       selection,
-      rawDelta: { x: 0, y: 0 }
+      rawDelta: wp(0, 0)
     });
 
     const keys = new Set<string>();
@@ -292,13 +293,13 @@ describe("edit snapping core", () => {
 
     const withoutSelf = snapHandlePosition({
       context,
-      point: { x: 4, y: 0 },
+      point: wp(4, 0),
       sourceId: "self"
     });
 
     const withSelf = snapHandlePosition({
       context,
-      point: { x: 4, y: 0 },
+      point: wp(4, 0),
       sourceId: "self",
       allowSelfSnap: true
     });
@@ -309,7 +310,7 @@ describe("edit snapping core", () => {
 
   it("keeps keyboard nudge directional intent", () => {
     const snapped = snapKeyboardNudge({
-      anchor: { x: 0, y: 0 },
+      anchor: wp(0, 0),
       axis: "x",
       direction: 1,
       step: 2
@@ -322,14 +323,14 @@ describe("edit snapping core", () => {
   it("does not snap keyboard nudges to nearby targets", () => {
     const rawStep = 2;
     const snapped = snapKeyboardNudge({
-      anchor: { x: 0, y: 0 },
+      anchor: wp(0, 0),
       axis: "x",
       direction: 1,
       step: rawStep
     });
 
-    expect(snapped.snappedDelta).toEqual({ x: rawStep, y: 0 });
-    expect(snapped.offset).toEqual({ x: 0, y: 0 });
+    expect(snapped.snappedDelta).toEqual(wp(rawStep, 0));
+    expect(snapped.offset).toEqual(wp(0, 0));
     expect(snapped.lines).toEqual([]);
   });
 
@@ -343,7 +344,7 @@ describe("edit snapping core", () => {
     });
 
     const selection = selectionFromBounds(5, 5, 15, 15);
-    const rawDelta = { x: 1.25, y: -0.75 };
+    const rawDelta = wp(1.25, -0.75);
     const snapped = snapSelectionTranslation({
       context,
       selection,
@@ -375,14 +376,14 @@ describe("edit snapping core", () => {
   it("excludes open paths from reference snap targets", () => {
     const scene = [
       makePath("open", [
-        { kind: "M", to: { x: -20, y: 0 } },
-        { kind: "L", to: { x: 20, y: 0 } }
+        { kind: "M", to: wp(-20, 0) },
+        { kind: "L", to: wp(20, 0) }
       ]),
       makePath("closed", [
-        { kind: "M", to: { x: 30, y: 30 } },
-        { kind: "L", to: { x: 50, y: 30 } },
-        { kind: "L", to: { x: 50, y: 50 } },
-        { kind: "L", to: { x: 30, y: 50 } },
+        { kind: "M", to: wp(30, 30) },
+        { kind: "L", to: wp(50, 30) },
+        { kind: "L", to: wp(50, 50) },
+        { kind: "L", to: wp(30, 50) },
         { kind: "Z" }
       ])
     ];
@@ -412,17 +413,17 @@ describe("edit snapping core", () => {
     const near = snapSelectionTranslation({
       context,
       selection: moving,
-      rawDelta: { x: 0, y: 0 }
+      rawDelta: wp(0, 0)
     });
     const far = snapSelectionTranslation({
       context,
       selection: moving,
-      rawDelta: { x: 200, y: 200 }
+      rawDelta: wp(200, 200)
     });
     const nearAgain = snapSelectionTranslation({
       context,
       selection: moving,
-      rawDelta: { x: 0, y: 0 }
+      rawDelta: wp(0, 0)
     });
 
     expect(nearAgain).toEqual(near);
@@ -442,9 +443,9 @@ describe("edit snapping core", () => {
     const snapped = snapSelectionTranslation({
       context,
       selection: moving,
-      rawDelta: { x: 0, y: 0 }
+      rawDelta: wp(0, 0)
     });
-    const delta = snapped.snappedDelta ?? { x: 0, y: 0 };
+    const delta = snapped.snappedDelta ?? wp(0, 0);
 
     const toKey = (x: number, y: number) => `${x.toFixed(6)},${y.toFixed(6)}`;
     const snappedSelectionPoints = moving.snapPoints.map((point) => toKey(point.x + delta.x, point.y + delta.y));

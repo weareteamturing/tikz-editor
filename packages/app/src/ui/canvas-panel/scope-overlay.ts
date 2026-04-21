@@ -1,4 +1,5 @@
 import type { Statement } from "tikz-editor/ast/types";
+import { pt, svgBounds } from "tikz-editor/coords/index";
 import type { SceneElement } from "tikz-editor/semantic/types";
 import type { SvgBounds, SvgPoint } from "../coords/types";
 import type { SourceBoundsMap } from "./types";
@@ -339,12 +340,12 @@ function resolveOutermostScopeUnderFocus(
 }
 
 function mergeBounds(a: SvgBounds, b: SvgBounds): SvgBounds {
-  return {
-    minX: Math.min(a.minX, b.minX),
-    minY: Math.min(a.minY, b.minY),
-    maxX: Math.max(a.maxX, b.maxX),
-    maxY: Math.max(a.maxY, b.maxY)
-  };
+  return svgBounds(
+    pt(Math.min(a.minX, b.minX)),
+    pt(Math.min(a.minY, b.minY)),
+    pt(Math.max(a.maxX, b.maxX)),
+    pt(Math.max(a.maxY, b.maxY))
+  );
 }
 
 function boundsContainedWithin(inner: SvgBounds, outer: SvgBounds): boolean {

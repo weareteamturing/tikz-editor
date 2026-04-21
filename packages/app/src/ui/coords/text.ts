@@ -1,4 +1,4 @@
-import { textareaLocalPoint, viewportBounds, px } from "tikz-editor/coords/index";
+import { svgPoint, textareaLocalPoint, viewportBounds, px } from "tikz-editor/coords/index";
 import type { ClientBounds, ClientPoint, SvgBounds, SvgPoint, TextareaLocalPoint, ViewportBounds, ViewportPoint } from "./types";
 
 export function clientPointToTextareaLocal(point: ClientPoint, textareaRect: DOMRect): TextareaLocalPoint {
@@ -20,7 +20,7 @@ export function svgBoundsToViewportBounds(
   bounds: SvgBounds,
   project: (point: SvgPoint) => ViewportPoint
 ): ViewportBounds {
-  const topLeft = project({ x: bounds.minX, y: bounds.minY });
-  const bottomRight = project({ x: bounds.maxX, y: bounds.maxY });
+  const topLeft = project(svgPoint(bounds.minX, bounds.minY));
+  const bottomRight = project(svgPoint(bounds.maxX, bounds.maxY));
   return viewportBounds(px(topLeft.x), px(topLeft.y), px(bottomRight.x), px(bottomRight.y));
 }

@@ -12,6 +12,7 @@ import { applyEditAction } from "tikz-editor/edit/actions";
 import { getRepeatSelectionEligibility } from "tikz-editor/edit/actions/repeat";
 import { collectSourceWorldBounds } from "tikz-editor/edit/snapping";
 import { PT_PER_CM } from "tikz-editor/edit/format";
+import { pt, worldPoint } from "tikz-editor/coords";
 import { emitSvgModel, type SvgRenderModel } from "tikz-editor/svg";
 import type { SceneFigure } from "tikz-editor/semantic/types";
 import { installAppProfilingRecorder, readAppProfilingSnapshot, resetAppProfilingSession } from "../profiling";
@@ -1454,15 +1455,15 @@ export function App() {
                 const text = formatEquationText(latex, "inline-dollar");
                 dispatch({
                   type: "APPLY_EDIT_ACTION",
-                  action: {
-                    kind: "addElement",
-                    template: {
-                      kind: "node",
-                      text
-                    },
-                    at: { x: 0, y: 0 }
-                  }
-                });
+	                  action: {
+	                    kind: "addElement",
+	                    template: {
+	                      kind: "node",
+	                      text
+	                    },
+	                    at: worldPoint(pt(0), pt(0))
+	                  }
+	                });
                 setInsertEquationDraft("");
                 setEquationModalState(null);
                 return;

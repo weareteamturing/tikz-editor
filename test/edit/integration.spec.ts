@@ -5,6 +5,7 @@ import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js
 import { applyEditIntent } from "../../packages/core/src/edit/apply.js";
 import type { EditHandle } from "../../packages/core/src/semantic/types.js";
 import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
+import { wp } from "../coords-helpers.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
 
@@ -29,7 +30,7 @@ function findHandleBySpanText(source: string, handles: EditHandle[], text: strin
 function roundTripMove(
   source: string,
   spanText: string,
-  newWorld: { x: number; y: number }
+  newWorld: ReturnType<typeof wp>
 ) {
   const { handles } = evaluateAndGetHandles(source);
   const handle = findHandleBySpanText(source, handles, spanText);
@@ -69,7 +70,7 @@ describe("edit integration (round-trip)", () => {
     const source = String.raw`\begin{tikzpicture}
 \node at (1,2) {A};
 \end{tikzpicture}`;
-    const result = roundTripMove(source, "(1,2)", { x: cm(3), y: cm(4) });
+    const result = roundTripMove(source, "(1,2)", wp(cm(3), cm(4)));
 
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
@@ -92,7 +93,7 @@ describe("edit integration (round-trip)", () => {
     const result = applyEditIntent(source, handles, {
       kind: "move",
       handleId: handle!.id,
-      newWorld: { x: cm(2), y: cm(3) }
+      newWorld: wp(cm(2), cm(3))
     });
 
     expect(result.kind).toBe("success");
@@ -111,7 +112,7 @@ describe("edit integration (round-trip)", () => {
     const source = String.raw`\begin{tikzpicture}
 \draw (0,0) -- (2,3);
 \end{tikzpicture}`;
-    const result = roundTripMove(source, "(2,3)", { x: cm(5), y: cm(6) });
+    const result = roundTripMove(source, "(2,3)", wp(cm(5), cm(6)));
 
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
@@ -126,7 +127,7 @@ describe("edit integration (round-trip)", () => {
     const source = String.raw`\begin{tikzpicture}
 \draw (0,0) .. controls (1,1) and (2,1) .. (3,0);
 \end{tikzpicture}`;
-    const result = roundTripMove(source, "(1,1)", { x: cm(1.5), y: cm(2) });
+    const result = roundTripMove(source, "(1,1)", wp(cm(1.5), cm(2)));
 
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
@@ -139,7 +140,7 @@ describe("edit integration (round-trip)", () => {
     const source = String.raw`\begin{tikzpicture}
 \draw (0,0) .. controls (1,1) and (2,1) .. (3,0);
 \end{tikzpicture}`;
-    const result = roundTripMove(source, "(3,0)", { x: cm(4), y: cm(0.5) });
+    const result = roundTripMove(source, "(3,0)", wp(cm(4), cm(0.5)));
 
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
@@ -153,7 +154,7 @@ describe("edit integration (round-trip)", () => {
     const source = String.raw`\begin{tikzpicture}
 \draw (0,0) .. controls (1,1) .. (3,0);
 \end{tikzpicture}`;
-    const result = roundTripMove(source, "(1,1)", { x: cm(1.25), y: cm(1.5) });
+    const result = roundTripMove(source, "(1,1)", wp(cm(1.25), cm(1.5)));
 
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
@@ -175,7 +176,7 @@ describe("edit integration (round-trip)", () => {
     const result = applyEditIntent(source, handles, {
       kind: "move",
       handleId: outHandle!.id,
-      newWorld: { x: 0, y: cm(1) }
+      newWorld: wp(0, cm(1))
     });
 
     expect(result.kind).toBe("success");
@@ -197,7 +198,7 @@ describe("edit integration (round-trip)", () => {
     const result = applyEditIntent(source, handles, {
       kind: "move",
       handleId: inHandle!.id,
-      newWorld: { x: cm(2), y: cm(1) }
+      newWorld: wp(cm(2), cm(1))
     });
 
     expect(result.kind).toBe("success");
@@ -219,7 +220,7 @@ describe("edit integration (round-trip)", () => {
     const result = applyEditIntent(source, handles, {
       kind: "move",
       handleId: outHandle!.id,
-      newWorld: { x: cm(1), y: cm(0.5) }
+      newWorld: wp(cm(1), cm(0.5))
     });
 
     expect(result.kind).toBe("success");
@@ -240,7 +241,7 @@ describe("edit integration (round-trip)", () => {
     const result = applyEditIntent(source, handles, {
       kind: "move",
       handleId: outHandle!.id,
-      newWorld: { x: 0, y: cm(1) }
+      newWorld: wp(0, cm(1))
     });
 
     expect(result.kind).toBe("success");
@@ -284,7 +285,7 @@ describe("edit integration (round-trip)", () => {
     const raised = applyEditIntent(source, handles, {
       kind: "move",
       handleId: bendHandle!.id,
-      newWorld: { x: cm(1), y: cm(1) }
+      newWorld: wp(cm(1), cm(1))
     });
     expect(raised.kind).toBe("success");
     if (raised.kind !== "success") return;
@@ -299,7 +300,7 @@ describe("edit integration (round-trip)", () => {
     const lowered = applyEditIntent(raised.newSource, reevaluated.handles, {
       kind: "move",
       handleId: reevaluatedBendHandle!.id,
-      newWorld: { x: cm(1), y: cm(-1) }
+      newWorld: wp(cm(1), cm(-1))
     });
     expect(lowered.kind).toBe("success");
     if (lowered.kind !== "success") return;
@@ -315,7 +316,7 @@ describe("edit integration (round-trip)", () => {
 \end{tikzpicture}`;
     // Node at local (1,2) → world (2,2) due to xscale=2
     // Move to world (6, 4) → local should be (3, 4)
-    const result = roundTripMove(source, "(1,2)", { x: cm(6), y: cm(4) });
+    const result = roundTripMove(source, "(1,2)", wp(cm(6), cm(4)));
 
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
@@ -334,7 +335,7 @@ describe("edit integration (round-trip)", () => {
 \end{tikzpicture}`;
     // rotate(90): local (1,0) → world (0,1)
     // Move to world (-2, 0) → inverse rotate: local (0, 2)
-    const result = roundTripMove(source, "(1,0)", { x: cm(-2), y: 0 });
+    const result = roundTripMove(source, "(1,0)", wp(cm(-2), 0));
 
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
@@ -352,7 +353,7 @@ describe("edit integration (round-trip)", () => {
 \end{tikzpicture}`;
     // cm={0,1,1,0,(1,1)} maps local (x,y) -> world (y+1, x+1)
     // local (1,2) -> world (3,2); moving to world (5,4) yields local (3,4)
-    const result = roundTripMove(source, "(1,2)", { x: cm(5), y: cm(4) });
+    const result = roundTripMove(source, "(1,2)", wp(cm(5), cm(4)));
 
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
@@ -369,7 +370,7 @@ describe("edit integration (round-trip)", () => {
 \end{tikzpicture}`;
     // (45:2) → world (√2·cm, √2·cm)
     // Move to world (0, 3cm) → polar (90:3)
-    const result = roundTripMove(source, "(45:2)", { x: 0, y: cm(3) });
+    const result = roundTripMove(source, "(45:2)", wp(0, cm(3)));
 
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
@@ -398,7 +399,7 @@ describe("edit integration (round-trip)", () => {
     const result = applyEditIntent(source, handles, {
       kind: "move",
       handleId: namedHandle!.id,
-      newWorld: { x: cm(1), y: cm(1) }
+      newWorld: wp(cm(1), cm(1))
     });
 
     expect(result.kind).toBe("success");
@@ -435,7 +436,7 @@ describe("edit integration (round-trip)", () => {
     const result = applyEditIntent(source, handles, {
       kind: "move",
       handleId: namedHandle.id,
-      newWorld: { x: cm(5), y: cm(5) }
+      newWorld: wp(cm(5), cm(5))
     });
 
     expect(result.kind).toBe("success");
@@ -461,7 +462,7 @@ describe("edit integration (round-trip)", () => {
     const result = applyEditIntent(source, handles, {
       kind: "move",
       handleId: duplicatedSpanHandle!.id,
-      newWorld: { x: cm(3), y: cm(0) }
+      newWorld: wp(cm(3), cm(0))
     });
 
     expect(result.kind).toBe("unsupported");
@@ -476,7 +477,7 @@ describe("edit integration (round-trip)", () => {
     const result = applyEditIntent(source, handles, {
       kind: "move",
       handleId: "nonexistent-handle",
-      newWorld: { x: cm(5), y: cm(5) }
+      newWorld: wp(cm(5), cm(5))
     });
 
     expect(result.kind).toBe("error");
@@ -500,7 +501,7 @@ describe("edit integration (round-trip)", () => {
     const result = applyEditIntent(source, handles, {
       kind: "move",
       handleId: deltaHandle.id,
-      newWorld: { x: cm(2), y: cm(3) }
+      newWorld: wp(cm(2), cm(3))
     });
 
     expect(result.kind).toBe("success");
@@ -520,7 +521,7 @@ describe("edit integration (round-trip)", () => {
     const result = applyEditIntent(source, handles, {
       kind: "move",
       handleId: polarHandle!.id,
-      newWorld: { x: 0, y: cm(3) }
+      newWorld: wp(0, cm(3))
     });
 
     expect(result.kind).toBe("success");
@@ -540,7 +541,7 @@ describe("edit integration (round-trip)", () => {
     const result = applyEditIntent(source, handles, {
       kind: "move",
       handleId: deltaHandle!.id,
-      newWorld: { x: cm(3), y: cm(2) }
+      newWorld: wp(cm(3), cm(2))
     });
 
     expect(result.kind).toBe("success");
@@ -559,7 +560,7 @@ describe("edit integration (round-trip)", () => {
     const result = applyEditIntent(source, handles, {
       kind: "move",
       handleId: xyzHandle!.id,
-      newWorld: { x: cm(4), y: cm(5) }
+      newWorld: wp(cm(4), cm(5))
     });
 
     expect(result.kind).toBe("unsupported");
@@ -581,7 +582,7 @@ describe("edit integration (round-trip)", () => {
     const result = applyEditIntent(sourceB, handles, {
       kind: "move",
       handleId: handle!.id,
-      newWorld: { x: cm(3), y: cm(4) }
+      newWorld: wp(cm(3), cm(4))
     });
 
     expect(result.kind).toBe("error");
@@ -601,7 +602,7 @@ describe("edit integration (round-trip)", () => {
     const result = applyEditIntent(source, handles, {
       kind: "move",
       handleId: handle!.id,
-      newWorld: { x: cm(10), y: cm(20) }
+      newWorld: wp(cm(10), cm(20))
     });
 
     expect(result.kind).toBe("success");

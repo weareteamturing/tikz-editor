@@ -8,6 +8,7 @@ import {
   reverseComplexPathSegments
 } from "../packages/core/src/edit/element-templates.js";
 import { PT_PER_CM } from "../packages/core/src/edit/format.js";
+import { wp } from "./coords-helpers.js";
 
 const cm = (value: number) => value * PT_PER_CM;
 
@@ -15,7 +16,7 @@ describe("element templates", () => {
   it("generates a node snippet at a world-space position", () => {
     const snippet = generateElementSource(
       { kind: "node", text: "Hello" },
-      { x: cm(1.5), y: cm(-2) }
+      wp(cm(1.5), cm(-2))
     );
     expect(snippet).toBe("\\node at (1.5,-2) {Hello};");
   });
@@ -23,7 +24,7 @@ describe("element templates", () => {
   it("preserves TeX braces in node text", () => {
     const snippet = generateElementSource(
       { kind: "node", text: "$\\frac{a}{b}=x$" },
-      { x: cm(0), y: cm(0) }
+      wp(cm(0), cm(0))
     );
     expect(snippet).toBe("\\node at (0,0) {$\\frac{a}{b}=x$};");
   });
@@ -37,7 +38,7 @@ describe("element templates", () => {
         minimumWidthPt: cm(3),
         minimumHeightPt: cm(2)
       },
-      { x: cm(2), y: cm(3) }
+      wp(cm(2), cm(3))
     );
     expect(snippet).toBe("\\node[draw, shape=diamond, minimum width=3cm, minimum height=2cm] at (2,3) {};");
   });
@@ -45,7 +46,7 @@ describe("element templates", () => {
   it("generates a matrix-of-nodes snippet with default labels", () => {
     const snippet = generateElementSource(
       { kind: "matrix", rows: 2, columns: 2 },
-      { x: cm(1), y: cm(2) }
+      wp(cm(1), cm(2))
     );
     expect(snippet).toBe("\\matrix [matrix of nodes] at (1,2) {\n  A & B \\\\\n  C & D \\\\\n};");
   });
@@ -53,7 +54,7 @@ describe("element templates", () => {
   it("generates matrix labels beyond Z", () => {
     const snippet = generateElementSource(
       { kind: "matrix", rows: 3, columns: 10 },
-      { x: cm(0), y: cm(0) }
+      wp(cm(0), cm(0))
     );
     expect(snippet).toContain("Y & Z & AA & AB & AC & AD");
   });
@@ -66,15 +67,15 @@ describe("element templates", () => {
         text: "",
         minimumWidthPt: cm(3)
       },
-      { x: cm(2), y: cm(3) }
+      wp(cm(2), cm(3))
     );
     expect(snippet).toBe("\\node[draw, shape=circle, minimum width=3cm] at (2,3) {};");
   });
 
   it("generates a drag-aware arrow line snippet", () => {
     const snippet = generateElementSource(
-      { kind: "line", hasArrow: true, to: { x: cm(3), y: cm(4) } },
-      { x: cm(1), y: cm(2) }
+      { kind: "line", hasArrow: true, to: wp(cm(3), cm(4)) },
+      wp(cm(1), cm(2))
     );
     expect(snippet).toBe("\\draw[->] (1,2) -- (3,4);");
   });
@@ -85,9 +86,9 @@ describe("element templates", () => {
         kind: "line",
         fromAnchor: { nodeName: "A", anchor: "center" },
         toAnchor: { nodeName: "B", anchor: "center" },
-        to: { x: cm(3), y: cm(4) }
+        to: wp(cm(3), cm(4))
       },
-      { x: cm(1), y: cm(2) }
+      wp(cm(1), cm(2))
     );
     expect(snippet).toBe("\\draw (A) -- (B);");
   });
@@ -99,25 +100,25 @@ describe("element templates", () => {
         hasArrow: true,
         fromAnchor: { nodeName: "A", anchor: "west" },
         toAnchor: { nodeName: "B", anchor: "east" },
-        to: { x: cm(3), y: cm(4) }
+        to: wp(cm(3), cm(4))
       },
-      { x: cm(1), y: cm(2) }
+      wp(cm(1), cm(2))
     );
     expect(snippet).toBe("\\draw[->] (A.west) -- (B.east);");
   });
 
   it("generates a circle snippet with explicit cm radius", () => {
     const snippet = generateElementSource(
-      { kind: "circle", edge: { x: cm(1.5), y: cm(1) } },
-      { x: cm(1), y: cm(1) }
+      { kind: "circle", edge: wp(cm(1.5), cm(1)) },
+      wp(cm(1), cm(1))
     );
     expect(snippet).toBe("\\draw (1,1) circle (0.5cm);");
   });
 
   it("generates an ellipse snippet from dragged bounding corners", () => {
     const snippet = generateElementSource(
-      { kind: "ellipse", corner: { x: cm(3), y: cm(5) } },
-      { x: cm(1), y: cm(1) }
+      { kind: "ellipse", corner: wp(cm(3), cm(5)) },
+      wp(cm(1), cm(1))
     );
     expect(snippet).toBe("\\draw (2,3) ellipse [x radius=1cm, y radius=2cm];");
   });
@@ -126,19 +127,19 @@ describe("element templates", () => {
     const snippet = generateElementSource(
       {
         kind: "bezier",
-        to: { x: cm(4), y: cm(2) },
-        control1: { x: cm(2), y: cm(3) },
-        control2: { x: cm(3), y: cm(1) }
+        to: wp(cm(4), cm(2)),
+        control1: wp(cm(2), cm(3)),
+        control2: wp(cm(3), cm(1))
       },
-      { x: cm(1), y: cm(2) }
+      wp(cm(1), cm(2))
     );
     expect(snippet).toBe("\\draw (1,2) .. controls (2,3) and (3,1) .. (4,2);");
   });
 
   it("generates a grid snippet from dragged corners", () => {
     const snippet = generateElementSource(
-      { kind: "grid", corner: { x: cm(3), y: cm(5) } },
-      { x: cm(1), y: cm(2) }
+      { kind: "grid", corner: wp(cm(3), cm(5)) },
+      wp(cm(1), cm(2))
     );
     expect(snippet).toBe("\\draw (1,2) grid (3,5);");
   });
@@ -146,17 +147,17 @@ describe("element templates", () => {
   it("generates a default-sized grid snippet without a drag corner", () => {
     const snippet = generateElementSource(
       { kind: "grid" },
-      { x: cm(1), y: cm(2) }
+      wp(cm(1), cm(2))
     );
     expect(snippet).toBe("\\draw (1,2) grid (3.2,3.4);");
   });
 
   it("generates an open multi-segment complex path snippet", () => {
     const snippet = generateComplexPathSource(
-      { x: cm(0), y: cm(0) },
+      wp(cm(0), cm(0)),
       [
-        { kind: "line", to: { x: cm(1), y: cm(0) } },
-        { kind: "line", to: { x: cm(2), y: cm(1) } }
+        { kind: "line", to: wp(cm(1), cm(0)) },
+        { kind: "line", to: wp(cm(2), cm(1)) }
       ]
     );
     expect(snippet).toBe("\\draw (0,0) -- (1,0) -- (2,1);");
@@ -164,14 +165,14 @@ describe("element templates", () => {
 
   it("generates a mixed line/bezier complex path snippet", () => {
     const snippet = generateComplexPathSource(
-      { x: cm(0), y: cm(0) },
+      wp(cm(0), cm(0)),
       [
-        { kind: "line", to: { x: cm(1), y: cm(0) } },
+        { kind: "line", to: wp(cm(1), cm(0)) },
         {
           kind: "bezier",
-          control1: { x: cm(2), y: cm(1) },
-          control2: { x: cm(3), y: cm(1) },
-          to: { x: cm(4), y: cm(0) }
+          control1: wp(cm(2), cm(1)),
+          control2: wp(cm(3), cm(1)),
+          to: wp(cm(4), cm(0))
         }
       ]
     );
@@ -180,14 +181,14 @@ describe("element templates", () => {
 
   it("generates a complex path snippet with named anchor endpoints", () => {
     const snippet = generateComplexPathSource(
-      { x: cm(0), y: cm(0) },
+      wp(cm(0), cm(0)),
       [
-        { kind: "line", to: { x: cm(1), y: cm(0) }, toAnchor: { nodeName: "B", anchor: "east" } },
+        { kind: "line", to: wp(cm(1), cm(0)), toAnchor: { nodeName: "B", anchor: "east" } },
         {
           kind: "bezier",
-          control1: { x: cm(2), y: cm(1) },
-          control2: { x: cm(3), y: cm(1) },
-          to: { x: cm(4), y: cm(0) },
+          control1: wp(cm(2), cm(1)),
+          control2: wp(cm(3), cm(1)),
+          to: wp(cm(4), cm(0)),
           toAnchor: { nodeName: "C", anchor: "north" }
         }
       ],
@@ -198,10 +199,10 @@ describe("element templates", () => {
 
   it("generates a closed complex path snippet with cycle", () => {
     const snippet = generateComplexPathSource(
-      { x: cm(0), y: cm(0) },
+      wp(cm(0), cm(0)),
       [
-        { kind: "line", to: { x: cm(1), y: cm(0) } },
-        { kind: "line", to: { x: cm(1), y: cm(1) } }
+        { kind: "line", to: wp(cm(1), cm(0)) },
+        { kind: "line", to: wp(cm(1), cm(1)) }
       ],
       { closed: true }
     );
@@ -231,8 +232,8 @@ describe("insertElementIntoSource", () => {
 
   it("generates segment-only source without draw prefix", () => {
     const segments = [
-      { kind: "line" as const, to: { x: cm(1), y: cm(0) } },
-      { kind: "line" as const, to: { x: cm(2), y: cm(0) } }
+      { kind: "line" as const, to: wp(cm(1), cm(0)) },
+      { kind: "line" as const, to: wp(cm(2), cm(0)) }
     ];
     const result = generateComplexPathSegmentSource(segments);
     expect(result).toBe("-- (1,0) -- (2,0)");
@@ -240,74 +241,74 @@ describe("insertElementIntoSource", () => {
 
   it("generates segment-only source with anchor references", () => {
     const segments = [
-      { kind: "line" as const, to: { x: cm(1), y: cm(0) }, toAnchor: { nodeName: "B", anchor: "east" } },
-      { kind: "line" as const, to: { x: cm(2), y: cm(0) } }
+      { kind: "line" as const, to: wp(cm(1), cm(0)), toAnchor: { nodeName: "B", anchor: "east" } },
+      { kind: "line" as const, to: wp(cm(2), cm(0)) }
     ];
     const result = generateComplexPathSegmentSource(segments);
     expect(result).toBe("-- (B.east) -- (2,0)");
   });
 
   it("reverses line segments", () => {
-    const from = { x: cm(0), y: cm(0) };
+    const from = wp(cm(0), cm(0));
     const segments = [
-      { kind: "line" as const, to: { x: cm(1), y: cm(0) } },
-      { kind: "line" as const, to: { x: cm(2), y: cm(0) } }
+      { kind: "line" as const, to: wp(cm(1), cm(0)) },
+      { kind: "line" as const, to: wp(cm(2), cm(0)) }
     ];
     const reversed = reverseComplexPathSegments(from, segments);
-    expect(reversed.startWorld).toEqual({ x: cm(2), y: cm(0) });
+    expect(reversed.startWorld).toEqual(wp(cm(2), cm(0)));
     expect(reversed.segments).toHaveLength(2);
-    expect(reversed.segments[0]).toEqual({ kind: "line", to: { x: cm(1), y: cm(0) } });
-    expect(reversed.segments[1]).toEqual({ kind: "line", to: { x: cm(0), y: cm(0) } });
+    expect(reversed.segments[0]).toEqual({ kind: "line", to: wp(cm(1), cm(0)) });
+    expect(reversed.segments[1]).toEqual({ kind: "line", to: wp(cm(0), cm(0)) });
   });
 
   it("reverses anchor references together with endpoints", () => {
-    const from = { x: cm(0), y: cm(0) };
+    const from = wp(cm(0), cm(0));
     const segments = [
-      { kind: "line" as const, to: { x: cm(1), y: cm(0) }, toAnchor: { nodeName: "B", anchor: "east" } },
-      { kind: "line" as const, to: { x: cm(2), y: cm(0) }, toAnchor: { nodeName: "C", anchor: "north" } }
+      { kind: "line" as const, to: wp(cm(1), cm(0)), toAnchor: { nodeName: "B", anchor: "east" } },
+      { kind: "line" as const, to: wp(cm(2), cm(0)), toAnchor: { nodeName: "C", anchor: "north" } }
     ];
     const reversed = reverseComplexPathSegments(from, segments, { nodeName: "A", anchor: "west" });
-    expect(reversed.startWorld).toEqual({ x: cm(2), y: cm(0) });
+    expect(reversed.startWorld).toEqual(wp(cm(2), cm(0)));
     expect(reversed.startAnchor).toEqual({ nodeName: "C", anchor: "north" });
     expect(reversed.segments).toEqual([
-      { kind: "line", to: { x: cm(1), y: cm(0) }, toAnchor: { nodeName: "B", anchor: "east" } },
-      { kind: "line", to: { x: cm(0), y: cm(0) }, toAnchor: { nodeName: "A", anchor: "west" } }
+      { kind: "line", to: wp(cm(1), cm(0)), toAnchor: { nodeName: "B", anchor: "east" } },
+      { kind: "line", to: wp(cm(0), cm(0)), toAnchor: { nodeName: "A", anchor: "west" } }
     ]);
   });
 
   it("reverses bezier segments with swapped controls", () => {
-    const from = { x: cm(0), y: cm(0) };
+    const from = wp(cm(0), cm(0));
     const segments = [
       {
         kind: "bezier" as const,
-        to: { x: cm(2), y: cm(0) },
-        control1: { x: cm(0.5), y: cm(1) },
-        control2: { x: cm(1.5), y: cm(1) }
+        to: wp(cm(2), cm(0)),
+        control1: wp(cm(0.5), cm(1)),
+        control2: wp(cm(1.5), cm(1))
       }
     ];
     const reversed = reverseComplexPathSegments(from, segments);
-    expect(reversed.startWorld).toEqual({ x: cm(2), y: cm(0) });
+    expect(reversed.startWorld).toEqual(wp(cm(2), cm(0)));
     expect(reversed.segments[0]).toEqual({
       kind: "bezier",
-      to: { x: cm(0), y: cm(0) },
-      control1: { x: cm(1.5), y: cm(1) },
-      control2: { x: cm(0.5), y: cm(1) }
+      to: wp(cm(0), cm(0)),
+      control1: wp(cm(1.5), cm(1)),
+      control2: wp(cm(0.5), cm(1))
     });
   });
 
   it("generates prepend source ending with operator", () => {
-    const start = { x: cm(-1), y: cm(0) };
+    const start = wp(cm(-1), cm(0));
     const segments = [
-      { kind: "line" as const, to: { x: cm(0), y: cm(0) } }
+      { kind: "line" as const, to: wp(cm(0), cm(0)) }
     ];
     const result = generateComplexPathPrependSource(start, segments);
     expect(result).toBe("(-1,0) --");
   });
 
   it("generates prepend source with an anchored start", () => {
-    const start = { x: cm(-1), y: cm(0) };
+    const start = wp(cm(-1), cm(0));
     const segments = [
-      { kind: "line" as const, to: { x: cm(0), y: cm(0) }, toAnchor: { nodeName: "A", anchor: "west" } }
+      { kind: "line" as const, to: wp(cm(0), cm(0)), toAnchor: { nodeName: "A", anchor: "west" } }
     ];
     const result = generateComplexPathPrependSource(start, segments, { nodeName: "C", anchor: "north" });
     expect(result).toBe("(C.north) --");

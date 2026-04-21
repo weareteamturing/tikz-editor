@@ -7,6 +7,7 @@ import type { EditHandle } from "../packages/core/src/semantic/types.js";
 import { identityMatrix } from "../packages/core/src/semantic/transform.js";
 import { computeSourceFingerprint } from "../packages/core/src/utils/source-fingerprint.js";
 import { PT_PER_CM } from "../packages/core/src/edit/format.js";
+import { wp } from "./coords-helpers.js";
 
 // Helper to dispatch a sequence of actions
 function applyActions(actions: EditorAction[], initial?: EditorState): EditorState {
@@ -56,7 +57,7 @@ function makeHandle(
 
 function makeStateWithHandle(source: string = "\\draw (1,2) -- (3,4);"): { state: EditorState; handle: EditHandle } {
   const handle = makeHandle(source, {
-    world: { x: cm(1), y: cm(2) },
+    world: wp(cm(1), cm(2)),
     sourceSpan: { from: 6, to: 11 },
     sourceId: "elem-1"
   });
@@ -307,7 +308,7 @@ describe("editorReducer – UNDO / REDO", () => {
       action: {
         kind: "moveHandle",
         handleId: handle.id,
-        newWorld: { x: cm(5), y: cm(6) }
+        newWorld: wp(cm(5), cm(6))
       }
     });
 
@@ -332,7 +333,7 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
       action: {
         kind: "moveHandle",
         handleId: handle.id,
-        newWorld: { x: cm(5), y: cm(6) }
+        newWorld: wp(cm(5), cm(6))
       }
     });
 
@@ -353,13 +354,13 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
       action: {
         kind: "moveHandle",
         handleId: handle.id,
-        newWorld: { x: cm(5), y: cm(6) }
+        newWorld: wp(cm(5), cm(6))
       },
       historyMergeKey: mergeKey
     });
 
     const refreshedHandle = makeHandle(first.source, {
-      world: { x: cm(5), y: cm(6) },
+      world: wp(cm(5), cm(6)),
       sourceSpan: { from: 6, to: 11 },
       sourceId: "elem-1"
     });
@@ -378,7 +379,7 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
       action: {
         kind: "moveHandle",
         handleId: refreshedHandle.id,
-        newWorld: { x: cm(7), y: cm(8) }
+        newWorld: wp(cm(7), cm(8))
       },
       historyMergeKey: mergeKey
     });
@@ -396,7 +397,7 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
       action: {
         kind: "moveElement",
         elementId: "missing",
-        delta: { x: cm(1), y: cm(1) }
+        delta: wp(cm(1), cm(1))
       }
     });
     expect(next).not.toBe(initial);
@@ -418,7 +419,7 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
       action: {
         kind: "moveHandle",
         handleId: "missing-handle-id",
-        newWorld: { x: cm(5), y: cm(6) }
+        newWorld: wp(cm(5), cm(6))
       },
       precomputedResult: {
         kind: "success",
@@ -448,7 +449,7 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
       action: {
         kind: "moveElement",
         elementId: "elem-1",
-        delta: { x: 0.01, y: 0 }
+        delta: wp(0.01, 0)
       }
     });
 
@@ -573,7 +574,7 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
         kind: "resizeElement",
         elementId: "path:0",
         role: "bottom-right",
-        newWorld: { x: 100, y: 100 }
+        newWorld: wp(100, 100)
       }
     });
 
@@ -592,7 +593,7 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
       action: {
         kind: "moveHandle",
         handleId: handle.id,
-        newWorld: { x: cm(5), y: cm(6) }
+        newWorld: wp(cm(5), cm(6))
       },
       recordInHistory: false
     });
@@ -604,11 +605,11 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
       action: {
         kind: "moveHandle",
         handleId: makeHandle(preview.source, {
-          world: { x: cm(5), y: cm(6) },
+          world: wp(cm(5), cm(6)),
           sourceSpan: { from: 6, to: 11 },
           sourceId: "elem-1"
         }).id,
-        newWorld: { x: cm(7), y: cm(8) }
+        newWorld: wp(cm(7), cm(8))
       },
       precomputedResult: {
         kind: "success",
@@ -640,7 +641,7 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
       action: {
         kind: "moveHandle",
         handleId: "unused",
-        newWorld: { x: cm(5), y: cm(6) }
+        newWorld: wp(cm(5), cm(6))
       },
       precomputedResult: {
         kind: "partial",

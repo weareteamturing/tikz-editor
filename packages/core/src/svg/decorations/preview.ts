@@ -1,3 +1,5 @@
+import { worldBounds, worldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import { applyDecorationToPath } from "../../semantic/decorations/index.js";
 import { defaultStyle } from "../../semantic/style/defaults.js";
 import type { DecorationStyle, SceneElement, SceneFigure, ScenePath } from "../../semantic/types.js";
@@ -46,8 +48,8 @@ export function renderPathMorphingDecorationPreviewSvg(
     style,
     styleChain: [],
     commands: [
-      { kind: "M", to: { x: 4, y: 8 } },
-      { kind: "L", to: { x: 52, y: 8 } }
+      { kind: "M", to: worldPoint(pt(4), pt(8)) },
+      { kind: "L", to: worldPoint(pt(52), pt(8)) }
     ]
   };
   const figure: SceneFigure = {
@@ -148,5 +150,5 @@ function computeSceneBounds(elements: readonly SceneElement[]): SceneFigure["bou
     return undefined;
   }
 
-  return { minX, minY, maxX, maxY };
+  return worldBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
 }

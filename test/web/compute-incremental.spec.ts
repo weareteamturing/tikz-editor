@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { computeSnapshot } from "../../packages/app/src/compute.js";
 import { deriveSingleSourcePatch } from "../../packages/app/src/store/source-patch-diff.js";
 import { applyEditAction } from "../../packages/core/src/edit/actions.js";
+import { wp } from "../coords-helpers.js";
 
 function normalizeForSceneComparison<T>(value: T): T {
   return JSON.parse(
@@ -70,7 +71,7 @@ describe("computeSnapshot incremental parser integration", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "right",
-      newWorld: { x: 90, y: 0 }
+      newWorld: wp(90, 0)
     });
     expect(action.kind === "success" || action.kind === "partial").toBe(true);
     if (!(action.kind === "success" || action.kind === "partial")) {
@@ -271,7 +272,7 @@ describe("computeSnapshot incremental parser integration", () => {
     const action = applyEditAction(source, seeded.snapshot.editHandles, {
       kind: "moveElement",
       elementId: "scope:0",
-      delta: { x: 5, y: 2 }
+      delta: wp(5, 2)
     });
     expect(action.kind === "success" || action.kind === "partial").toBe(true);
     if (!(action.kind === "success" || action.kind === "partial")) {
@@ -321,7 +322,7 @@ describe("computeSnapshot incremental parser integration", () => {
       kind: "resizeElement",
       elementId: "scope:0",
       role: "top-left",
-      newWorld: { x: -10, y: 10 }
+      newWorld: wp(-10, 10)
     });
     expect(action.kind === "success" || action.kind === "partial").toBe(true);
     if (!(action.kind === "success" || action.kind === "partial")) {
@@ -372,7 +373,7 @@ describe("computeSnapshot incremental parser integration", () => {
       kind: "resizeElement",
       elementId: "scope:0",
       role: "top-left",
-      newWorld: { x: -12, y: 10 }
+      newWorld: wp(-12, 10)
     });
     expect(action.kind === "success" || action.kind === "partial").toBe(true);
     if (!(action.kind === "success" || action.kind === "partial")) {

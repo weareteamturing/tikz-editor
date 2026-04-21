@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { EditorSession } from "../../packages/core/src/edit/session.js";
 import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
+import { wp } from "../coords-helpers.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
 
@@ -44,7 +45,7 @@ describe("EditorSession", () => {
     const result = session.applyIntent({
       kind: "move",
       handleId: target!.id,
-      newWorld: { x: cm(3), y: cm(4) }
+      newWorld: wp(cm(3), cm(4))
     });
 
     expect(result.kind).toBe("success");
@@ -67,7 +68,7 @@ describe("EditorSession", () => {
     const result = session.applyIntent({
       kind: "move",
       handleId: target!.id,
-      newWorld: { x: cm(5), y: cm(6) }
+      newWorld: wp(cm(5), cm(6))
     });
 
     expect(result.kind).toBe("unsupported");

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { evaluateSemantic, elementsOfKind } from "./helpers.js";
 
+const nonNull = <T>(value: T | null): value is T => value != null;
+
 describe("semantic evaluator / graph operations", () => {
   it("renders graph command nodes and matching-and-star edges", () => {
     const source = String.raw`\begin{tikzpicture}
@@ -196,7 +198,7 @@ describe("semantic evaluator / graph operations", () => {
         }
         return { start: first.to, end: second.to };
       })
-      .filter((segment): segment is { start: { x: number; y: number }; end: { x: number; y: number } } => segment != null);
+      .filter(nonNull);
 
     const nearestLabel = (point: { x: number; y: number }): string | null => {
       let nearest: string | null = null;
@@ -610,7 +612,7 @@ describe("semantic evaluator / graph operations", () => {
         }
         return { start: first.to, end: second.to };
       })
-      .filter((segment): segment is { start: { x: number; y: number }; end: { x: number; y: number } } => segment != null);
+      .filter(nonNull);
 
     const horizontalTopEdge = segments.find(
       (segment) => Math.abs(segment.start.y - segment.end.y) < 1e-6 && Math.abs(segment.start.y) < 1e-6
@@ -661,7 +663,7 @@ describe("semantic evaluator / graph operations", () => {
         }
         return { start: first.to, end: second.to };
       })
-      .filter((segment): segment is { start: { x: number; y: number }; end: { x: number; y: number } } => segment != null);
+      .filter(nonNull);
     expect(segments.length).toBeGreaterThanOrEqual(9);
 
     const startsBySource = new Map<string, Array<{ x: number; y: number }>>();

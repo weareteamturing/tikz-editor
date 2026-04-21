@@ -1,5 +1,5 @@
 import { useCallback, useEffect, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { viewportPoint, clientPoint as makeClientPoint, px } from "tikz-editor/coords/index";
+import { viewportPoint, clientPoint as makeClientPoint, worldPoint, pt, px } from "tikz-editor/coords/index";
 import { buildSnapContext, snapToolPointer, type SnapLine } from "tikz-editor/edit/snapping";
 import type { NodeAnchorTarget } from "tikz-editor/semantic/types";
 import type { ClientPoint, ViewportPoint, WorldPoint } from "../coords/types";
@@ -352,10 +352,10 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
             return;
           }
 
-          const midpoint = {
-            x: (segmentStart.x + resolvedStart.x) / 2,
-            y: (segmentStart.y + resolvedStart.y) / 2
-          };
+          const midpoint = worldPoint(
+            pt((segmentStart.x + resolvedStart.x) / 2),
+            pt((segmentStart.y + resolvedStart.y) / 2)
+          );
           const nextPathSegmentDraft: Extract<DragState, { kind: "tool-path-segment" }> = {
             kind: "tool-path-segment",
             pointerId: event.pointerId,

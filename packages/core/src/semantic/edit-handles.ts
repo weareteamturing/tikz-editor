@@ -3,6 +3,7 @@ import type { SemanticContext } from "./context.js";
 import type { EvaluatedCoordinate } from "./coords/evaluate.js";
 import type { EditHandle } from "./types.js";
 import { identityMatrix } from "./transform.js";
+import { worldTransform } from "../coords/transforms.js";
 
 export function createEditHandle(
   evaluated: EvaluatedCoordinate,
@@ -49,7 +50,7 @@ export function createEditHandle(
       }
       return {
         ...base,
-        transform: frame,
+        transform: worldTransform(frame.a, frame.b, frame.c, frame.d, frame.e, frame.f),
         handleType: "coordinate",
         coordinateSpace: "frame-local",
         local,
@@ -61,7 +62,7 @@ export function createEditHandle(
 
     return {
       ...base,
-      transform: frame,
+      transform: worldTransform(frame.a, frame.b, frame.c, frame.d, frame.e, frame.f),
       handleType: "coordinate",
       coordinateSpace: "frame-local",
       local,

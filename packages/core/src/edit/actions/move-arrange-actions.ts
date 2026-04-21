@@ -669,10 +669,10 @@ function applyInverseLinear(linear: LinearTransform, point: WorldPoint): WorldPo
     return null;
   }
 
-  return {
-    x: (linear.d * point.x - linear.c * point.y) / det,
-    y: (-linear.b * point.x + linear.a * point.y) / det
-  };
+  return worldPoint(
+    pt((linear.d * point.x - linear.c * point.y) / det),
+    pt((-linear.b * point.x + linear.a * point.y) / det)
+  );
 }
 
 type MatrixPlacementRewriteResult =
@@ -760,7 +760,12 @@ function rewriteSingleMatrixPlacement(
     pt((bounds.minX + bounds.maxX) / 2 + delta.x),
     pt((bounds.minY + bounds.maxY) / 2 + delta.y)
   );
-  const nextCoordinate = formatPlacementCoordinateFromWorld(nextCenterWorld, placementHandle?.transform);
+  const nextCoordinate = formatPlacementCoordinateFromWorld(
+    nextCenterWorld,
+    placementHandle?.handleType === "coordinate" && placementHandle.coordinateSpace === "frame-local"
+      ? placementHandle.frame
+      : undefined
+  );
 
   const inlineAtCoordinate = findInlineAtCoordinateItem(statement);
   if (inlineAtCoordinate) {
@@ -864,10 +869,10 @@ function rewriteSingleTreeRootPlacement(
       if (!bounds) {
         return null;
       }
-      return {
-        x: (bounds.minX + bounds.maxX) / 2,
-        y: (bounds.minY + bounds.maxY) / 2
-      } satisfies WorldPoint;
+      return worldPoint(
+        pt((bounds.minX + bounds.maxX) / 2),
+        pt((bounds.minY + bounds.maxY) / 2)
+      );
     })();
   if (!currentPlacementWorld) {
     return { kind: "unsupported", reason: `Could not resolve semantic placement for tree root ${elementId}` };
@@ -876,7 +881,12 @@ function rewriteSingleTreeRootPlacement(
     pt(currentPlacementWorld.x + delta.x),
     pt(currentPlacementWorld.y + delta.y)
   );
-  const nextCoordinate = formatPlacementCoordinateFromWorld(nextPlacementWorld, placementHandle?.transform);
+  const nextCoordinate = formatPlacementCoordinateFromWorld(
+    nextPlacementWorld,
+    placementHandle?.handleType === "coordinate" && placementHandle.coordinateSpace === "frame-local"
+      ? placementHandle.frame
+      : undefined
+  );
 
   if (rootNode.atSpan) {
     const rewrittenAt = replaceSourceSpan(source, rootNode.atSpan, nextCoordinate);
@@ -975,14 +985,11 @@ function applyElementDeltaMapStrict(
       };
     }
 
-    const text = rewriteCoordinate(
-      {
-        x: handle.world.x + delta.x,
-        y: handle.world.y + delta.y
-      },
-      handle,
-      source
-    );
+      const text = rewriteCoordinate(
+        worldPoint(pt(handle.world.x + delta.x), pt(handle.world.y + delta.y)),
+        handle,
+        source
+      );
     if (text == null) {
       return {
         kind: "unsupported",
@@ -1061,7 +1068,7 @@ function buildMatrixInlineAtInsertion(source: string, bodyOpenOffset: number, ne
   return `${needsLeadingSpace ? " " : ""}at ${nextCoordinate} `;
 }
 
-function formatPlacementCoordinateFromWorld(world: WorldPoint, transform?: EditHandle["transform"]): string {
+function formatPlacementCoordinateFromWorld(world: WorldPoint, transform?: EditHandle["frame"]): string {
   if (transform) {
     const local = worldToLocal(world, transform);
     if (local) {

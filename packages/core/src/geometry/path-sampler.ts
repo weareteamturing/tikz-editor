@@ -432,10 +432,10 @@ function lineLength(from: WorldPoint, to: WorldPoint): number {
 
 function interpolateLine(from: WorldPoint, to: WorldPoint, ratio: number): WorldPoint {
   const t = clamp(ratio, 0, 1);
-  return {
-    x: from.x + (to.x - from.x) * t,
-    y: from.y + (to.y - from.y) * t
-  };
+  return worldPoint(
+    pt(from.x + (to.x - from.x) * t),
+    pt(from.y + (to.y - from.y) * t)
+  );
 }
 
 function cubicLength(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, t0: number, t1: number): number {
@@ -475,18 +475,20 @@ function pointOnCubic(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldP
   const oneMinus = 1 - u;
   const oneMinusSq = oneMinus * oneMinus;
   const uSq = u * u;
-  return {
-    x:
+  return worldPoint(
+    pt(
       oneMinusSq * oneMinus * p0.x +
       3 * oneMinusSq * u * p1.x +
       3 * oneMinus * uSq * p2.x +
-      uSq * u * p3.x,
-    y:
+      uSq * u * p3.x
+    ),
+    pt(
       oneMinusSq * oneMinus * p0.y +
       3 * oneMinusSq * u * p1.y +
       3 * oneMinus * uSq * p2.y +
       uSq * u * p3.y
-  };
+    )
+  );
 }
 
 function derivativeOnCubic(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, t: number): WorldVector {
@@ -640,10 +642,10 @@ function pointOnArc(arc: ArcGeometry, t: number): WorldPoint {
   const sinPhi = Math.sin(arc.phi);
   const cosTheta = Math.cos(theta);
   const sinTheta = Math.sin(theta);
-  return {
-    x: arc.cx + arc.rx * cosPhi * cosTheta - arc.ry * sinPhi * sinTheta,
-    y: arc.cy + arc.rx * sinPhi * cosTheta + arc.ry * cosPhi * sinTheta
-  };
+  return worldPoint(
+    pt(arc.cx + arc.rx * cosPhi * cosTheta - arc.ry * sinPhi * sinTheta),
+    pt(arc.cy + arc.rx * sinPhi * cosTheta + arc.ry * cosPhi * sinTheta)
+  );
 }
 
 function derivativeOnArc(arc: ArcGeometry, t: number): WorldVector {

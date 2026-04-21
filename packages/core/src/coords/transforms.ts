@@ -29,7 +29,8 @@ function createTransform<Brand extends string>(
   f: number,
   brand: Brand
 ): AffineTransform<Brand> {
-  return { a, b, c, d, e, f, [transformBrand]: brand };
+  void brand;
+  return { a, b, c, d, e, f } as AffineTransform<Brand>;
 }
 
 export function frameToWorldTransform(

@@ -1,3 +1,4 @@
+import type { WorldBounds } from "../coords/points.js";
 import type { EditHandle, SceneFigure } from "../semantic/types.js";
 import { collectSourceWorldBounds } from "./snapping/index.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "./arrange.js";
@@ -84,7 +85,7 @@ type AvailabilityFacts = {
   hasClipboardContent: boolean;
   scene: SceneFigure | null;
   editHandles: readonly EditHandle[];
-  boundsBySource: Map<string, { minX: number; minY: number; maxX: number; maxY: number }>;
+  boundsBySource: Map<string, WorldBounds>;
   selectedHandlesBySource: Map<string, EditHandle[]>;
   selectedMissingBounds: string[];
   selectedMissingHandles: string[];
@@ -236,17 +237,12 @@ function deriveFacts(input: GetEditActionAvailabilityInput): AvailabilityFacts {
     }
   }
 
-  const boundsBySource = new Map<string, { minX: number; minY: number; maxX: number; maxY: number }>();
+  const boundsBySource = new Map<string, WorldBounds>();
   const selectedMissingBounds: string[] = [];
   if (input.scene) {
     const worldBounds = collectSourceWorldBounds(input.scene.elements);
     for (const [sourceId, bounds] of worldBounds.entries()) {
-      boundsBySource.set(sourceId, {
-        minX: bounds.minX,
-        minY: bounds.minY,
-        maxX: bounds.maxX,
-        maxY: bounds.maxY
-      });
+      boundsBySource.set(sourceId, bounds);
     }
   }
 

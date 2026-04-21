@@ -9,26 +9,27 @@ import {
   snapAngleDeg
 } from "../../packages/app/src/ui/canvas-panel/rotate-handle.js";
 import { resolveStatementRotateDegrees } from "../../packages/app/src/ui/canvas-panel/panel-helpers.js";
+import { sb, sp, wp } from "../coords-helpers.js";
 
 describe("rotate handle geometry", () => {
   it("places the rotate handle outward from the top edge midpoint", () => {
     const frame = {
       sourceId: "path:0",
-      centerWorld: { x: 0, y: 0 },
-      centerSvg: { x: 100, y: 100 },
+      centerWorld: wp(0, 0),
+      centerSvg: sp(100, 100),
       cornersByRole: {
-        "top-left": { world: { x: -1, y: 1 }, svg: { x: 80, y: 80 } },
-        "top-right": { world: { x: 1, y: 1 }, svg: { x: 120, y: 80 } },
-        "bottom-right": { world: { x: 1, y: -1 }, svg: { x: 120, y: 120 } },
-        "bottom-left": { world: { x: -1, y: -1 }, svg: { x: 80, y: 120 } }
+        "top-left": { world: wp(-1, 1), svg: sp(80, 80) },
+        "top-right": { world: wp(1, 1), svg: sp(120, 80) },
+        "bottom-right": { world: wp(1, -1), svg: sp(120, 120) },
+        "bottom-left": { world: wp(-1, -1), svg: sp(80, 120) }
       },
       polygonSvg: [
-        { x: 80, y: 80 },
-        { x: 120, y: 80 },
-        { x: 120, y: 120 },
-        { x: 80, y: 120 }
+        sp(80, 80),
+        sp(120, 80),
+        sp(120, 120),
+        sp(80, 120)
       ],
-      boundsSvg: { minX: 80, minY: 80, maxX: 120, maxY: 120 }
+      boundsSvg: sb(80, 80, 120, 120)
     };
 
     const result = resolveRotateHandlePosition(frame, 2, 24);
@@ -101,8 +102,8 @@ describe("rotate angle utilities", () => {
   });
 
   it("computes world-space angles from center and pointer", () => {
-    expect(angleDeg({ x: 0, y: 0 }, { x: 1, y: 1 })).toBeCloseTo(45, 9);
-    expect(angleDeg({ x: 0, y: 0 }, { x: -1, y: -1 })).toBeCloseTo(-135, 9);
+    expect(angleDeg(wp(0, 0), wp(1, 1))).toBeCloseTo(45, 9);
+    expect(angleDeg(wp(0, 0), wp(-1, -1))).toBeCloseTo(-135, 9);
   });
 });
 

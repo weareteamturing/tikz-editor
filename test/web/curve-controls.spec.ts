@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { EditHandle, SceneElement, ScenePath } from "../../packages/core/src/semantic/types.js";
 import { identityMatrix } from "../../packages/core/src/semantic/transform.js";
 import { deriveCurveControlLines } from "../../packages/app/src/ui/canvas-panel/curve-controls";
+import { wp } from "../coords-helpers.js";
 
 function makePath(sourceId: string, commands: ScenePath["commands"]): SceneElement {
   return {
@@ -30,7 +31,7 @@ function makeControlHandle(id: string, sourceId: string): EditHandle {
       sourceFingerprint: "fingerprint"
     },
     kind: "path-control",
-    world: { x: 0, y: 0 },
+    world: wp(0, 0),
     transform: identityMatrix(),
     sourceText: "(0,0)",
     coordinateForm: "cartesian",
@@ -42,12 +43,12 @@ function makeBendHandle(id: string, sourceId: string): EditHandle {
   return {
     ...makeControlHandle(id, sourceId),
     kind: "path-bend",
-    world: { x: 1.5, y: 1 },
+    world: wp(1.5, 1),
     curveEdit: {
       kind: "to-bend",
       operationItemId: "to:0",
-      startWorld: { x: 0, y: 0 },
-      endWorld: { x: 3, y: 0 },
+      startWorld: wp(0, 0),
+      endWorld: wp(3, 0),
       baseHeading: 0
     }
   } as EditHandle;
@@ -57,8 +58,8 @@ describe("deriveCurveControlLines", () => {
   it("derives two helper lines for one cubic Bezier command", () => {
     const elements = [
       makePath("path:0", [
-        { kind: "M", to: { x: 0, y: 0 } },
-        { kind: "C", c1: { x: 1, y: 1 }, c2: { x: 2, y: 1 }, to: { x: 3, y: 0 } }
+        { kind: "M", to: wp(0, 0) },
+        { kind: "C", c1: wp(1, 1), c2: wp(2, 1), to: wp(3, 0) }
       ])
     ];
     const lines = deriveCurveControlLines(elements, new Set(["path:0"]), [makeControlHandle("h0", "path:0")]);
@@ -66,8 +67,8 @@ describe("deriveCurveControlLines", () => {
     expect(lines).toHaveLength(2);
     expect(lines).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ sourceId: "path:0", from: { x: 0, y: 0 }, to: { x: 1, y: 1 } }),
-        expect.objectContaining({ sourceId: "path:0", from: { x: 3, y: 0 }, to: { x: 2, y: 1 } })
+        expect.objectContaining({ sourceId: "path:0", from: wp(0, 0), to: wp(1, 1) }),
+        expect.objectContaining({ sourceId: "path:0", from: wp(3, 0), to: wp(2, 1) })
       ])
     );
   });
@@ -75,11 +76,11 @@ describe("deriveCurveControlLines", () => {
   it("supports multiple cubic commands across subpaths", () => {
     const elements = [
       makePath("path:0", [
-        { kind: "M", to: { x: 0, y: 0 } },
-        { kind: "C", c1: { x: 1, y: 1 }, c2: { x: 2, y: 1 }, to: { x: 3, y: 0 } },
-        { kind: "C", c1: { x: 4, y: 1 }, c2: { x: 5, y: 1 }, to: { x: 6, y: 0 } },
-        { kind: "M", to: { x: 10, y: 0 } },
-        { kind: "C", c1: { x: 11, y: 1 }, c2: { x: 12, y: 1 }, to: { x: 13, y: 0 } }
+        { kind: "M", to: wp(0, 0) },
+        { kind: "C", c1: wp(1, 1), c2: wp(2, 1), to: wp(3, 0) },
+        { kind: "C", c1: wp(4, 1), c2: wp(5, 1), to: wp(6, 0) },
+        { kind: "M", to: wp(10, 0) },
+        { kind: "C", c1: wp(11, 1), c2: wp(12, 1), to: wp(13, 0) }
       ])
     ];
     const lines = deriveCurveControlLines(elements, new Set(["path:0"]), [makeControlHandle("h0", "path:0")]);
@@ -90,12 +91,12 @@ describe("deriveCurveControlLines", () => {
   it("filters to selected sources that actually have path-control handles", () => {
     const elements = [
       makePath("path:0", [
-        { kind: "M", to: { x: 0, y: 0 } },
-        { kind: "C", c1: { x: 1, y: 1 }, c2: { x: 2, y: 1 }, to: { x: 3, y: 0 } }
+        { kind: "M", to: wp(0, 0) },
+        { kind: "C", c1: wp(1, 1), c2: wp(2, 1), to: wp(3, 0) }
       ]),
       makePath("path:1", [
-        { kind: "M", to: { x: 0, y: -2 } },
-        { kind: "C", c1: { x: 1, y: -1 }, c2: { x: 2, y: -1 }, to: { x: 3, y: -2 } }
+        { kind: "M", to: wp(0, -2) },
+        { kind: "C", c1: wp(1, -1), c2: wp(2, -1), to: wp(3, -2) }
       ])
     ];
     const handles: EditHandle[] = [
@@ -117,16 +118,16 @@ describe("deriveCurveControlLines", () => {
   it("derives helper lines from endpoints to bend handles", () => {
     const elements = [
       makePath("path:0", [
-        { kind: "M", to: { x: 0, y: 0 } },
-        { kind: "C", c1: { x: 1, y: 1 }, c2: { x: 2, y: 1 }, to: { x: 3, y: 0 } }
+        { kind: "M", to: wp(0, 0) },
+        { kind: "C", c1: wp(1, 1), c2: wp(2, 1), to: wp(3, 0) }
       ])
     ];
     const lines = deriveCurveControlLines(elements, new Set(["path:0"]), [makeBendHandle("hb", "path:0")]);
     expect(lines).toHaveLength(2);
     expect(lines).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ sourceId: "path:0", from: { x: 0, y: 0 }, to: { x: 1.5, y: 1 } }),
-        expect.objectContaining({ sourceId: "path:0", from: { x: 3, y: 0 }, to: { x: 1.5, y: 1 } })
+        expect.objectContaining({ sourceId: "path:0", from: wp(0, 0), to: wp(1.5, 1) }),
+        expect.objectContaining({ sourceId: "path:0", from: wp(3, 0), to: wp(1.5, 1) })
       ])
     );
   });

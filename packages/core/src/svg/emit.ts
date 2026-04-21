@@ -11,7 +11,7 @@ import { pt } from "../coords/scalars.js";
 import { svgBounds, svgPoint } from "../coords/points.js";
 import type { SvgBounds, SvgPoint, WorldPoint } from "../coords/points.js";
 import type { SvgTransform, WorldTransform } from "../coords/transforms.js";
-import { worldToSvgPoint as convertWorldToSvgPoint, worldToSvgTransform as convertWorldToSvgTransform } from "../coords/svg.js";
+import { worldToSvgPoint as convertWorldToSvgPoint, mapWorldTransformToSvgTransform as convertWorldToSvgTransform } from "../coords/svg.js";
 import { COLOR_HEX } from "../semantic/style/constants.js";
 import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../semantic/types.js";
 import { renderPathWithArrows } from "./arrows/render.js";
@@ -294,13 +294,13 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
       }
     } else if (element.kind === "Circle") {
       const center = toSvgPoint(element.center, viewBox);
-      elementBounds = {
-        minX: center.x - element.radius,
-        minY: center.y - element.radius,
-        maxX: center.x + element.radius,
-        maxY: center.y + element.radius
-      };
-      if (svgElementTransform) {
+      elementBounds = svgBounds(
+        pt(center.x - element.radius),
+        pt(center.y - element.radius),
+        pt(center.x + element.radius),
+        pt(center.y + element.radius)
+      );
+      if (elementBounds && svgElementTransform) {
         elementBounds = transformSvgBounds(elementBounds, svgElementTransform);
       }
     } else if (element.kind === "Ellipse") {

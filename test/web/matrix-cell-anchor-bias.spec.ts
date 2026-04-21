@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderTikzToSvg } from "../../packages/core/src/render/index.js";
 import { collectSourceWorldBounds } from "../../packages/core/src/edit/snapping/index.js";
 import { resolveEndpointAnchorSnap, type MatrixCellAnchorHint } from "../../packages/app/src/ui/canvas-panel/endpoint-anchor-snap";
+import { wb, wp } from "../coords-helpers.js";
 
 describe("matrix-cell anchor bias integration", () => {
   it("prefers anchors of the nearest matrix cell when adding path endpoints", () => {
@@ -28,12 +29,7 @@ describe("matrix-cell anchor bias integration", () => {
         cellSourceId: matrixCell.cellSourceId,
         row: matrixCell.row,
         column: matrixCell.column,
-        bounds: {
-          minX: bounds.minX,
-          minY: bounds.minY,
-          maxX: bounds.maxX,
-          maxY: bounds.maxY
-        }
+        bounds: wb(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY)
       });
     }
     const hints = [...hintsByCellId.values()];
@@ -41,10 +37,10 @@ describe("matrix-cell anchor bias integration", () => {
     if (!cell12) {
       throw new Error("Expected matrix cell (1,2) hint");
     }
-    const pointer = {
-      x: (cell12.bounds.minX + cell12.bounds.maxX) / 2,
-      y: (cell12.bounds.minY + cell12.bounds.maxY) / 2
-    };
+    const pointer = wp(
+      (cell12.bounds.minX + cell12.bounds.maxX) / 2,
+      (cell12.bounds.minY + cell12.bounds.maxY) / 2
+    );
 
     const snap = resolveEndpointAnchorSnap({
       pointerWorld: pointer,
@@ -87,12 +83,7 @@ describe("matrix-cell anchor bias integration", () => {
         cellSourceId: matrixCell.cellSourceId,
         row: matrixCell.row,
         column: matrixCell.column,
-        bounds: {
-          minX: bounds.minX,
-          minY: bounds.minY,
-          maxX: bounds.maxX,
-          maxY: bounds.maxY
-        }
+        bounds: wb(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY)
       });
     }
     const hints = [...hintsByCellId.values()];
@@ -100,10 +91,10 @@ describe("matrix-cell anchor bias integration", () => {
     if (!cellA) {
       throw new Error("Expected matrix cell A (1,1) hint");
     }
-    const pointer = {
-      x: (cellA.bounds.minX + cellA.bounds.maxX) / 2,
-      y: (cellA.bounds.minY + cellA.bounds.maxY) / 2
-    };
+    const pointer = wp(
+      (cellA.bounds.minX + cellA.bounds.maxX) / 2,
+      (cellA.bounds.minY + cellA.bounds.maxY) / 2
+    );
 
     const snap = resolveEndpointAnchorSnap({
       pointerWorld: pointer,
@@ -145,12 +136,7 @@ describe("matrix-cell anchor bias integration", () => {
         cellSourceId: matrixCell.cellSourceId,
         row: matrixCell.row,
         column: matrixCell.column,
-        bounds: {
-          minX: bounds.minX,
-          minY: bounds.minY,
-          maxX: bounds.maxX,
-          maxY: bounds.maxY
-        }
+        bounds: wb(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY)
       });
     }
     const hints = [...hintsByCellId.values()];

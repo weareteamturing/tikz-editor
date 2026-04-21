@@ -1,4 +1,6 @@
+import { worldPoint } from "../../coords/points.js";
 import type { WorldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { EditHandle } from "../../semantic/types.js";
 import type { Span } from "../../ast/types.js";
 import { evaluateTikzFigure } from "../../semantic/evaluate.js";
@@ -437,13 +439,13 @@ function mapSpansToStatementIdsWithSnapshot(snapshot: StatementSnapshot, spans: 
 
 function normalizeDuplicateDelta(delta: WorldPoint | undefined, defaultDuplicateOffsetPt: number): WorldPoint {
   if (!delta) {
-    return { x: defaultDuplicateOffsetPt, y: -defaultDuplicateOffsetPt };
+    return worldPoint(pt(defaultDuplicateOffsetPt), pt(-defaultDuplicateOffsetPt));
   }
 
-  return {
-    x: Number.isFinite(delta.x) ? delta.x : defaultDuplicateOffsetPt,
-    y: Number.isFinite(delta.y) ? delta.y : -defaultDuplicateOffsetPt
-  };
+  return worldPoint(
+    pt(Number.isFinite(delta.x) ? delta.x : defaultDuplicateOffsetPt),
+    pt(Number.isFinite(delta.y) ? delta.y : -defaultDuplicateOffsetPt)
+  );
 }
 
 function detectPreferredNewline(source: string, aroundOffset: number): string {

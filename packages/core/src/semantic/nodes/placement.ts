@@ -1,10 +1,17 @@
 import type { PathItem, PathOptionItem, Span } from "../../ast/types.js";
+import { frameLocalPoint, worldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
+import { frameTransform } from "../../coords/transforms.js";
 import type { SemanticContext } from "../context.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import { createEditHandle } from "../edit-handles.js";
 import type { DiagnosticPushFn, PlacementSegment } from "../path/types.js";
 import type { WorldPoint } from "../../coords/points.js";
 import { arcCenter, clamp, interpolate, normalizeOptionValue, toRadians } from "./utils.js";
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
 
 export function resolveNodeTargetPoint(
   item: PathItem & { kind: "Node"; atRaw?: string; atSpan?: Span; atRelativePrefix?: "+" | "++" },
@@ -67,7 +74,7 @@ export function resolveNodeTargetPoint(
   if (opts.allowImplicitOriginHandle) {
     const frame = context.stack[context.stack.length - 1];
     const insertionOffset = resolveImplicitNodePlacementInsertionOffset(item, context.source);
-    const implicitWorldPoint = defaultPoint ?? context.currentPoint ?? { x: 0, y: 0 };
+    const implicitWorldPoint = defaultPoint ?? context.currentPoint ?? wp(0, 0);
     context.editHandles.push({
       id: `handle:${handleSourceId}:node-position:${context.editHandles.length}`,
       runtimeId: `handle:${handleSourceId}:node-position:${context.editHandles.length}`,
@@ -80,8 +87,10 @@ export function resolveNodeTargetPoint(
       kind: "node-position",
       coordinateSpace: "frame-local",
       world: implicitWorldPoint,
-      local: { x: 0, y: 0 },
-      frame: frame?.transform ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
+      local: frameLocalPoint(pt(0), pt(0)),
+      frame: frame
+        ? frameTransform(frame.transform.a, frame.transform.b, frame.transform.c, frame.transform.d, frame.transform.e, frame.transform.f)
+        : frameTransform(1, 0, 0, 1, 0, 0),
       transform: frame?.transform ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
       sourceText: "",
       coordinateForm: "cartesian",
@@ -90,7 +99,7 @@ export function resolveNodeTargetPoint(
     });
   }
 
-  return defaultPoint ?? context.currentPoint ?? { x: 0, y: 0 };
+  return defaultPoint ?? context.currentPoint ?? wp(0, 0);
 }
 
 function resolveImplicitNodePlacementInsertionOffset(
@@ -163,10 +172,10 @@ export function pointAtPlacementSegment(segment: PlacementSegment, t: number): W
   const center = arcCenter(segment.from, segment.params);
   const angle = segment.params.startAngle + (segment.params.endAngle - segment.params.startAngle) * clamped;
   const radians = toRadians(angle);
-  return {
-    x: center.x + segment.params.rx * Math.cos(radians),
-    y: center.y + segment.params.ry * Math.sin(radians)
-  };
+  return wp(
+    center.x + segment.params.rx * Math.cos(radians),
+    center.y + segment.params.ry * Math.sin(radians)
+  );
 }
 
 function pointAtSegmentEnd(segment: PlacementSegment): WorldPoint {
@@ -182,8 +191,8 @@ function cubicWorldPoint(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: Wor
   const uuu = uu * u;
   const tt = t * t;
   const ttt = tt * t;
-  return {
-    x: uuu * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + ttt * p3.x,
-    y: uuu * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + ttt * p3.y
-  };
+  return wp(
+    uuu * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + ttt * p3.x,
+    uuu * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + ttt * p3.y
+  );
 }

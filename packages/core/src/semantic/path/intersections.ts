@@ -1,4 +1,6 @@
-import type { WorldPoint } from "../../coords/points.js";
+import { worldPoint, worldVector } from "../../coords/points.js";
+import type { WorldPoint, WorldVector } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import type { Span } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
@@ -36,6 +38,14 @@ type IntersectionBucketIndex = {
   bucketSize: number;
   buckets: Map<string, IntersectionPoint[]>;
 };
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
+
+function wv(x: number, y: number): WorldVector {
+  return worldVector(pt(x), pt(y));
+}
 
 export type NameIntersectionsDirective = {
   firstPathName: string;
@@ -503,14 +513,8 @@ function sampleCircleSegments(center: WorldPoint, radius: number, steps: number)
   for (let i = 0; i < steps; i += 1) {
     const start = (2 * Math.PI * i) / steps;
     const end = (2 * Math.PI * (i + 1)) / steps;
-    const from = {
-      x: center.x + radius * Math.cos(start),
-      y: center.y + radius * Math.sin(start)
-    };
-    const to = {
-      x: center.x + radius * Math.cos(end),
-      y: center.y + radius * Math.sin(end)
-    };
+    const from = wp(center.x + radius * Math.cos(start), center.y + radius * Math.sin(start));
+    const to = wp(center.x + radius * Math.cos(end), center.y + radius * Math.sin(end));
     segments.push({ from, to });
   }
   return segments;
@@ -546,20 +550,20 @@ function ellipsePoint(
 ): WorldPoint {
   const ux = rx * Math.cos(angle);
   const uy = ry * Math.sin(angle);
-  return {
-    x: center.x + ux * cosRotation - uy * sinRotation,
-    y: center.y + ux * sinRotation + uy * cosRotation
-  };
+  return wp(
+    center.x + ux * cosRotation - uy * sinRotation,
+    center.y + ux * sinRotation + uy * cosRotation
+  );
 }
 
 function cubicBezierPoint(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, t: number): WorldPoint {
   const mt = 1 - t;
   const mt2 = mt * mt;
   const t2 = t * t;
-  return {
-    x: mt2 * mt * p0.x + 3 * mt2 * t * p1.x + 3 * mt * t2 * p2.x + t2 * t * p3.x,
-    y: mt2 * mt * p0.y + 3 * mt2 * t * p1.y + 3 * mt * t2 * p2.y + t2 * t * p3.y
-  };
+  return wp(
+    mt2 * mt * p0.x + 3 * mt2 * t * p1.x + 3 * mt * t2 * p2.x + t2 * t * p3.x,
+    mt2 * mt * p0.y + 3 * mt2 * t * p1.y + 3 * mt * t2 * p2.y + t2 * t * p3.y
+  );
 }
 
 function intersectSampledPaths(first: SampledPath, second: SampledPath): IntersectionPoint[] {
@@ -696,14 +700,14 @@ function intersectSegments(
   q1: WorldPoint,
   q2: WorldPoint
 ): { point: WorldPoint; t: number; u: number } | null {
-  const r = { x: p2.x - p1.x, y: p2.y - p1.y };
-  const s = { x: q2.x - q1.x, y: q2.y - q1.y };
+  const r = wv(p2.x - p1.x, p2.y - p1.y);
+  const s = wv(q2.x - q1.x, q2.y - q1.y);
   const denominator = cross(r, s);
   if (Math.abs(denominator) <= 1e-9) {
     return null;
   }
 
-  const qp = { x: q1.x - p1.x, y: q1.y - p1.y };
+  const qp = wv(q1.x - p1.x, q1.y - p1.y);
   const tRaw = cross(qp, s) / denominator;
   const uRaw = cross(qp, r) / denominator;
   if (tRaw < -1e-9 || tRaw > 1 + 1e-9 || uRaw < -1e-9 || uRaw > 1 + 1e-9) {
@@ -713,10 +717,7 @@ function intersectSegments(
   const t = Math.max(0, Math.min(1, tRaw));
   const u = Math.max(0, Math.min(1, uRaw));
   return {
-    point: {
-      x: p1.x + t * r.x,
-      y: p1.y + t * r.y
-    },
+    point: wp(p1.x + t * r.x, p1.y + t * r.y),
     t,
     u
   };
@@ -781,6 +782,6 @@ function distance(a: WorldPoint, b: WorldPoint): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function cross(a: WorldPoint, b: WorldPoint): number {
+function cross(a: WorldVector, b: WorldVector): number {
   return a.x * b.y - a.y * b.x;
 }

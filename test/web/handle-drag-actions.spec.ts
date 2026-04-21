@@ -4,16 +4,17 @@ import {
   resolveHandleDragAction,
   shouldCommitHandleAnchorOnPointerUp
 } from "../../packages/app/src/ui/canvas-panel/handle-drag-actions.js";
+import { wp } from "../coords-helpers.js";
 
 describe("handle drag actions", () => {
   it("uses connectHandle during drag when an endpoint anchor is active", () => {
     const action = resolveHandleDragAction({
       handleId: "handle-1",
-      newWorld: { x: 10, y: 20 },
+      newWorld: wp(10, 20),
       activeEndpointAnchor: {
         nodeName: "A",
         anchor: "east",
-        world: { x: 1, y: 2 },
+        world: wp(1, 2),
         tier: "basic"
       }
     });
@@ -29,14 +30,14 @@ describe("handle drag actions", () => {
   it("falls back to moveHandle when no endpoint anchor is active", () => {
     const action = resolveHandleDragAction({
       handleId: "handle-1",
-      newWorld: { x: 10, y: 20 },
+      newWorld: wp(10, 20),
       activeEndpointAnchor: null
     });
 
     expect(action).toEqual({
       kind: "moveHandle",
       handleId: "handle-1",
-      newWorld: { x: 10, y: 20 }
+      newWorld: wp(10, 20)
     });
   });
 
@@ -48,7 +49,7 @@ describe("handle drag actions", () => {
         activeEndpointAnchor: {
           nodeName: "A",
           anchor: "east",
-          world: { x: 1, y: 2 },
+          world: wp(1, 2),
           tier: "basic"
         }
       })
@@ -61,7 +62,7 @@ describe("handle drag actions", () => {
         activeEndpointAnchor: {
           nodeName: "A",
           anchor: "east",
-          world: { x: 1, y: 2 },
+          world: wp(1, 2),
           tier: "basic"
         }
       })

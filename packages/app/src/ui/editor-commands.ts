@@ -1,5 +1,6 @@
 import { applyEditAction, type ReorderDirection } from "tikz-editor/edit/actions";
 import { getEditActionAvailability } from "tikz-editor/edit/action-availability";
+import { pt, worldPoint } from "tikz-editor/coords/index";
 import { PT_PER_CM } from "tikz-editor/edit/format";
 import {
   buildTransformSetPropertyMutations,
@@ -253,8 +254,8 @@ function runPasteFromPayload(context: PasteCommandContext, payload: TikzClipboar
   const pasteCount = Math.max(0, Math.floor(payload.pasteCount));
   const offset = DEFAULT_PASTE_OFFSET_PT * (pasteCount + 1);
   const delta = payload.pasteBehavior === "preserve"
-    ? { x: 0, y: 0 }
-    : { x: offset, y: -offset };
+    ? worldPoint(pt(0), pt(0))
+    : worldPoint(pt(offset), pt(-offset));
   const action = {
     kind: "pasteStatements" as const,
     snippets: [...payload.snippets],

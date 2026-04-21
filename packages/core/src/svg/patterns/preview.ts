@@ -1,3 +1,5 @@
+import { worldBounds, worldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import { parseLength } from "../../semantic/coords/parse-length.js";
 import { defaultStyle } from "../../semantic/style/defaults.js";
 import type { LegacyPatternName, ResolvedPattern, SceneFigure, ScenePath } from "../../semantic/types.js";
@@ -34,10 +36,10 @@ export function renderFillPatternPreviewSvg(pattern: PreviewPatternPreset): stri
     style,
     styleChain: [],
     commands: [
-      { kind: "M", to: { x: 4, y: 3 } },
-      { kind: "L", to: { x: 52, y: 3 } },
-      { kind: "L", to: { x: 52, y: 13 } },
-      { kind: "L", to: { x: 4, y: 13 } },
+      { kind: "M", to: worldPoint(pt(4), pt(3)) },
+      { kind: "L", to: worldPoint(pt(52), pt(3)) },
+      { kind: "L", to: worldPoint(pt(52), pt(13)) },
+      { kind: "L", to: worldPoint(pt(4), pt(13)) },
       { kind: "Z" }
     ]
   };
@@ -46,7 +48,7 @@ export function renderFillPatternPreviewSvg(pattern: PreviewPatternPreset): stri
     span: PREVIEW_SOURCE_SPAN,
     requiredTikzLibraries: [],
     elements: [path],
-    bounds: { minX: 4, minY: 3, maxX: 52, maxY: 13 }
+    bounds: worldBounds(pt(4), pt(3), pt(52), pt(13))
   };
   const rendered = emitSvg(figure, { padding: 2 });
   const namespaced = namespaceSvgIds(rendered.svg, `preview-pattern-${slugifyPatternName(pattern)}`);

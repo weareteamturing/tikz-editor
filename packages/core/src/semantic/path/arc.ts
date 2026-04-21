@@ -1,3 +1,5 @@
+import { worldPoint, worldVector } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { WorldPoint } from "../../coords/points.js";
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import type { PathOptionItem } from "../../ast/types.js";
@@ -11,6 +13,10 @@ import { expandPathMacroBindings } from "./macro-expansion.js";
 
 type BasisVector = Readonly<{ x: number; y: number }>;
 type ArcEndpoint = WorldPoint;
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
 
 export function extractArcParameters(
   item: PathOptionItem,
@@ -164,28 +170,22 @@ function computeArcGeometry(
   const startRadians = toRadians(params.startAngle);
   const endRadians = toRadians(params.endAngle);
 
-  const localStart = {
-    x: params.rx * Math.cos(startRadians),
-    y: params.ry * Math.sin(startRadians)
-  };
-  const localEnd = {
-    x: params.rx * Math.cos(endRadians),
-    y: params.ry * Math.sin(endRadians)
-  };
+  const localStart = worldVector(
+    pt(params.rx * Math.cos(startRadians)),
+    pt(params.ry * Math.sin(startRadians))
+  );
+  const localEnd = worldVector(
+    pt(params.rx * Math.cos(endRadians)),
+    pt(params.ry * Math.sin(endRadians))
+  );
   const transformedStart = applyMatrixToVector(transform, localStart);
   const transformedEnd = applyMatrixToVector(transform, localEnd);
 
-  const center = {
-    x: from.x - transformedStart.x,
-    y: from.y - transformedStart.y
-  };
-  const endpoint: ArcEndpoint = {
-    x: center.x + transformedEnd.x,
-    y: center.y + transformedEnd.y
-  };
+  const center = wp(from.x - transformedStart.x, from.y - transformedStart.y);
+  const endpoint: ArcEndpoint = wp(center.x + transformedEnd.x, center.y + transformedEnd.y);
 
-  const basisX = applyMatrixToVector(transform, { x: params.rx, y: 0 }) satisfies BasisVector;
-  const basisY = applyMatrixToVector(transform, { x: 0, y: params.ry }) satisfies BasisVector;
+  const basisX = applyMatrixToVector(transform, worldVector(pt(params.rx), pt(0))) satisfies BasisVector;
+  const basisY = applyMatrixToVector(transform, worldVector(pt(0), pt(params.ry))) satisfies BasisVector;
   const ellipse = ellipseGeometryFromBasis(basisX, basisY);
   const delta = params.endAngle - params.startAngle;
   const baseSweep = delta >= 0;

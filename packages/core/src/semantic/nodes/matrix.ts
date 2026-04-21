@@ -8,6 +8,8 @@ import type { NodePositioningResolution } from "../path/node-positioning.js";
 import type { DiagnosticPushFn, FeatureMarkFn } from "../path/types.js";
 import { normalizeOptionValue, parseStyleValueAsOptionList, readBalancedBlock } from "../style/option-utils.js";
 import { cloneStyleChain, type StyleChainEntry } from "../style-chain.js";
+import { worldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { WorldPoint } from "../../coords/points.js";
 import type { MatrixCellInfo, ResolvedStyle, SceneElement } from "../types.js";
 import { parseBooleanishNormalized } from "../../utils/booleanish.js";
@@ -138,6 +140,10 @@ export type EvaluateMatrixNodeParams = {
 
 const MATRIX_FLAG_KEYS = new Set(["matrix", "matrix of nodes", "matrix of math nodes", "nodes in empty cells"]);
 const MATRIX_KEY_VALUE_KEYS = new Set(["matrix", "matrix of nodes", "matrix of math nodes", "row sep", "column sep", "ampersand replacement", "matrix anchor"]);
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
 
 export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): MatrixNodeEvaluation {
   params.markFeature("matrix_node", "supported");
@@ -317,8 +323,8 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         makeNodeLineElement(
           params.statement.id,
           `${params.item.id}:cross-a`,
-          { x: matrixCenter.x - halfWidth, y: matrixCenter.y - halfHeight },
-          { x: matrixCenter.x + halfWidth, y: matrixCenter.y + halfHeight },
+          wp(matrixCenter.x - halfWidth, matrixCenter.y - halfHeight),
+          wp(matrixCenter.x + halfWidth, matrixCenter.y + halfHeight),
           matrixDividerStyle,
           params.item.span
         )
@@ -327,8 +333,8 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         makeNodeLineElement(
           params.statement.id,
           `${params.item.id}:cross-b`,
-          { x: matrixCenter.x - halfWidth, y: matrixCenter.y + halfHeight },
-          { x: matrixCenter.x + halfWidth, y: matrixCenter.y - halfHeight },
+          wp(matrixCenter.x - halfWidth, matrixCenter.y + halfHeight),
+          wp(matrixCenter.x + halfWidth, matrixCenter.y - halfHeight),
           matrixDividerStyle,
           params.item.span
         )
@@ -342,8 +348,8 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         makeNodeLineElement(
           params.statement.id,
           `${params.item.id}:strike`,
-          { x: matrixCenter.x - halfWidth, y: matrixCenter.y - halfHeight },
-          { x: matrixCenter.x + halfWidth, y: matrixCenter.y + halfHeight },
+          wp(matrixCenter.x - halfWidth, matrixCenter.y - halfHeight),
+          wp(matrixCenter.x + halfWidth, matrixCenter.y + halfHeight),
           matrixDividerStyle,
           params.item.span
         )
@@ -379,8 +385,8 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
           makeNodeLineElement(
             params.statement.id,
             `${params.item.id}:split`,
-            { x: matrixCenter.x - radius, y: matrixCenter.y },
-            { x: matrixCenter.x + radius, y: matrixCenter.y },
+            wp(matrixCenter.x - radius, matrixCenter.y),
+            wp(matrixCenter.x + radius, matrixCenter.y),
             matrixDividerStyle,
             params.item.span
           )
@@ -391,8 +397,8 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
           makeNodeLineElement(
             params.statement.id,
             `${params.item.id}:solidus`,
-            { x: matrixCenter.x - radius * 0.52, y: matrixCenter.y - radius * 0.52 },
-            { x: matrixCenter.x + radius * 0.52, y: matrixCenter.y + radius * 0.52 },
+            wp(matrixCenter.x - radius * 0.52, matrixCenter.y - radius * 0.52),
+            wp(matrixCenter.x + radius * 0.52, matrixCenter.y + radius * 0.52),
             matrixDividerStyle,
             params.item.span
           )
@@ -417,8 +423,8 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         makeNodeLineElement(
           params.statement.id,
           `${params.item.id}:split`,
-          { x: matrixCenter.x - matrixLayout.visualWidth / 2, y: matrixCenter.y },
-          { x: matrixCenter.x + matrixLayout.visualWidth / 2, y: matrixCenter.y },
+          wp(matrixCenter.x - matrixLayout.visualWidth / 2, matrixCenter.y),
+          wp(matrixCenter.x + matrixLayout.visualWidth / 2, matrixCenter.y),
           matrixDividerStyle,
           params.item.span
         )
@@ -442,8 +448,8 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         makeNodeLineElement(
           params.statement.id,
           `${params.item.id}:split`,
-          { x: matrixCenter.x - matrixLayout.visualWidth / 2, y: matrixCenter.y },
-          { x: matrixCenter.x + matrixLayout.visualWidth / 2, y: matrixCenter.y },
+          wp(matrixCenter.x - matrixLayout.visualWidth / 2, matrixCenter.y),
+          wp(matrixCenter.x + matrixLayout.visualWidth / 2, matrixCenter.y),
           matrixDividerStyle,
           params.item.span
         )
@@ -472,8 +478,8 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
               makeNodeLineElement(
                 params.statement.id,
                 `${params.item.id}:split-${index}`,
-                { x, y: matrixCenter.y - matrixLayout.visualHeight / 2 },
-                { x, y: matrixCenter.y + matrixLayout.visualHeight / 2 },
+                wp(x, matrixCenter.y - matrixLayout.visualHeight / 2),
+                wp(x, matrixCenter.y + matrixLayout.visualHeight / 2),
                 matrixDividerStyle,
                 params.item.span
               )
@@ -484,8 +490,8 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
               makeNodeLineElement(
                 params.statement.id,
                 `${params.item.id}:split-${index}`,
-                { x: matrixCenter.x - matrixLayout.visualWidth / 2, y },
-                { x: matrixCenter.x + matrixLayout.visualWidth / 2, y },
+                wp(matrixCenter.x - matrixLayout.visualWidth / 2, y),
+                wp(matrixCenter.x + matrixLayout.visualWidth / 2, y),
                 matrixDividerStyle,
                 params.item.span
               )
@@ -911,10 +917,10 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
 
       const generatedCellNames = scopedMatrixNames.map((matrixName) => `${matrixName}-${row + 1}-${column + 1}`);
       const namedCell = resolveMatrixCellNames(resolvedCell.cell, generatedCellNames);
-      const position = {
-        x: matrixCenter.x + xCenters[column] - contentCenter.x,
-        y: matrixCenter.y + yCenters[row] - contentCenter.y
-      };
+      const position = wp(
+        matrixCenter.x + xCenters[column] - contentCenter.x,
+        matrixCenter.y + yCenters[row] - contentCenter.y
+      );
 
       const cellItem: NodeItem = {
         kind: "Node",

@@ -7,6 +7,7 @@ import {
   snapSelectionTranslation,
   snapToolPointer
 } from "../packages/core/src/edit/snapping/index.js";
+import { wb, wp } from "./coords-helpers.js";
 
 function makeCircle(sourceId: string, centerX: number, centerY: number, radius: number): SceneElement {
   const circle: SceneCircle = {
@@ -20,7 +21,7 @@ function makeCircle(sourceId: string, centerX: number, centerY: number, radius: 
     },
     style: {} as SceneCircle["style"],
     styleChain: [],
-    center: { x: centerX, y: centerY },
+    center: wp(centerX, centerY),
     radius
   };
 
@@ -28,7 +29,7 @@ function makeCircle(sourceId: string, centerX: number, centerY: number, radius: 
 }
 
 function selection(minX: number, minY: number, maxX: number, maxY: number) {
-  const bounds = { minX, minY, maxX, maxY };
+  const bounds = wb(minX, minY, maxX, maxY);
   return {
     bounds,
     snapPoints: selectionSnapPointsFromBounds(bounds)
@@ -48,10 +49,10 @@ describe("snapping interaction wrappers", () => {
     const result = snapSelectionTranslation({
       context,
       selection: selection(15, 15, 25, 25),
-      rawDelta: { x: 4, y: 4 }
+      rawDelta: wp(4, 4)
     });
 
-    expect(result.snappedDelta).toEqual({ x: 5, y: 5 });
+    expect(result.snappedDelta).toEqual(wp(5, 5));
     expect(result.lines.length).toBeGreaterThan(0);
   });
 
@@ -66,7 +67,7 @@ describe("snapping interaction wrappers", () => {
 
     const result = snapHandlePosition({
       context,
-      point: { x: 19.5, y: 20.5 }
+      point: wp(19.5, 20.5)
     });
 
     expect(result.snappedPoint?.x).toBeCloseTo(20, 6);
@@ -85,7 +86,7 @@ describe("snapping interaction wrappers", () => {
 
     const result = snapToolPointer({
       context,
-      pointer: { x: 11.4, y: 9.3 },
+      pointer: wp(11.4, 9.3),
       kind: "node"
     });
 
@@ -104,15 +105,15 @@ describe("snapping interaction wrappers", () => {
 
     const rect = snapToolPointer({
       context,
-      pointer: { x: 14, y: 9 },
+      pointer: wp(14, 9),
       kind: "rect-corner",
-      anchor: { x: 0, y: 0 }
+      anchor: wp(0, 0)
     });
     const circle = snapToolPointer({
       context,
-      pointer: { x: 14, y: 9 },
+      pointer: wp(14, 9),
       kind: "circle-edge",
-      anchor: { x: 0, y: 0 }
+      anchor: wp(0, 0)
     });
 
     expect(rect.snappedPoint?.x).toBeCloseTo(15, 6);
@@ -132,9 +133,9 @@ describe("snapping interaction wrappers", () => {
 
     const rect = snapToolPointer({
       context,
-      pointer: { x: 4.2, y: -1.6 },
+      pointer: wp(4.2, -1.6),
       kind: "rect-corner",
-      anchor: { x: 0, y: 0 }
+      anchor: wp(0, 0)
     });
 
     expect(rect.snappedPoint?.x).toBeCloseTo(5, 6);
@@ -152,9 +153,9 @@ describe("snapping interaction wrappers", () => {
 
     const result = snapToolPointer({
       context,
-      pointer: { x: 44.2, y: 9.6 },
+      pointer: wp(44.2, 9.6),
       kind: "line-end",
-      anchor: { x: 0, y: 0 }
+      anchor: wp(0, 0)
     });
 
     expect(result.snappedPoint?.x).toBeCloseTo(45, 6);
@@ -173,11 +174,11 @@ describe("snapping interaction wrappers", () => {
 
     const result = snapHandlePosition({
       context,
-      point: { x: 4.4, y: 0.2 },
+      point: wp(4.4, 0.2),
       sourceId: "self"
     });
 
-    expect(result.snappedPoint).toEqual({ x: 4.4, y: 0.2 });
+    expect(result.snappedPoint).toEqual(wp(4.4, 0.2));
     expect(result.lines).toEqual([]);
   });
 });

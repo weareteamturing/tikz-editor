@@ -6,6 +6,7 @@ import { identityMatrix, scaleMatrix, rotationMatrix, multiplyMatrix, translatio
 import { rewriteCoordinate } from "../../packages/core/src/edit/rewrite.js";
 import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
 import type { SourceRef } from "../../packages/core/src/semantic/types.js";
+import { wp } from "../coords-helpers.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
 
@@ -97,22 +98,22 @@ describe("rewriteCoordinate", () => {
     it("rewrites with identity transform", () => {
       const source = "\\draw (1,2) -- (3,4);";
       const handle = makeHandle({
-        world: { x: cm(1), y: cm(2) },
+        world: wp(cm(1), cm(2)),
         sourceRef: { sourceSpan: { from: 6, to: 11 } },
         coordinateForm: "cartesian"
       });
-      const result = rewriteCoordinate({ x: cm(5), y: cm(6) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(5), cm(6)), handle, source);
       expect(result).toBe("(5,6)");
     });
 
     it("preserves whitespace from original coordinate", () => {
       const source = "\\draw (1, 2) -- (3,4);";
       const handle = makeHandle({
-        world: { x: cm(1), y: cm(2) },
+        world: wp(cm(1), cm(2)),
         sourceRef: { sourceSpan: { from: 6, to: 12 } },
         coordinateForm: "cartesian"
       });
-      const result = rewriteCoordinate({ x: cm(5), y: cm(6) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(5), cm(6)), handle, source);
       expect(result).toBe("(5, 6)");
     });
 
@@ -120,13 +121,13 @@ describe("rewriteCoordinate", () => {
       const transform = scaleMatrix(2, 1);
       const source = "\\draw (1,2);";
       const handle = makeHandle({
-        world: { x: cm(2), y: cm(2) },
+        world: wp(cm(2), cm(2)),
         sourceRef: { sourceSpan: { from: 6, to: 11 } },
         coordinateForm: "cartesian",
         transform
       });
       // Move to world (4cm, 3cm) → local should be (2cm, 3cm)
-      const result = rewriteCoordinate({ x: cm(4), y: cm(3) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(4), cm(3)), handle, source);
       expect(result).toBe("(2,3)");
     });
 
@@ -134,7 +135,7 @@ describe("rewriteCoordinate", () => {
       const transform = rotationMatrix(90);
       const source = "\\draw (0,1);";
       const handle = makeHandle({
-        world: { x: cm(-1), y: cm(0) },
+        world: wp(cm(-1), cm(0)),
         sourceRef: { sourceSpan: { from: 6, to: 11 } },
         coordinateForm: "cartesian",
         transform
@@ -142,7 +143,7 @@ describe("rewriteCoordinate", () => {
       // Move to world (0, 1cm) → local should be (1, 0) after inverse rotation
       // rotate(90): (x,y) -> (-y, x). So inverse: (x,y) -> (y, -x)
       // world (0, cm(1)) -> local (cm(1), 0)
-      const result = rewriteCoordinate({ x: 0, y: cm(1) }, handle, source);
+      const result = rewriteCoordinate(wp(0, cm(1)), handle, source);
       expect(result).not.toBeNull();
       // Parse the result to verify
       const match = result!.match(/^\(([^,]+),([^)]+)\)$/);
@@ -157,7 +158,7 @@ describe("rewriteCoordinate", () => {
       const transform = multiplyMatrix(translationMatrix(cm(10), 0), scaleMatrix(2, 1));
       const source = "\\draw (1,2);";
       const handle = makeHandle({
-        world: { x: cm(12), y: cm(2) },
+        world: wp(cm(12), cm(2)),
         sourceRef: { sourceSpan: { from: 6, to: 11 } },
         coordinateForm: "cartesian",
         transform
@@ -165,18 +166,18 @@ describe("rewriteCoordinate", () => {
       // Move to world (cm(14), cm(4))
       // inverse: first undo translation (-10cm), then undo scale (/2)
       // (14-10)/2 = 2, 4/1 = 4
-      const result = rewriteCoordinate({ x: cm(14), y: cm(4) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(14), cm(4)), handle, source);
       expect(result).toBe("(2,4)");
     });
 
     it("formats fractional coordinates cleanly", () => {
       const source = "\\draw (1,2);";
       const handle = makeHandle({
-        world: { x: cm(1), y: cm(2) },
+        world: wp(cm(1), cm(2)),
         sourceRef: { sourceSpan: { from: 6, to: 11 } },
         coordinateForm: "cartesian"
       });
-      const result = rewriteCoordinate({ x: cm(1.5), y: cm(2.25) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(1.5), cm(2.25)), handle, source);
       expect(result).toBe("(1.5,2.25)");
     });
   });
@@ -185,12 +186,12 @@ describe("rewriteCoordinate", () => {
     it("rewrites preserving polar form", () => {
       const source = "\\draw (45:2);";
       const handle = makeHandle({
-        world: { x: cm(Math.SQRT2), y: cm(Math.SQRT2) },
+        world: wp(cm(Math.SQRT2), cm(Math.SQRT2)),
         sourceRef: { sourceSpan: { from: 6, to: 12 } },
         coordinateForm: "polar"
       });
       // Move to (0, 3cm) → angle=90, radius=3
-      const result = rewriteCoordinate({ x: 0, y: cm(3) }, handle, source);
+      const result = rewriteCoordinate(wp(0, cm(3)), handle, source);
       expect(result).not.toBeNull();
       expect(result).toMatch(/^\(\d+(\.\d+)?:\d+(\.\d+)?\)$/);
       const match = result!.match(/^\(([^:]+):([^)]+)\)$/);
@@ -201,12 +202,12 @@ describe("rewriteCoordinate", () => {
     it("handles angle normalization (negative to positive)", () => {
       const source = "\\draw (0:1);";
       const handle = makeHandle({
-        world: { x: cm(1), y: 0 },
+        world: wp(cm(1), 0),
         sourceRef: { sourceSpan: { from: 6, to: 11 } },
         coordinateForm: "polar"
       });
       // Move to (0, -1cm) → angle=270, radius=1
-      const result = rewriteCoordinate({ x: 0, y: cm(-1) }, handle, source);
+      const result = rewriteCoordinate(wp(0, cm(-1)), handle, source);
       expect(result).not.toBeNull();
       const match = result!.match(/^\(([^:]+):([^)]+)\)$/);
       expect(parseFloat(match![1])).toBeCloseTo(270, 1);
@@ -219,11 +220,11 @@ describe("rewriteCoordinate", () => {
       const from = source.indexOf(rawCoordinate);
       const to = from + rawCoordinate.length;
       const handle = makeHandle({
-        world: { x: cm(Math.SQRT2), y: cm(Math.SQRT2) },
+        world: wp(cm(Math.SQRT2), cm(Math.SQRT2)),
         sourceRef: { sourceSpan: { from, to } },
         coordinateForm: "polar"
       });
-      const result = rewriteCoordinate({ x: 0, y: cm(3) }, handle, source);
+      const result = rewriteCoordinate(wp(0, cm(3)), handle, source);
       expect(result).toBe("([xshift=3pt] 90: 3)");
     });
   });
@@ -232,15 +233,15 @@ describe("rewriteCoordinate", () => {
     it("rewrites ++ coordinate as delta from base", () => {
       const source = "\\draw (0,0) -- ++(1,1);";
       const handle = makeHandle({
-        world: { x: cm(1), y: cm(1) },
+        world: wp(cm(1), cm(1)),
         sourceRef: { sourceSpan: { from: 18, to: 23 } },
         coordinateForm: "cartesian",
         rewriteMode: "delta",
         relativePrefix: "++",
-        relativeBase: { x: 0, y: 0 }
+        relativeBase: wp(0, 0)
       });
       // Move to (2cm, 3cm) → delta from base (0,0) = (2,3)
-      const result = rewriteCoordinate({ x: cm(2), y: cm(3) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(2), cm(3)), handle, source);
       // Relative prefix is outside the source span and must not be duplicated.
       expect(result).toBe("(2,3)");
     });
@@ -248,14 +249,14 @@ describe("rewriteCoordinate", () => {
     it("rewrites + coordinate preserving prefix", () => {
       const source = "\\draw (0,0) -- +(1,0);";
       const handle = makeHandle({
-        world: { x: cm(1), y: 0 },
+        world: wp(cm(1), 0),
         sourceRef: { sourceSpan: { from: 17, to: 22 } },
         coordinateForm: "cartesian",
         rewriteMode: "delta",
         relativePrefix: "+",
-        relativeBase: { x: 0, y: 0 }
+        relativeBase: wp(0, 0)
       });
-      const result = rewriteCoordinate({ x: cm(3), y: cm(1) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(3), cm(1)), handle, source);
       // Relative prefix is outside the source span and must not be duplicated.
       expect(result).toBe("(3,1)");
     });
@@ -266,28 +267,28 @@ describe("rewriteCoordinate", () => {
       const from = source.indexOf(rawCoordinate);
       const to = from + rawCoordinate.length;
       const handle = makeHandle({
-        world: { x: cm(2), y: cm(1) },
+        world: wp(cm(2), cm(1)),
         sourceRef: { sourceSpan: { from, to } },
         coordinateForm: "cartesian",
         rewriteMode: "delta",
         relativePrefix: "++",
-        relativeBase: { x: cm(1), y: cm(1) }
+        relativeBase: wp(cm(1), cm(1))
       });
-      const result = rewriteCoordinate({ x: cm(3), y: cm(2) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(3), cm(2)), handle, source);
       expect(result).toBe("([xshift=3pt] 2, 1)");
     });
 
     it("returns null when relativeBase is missing", () => {
       const source = "\\draw ++(1,1);";
       const handle = makeHandle({
-        world: { x: cm(1), y: cm(1) },
+        world: wp(cm(1), cm(1)),
         sourceRef: { sourceSpan: { from: 6, to: 12 } },
         coordinateForm: "cartesian",
         rewriteMode: "delta",
         relativePrefix: "++"
         // no relativeBase
       });
-      const result = rewriteCoordinate({ x: cm(2), y: cm(2) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(2), cm(2)), handle, source);
       expect(result).toBeNull();
     });
   });
@@ -296,50 +297,50 @@ describe("rewriteCoordinate", () => {
     it("returns null for xyz direct coordinates", () => {
       const source = "\\draw (1,2,3);";
       const handle = makeHandle({
-        world: { x: cm(1), y: cm(2) },
+        world: wp(cm(1), cm(2)),
         sourceRef: { sourceSpan: { from: 6, to: 13 } },
         coordinateForm: "xyz",
         rewriteMode: "direct"
       });
-      const result = rewriteCoordinate({ x: cm(2), y: cm(3) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(2), cm(3)), handle, source);
       expect(result).toBeNull();
     });
 
     it("rewrites named path endpoints in unsupported mode to detached cartesian coordinates", () => {
       const source = "\\draw (A);";
       const handle = makeHandle({
-        world: { x: cm(1), y: cm(1) },
+        world: wp(cm(1), cm(1)),
         sourceRef: { sourceSpan: { from: 6, to: 9 } },
         kind: "path-point",
         coordinateForm: "named",
         rewriteMode: "unsupported"
       });
-      const result = rewriteCoordinate({ x: cm(2), y: cm(2) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(2), cm(2)), handle, source);
       expect(result).toBe("(2,2)");
     });
 
     it("returns null for unsupported non-endpoint handles", () => {
       const source = "\\draw (A) .. controls (B) .. (C);";
       const handle = makeHandle({
-        world: { x: cm(1), y: cm(1) },
+        world: wp(cm(1), cm(1)),
         sourceRef: { sourceSpan: { from: 21, to: 24 } },
         kind: "path-control",
         coordinateForm: "named",
         rewriteMode: "unsupported"
       });
-      const result = rewriteCoordinate({ x: cm(2), y: cm(2) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(2), cm(2)), handle, source);
       expect(result).toBeNull();
     });
 
     it("returns null for calc coordinates", () => {
       const source = "\\draw ($0.5*(A)+0.5*(B)$);";
       const handle = makeHandle({
-        world: { x: cm(1), y: cm(1) },
+        world: wp(cm(1), cm(1)),
         sourceRef: { sourceSpan: { from: 6, to: 25 } },
         coordinateForm: "calc",
         rewriteMode: "unsupported"
       });
-      const result = rewriteCoordinate({ x: cm(2), y: cm(2) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(2), cm(2)), handle, source);
       expect(result).toBeNull();
     });
   });
@@ -348,121 +349,121 @@ describe("rewriteCoordinate", () => {
     it("rewrites right= to updated distance when dragged horizontally", () => {
       const source = "right=1cm of A";
       const handle = makeHandle({
-        world: { x: cm(1), y: cm(0) },
+        world: wp(cm(1), cm(0)),
         sourceRef: { sourceSpan: { from: 0, to: source.length } },
         sourceText: source,
         rewriteMode: "positioning",
         positioningContext: {
           direction: "right",
           targetNodeName: "A",
-          targetCenter: { x: 0, y: 0 },
-          currentCenter: { x: 0, y: 0 },
+          targetCenter: wp(0, 0),
+          currentCenter: wp(0, 0),
           legacyOf: false,
           targetAnchorHW: 0, targetAnchorHH: 0,
           currentAnchorHW: 0, currentAnchorHH: 0
         }
       });
-      const result = rewriteCoordinate({ x: cm(2.5), y: cm(0) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(2.5), cm(0)), handle, source);
       expect(result).toBe("right=2.5cm of A");
     });
 
     it("rewrites to compound direction when dragged diagonally", () => {
       const source = "right=1cm of A";
       const handle = makeHandle({
-        world: { x: cm(1), y: cm(0) },
+        world: wp(cm(1), cm(0)),
         sourceRef: { sourceSpan: { from: 0, to: source.length } },
         sourceText: source,
         rewriteMode: "positioning",
         positioningContext: {
           direction: "right",
           targetNodeName: "A",
-          targetCenter: { x: 0, y: 0 },
-          currentCenter: { x: 0, y: 0 },
+          targetCenter: wp(0, 0),
+          currentCenter: wp(0, 0),
           legacyOf: false,
           targetAnchorHW: 0, targetAnchorHH: 0,
           currentAnchorHW: 0, currentAnchorHH: 0
         }
       });
-      const result = rewriteCoordinate({ x: cm(2), y: cm(1.5) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(2), cm(1.5)), handle, source);
       expect(result).toBe("above right={1.5cm and 2cm} of A");
     });
 
     it("snaps to cardinal direction when one component is near zero", () => {
       const source = "above right={1cm and 1cm} of B";
       const handle = makeHandle({
-        world: { x: cm(1), y: cm(1) },
+        world: wp(cm(1), cm(1)),
         sourceRef: { sourceSpan: { from: 0, to: source.length } },
         sourceText: source,
         rewriteMode: "positioning",
         positioningContext: {
           direction: "above right",
           targetNodeName: "B",
-          targetCenter: { x: 0, y: 0 },
-          currentCenter: { x: 0, y: 0 },
+          targetCenter: wp(0, 0),
+          currentCenter: wp(0, 0),
           legacyOf: false,
           targetAnchorHW: 0, targetAnchorHH: 0,
           currentAnchorHW: 0, currentAnchorHH: 0
         }
       });
       // Move to nearly pure vertical
-      const result = rewriteCoordinate({ x: cm(0.001), y: cm(3) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(0.001), cm(3)), handle, source);
       expect(result).toBe("above=3cm of B");
     });
 
     it("can leave a diagonal quadrant when one axis clearly dominates", () => {
       const source = "above right={1cm and 1cm} of A";
       const handle = makeHandle({
-        world: { x: cm(1), y: cm(1) },
+        world: wp(cm(1), cm(1)),
         sourceRef: { sourceSpan: { from: 0, to: source.length } },
         sourceText: source,
         rewriteMode: "positioning",
         positioningContext: {
           direction: "above right",
           targetNodeName: "A",
-          targetCenter: { x: 0, y: 0 },
-          currentCenter: { x: 0, y: 0 },
+          targetCenter: wp(0, 0),
+          currentCenter: wp(0, 0),
           legacyOf: false,
           targetAnchorHW: 0, targetAnchorHH: 0,
           currentAnchorHW: 0, currentAnchorHH: 0
         }
       });
-      const result = rewriteCoordinate({ x: cm(3), y: cm(0.6) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(3), cm(0.6)), handle, source);
       expect(result).toBe("right=3cm of A");
     });
 
     it("handles negative directions (below left)", () => {
       const source = "right=1cm of A";
       const handle = makeHandle({
-        world: { x: cm(1), y: cm(0) },
+        world: wp(cm(1), cm(0)),
         sourceRef: { sourceSpan: { from: 0, to: source.length } },
         sourceText: source,
         rewriteMode: "positioning",
         positioningContext: {
           direction: "right",
           targetNodeName: "A",
-          targetCenter: { x: 0, y: 0 },
-          currentCenter: { x: 0, y: 0 },
+          targetCenter: wp(0, 0),
+          currentCenter: wp(0, 0),
           legacyOf: false,
           targetAnchorHW: 0, targetAnchorHH: 0,
           currentAnchorHW: 0, currentAnchorHH: 0
         }
       });
-      const result = rewriteCoordinate({ x: cm(-2), y: cm(-1) }, handle, source);
+      const result = rewriteCoordinate(wp(cm(-2), cm(-1)), handle, source);
       expect(result).toBe("below left={1cm and 2cm} of A");
     });
 
     it("switches from below right to above right before anchor extents fully clear", () => {
       const source = "below right={1cm and 1cm} of A";
       const handle = makeHandle({
-        world: { x: 42.492603905500005, y: -45.97952790549999 },
+        world: wp(42.492603905500005, -45.97952790549999),
         sourceRef: { sourceSpan: { from: 0, to: source.length } },
         sourceText: source,
         rewriteMode: "positioning",
         positioningContext: {
           direction: "below right",
           targetNodeName: "A",
-          targetCenter: { x: 0, y: 0 },
-          currentCenter: { x: 42.492603905500005, y: -45.97952790549999 },
+          targetCenter: wp(0, 0),
+          currentCenter: wp(42.492603905500005, -45.97952790549999),
           legacyOf: false,
           targetAnchorHW: 7.0199240000000005,
           targetAnchorHH: 8.763385999999999,
@@ -470,43 +471,43 @@ describe("rewriteCoordinate", () => {
           currentAnchorHH: 8.763385999999999,
           anchorOffsetsByDirection: {
             above: {
-              targetAnchor: { x: 0, y: 8.763385999999999 },
-              currentAnchor: { x: 0, y: -8.763385999999999 }
+              targetAnchor: wp(0, 8.763385999999999),
+              currentAnchor: wp(0, -8.763385999999999)
             },
             below: {
-              targetAnchor: { x: 0, y: -8.763385999999999 },
-              currentAnchor: { x: 0, y: 8.763385999999999 }
+              targetAnchor: wp(0, -8.763385999999999),
+              currentAnchor: wp(0, 8.763385999999999)
             },
             left: {
-              targetAnchor: { x: -7.0199240000000005, y: 0 },
-              currentAnchor: { x: 7.0199240000000005, y: 0 }
+              targetAnchor: wp(-7.0199240000000005, 0),
+              currentAnchor: wp(7.0199240000000005, 0)
             },
             right: {
-              targetAnchor: { x: 7.0199240000000005, y: 0 },
-              currentAnchor: { x: -7.0199240000000005, y: 0 }
+              targetAnchor: wp(7.0199240000000005, 0),
+              currentAnchor: wp(-7.0199240000000005, 0)
             },
             "above left": {
-              targetAnchor: { x: -7.0199240000000005, y: 8.763385999999999 },
-              currentAnchor: { x: 7.0199240000000005, y: -8.763385999999999 }
+              targetAnchor: wp(-7.0199240000000005, 8.763385999999999),
+              currentAnchor: wp(7.0199240000000005, -8.763385999999999)
             },
             "above right": {
-              targetAnchor: { x: 7.0199240000000005, y: 8.763385999999999 },
-              currentAnchor: { x: -7.0199240000000005, y: -8.763385999999999 }
+              targetAnchor: wp(7.0199240000000005, 8.763385999999999),
+              currentAnchor: wp(-7.0199240000000005, -8.763385999999999)
             },
             "below left": {
-              targetAnchor: { x: -7.0199240000000005, y: -8.763385999999999 },
-              currentAnchor: { x: 7.0199240000000005, y: 8.763385999999999 }
+              targetAnchor: wp(-7.0199240000000005, -8.763385999999999),
+              currentAnchor: wp(7.0199240000000005, 8.763385999999999)
             },
             "below right": {
-              targetAnchor: { x: 7.0199240000000005, y: -8.763385999999999 },
-              currentAnchor: { x: -7.0199240000000005, y: 8.763385999999999 }
+              targetAnchor: wp(7.0199240000000005, -8.763385999999999),
+              currentAnchor: wp(-7.0199240000000005, 8.763385999999999)
             }
           }
         }
       });
 
       const result = rewriteCoordinate(
-        { x: 42.492603905500005, y: 10.925983905500004 },
+        wp(42.492603905500005, 10.925983905500004),
         handle,
         source
       );

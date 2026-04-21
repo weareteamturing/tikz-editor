@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { pt, worldPoint } from "tikz-editor/coords/index";
 import { PT_PER_CM } from "tikz-editor/edit/format";
 import type { ScenePathCommand } from "tikz-editor/semantic/types";
 import type { WorldPoint } from "../coords/types";
@@ -17,6 +18,10 @@ import { buildAnchoredGridPreviewLines } from "./panel-helpers";
 const TOOL_PREVIEW_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
 const TOOL_PREVIEW_GRID_STEP_PT = PT_PER_CM;
 const TOOL_PREVIEW_GRID_MAX_LINES = 120;
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
 
 type ToolPreview =
   | { kind: "cursor"; x: number; y: number }
@@ -255,10 +260,10 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
     }
 
     if (toolMode === "addBezier" && pendingBezier) {
-      const midpoint = {
-        x: (pendingBezier.startWorld.x + pendingBezier.endWorld.x) / 2,
-        y: (pendingBezier.startWorld.y + pendingBezier.endWorld.y) / 2
-      };
+      const midpoint = wp(
+        (pendingBezier.startWorld.x + pendingBezier.endWorld.x) / 2,
+        (pendingBezier.startWorld.y + pendingBezier.endWorld.y) / 2
+      );
       const bendWorld = bezierBendDraft?.currentWorld ?? toolCursorWorld ?? midpoint;
       return makeBezierPreview(pendingBezier.startWorld, pendingBezier.endWorld, bendWorld);
     }
@@ -274,10 +279,10 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
     }
 
     if (toolDraft.toolMode === "addBezier") {
-      const midpoint = {
-        x: (toolDraft.startWorld.x + toolDraft.currentWorld.x) / 2,
-        y: (toolDraft.startWorld.y + toolDraft.currentWorld.y) / 2
-      };
+      const midpoint = wp(
+        (toolDraft.startWorld.x + toolDraft.currentWorld.x) / 2,
+        (toolDraft.startWorld.y + toolDraft.currentWorld.y) / 2
+      );
       return makeBezierPreview(toolDraft.startWorld, toolDraft.currentWorld, midpoint);
     }
 
@@ -349,14 +354,14 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
           Math.abs(toolDraft.currentWorld.x - toolDraft.startWorld.x),
           Math.abs(toolDraft.currentWorld.y - toolDraft.startWorld.y)
         );
-        const localBoundsCenter = {
-          x: (draft.preview.bounds.minX + draft.preview.bounds.maxX) / 2,
-          y: (draft.preview.bounds.minY + draft.preview.bounds.maxY) / 2
-        };
-        const centerWorld = {
-          x: nodeOriginWorld.x + localBoundsCenter.x,
-          y: nodeOriginWorld.y + localBoundsCenter.y
-        };
+        const localBoundsCenter = wp(
+          (draft.preview.bounds.minX + draft.preview.bounds.maxX) / 2,
+          (draft.preview.bounds.minY + draft.preview.bounds.maxY) / 2
+        );
+        const centerWorld = wp(
+          nodeOriginWorld.x + localBoundsCenter.x,
+          nodeOriginWorld.y + localBoundsCenter.y
+        );
         const center = worldToSvgPoint(centerWorld, svgResult.viewBox);
         if (draft.preview.kind === "circle") {
           return {
@@ -429,19 +434,19 @@ function encodeTranslatedPathPreview(
   const parts: string[] = [];
   for (const command of commands) {
     if (command.kind === "M" || command.kind === "L") {
-      const point = worldToSvgPoint({ x: command.to.x + originWorldX, y: command.to.y + originWorldY }, viewBox);
+      const point = worldToSvgPoint(wp(command.to.x + originWorldX, command.to.y + originWorldY), viewBox);
       parts.push(`${command.kind} ${fmt(point.x)},${fmt(point.y)}`);
       continue;
     }
     if (command.kind === "C") {
-      const c1 = worldToSvgPoint({ x: command.c1.x + originWorldX, y: command.c1.y + originWorldY }, viewBox);
-      const c2 = worldToSvgPoint({ x: command.c2.x + originWorldX, y: command.c2.y + originWorldY }, viewBox);
-      const to = worldToSvgPoint({ x: command.to.x + originWorldX, y: command.to.y + originWorldY }, viewBox);
+      const c1 = worldToSvgPoint(wp(command.c1.x + originWorldX, command.c1.y + originWorldY), viewBox);
+      const c2 = worldToSvgPoint(wp(command.c2.x + originWorldX, command.c2.y + originWorldY), viewBox);
+      const to = worldToSvgPoint(wp(command.to.x + originWorldX, command.to.y + originWorldY), viewBox);
       parts.push(`C ${fmt(c1.x)},${fmt(c1.y)} ${fmt(c2.x)},${fmt(c2.y)} ${fmt(to.x)},${fmt(to.y)}`);
       continue;
     }
     if (command.kind === "A") {
-      const to = worldToSvgPoint({ x: command.to.x + originWorldX, y: command.to.y + originWorldY }, viewBox);
+      const to = worldToSvgPoint(wp(command.to.x + originWorldX, command.to.y + originWorldY), viewBox);
       parts.push(
         `A ${fmt(command.rx)} ${fmt(command.ry)} ${fmt(command.xAxisRotation)} ${command.largeArc ? 1 : 0} ${command.sweep ? 1 : 0} ${fmt(to.x)},${fmt(to.y)}`
       );

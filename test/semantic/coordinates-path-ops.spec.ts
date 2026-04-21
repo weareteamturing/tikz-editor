@@ -7,6 +7,8 @@ import {
 } from "./helpers.js";
 import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../../packages/core/src/semantic/types.js";
 
+const nonNull = <T>(value: T | null): value is T => value != null;
+
 describe("semantic evaluator / coordinates and path ops", () => {
     it("supports relative and polar coordinates", () => {
       const source = String.raw`\begin{tikzpicture}
@@ -86,7 +88,7 @@ describe("semantic evaluator / coordinates and path ops", () => {
         const points = path.commands
           .filter((command) => command.kind === "M" || command.kind === "L")
           .map((command) => (command.kind === "M" || command.kind === "L" ? command.to : null))
-          .filter((point): point is { x: number; y: number } => point != null);
+          .filter(nonNull);
         const uniquePoints = new Set(points.map((point) => `${point.x.toFixed(3)}:${point.y.toFixed(3)}`));
         expect(uniquePoints.size).toBeGreaterThanOrEqual(3);
       }
@@ -138,7 +140,7 @@ describe("semantic evaluator / coordinates and path ops", () => {
                 .map((command) => (command.kind === "M" || command.kind === "L" ? command.to : null))
             : []
         )
-        .filter((point): point is { x: number; y: number } => point != null);
+        .filter(nonNull);
   
       const hasQuarterPoint = points.some((point) => Math.abs(point.x - 28.4528) <= 1e-3 && Math.abs(point.y) <= 1e-3);
       const hasThreeQuarterPoint = points.some((point) => Math.abs(point.x - 85.3583) <= 1e-3 && Math.abs(point.y) <= 1e-3);

@@ -1,10 +1,16 @@
 import type { WorldTransform } from "../../coords/transforms.js";
+import { worldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { WorldPoint } from "../../coords/points.js";
 import type { ResolvedStyle, SceneCircle, SceneElement, SceneEllipse, ScenePath, ScenePathCommand, ScenePathShapeHint } from "../types.js";
 import { applyMatrix, inverseMatrix } from "../transform.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
 import type { StyleChainEntry } from "../style-chain.js";
 import { cloneStyleChain } from "../style-chain.js";
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
 
 export function makePath(
   sourceId: string,
@@ -119,9 +125,9 @@ export function appendEllipseSubpath(commands: ScenePathCommand[], center: World
   const theta = (rotation * Math.PI) / 180;
   const cos = Math.cos(theta);
   const sin = Math.sin(theta);
-  const axis = { x: rx * cos, y: rx * sin };
-  const start = { x: center.x + axis.x, y: center.y + axis.y };
-  const opposite = { x: center.x - axis.x, y: center.y - axis.y };
+  const axis = wp(rx * cos, rx * sin);
+  const start = wp(center.x + axis.x, center.y + axis.y);
+  const opposite = wp(center.x - axis.x, center.y - axis.y);
 
   commands.push({ kind: "M", to: start });
   commands.push({
@@ -197,17 +203,17 @@ export function makeRectangleElement(
 
 function resolveRectangleCorners(from: WorldPoint, to: WorldPoint, transform?: WorldTransform): [WorldPoint, WorldPoint, WorldPoint, WorldPoint] {
   if (!transform) {
-    return [from, { x: to.x, y: from.y }, to, { x: from.x, y: to.y }];
+    return [from, wp(to.x, from.y), to, wp(from.x, to.y)];
   }
 
   const localFrom = applyInverseMatrix(transform, from);
   const localTo = applyInverseMatrix(transform, to);
   if (!localFrom || !localTo) {
-    return [from, { x: to.x, y: from.y }, to, { x: from.x, y: to.y }];
+    return [from, wp(to.x, from.y), to, wp(from.x, to.y)];
   }
 
-  const localTopRight = { x: localTo.x, y: localFrom.y };
-  const localBottomLeft = { x: localFrom.x, y: localTo.y };
+  const localTopRight = wp(localTo.x, localFrom.y);
+  const localBottomLeft = wp(localFrom.x, localTo.y);
   return [
     applyMatrix(transform, localFrom),
     applyMatrix(transform, localTopRight),

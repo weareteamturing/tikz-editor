@@ -1,6 +1,6 @@
-import type { WorldTransform } from "../../coords/transforms.js";
+import { worldTransform } from "../../coords/transforms.js";
 import { pt } from "../../coords/scalars.js";
-import { worldPoint as makeWorldPoint, type WorldPoint } from "../../coords/points.js";
+import { worldPoint as makeWorldPoint, worldVector as makeWorldVector, type WorldPoint, type WorldVector } from "../../coords/points.js";
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import type { Span } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
@@ -68,19 +68,16 @@ const DIRECTION_META: Record<PositioningDirection, DirectionMeta> = {
   "mid right": { xSign: 1, ySign: 0, currentAnchor: "mid west", targetAnchor: "mid east", singleFactor: 1 }
 };
 
-const IDENTITY_MATRIX: WorldTransform = {
-  a: 1,
-  b: 0,
-  c: 0,
-  d: 1,
-  e: 0,
-  f: 0
-};
+const IDENTITY_MATRIX = worldTransform(1, 0, 0, 1, 0, 0);
 
 const PT_PER_CM = parseLength("1cm", "cm") ?? 28.4527559055;
 
 function worldPoint(x: number, y: number): WorldPoint {
   return makeWorldPoint(pt(x), pt(y));
+}
+
+function worldVector(x: number, y: number): WorldVector {
+  return makeWorldVector(pt(x), pt(y));
 }
 
 type RelativePlacementSpec = {
@@ -186,12 +183,12 @@ export function resolveNodePositioningTarget(
     horizontal: { kind: "dimension", value: PT_PER_CM }
   };
   let relativePlacement: RelativePlacementSpec | null = null;
-  let additiveOffset: WorldPoint = makeWorldPoint(pt(0), pt(0));
+  let additiveOffset: WorldVector = makeWorldVector(pt(0), pt(0));
 
   for (const entry of options.entries) {
     if (entry.kind === "flag") {
       if (entry.key === "centered") {
-        additiveOffset = makeWorldPoint(pt(0), pt(0));
+        additiveOffset = makeWorldVector(pt(0), pt(0));
       } else if (entry.key === "on grid") {
         onGrid = true;
       }
@@ -225,10 +222,7 @@ export function resolveNodePositioningTarget(
       if (parsed == null || !Number.isFinite(parsed)) {
         diagnostics.push(`invalid-xshift:${entry.valueRaw}`);
       } else {
-        additiveOffset = {
-          x: additiveOffset.x + parsed,
-          y: additiveOffset.y
-        };
+        additiveOffset = worldVector(additiveOffset.x + parsed, additiveOffset.y);
       }
       continue;
     }
@@ -238,10 +232,7 @@ export function resolveNodePositioningTarget(
       if (parsed == null || !Number.isFinite(parsed)) {
         diagnostics.push(`invalid-yshift:${entry.valueRaw}`);
       } else {
-        additiveOffset = {
-          x: additiveOffset.x,
-          y: additiveOffset.y + parsed
-        };
+        additiveOffset = worldVector(additiveOffset.x, additiveOffset.y + parsed);
       }
       continue;
     }
@@ -284,16 +275,10 @@ export function resolveNodePositioningTarget(
       diagnostics.push(`invalid-positioning-shift:${entry.valueRaw}`);
       continue;
     }
-    additiveOffset = {
-      x: additiveOffset.x + parsedOffset.x,
-      y: additiveOffset.y + parsedOffset.y
-    };
+    additiveOffset = worldVector(additiveOffset.x + parsedOffset.x, additiveOffset.y + parsedOffset.y);
   }
 
-  let anchorPoint = {
-    x: fallbackTarget.x + additiveOffset.x,
-    y: fallbackTarget.y + additiveOffset.y
-  };
+  let anchorPoint = worldPoint(fallbackTarget.x + additiveOffset.x, fallbackTarget.y + additiveOffset.y);
   let anchorOverride: string | undefined;
 
   let relativePlacementResult: NodePositioningResolution["relativePlacement"];
@@ -302,10 +287,10 @@ export function resolveNodePositioningTarget(
     const resolved = resolveRelativePlacement(relativePlacement, context, onGrid, nodeDistance, activeTransform);
     diagnostics.push(...resolved.diagnostics);
     if (resolved.anchorPoint) {
-      anchorPoint = {
-        x: resolved.anchorPoint.x + additiveOffset.x,
-        y: resolved.anchorPoint.y + additiveOffset.y
-      };
+      anchorPoint = worldPoint(
+        resolved.anchorPoint.x + additiveOffset.x,
+        resolved.anchorPoint.y + additiveOffset.y
+      );
     }
     if (resolved.anchorOverride) {
       anchorOverride = resolved.anchorOverride;
@@ -325,7 +310,7 @@ export function resolveNodePositioningTarget(
   return { anchorPoint, anchorOverride, diagnostics, relativePlacement: relativePlacementResult };
 }
 
-function parseDirectionalOffset(direction: PositioningDirection, raw: string, transform: WorldTransform): WorldPoint | null {
+function parseDirectionalOffset(direction: PositioningDirection, raw: string, transform: typeof IDENTITY_MATRIX): WorldVector | null {
   const normalized = normalizeOptionValue(raw);
   const shift =
     normalized.length === 0
@@ -360,7 +345,7 @@ function resolveRelativePlacement(
   context: SemanticContext,
   onGrid: boolean,
   defaultNodeDistance: NodeDistanceSpec,
-  transform: WorldTransform
+  transform: typeof IDENTITY_MATRIX
 ): { anchorPoint: WorldPoint | null; targetWorld?: WorldPoint; targetCenter?: WorldPoint; anchorOverride?: string; diagnostics: string[] } {
   const diagnostics: string[] = [];
   const meta = DIRECTION_META[spec.direction];
@@ -381,10 +366,10 @@ function resolveRelativePlacement(
   }
 
   const shift = shiftVectorForDirection(spec.direction, shiftSpec, transform);
-  const anchorPoint = {
-    x: resolvedReference.point.x + shift.x,
-    y: resolvedReference.point.y + shift.y
-  };
+  const anchorPoint = worldPoint(
+    resolvedReference.point.x + shift.x,
+    resolvedReference.point.y + shift.y
+  );
 
   const targetWorld = resolvedReference.point;
 
@@ -442,54 +427,39 @@ function resolveReferencePoint(
   return { point: evaluated.world, usesBareNodeName, diagnostics };
 }
 
-function shiftVectorForDirection(direction: PositioningDirection, shift: NodeDistanceSpec, transform: WorldTransform): WorldPoint {
+function shiftVectorForDirection(direction: PositioningDirection, shift: NodeDistanceSpec, transform: typeof IDENTITY_MATRIX): WorldVector {
   const meta = DIRECTION_META[direction];
 
   const horizontalComponent = shift.kind === "single" ? shift.value : shift.horizontal;
   const verticalComponent = shift.kind === "single" ? shift.value : shift.vertical;
 
-  let base = {
-    x: 0,
-    y: 0
-  };
+  let base = worldVector(0, 0);
 
   const horizontalVector = horizontalPositioningVector(horizontalComponent, transform);
   const verticalVector = verticalPositioningVector(verticalComponent, transform);
-  base = {
-    x: horizontalVector.x + verticalVector.x,
-    y: horizontalVector.y + verticalVector.y
-  };
+  base = worldVector(horizontalVector.x + verticalVector.x, horizontalVector.y + verticalVector.y);
 
   if (shift.kind === "single" && Math.abs(meta.singleFactor - 1) > 1e-9) {
-    base = {
-      x: base.x * meta.singleFactor,
-      y: base.y * meta.singleFactor
-    };
+    base = worldVector(base.x * meta.singleFactor, base.y * meta.singleFactor);
   }
 
-  return worldPoint(pt(meta.xSign * base.x), pt(meta.ySign * base.y));
+  return worldVector(meta.xSign * base.x, meta.ySign * base.y);
 }
 
-function horizontalPositioningVector(component: NodeDistanceValue, transform: WorldTransform): WorldPoint {
+function horizontalPositioningVector(component: NodeDistanceValue, transform: typeof IDENTITY_MATRIX): WorldVector {
   if (component.kind === "dimension") {
-    return worldPoint(pt(component.value), pt(0));
+    return worldVector(component.value, 0);
   }
 
-  return applyMatrixToVector(transform, {
-    x: component.value * PT_PER_CM,
-    y: 0
-  });
+  return applyMatrixToVector(transform, worldVector(component.value * PT_PER_CM, 0));
 }
 
-function verticalPositioningVector(component: NodeDistanceValue, transform: WorldTransform): WorldPoint {
+function verticalPositioningVector(component: NodeDistanceValue, transform: typeof IDENTITY_MATRIX): WorldVector {
   if (component.kind === "dimension") {
-    return worldPoint(pt(0), pt(component.value));
+    return worldVector(0, component.value);
   }
 
-  return applyMatrixToVector(transform, {
-    x: 0,
-    y: component.value * PT_PER_CM
-  });
+  return applyMatrixToVector(transform, worldVector(0, component.value * PT_PER_CM));
 }
 
 function parseNodeDistanceValue(raw: string): NodeDistanceValue | null {

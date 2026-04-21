@@ -1,4 +1,6 @@
+import { worldPoint } from "../../coords/points.js";
 import type { WorldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { CoordinateItem, NodeItem, PathItem } from "../../ast/types.js";
 import type { SemanticContext } from "../context.js";
 import { evaluateCoordinate } from "../coords/evaluate.js";
@@ -142,24 +144,12 @@ export function appendSinCosSegment(commands: ScenePathCommand[], from: WorldPoi
 
   const c1 =
     mode === "sin"
-      ? {
-          x: from.x + SIN_CONTROL_1_X * dx,
-          y: from.y + SIN_CONTROL_1_Y * dy
-        }
-      : {
-          x: from.x + COS_CONTROL_1_X * dx,
-          y: from.y + COS_CONTROL_1_Y * dy
-        };
+      ? worldPoint(pt(from.x + SIN_CONTROL_1_X * dx), pt(from.y + SIN_CONTROL_1_Y * dy))
+      : worldPoint(pt(from.x + COS_CONTROL_1_X * dx), pt(from.y + COS_CONTROL_1_Y * dy));
   const c2 =
     mode === "sin"
-      ? {
-          x: from.x + SIN_CONTROL_2_X * dx,
-          y: from.y + SIN_CONTROL_2_Y * dy
-        }
-      : {
-          x: from.x + COS_CONTROL_2_X * dx,
-          y: from.y + COS_CONTROL_2_Y * dy
-        };
+      ? worldPoint(pt(from.x + SIN_CONTROL_2_X * dx), pt(from.y + SIN_CONTROL_2_Y * dy))
+      : worldPoint(pt(from.x + COS_CONTROL_2_X * dx), pt(from.y + COS_CONTROL_2_Y * dy));
 
   commands.push({ kind: "C", c1, c2, to });
   return { kind: "cubic", from, c1, c2, to };

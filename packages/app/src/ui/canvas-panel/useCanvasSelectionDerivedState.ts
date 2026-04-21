@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { worldPoint, pt } from "tikz-editor/coords/index";
+import { svgBounds, svgPoint, worldBounds, worldPoint, worldVector, pt } from "tikz-editor/coords/index";
 import type { PathItem, Statement } from "tikz-editor/ast/types";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import { FIT_DIRECT_MANIPULATION_BLOCK_REASON, sourceUsesFitNodeFromParseResult } from "tikz-editor/edit/fit";
@@ -211,12 +211,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
         cellSourceId: matrixCell.cellSourceId,
         row: matrixCell.row,
         column: matrixCell.column,
-        bounds: {
-          minX: bounds.minX,
-          minY: bounds.minY,
-          maxX: bounds.maxX,
-          maxY: bounds.maxY
-        }
+        bounds: worldBounds(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY)
       });
     }
     return [...byCellId.values()];
@@ -827,12 +822,12 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
   const viewportWorldBounds = useMemo<WorldBounds | null>(
     () =>
       visibleRanges
-        ? {
-            minX: visibleRanges.worldMinX,
-            minY: visibleRanges.worldMinY,
-            maxX: visibleRanges.worldMaxX,
-            maxY: visibleRanges.worldMaxY
-          }
+        ? worldBounds(
+            pt(visibleRanges.worldMinX),
+            pt(visibleRanges.worldMinY),
+            pt(visibleRanges.worldMaxX),
+            pt(visibleRanges.worldMaxY)
+          )
         : null,
     [visibleRanges]
   );
@@ -923,13 +918,12 @@ function shouldShowSideResizeHandles(
   return Math.min(widthPx, heightPx) >= SIDE_RESIZE_HANDLE_MIN_DIMENSION_PX;
 }
 
-function midpoint(a: SvgPoint, b: SvgPoint): SvgPoint;
-function midpoint(a: WorldPoint, b: WorldPoint): WorldPoint;
-function midpoint(a: SvgPoint | WorldPoint, b: SvgPoint | WorldPoint): SvgPoint | WorldPoint {
-  return {
-    x: (a.x + b.x) / 2,
-    y: (a.y + b.y) / 2
-  } as typeof a;
+function svgMidpoint(a: SvgPoint, b: SvgPoint): SvgPoint {
+  return svgPoint(pt((a.x + b.x) / 2), pt((a.y + b.y) / 2));
+}
+
+function worldMidpoint(a: WorldPoint, b: WorldPoint): WorldPoint {
+  return worldPoint(pt((a.x + b.x) / 2), pt((a.y + b.y) / 2));
 }
 
 function buildResizeHandleDisplaysForFrame({
@@ -953,7 +947,7 @@ function buildResizeHandleDisplaysForFrame({
   const frameRotationDeg = (Math.atan2(topRight.y - topLeft.y, topRight.x - topLeft.x) * 180) / Math.PI;
   for (const role of RESIZE_FRAME_CORNER_ROLES) {
     const corner = resizeFrame.cornersByRole[role];
-    const resizeVector = worldPoint(
+    const resizeVector = worldVector(
       pt(corner.world.x - resizeFrame.centerWorld.x),
       pt(corner.world.y - resizeFrame.centerWorld.y)
     );
@@ -986,30 +980,30 @@ function buildResizeHandleDisplaysForFrame({
   }> = [
     {
       role: "top",
-      svg: midpoint(resizeFrame.cornersByRole["top-left"].svg, resizeFrame.cornersByRole["top-right"].svg),
-      world: midpoint(resizeFrame.cornersByRole["top-left"].world, resizeFrame.cornersByRole["top-right"].world)
+      svg: svgMidpoint(resizeFrame.cornersByRole["top-left"].svg, resizeFrame.cornersByRole["top-right"].svg),
+      world: worldMidpoint(resizeFrame.cornersByRole["top-left"].world, resizeFrame.cornersByRole["top-right"].world)
     },
     {
       role: "right",
-      svg: midpoint(resizeFrame.cornersByRole["top-right"].svg, resizeFrame.cornersByRole["bottom-right"].svg),
-      world: midpoint(resizeFrame.cornersByRole["top-right"].world, resizeFrame.cornersByRole["bottom-right"].world)
+      svg: svgMidpoint(resizeFrame.cornersByRole["top-right"].svg, resizeFrame.cornersByRole["bottom-right"].svg),
+      world: worldMidpoint(resizeFrame.cornersByRole["top-right"].world, resizeFrame.cornersByRole["bottom-right"].world)
     },
     {
       role: "bottom",
-      svg: midpoint(resizeFrame.cornersByRole["bottom-left"].svg, resizeFrame.cornersByRole["bottom-right"].svg),
-      world: midpoint(resizeFrame.cornersByRole["bottom-left"].world, resizeFrame.cornersByRole["bottom-right"].world)
+      svg: svgMidpoint(resizeFrame.cornersByRole["bottom-left"].svg, resizeFrame.cornersByRole["bottom-right"].svg),
+      world: worldMidpoint(resizeFrame.cornersByRole["bottom-left"].world, resizeFrame.cornersByRole["bottom-right"].world)
     },
     {
       role: "left",
-      svg: midpoint(resizeFrame.cornersByRole["top-left"].svg, resizeFrame.cornersByRole["bottom-left"].svg),
-      world: midpoint(resizeFrame.cornersByRole["top-left"].world, resizeFrame.cornersByRole["bottom-left"].world)
+      svg: svgMidpoint(resizeFrame.cornersByRole["top-left"].svg, resizeFrame.cornersByRole["bottom-left"].svg),
+      world: worldMidpoint(resizeFrame.cornersByRole["top-left"].world, resizeFrame.cornersByRole["bottom-left"].world)
     }
   ];
   for (const edgeHandle of edgeHandles) {
-    const resizeVector = {
-      x: edgeHandle.world.x - resizeFrame.centerWorld.x,
-      y: edgeHandle.world.y - resizeFrame.centerWorld.y
-    };
+    const resizeVector = worldVector(
+      pt(edgeHandle.world.x - resizeFrame.centerWorld.x),
+      pt(edgeHandle.world.y - resizeFrame.centerWorld.y)
+    );
     displays.push({
       key: `node-handle:${sourceId}:${edgeHandle.role}`,
       point: edgeHandle.svg,
@@ -1056,7 +1050,7 @@ function buildResizeHandleDisplaysForBounds({
   for (const corner of cornerRoles) {
     displays.push({
       key: `node-handle:${sourceId}:${corner.role}`,
-      point: { x: corner.x, y: corner.y },
+      point: svgPoint(pt(corner.x), pt(corner.y)),
       cursor: resizeDisabled ? "not-allowed" : resizeCursorForRole(corner.role),
       kind: "resize-element",
       elementId: sourceId,
@@ -1085,7 +1079,7 @@ function buildResizeHandleDisplaysForBounds({
   for (const edge of edgeRoles) {
     displays.push({
       key: `node-handle:${sourceId}:${edge.role}`,
-      point: { x: edge.x, y: edge.y },
+      point: svgPoint(pt(edge.x), pt(edge.y)),
       cursor: resizeDisabled ? "not-allowed" : edge.cursor,
       kind: "resize-element",
       elementId: sourceId,
@@ -1164,25 +1158,25 @@ function buildMatrixEdgeHitRegions(
     current.boundsByRow.set(
       cell.row,
       rowBounds
-        ? {
-            minX: Math.min(rowBounds.minX, cell.bounds.minX),
-            minY: Math.min(rowBounds.minY, cell.bounds.minY),
-            maxX: Math.max(rowBounds.maxX, cell.bounds.maxX),
-            maxY: Math.max(rowBounds.maxY, cell.bounds.maxY)
-          }
-        : { ...cell.bounds }
+        ? svgBounds(
+            pt(Math.min(rowBounds.minX, cell.bounds.minX)),
+            pt(Math.min(rowBounds.minY, cell.bounds.minY)),
+            pt(Math.max(rowBounds.maxX, cell.bounds.maxX)),
+            pt(Math.max(rowBounds.maxY, cell.bounds.maxY))
+          )
+        : svgBounds(cell.bounds.minX, cell.bounds.minY, cell.bounds.maxX, cell.bounds.maxY)
     );
     const columnBounds = current.boundsByColumn.get(cell.column);
     current.boundsByColumn.set(
       cell.column,
       columnBounds
-        ? {
-            minX: Math.min(columnBounds.minX, cell.bounds.minX),
-            minY: Math.min(columnBounds.minY, cell.bounds.minY),
-            maxX: Math.max(columnBounds.maxX, cell.bounds.maxX),
-            maxY: Math.max(columnBounds.maxY, cell.bounds.maxY)
-          }
-        : { ...cell.bounds }
+        ? svgBounds(
+            pt(Math.min(columnBounds.minX, cell.bounds.minX)),
+            pt(Math.min(columnBounds.minY, cell.bounds.minY)),
+            pt(Math.max(columnBounds.maxX, cell.bounds.maxX)),
+            pt(Math.max(columnBounds.maxY, cell.bounds.maxY))
+          )
+        : svgBounds(cell.bounds.minX, cell.bounds.minY, cell.bounds.maxX, cell.bounds.maxY)
     );
     current.matrixMinX = Math.min(current.matrixMinX, cell.bounds.minX);
     current.matrixMinY = Math.min(current.matrixMinY, cell.bounds.minY);

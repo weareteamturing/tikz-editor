@@ -10,6 +10,7 @@ import {
   resolveScopeAwarePointerDownTarget,
   resolveScopeAwarePointerUpDrillTarget
 } from "../../packages/app/src/ui/canvas-panel/scope-overlay.js";
+import { sb, sp } from "../coords-helpers.js";
 
 describe("scope overlay selection resolver", () => {
   const source = String.raw`\begin{tikzpicture}
@@ -24,9 +25,9 @@ describe("scope overlay selection resolver", () => {
 
   const parsed = parseTikz(source, { recover: true });
   const overlay = buildScopeOverlayIndex(parsed.figure.body, new Map([
-    ["path:0", { minX: 0, minY: 0, maxX: 1, maxY: 0 }],
-    ["path:2", { minX: 0, minY: 1, maxX: 1, maxY: 1 }],
-    ["path:4", { minX: 0, minY: 2, maxX: 1, maxY: 2 }]
+    ["path:0", sb(0, 0, 1, 0)],
+    ["path:2", sb(0, 1, 1, 1)],
+    ["path:4", sb(0, 2, 1, 2)]
   ]));
 
   it("selects the outermost enclosing scope on first pointer-down", () => {
@@ -92,22 +93,22 @@ describe("scope overlay selection resolver", () => {
   it("computes scope bounds as unions of descendant statement bounds", () => {
     const outer = overlay.boundsByScopeId.get("scope:1");
     const inner = overlay.boundsByScopeId.get("scope:3");
-    expect(outer).toEqual({ minX: 0, minY: 1, maxX: 1, maxY: 2 });
-    expect(inner).toEqual({ minX: 0, minY: 2, maxX: 1, maxY: 2 });
+    expect(outer).toEqual(sb(0, 1, 1, 2));
+    expect(inner).toEqual(sb(0, 2, 1, 2));
   });
 
   it("supports focused-scope outside-click reset checks via bounds", () => {
-    expect(isSvgPointWithinScopeBounds("scope:1", { x: 0.5, y: 1.5 }, overlay)).toBe(true);
-    expect(isSvgPointWithinScopeBounds("scope:1", { x: 2, y: 2 }, overlay)).toBe(false);
+    expect(isSvgPointWithinScopeBounds("scope:1", sp(0.5, 1.5), overlay)).toBe(true);
+    expect(isSvgPointWithinScopeBounds("scope:1", sp(2, 2), overlay)).toBe(false);
   });
 
   it("marquee selects unscoped elements and only the outermost fully-contained scopes", () => {
     const selected = resolveScopeAwareMarqueeSelection({
-      selectionBounds: { minX: -0.1, minY: -0.1, maxX: 1.1, maxY: 2.1 },
+      selectionBounds: sb(-0.1, -0.1, 1.1, 2.1),
       sourceBoundsById: new Map([
-        ["path:0", { minX: 0, minY: 0, maxX: 1, maxY: 0 }],
-        ["path:2", { minX: 0, minY: 1, maxX: 1, maxY: 1 }],
-        ["path:4", { minX: 0, minY: 2, maxX: 1, maxY: 2 }]
+        ["path:0", sb(0, 0, 1, 0)],
+        ["path:2", sb(0, 1, 1, 1)],
+        ["path:4", sb(0, 2, 1, 2)]
       ]),
       scopeOverlay: overlay
     });
@@ -117,11 +118,11 @@ describe("scope overlay selection resolver", () => {
 
   it("marquee can select an inner scope when its parent is not fully contained", () => {
     const selected = resolveScopeAwareMarqueeSelection({
-      selectionBounds: { minX: -0.1, minY: 1.5, maxX: 1.1, maxY: 2.1 },
+      selectionBounds: sb(-0.1, 1.5, 1.1, 2.1),
       sourceBoundsById: new Map([
-        ["path:0", { minX: 0, minY: 0, maxX: 1, maxY: 0 }],
-        ["path:2", { minX: 0, minY: 1, maxX: 1, maxY: 1 }],
-        ["path:4", { minX: 0, minY: 2, maxX: 1, maxY: 2 }]
+        ["path:0", sb(0, 0, 1, 0)],
+        ["path:2", sb(0, 1, 1, 1)],
+        ["path:4", sb(0, 2, 1, 2)]
       ]),
       scopeOverlay: overlay
     });
@@ -155,12 +156,12 @@ describe("scope overlay matrix augmentation", () => {
       base,
       sceneElements,
       new Map([
-        ["node:0:0:matrix-cell:1:1", { minX: 0, minY: 0, maxX: 1, maxY: 1 }]
+        ["node:0:0:matrix-cell:1:1", sb(0, 0, 1, 1)]
       ])
     );
 
     expect(augmented.scopesById.has("path:0")).toBe(true);
-    expect(augmented.boundsByScopeId.get("path:0")).toEqual({ minX: 0, minY: 0, maxX: 1, maxY: 1 });
+    expect(augmented.boundsByScopeId.get("path:0")).toEqual(sb(0, 0, 1, 1));
     expect(augmented.ancestorScopeIdsBySourceId.get("node:0:0:matrix-cell:1:1")).toEqual(["path:0"]);
 
     const resolvedDown = resolveScopeAwarePointerDownTarget({
@@ -238,9 +239,9 @@ describe("scope overlay matrix augmentation", () => {
       base,
       sceneElements,
       new Map([
-        ["node:0:0:matrix-cell:1:1", { minX: 0, minY: 0, maxX: 1, maxY: 1 }],
-        ["node:0:0:matrix-cell:1:2", { minX: 1, minY: 0, maxX: 2, maxY: 1 }],
-        ["node:0:0:matrix-cell:2:1", { minX: 0, minY: 1, maxX: 1, maxY: 2 }]
+        ["node:0:0:matrix-cell:1:1", sb(0, 0, 1, 1)],
+        ["node:0:0:matrix-cell:1:2", sb(1, 0, 2, 1)],
+        ["node:0:0:matrix-cell:2:1", sb(0, 1, 1, 2)]
       ])
     );
 

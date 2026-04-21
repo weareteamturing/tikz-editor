@@ -176,14 +176,8 @@ export function parseSvgPathOperation(args: {
       while (hasNumberGroup(tokens, cursor, 1)) {
         const rawX = getNumber(tokens[cursor]);
         const target: WorldPoint = relative
-          ? {
-              x: currentLocal.x + rawX,
-              y: currentLocal.y
-            }
-          : {
-              x: rawX,
-              y: currentLocal.y
-            };
+          ? worldPoint(currentLocal.x + rawX, currentLocal.y)
+          : worldPoint(rawX, currentLocal.y);
         cursor += 1;
         emitLine(target);
         consumed = true;
@@ -200,14 +194,8 @@ export function parseSvgPathOperation(args: {
       while (hasNumberGroup(tokens, cursor, 1)) {
         const rawY = getNumber(tokens[cursor]);
         const target: WorldPoint = relative
-          ? {
-              x: currentLocal.x,
-              y: currentLocal.y + rawY
-            }
-          : {
-              x: currentLocal.x,
-              y: rawY
-            };
+          ? worldPoint(currentLocal.x, currentLocal.y + rawY)
+          : worldPoint(currentLocal.x, rawY);
         cursor += 1;
         emitLine(target);
         consumed = true;
@@ -264,14 +252,14 @@ export function parseSvgPathOperation(args: {
         const target = readPointPair(tokens, cursor + 2, currentLocal, relative);
         cursor += 4;
 
-        const c1 = {
-          x: currentLocal.x + (2 / 3) * (control.x - currentLocal.x),
-          y: currentLocal.y + (2 / 3) * (control.y - currentLocal.y)
-        };
-        const c2 = {
-          x: target.x + (2 / 3) * (control.x - target.x),
-          y: target.y + (2 / 3) * (control.y - target.y)
-        };
+        const c1 = worldPoint(
+          currentLocal.x + (2 / 3) * (control.x - currentLocal.x),
+          currentLocal.y + (2 / 3) * (control.y - currentLocal.y)
+        );
+        const c2 = worldPoint(
+          target.x + (2 / 3) * (control.x - target.x),
+          target.y + (2 / 3) * (control.y - target.y)
+        );
         emitCubic(c1, c2, target);
         lastCubicControlLocal = null;
         lastQuadraticControlLocal = control;
@@ -291,14 +279,14 @@ export function parseSvgPathOperation(args: {
         const target = readPointPair(tokens, cursor, currentLocal, relative);
         cursor += 2;
 
-        const c1 = {
-          x: currentLocal.x + (2 / 3) * (control.x - currentLocal.x),
-          y: currentLocal.y + (2 / 3) * (control.y - currentLocal.y)
-        };
-        const c2 = {
-          x: target.x + (2 / 3) * (control.x - target.x),
-          y: target.y + (2 / 3) * (control.y - target.y)
-        };
+        const c1 = worldPoint(
+          currentLocal.x + (2 / 3) * (control.x - currentLocal.x),
+          currentLocal.y + (2 / 3) * (control.y - currentLocal.y)
+        );
+        const c2 = worldPoint(
+          target.x + (2 / 3) * (control.x - target.x),
+          target.y + (2 / 3) * (control.y - target.y)
+        );
         emitCubic(c1, c2, target);
         lastCubicControlLocal = null;
         lastQuadraticControlLocal = control;
@@ -457,10 +445,7 @@ function readPointPair(tokens: SvgToken[], start: number, current: WorldPoint, r
   const x = getNumber(tokens[start]);
   const y = getNumber(tokens[start + 1]);
   if (relative) {
-    return {
-      x: current.x + x,
-      y: current.y + y
-    };
+    return worldPoint(current.x + x, current.y + y);
   }
   return worldPoint(pt(x), pt(y));
 }
@@ -484,10 +469,7 @@ function reflectControlPoint(control: WorldPoint | null, current: WorldPoint): W
   if (!control) {
     return current;
   }
-  return {
-    x: 2 * current.x - control.x,
-    y: 2 * current.y - control.y
-  };
+  return worldPoint(2 * current.x - control.x, 2 * current.y - control.y);
 }
 
 function makeWorldToLocal(transform: WorldTransform, diagnostics: string[]): (point: WorldPoint) => WorldPoint {
@@ -565,14 +547,8 @@ function arcToCubicSegments(args: {
   const cx = cosPhi * cxp - sinPhi * cyp + (args.from.x + args.to.x) / 2;
   const cy = sinPhi * cxp + cosPhi * cyp + (args.from.y + args.to.y) / 2;
 
-  const startVector = {
-    x: (x1p - cxp) / rx,
-    y: (y1p - cyp) / ry
-  };
-  const endVector = {
-    x: (-x1p - cxp) / rx,
-    y: (-y1p - cyp) / ry
-  };
+  const startVector = worldPoint((x1p - cxp) / rx, (y1p - cyp) / ry);
+  const endVector = worldPoint((-x1p - cxp) / rx, (-y1p - cyp) / ry);
 
   let delta = signedAngle(startVector, endVector);
   if (!args.sweep && delta > 0) {
@@ -592,23 +568,11 @@ function arcToCubicSegments(args: {
     const deltaTheta = theta2 - theta1;
     const alpha = (4 / 3) * Math.tan(deltaTheta / 4);
 
-    const p1 = {
-      x: Math.cos(theta1),
-      y: Math.sin(theta1)
-    };
-    const p2 = {
-      x: Math.cos(theta2),
-      y: Math.sin(theta2)
-    };
+    const p1 = worldPoint(Math.cos(theta1), Math.sin(theta1));
+    const p2 = worldPoint(Math.cos(theta2), Math.sin(theta2));
 
-    const c1Unit = {
-      x: p1.x - alpha * p1.y,
-      y: p1.y + alpha * p1.x
-    };
-    const c2Unit = {
-      x: p2.x + alpha * p2.y,
-      y: p2.y - alpha * p2.x
-    };
+    const c1Unit = worldPoint(p1.x - alpha * p1.y, p1.y + alpha * p1.x);
+    const c2Unit = worldPoint(p2.x + alpha * p2.y, p2.y - alpha * p2.x);
 
     segments.push({
       c1: mapArcUnitPoint(cx, cy, rx, ry, cosPhi, sinPhi, c1Unit),
@@ -629,10 +593,10 @@ function mapArcUnitPoint(
   sinPhi: number,
   point: WorldPoint
 ): WorldPoint {
-  return {
-    x: cx + rx * cosPhi * point.x - ry * sinPhi * point.y,
-    y: cy + rx * sinPhi * point.x + ry * cosPhi * point.y
-  };
+  return worldPoint(
+    cx + rx * cosPhi * point.x - ry * sinPhi * point.y,
+    cy + rx * sinPhi * point.x + ry * cosPhi * point.y
+  );
 }
 
 function signedAngle(from: WorldPoint, to: WorldPoint): number {

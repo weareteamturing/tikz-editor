@@ -1,3 +1,5 @@
+import { worldPoint } from "../coords/points.js";
+import { pt } from "../coords/scalars.js";
 import type { WorldPoint } from "../coords/points.js";
 import { CM_PER_PT, PT_PER_CM, formatNumber } from "./format.js";
 
@@ -29,6 +31,10 @@ const DEFAULT_RECT_WIDTH_PT = 2.2 * PT_PER_CM;
 const DEFAULT_RECT_HEIGHT_PT = 1.4 * PT_PER_CM;
 const DEFAULT_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
 const DEFAULT_BEZIER_CONTROL_OFFSET_PT = 0;
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
 
 export function generateElementSource(template: ElementTemplate, at: WorldPoint): string {
   const atCoord = formatPointCm(at);
@@ -80,33 +86,27 @@ export function generateElementSource(template: ElementTemplate, at: WorldPoint)
 
     case "line": {
       const fromCoord = formatLineEndpoint(template.fromAnchor, atCoord);
-      const to = template.to ?? { x: at.x + DEFAULT_LINE_LENGTH_PT, y: at.y };
+      const to = template.to ?? wp(at.x + DEFAULT_LINE_LENGTH_PT, at.y);
       const toCoord = formatLineEndpoint(template.toAnchor, formatPointCm(to));
       const lineOptions = buildDrawOptions(template.strokeColor, undefined, template.hasArrow ?? false);
       return `\\draw${lineOptions} ${fromCoord} -- ${toCoord};`;
     }
 
     case "bezier": {
-      const to = template.to ?? { x: at.x + DEFAULT_LINE_LENGTH_PT, y: at.y };
+      const to = template.to ?? wp(at.x + DEFAULT_LINE_LENGTH_PT, at.y);
       const controls = resolveBezierControls(at, to, template.control1, template.control2);
       const bezierOptions = buildDrawOptions(template.strokeColor, undefined, false);
       return `\\draw${bezierOptions} ${atCoord} .. controls ${formatPointCm(controls.control1)} and ${formatPointCm(controls.control2)} .. ${formatPointCm(to)};`;
     }
 
     case "grid": {
-      const corner = template.corner ?? {
-        x: at.x + DEFAULT_RECT_WIDTH_PT,
-        y: at.y + DEFAULT_RECT_HEIGHT_PT
-      };
+      const corner = template.corner ?? wp(at.x + DEFAULT_RECT_WIDTH_PT, at.y + DEFAULT_RECT_HEIGHT_PT);
       const gridOptions = buildDrawOptions(template.strokeColor, undefined, false);
       return `\\draw${gridOptions} ${atCoord} grid ${formatPointCm(corner)};`;
     }
 
     case "rectangle": {
-      const corner = template.corner ?? {
-        x: at.x + DEFAULT_RECT_WIDTH_PT,
-        y: at.y + DEFAULT_RECT_HEIGHT_PT
-      };
+      const corner = template.corner ?? wp(at.x + DEFAULT_RECT_WIDTH_PT, at.y + DEFAULT_RECT_HEIGHT_PT);
       const rectOptions = buildDrawOptions(template.strokeColor, template.fillColor, false);
       return `\\draw${rectOptions} ${atCoord} rectangle ${formatPointCm(corner)};`;
     }
@@ -334,17 +334,11 @@ function circleRadiusPt(center: WorldPoint, edge: WorldPoint | undefined): numbe
 }
 
 function ellipseFromCorner(anchor: WorldPoint, corner: WorldPoint | undefined): { center: WorldPoint; xRadiusPt: number; yRadiusPt: number } {
-  const resolvedCorner = corner ?? {
-    x: anchor.x + DEFAULT_RECT_WIDTH_PT,
-    y: anchor.y + DEFAULT_RECT_HEIGHT_PT
-  };
+  const resolvedCorner = corner ?? wp(anchor.x + DEFAULT_RECT_WIDTH_PT, anchor.y + DEFAULT_RECT_HEIGHT_PT);
   const dx = resolvedCorner.x - anchor.x;
   const dy = resolvedCorner.y - anchor.y;
   return {
-    center: {
-      x: anchor.x + dx / 2,
-      y: anchor.y + dy / 2
-    },
+    center: wp(anchor.x + dx / 2, anchor.y + dy / 2),
     xRadiusPt: Math.abs(dx) / 2,
     yRadiusPt: Math.abs(dy) / 2
   };
@@ -390,14 +384,8 @@ function resolveBezierControls(
   const dy = to.y - from.y;
   const controlOffsetX = dx === 0 && dy === 0 ? DEFAULT_LINE_LENGTH_PT / 3 : dx / 3;
   const controlOffsetY = dx === 0 && dy === 0 ? DEFAULT_BEZIER_CONTROL_OFFSET_PT : dy / 3;
-  const baseControl1 = {
-    x: from.x + controlOffsetX,
-    y: from.y + controlOffsetY
-  };
-  const baseControl2 = {
-    x: from.x + 2 * controlOffsetX,
-    y: from.y + 2 * controlOffsetY
-  };
+  const baseControl1 = wp(from.x + controlOffsetX, from.y + controlOffsetY);
+  const baseControl2 = wp(from.x + 2 * controlOffsetX, from.y + 2 * controlOffsetY);
   return {
     control1: control1 ?? baseControl1,
     control2: control2 ?? baseControl2

@@ -157,7 +157,7 @@ export function planDistributeDeltas(
     deltas.set(top.sourceId, wp(0, 0));
     deltas.set(bottom.sourceId, wp(0, 0));
 
-    let previousTargetMinY = top.minY;
+    let previousTargetMinY: number = top.minY;
     for (let index = 1; index < sorted.length - 1; index += 1) {
       const entry = sorted[index]!;
       const targetMaxY = previousTargetMinY - gap;

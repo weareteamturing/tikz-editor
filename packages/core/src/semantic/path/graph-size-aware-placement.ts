@@ -1,9 +1,20 @@
+import { worldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { WorldPoint } from "../../coords/points.js";
 import type { NodeItem, PathStatement } from "../../ast/types.js";
 import type { ResolvedStyle } from "../types.js";
 import type { SemanticContext } from "../context.js";
 import { measureNodeAnchorExtents } from "../nodes/evaluate.js";
 import type { GraphPlacementHint } from "./graph.js";
+
+type GraphVector2 = {
+  x: number;
+  y: number;
+};
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
 
 export type RuntimeGraphNode = {
   syntheticNode: NodeItem;
@@ -94,10 +105,13 @@ export function resolveSizeAwareGraphNodePoints(
   for (const entry of measured) {
     const col = columnOffset.get(entry.node.placementHint.logicalWidth) ?? 0;
     const row = rowOffset.get(entry.node.placementHint.logicalDepth) ?? 0;
-    resolved.set(entry.node.nodeIndex, {
-      x: chainUnit.x * col + groupUnit.x * row + translation.x,
-      y: chainUnit.y * col + groupUnit.y * row + translation.y
-    });
+    resolved.set(
+      entry.node.nodeIndex,
+      wp(
+        chainUnit.x * col + groupUnit.x * row + translation.x,
+        chainUnit.y * col + groupUnit.y * row + translation.y
+      )
+    );
   }
 
   return resolved;
@@ -115,7 +129,7 @@ function placementHintsCompatible(left: GraphPlacementHint, right: GraphPlacemen
   );
 }
 
-function normalizeVector(vector: WorldPoint): WorldPoint | null {
+function normalizeVector(vector: GraphVector2): GraphVector2 | null {
   const length = Math.hypot(vector.x, vector.y);
   if (length <= 1e-6) {
     return null;
@@ -127,7 +141,7 @@ function normalizeVector(vector: WorldPoint): WorldPoint | null {
 }
 
 function projectedAxisSupport(
-  axis: WorldPoint,
+  axis: GraphVector2,
   extents: { left: number; right: number; up: number; down: number }
 ): AxisSupport {
   const absX = Math.abs(axis.x);

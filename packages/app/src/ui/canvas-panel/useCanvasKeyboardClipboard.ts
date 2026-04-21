@@ -4,6 +4,7 @@ import {
   type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent
 } from "react";
+import { pt, worldPoint } from "tikz-editor/coords/index";
 import { snapKeyboardNudge } from "tikz-editor/edit/snapping";
 import type { EditAction } from "tikz-editor/edit/actions";
 import {
@@ -243,7 +244,9 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
         step
       });
       const delta = snapped.snappedDelta ??
-        (axis === "x" ? { x: direction * step, y: 0 } : { x: 0, y: direction * step });
+        (axis === "x"
+          ? worldPoint(pt(direction * step), pt(0))
+          : worldPoint(pt(0), pt(direction * step)));
 
       const moveAction: EditAction =
         selectedIds.length === 1

@@ -1,6 +1,6 @@
 import { applyMatrix } from "tikz-editor/semantic/transform";
 import type { SvgTransform, WorldBounds, WorldPoint, WorldTransform } from "tikz-editor/coords/index";
-import { mapWorldTransformToSvgTransform, worldPoint, pt } from "tikz-editor/coords/index";
+import { mapWorldTransformToSvgTransform, worldPoint, worldToSvgTransform, pt } from "tikz-editor/coords/index";
 import type { SceneClipPath, SceneElement, ScenePathCommand, SceneText } from "tikz-editor/semantic/types";
 import type { SvgBounds, SvgPoint } from "../coords/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
@@ -248,8 +248,8 @@ export function buildHitRegions(
   }
 
   for (const scope of scopeHitBounds) {
-    const topLeft = worldToSvgPoint({ x: scope.bounds.minX, y: scope.bounds.maxY }, viewBox);
-    const bottomRight = worldToSvgPoint({ x: scope.bounds.maxX, y: scope.bounds.minY }, viewBox);
+    const topLeft = worldToSvgPoint(worldPoint(scope.bounds.minX, scope.bounds.maxY), viewBox);
+    const bottomRight = worldToSvgPoint(worldPoint(scope.bounds.maxX, scope.bounds.minY), viewBox);
     const pad = strokeWidth / 2;
     const width = Math.max(0, bottomRight.x - topLeft.x) + strokeWidth;
     const height = Math.max(0, bottomRight.y - topLeft.y) + strokeWidth;
@@ -402,7 +402,7 @@ function rectTransformFromCorners(
   const d = (corners.bottomLeft.y - corners.topLeft.y) / safeHeight;
   const e = corners.topLeft.x - a * localRect.x - c * localRect.y;
   const f = corners.topLeft.y - b * localRect.x - d * localRect.y;
-  return { a, b, c, d, e, f };
+  return worldToSvgTransform(a, b, c, d, e, f);
 }
 
 function isIdentityAffine(matrix: SvgTransform): boolean {

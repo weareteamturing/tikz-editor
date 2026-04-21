@@ -6,6 +6,7 @@ import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js
 import { createIncrementalSemanticSession } from "../../packages/core/src/semantic/incremental.js";
 import type { EditHandle, EvaluateOptions } from "../../packages/core/src/semantic/types.js";
 import type { Statement } from "../../packages/core/src/ast/types.js";
+import { wp } from "../coords-helpers.js";
 
 describe("semantic incremental evaluation", () => {
   it("matches full evaluation for repeated move-element drag updates", () => {
@@ -25,10 +26,7 @@ describe("semantic incremental evaluation", () => {
       const actionResult = applyEditAction(source, current.semantic.editHandles, {
         kind: "moveElements",
         elementIds: [targetSourceId],
-        delta: {
-          x: 0.05,
-          y: -0.02
-        }
+        delta: wp(0.05, -0.02)
       });
       expect(actionResult.kind === "success" || actionResult.kind === "partial").toBe(true);
       if (!(actionResult.kind === "success" || actionResult.kind === "partial")) {
@@ -68,10 +66,7 @@ describe("semantic incremental evaluation", () => {
       const actionResult = applyEditAction(source, current.semantic.editHandles, {
         kind: "moveHandle",
         handleId: handle.id,
-        newWorld: {
-          x: handle.world.x + 0.04,
-          y: handle.world.y + 0.03
-        }
+        newWorld: wp(handle.world.x + 0.04, handle.world.y + 0.03)
       });
       expect(actionResult.kind === "success" || actionResult.kind === "partial").toBe(true);
       if (!(actionResult.kind === "success" || actionResult.kind === "partial")) {
@@ -116,7 +111,7 @@ describe("semantic incremental evaluation", () => {
     const actionResult = applyEditAction(source, current.semantic.editHandles, {
       kind: "moveElements",
       elementIds: [targetSourceId],
-      delta: { x: 0.08, y: 0.01 }
+      delta: wp(0.08, 0.01)
     });
     expect(actionResult.kind === "success" || actionResult.kind === "partial").toBe(true);
     if (!(actionResult.kind === "success" || actionResult.kind === "partial")) {

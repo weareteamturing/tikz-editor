@@ -1,4 +1,6 @@
-import type { WorldPoint } from "../../coords/points.js";
+import { worldPoint, worldVector } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
+import type { WorldPoint, WorldVector } from "../../coords/points.js";
 import type { EditHandle } from "../../semantic/types.js";
 import type { PathStatement, Span } from "../../ast/types.js";
 import { rewriteCoordinate } from "../rewrite.js";
@@ -41,6 +43,14 @@ export type InsertPathWorldPointAction = { elementId: string; segmentIndex: numb
 type PathEditingDeps = {
   normalizeElementIds: (elementIds: readonly string[]) => string[];
 };
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
+
+function wv(x: number, y: number): WorldVector {
+  return worldVector(pt(x), pt(y));
+}
 
 export function applySplitPathAction(
   source: string,
@@ -610,30 +620,27 @@ function buildLineSegmentsSmoothReplacement(
 
   const prevLength = Math.hypot(anchor.x - beforeAnchor.x, anchor.y - beforeAnchor.y);
   const nextLength = Math.hypot(afterAnchor.x - anchor.x, afterAnchor.y - anchor.y);
-  const tangent = normalizeVector({
-    x: afterAnchor.x - beforeAnchor.x,
-    y: afterAnchor.y - beforeAnchor.y
-  });
+  const tangent = normalizeVector(wv(afterAnchor.x - beforeAnchor.x, afterAnchor.y - beforeAnchor.y));
   if (!tangent) {
     return null;
   }
 
-  const control1 = {
-    x: beforeAnchor.x + (anchor.x - beforeAnchor.x) / 3,
-    y: beforeAnchor.y + (anchor.y - beforeAnchor.y) / 3
-  };
-  const control2 = {
-    x: anchor.x - tangent.x * (prevLength / 3),
-    y: anchor.y - tangent.y * (prevLength / 3)
-  };
-  const control3 = {
-    x: anchor.x + tangent.x * (nextLength / 3),
-    y: anchor.y + tangent.y * (nextLength / 3)
-  };
-  const control4 = {
-    x: afterAnchor.x - (afterAnchor.x - anchor.x) / 3,
-    y: afterAnchor.y - (afterAnchor.y - anchor.y) / 3
-  };
+  const control1 = wp(
+    beforeAnchor.x + (anchor.x - beforeAnchor.x) / 3,
+    beforeAnchor.y + (anchor.y - beforeAnchor.y) / 3
+  );
+  const control2 = wp(
+    anchor.x - tangent.x * (prevLength / 3),
+    anchor.y - tangent.y * (prevLength / 3)
+  );
+  const control3 = wp(
+    anchor.x + tangent.x * (nextLength / 3),
+    anchor.y + tangent.y * (nextLength / 3)
+  );
+  const control4 = wp(
+    afterAnchor.x - (afterAnchor.x - anchor.x) / 3,
+    afterAnchor.y - (afterAnchor.y - anchor.y) / 3
+  );
 
   const formatRawCoordinate = (world: WorldPoint): string =>
     `(${formatNumber(world.x * CM_PER_PT)},${formatNumber(world.y * CM_PER_PT)})`;
@@ -720,16 +727,18 @@ function resolveAnchorWorld(
 function smoothControlPositions(anchor: WorldPoint, previousControl: WorldPoint, nextControl: WorldPoint): { prev: WorldPoint; next: WorldPoint } {
   const prevLength = Math.hypot(anchor.x - previousControl.x, anchor.y - previousControl.y);
   const nextLength = Math.hypot(nextControl.x - anchor.x, nextControl.y - anchor.y);
-  let direction = normalizeVector({
-    x: anchor.x - previousControl.x + nextControl.x - anchor.x,
-    y: anchor.y - previousControl.y + nextControl.y - anchor.y
-  });
-  if (!direction) {
-    direction = normalizeVector({ x: nextControl.x - previousControl.x, y: nextControl.y - previousControl.y }) ?? { x: 1, y: 0 };
-  }
+  const direction =
+    normalizeVector(
+      wv(
+        anchor.x - previousControl.x + nextControl.x - anchor.x,
+        anchor.y - previousControl.y + nextControl.y - anchor.y
+      )
+    ) ??
+    normalizeVector(wv(nextControl.x - previousControl.x, nextControl.y - previousControl.y)) ??
+    wv(1, 0);
   return {
-    prev: { x: anchor.x - direction.x * prevLength, y: anchor.y - direction.y * prevLength },
-    next: { x: anchor.x + direction.x * nextLength, y: anchor.y + direction.y * nextLength }
+    prev: wp(anchor.x - direction.x * prevLength, anchor.y - direction.y * prevLength),
+    next: wp(anchor.x + direction.x * nextLength, anchor.y + direction.y * nextLength)
   };
 }
 
@@ -742,11 +751,11 @@ function cornerControlPositions(
 ): { prev: WorldPoint; next: WorldPoint } {
   const prevLength = Math.hypot(anchor.x - previousControl.x, anchor.y - previousControl.y);
   const nextLength = Math.hypot(nextControl.x - anchor.x, nextControl.y - anchor.y);
-  const prevDirection = normalizeVector({ x: anchor.x - beforeAnchor.x, y: anchor.y - beforeAnchor.y }) ?? { x: 1, y: 0 };
-  const nextDirection = normalizeVector({ x: afterAnchor.x - anchor.x, y: afterAnchor.y - anchor.y }) ?? { x: 1, y: 0 };
+  const prevDirection = normalizeVector(wv(anchor.x - beforeAnchor.x, anchor.y - beforeAnchor.y)) ?? wv(1, 0);
+  const nextDirection = normalizeVector(wv(afterAnchor.x - anchor.x, afterAnchor.y - anchor.y)) ?? wv(1, 0);
   return {
-    prev: { x: anchor.x - prevDirection.x * prevLength, y: anchor.y - prevDirection.y * prevLength },
-    next: { x: anchor.x + nextDirection.x * nextLength, y: anchor.y + nextDirection.y * nextLength }
+    prev: wp(anchor.x - prevDirection.x * prevLength, anchor.y - prevDirection.y * prevLength),
+    next: wp(anchor.x + nextDirection.x * nextLength, anchor.y + nextDirection.y * nextLength)
   };
 }
 
@@ -905,10 +914,10 @@ function resolveControlWorld(
   return currentSourceText === handle.sourceText ? handle.world : null;
 }
 
-function normalizeVector(vector: WorldPoint): WorldPoint | null {
+function normalizeVector(vector: WorldVector): WorldVector | null {
   const length = Math.hypot(vector.x, vector.y);
   if (length <= 1e-6) {
     return null;
   }
-  return { x: vector.x / length, y: vector.y / length };
+  return wv(vector.x / length, vector.y / length);
 }

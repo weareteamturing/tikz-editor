@@ -1,4 +1,6 @@
+import { worldBounds, worldPoint } from "../../coords/points.js";
 import type { WorldPoint, WorldBounds } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { CoordinateForm, CoordinateItem, EdgeFromParentOperationItem, EdgeOperationItem, GraphOperationItem, NodeItem, PathItem, PathStatement, PlotOperationItem, Span, ToOperationItem } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
 import { parseTikz } from "../../parser/index.js";
@@ -79,6 +81,14 @@ import {
   evaluatePlotCoordinatePoints,
   extractPlotCoordinateEntries
 } from "./evaluate-plot.js";
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
+
+function wb(minX: number, minY: number, maxX: number, maxY: number): WorldBounds {
+  return worldBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
+}
 import { emitCircleOrEllipse, transformCircleGeometry, transformEllipseGeometry } from "./evaluate-shapes.js";
 import { handleChildOperationCluster } from "./evaluate-tree.js";
 
@@ -149,7 +159,7 @@ export function evaluatePathStatement(
     treeFrameState.macroBindings
   );
   const pointsClose = (left: WorldPoint, right: WorldPoint): boolean => Math.hypot(left.x - right.x, left.y - right.y) <= 1e-6;
-  const defaultPathOrigin = applyMatrix(frameTransform, { x: 0, y: 0 });
+  const defaultPathOrigin = applyMatrix(frameTransform, wp(0, 0));
   const setCurrentPoint = (
     point: WorldPoint | null,
     logicalPoint: WorldPoint | null = point,
@@ -1429,7 +1439,7 @@ export function evaluatePathStatement(
           }
         }
 
-        const fallbackStart = applyMatrix(treeFrameState.transform, { x: 0, y: 0 });
+        const fallbackStart = applyMatrix(treeFrameState.transform, wp(0, 0));
         const startPoint = context.currentPoint ?? currentPointLogical ?? fallbackStart;
         if (!context.currentPoint && !currentPointLogical) {
           setCurrentPoint(startPoint);
@@ -1753,14 +1763,14 @@ export function evaluatePathStatement(
       // -| means horizontal-then-vertical: bend at (target.x, source.y)
       // |- means vertical-then-horizontal: bend at (source.x, target.y)
       const sourceBorderRef = hasOperatorSegment && currentOperator === "-|"
-        ? { x: evaluated.world.x, y: sourceLogicalPoint.y }
+        ? wp(evaluated.world.x, sourceLogicalPoint.y)
         : hasOperatorSegment && currentOperator === "|-"
-          ? { x: sourceLogicalPoint.x, y: evaluated.world.y }
+          ? wp(sourceLogicalPoint.x, evaluated.world.y)
           : evaluated.world;
       const targetBorderRef = hasOperatorSegment && currentOperator === "-|"
-        ? { x: evaluated.world.x, y: sourceLogicalPoint.y }
+        ? wp(evaluated.world.x, sourceLogicalPoint.y)
         : hasOperatorSegment && currentOperator === "|-"
-          ? { x: sourceLogicalPoint.x, y: evaluated.world.y }
+          ? wp(sourceLogicalPoint.x, evaluated.world.y)
           : sourceLogicalPoint;
       const pathSourcePoint = hasOperatorSegment
         ? currentPointCoordinate
@@ -2517,15 +2527,15 @@ function extendPictureBounds(context: SemanticContext, bounds: WorldBounds | und
     return;
   }
   if (!context.pictureBounds) {
-    context.pictureBounds = { ...bounds };
+    context.pictureBounds = worldBounds(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY);
     return;
   }
-  context.pictureBounds = {
-    minX: Math.min(context.pictureBounds.minX, bounds.minX),
-    minY: Math.min(context.pictureBounds.minY, bounds.minY),
-    maxX: Math.max(context.pictureBounds.maxX, bounds.maxX),
-    maxY: Math.max(context.pictureBounds.maxY, bounds.maxY)
-  };
+  context.pictureBounds = wb(
+    Math.min(context.pictureBounds.minX, bounds.minX),
+    Math.min(context.pictureBounds.minY, bounds.minY),
+    Math.max(context.pictureBounds.maxX, bounds.maxX),
+    Math.max(context.pictureBounds.maxY, bounds.maxY)
+  );
 }
 
 function resolveLengthTransform(

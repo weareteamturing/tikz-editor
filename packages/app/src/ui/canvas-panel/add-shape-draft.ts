@@ -32,6 +32,10 @@ const PREVIEW_CONSTRAINT_PENALTY = 0.01;
 type DraftPreviewPoint = WorldPoint;
 type DraftPreviewBounds = WorldBounds;
 
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
+
 export type AddShapeDraftPreviewGeometry =
   | { kind: "path"; commands: ScenePathCommand[]; bounds: DraftPreviewBounds }
   | { kind: "ellipse"; rx: number; ry: number; bounds: DraftPreviewBounds }
@@ -359,10 +363,10 @@ function buildPreviewGeometry(
   const halfWidth = sizing.minimumWidth / 2;
   const halfHeight = sizing.minimumHeight / 2;
   return pathPreviewFromPolygons([[
-    { x: -halfWidth, y: -halfHeight },
-    { x: halfWidth, y: -halfHeight },
-    { x: halfWidth, y: halfHeight },
-    { x: -halfWidth, y: halfHeight }
+    wp(-halfWidth, -halfHeight),
+    wp(halfWidth, -halfHeight),
+    wp(halfWidth, halfHeight),
+    wp(-halfWidth, halfHeight)
   ]]);
 }
 

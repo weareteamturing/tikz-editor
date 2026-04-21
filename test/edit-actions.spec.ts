@@ -13,22 +13,23 @@ import { parseTikz } from "../packages/core/src/parser/index.js";
 import { evaluateTikzFigure } from "../packages/core/src/semantic/evaluate.js";
 import { collectSourceWorldBounds } from "../packages/core/src/edit/snapping/geometry.js";
 import { applySourcePatches } from "../packages/core/src/edit/source-patches.js";
+import { wb, wp } from "./coords-helpers.js";
 
 const cm = (v: number) => v * PT_PER_CM;
 
 function mergeTestBounds(
-  left: { minX: number; minY: number; maxX: number; maxY: number },
-  right: { minX: number; minY: number; maxX: number; maxY: number }
+  left: ReturnType<typeof wb>,
+  right: ReturnType<typeof wb>
 ) {
-  return {
-    minX: Math.min(left.minX, right.minX),
-    minY: Math.min(left.minY, right.minY),
-    maxX: Math.max(left.maxX, right.maxX),
-    maxY: Math.max(left.maxY, right.maxY)
-  };
+  return wb(
+    Math.min(left.minX, right.minX),
+    Math.min(left.minY, right.minY),
+    Math.max(left.maxX, right.maxX),
+    Math.max(left.maxY, right.maxY)
+  );
 }
 
-function scopeBodyBounds(source: string): { minX: number; minY: number; maxX: number; maxY: number } | null {
+function scopeBodyBounds(source: string): ReturnType<typeof wb> | null {
   const parsed = parseTikz(source, { recover: true });
   const evaluated = evaluateTikzFigure(parsed.figure, source);
   const boundsBySource = collectSourceWorldBounds(evaluated.scene.elements);
@@ -37,7 +38,7 @@ function scopeBodyBounds(source: string): { minX: number; minY: number; maxX: nu
     return null;
   }
 
-  let merged: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
+  let merged: ReturnType<typeof wb> | null = null;
   for (const child of scope.body) {
     const bounds = boundsBySource.get(child.id);
     if (!bounds) {
@@ -99,14 +100,14 @@ describe("applyEditAction – moveHandle", () => {
   it("moves a cartesian handle to a new world position", () => {
     const source = "\\draw (1,2) -- (3,4);";
     const handle = makeHandle(source, {
-      world: { x: cm(1), y: cm(2) },
+      world: wp(cm(1), cm(2)),
       sourceSpan: { from: 6, to: 11 }
     });
 
     const result = applyEditAction(source, [handle], {
       kind: "moveHandle",
       handleId: handle.id,
-      newWorld: { x: cm(5), y: cm(6) }
+      newWorld: wp(cm(5), cm(6))
     });
 
     expect(result.kind).toBe("success");
@@ -122,7 +123,7 @@ describe("applyEditAction – moveHandle", () => {
     const result = applyEditAction(source, [], {
       kind: "moveHandle",
       handleId: "nonexistent",
-      newWorld: { x: cm(5), y: cm(6) }
+      newWorld: wp(cm(5), cm(6))
     });
     expect(result.kind).toBe("error");
   });
@@ -130,7 +131,7 @@ describe("applyEditAction – moveHandle", () => {
   it("returns unsupported for unsupported coordinate form", () => {
     const source = "\\draw ($0.5*(A)+0.5*(B)$) -- (1,1);";
     const handle = makeHandle(source, {
-      world: { x: cm(1), y: cm(2) },
+      world: wp(cm(1), cm(2)),
       sourceSpan: { from: 6, to: 25 },
       coordinateForm: "calc",
       rewriteMode: "unsupported"
@@ -139,7 +140,7 @@ describe("applyEditAction – moveHandle", () => {
     const result = applyEditAction(source, [handle], {
       kind: "moveHandle",
       handleId: handle.id,
-      newWorld: { x: cm(3), y: cm(4) }
+      newWorld: wp(cm(3), cm(4))
     });
     expect(result.kind).toBe("unsupported");
   });
@@ -151,7 +152,7 @@ describe("applyEditAction – connectHandle", () => {
     const raw = "(1,1)";
     const from = source.indexOf(raw);
     const handle = makeHandle(source, {
-      world: { x: cm(1), y: cm(1) },
+      world: wp(cm(1), cm(1)),
       sourceSpan: { from, to: from + raw.length },
       sourceId: "path:0"
     });
@@ -174,7 +175,7 @@ describe("applyEditAction – connectHandle", () => {
     const raw = "(1,1)";
     const from = source.indexOf(raw);
     const handle = makeHandle(source, {
-      world: { x: cm(1), y: cm(1) },
+      world: wp(cm(1), cm(1)),
       sourceSpan: { from, to: from + raw.length },
       sourceId: "path:0"
     });
@@ -197,13 +198,13 @@ describe("applyEditAction – connectHandle", () => {
     const from = source.indexOf(raw);
     const first = makeHandle(source, {
       id: "h-first",
-      world: { x: cm(1), y: cm(1) },
+      world: wp(cm(1), cm(1)),
       sourceSpan: { from, to: from + raw.length },
       sourceId: "path:0"
     });
     const second = makeHandle(source, {
       id: "h-second",
-      world: { x: cm(1), y: cm(1) },
+      world: wp(cm(1), cm(1)),
       sourceSpan: { from, to: from + raw.length },
       sourceId: "path:1"
     });
@@ -224,7 +225,7 @@ describe("applyEditAction – connectHandle", () => {
     const raw = "(1,1)";
     const from = sourceA.indexOf(raw);
     const handle = makeHandle(sourceA, {
-      world: { x: cm(1), y: cm(1) },
+      world: wp(cm(1), cm(1)),
       sourceSpan: { from, to: from + raw.length },
       sourceId: "path:0"
     });
@@ -247,7 +248,7 @@ describe("applyEditAction – connectHandle", () => {
     const startRaw = "(-2.5, 2.5)";
     const startFrom = source.indexOf(startRaw);
     const handle = makeHandle(source, {
-      world: { x: cm(-2.5), y: cm(2.5) },
+      world: wp(cm(-2.5), cm(2.5)),
       sourceSpan: { from: startFrom, to: startFrom + startRaw.length },
       sourceId: "path:0"
     });
@@ -274,13 +275,13 @@ describe("applyEditAction – patch replay invariants", () => {
   it("replays moveHandle patches to the reported newSource", () => {
     const source = "\\draw (1,2) -- (3,4);";
     const handle = makeHandle(source, {
-      world: { x: cm(1), y: cm(2) },
+      world: wp(cm(1), cm(2)),
       sourceSpan: { from: 6, to: 11 }
     });
     const result = applyEditAction(source, [handle], {
       kind: "moveHandle",
       handleId: handle.id,
-      newWorld: { x: cm(7), y: cm(8) }
+      newWorld: wp(cm(7), cm(8))
     });
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
@@ -295,7 +296,7 @@ describe("applyEditAction – patch replay invariants", () => {
     const raw = "(1, 1)";
     const from = source.indexOf(raw);
     const handle = makeHandle(source, {
-      world: { x: cm(1), y: cm(1) },
+      world: wp(cm(1), cm(1)),
       sourceSpan: { from, to: from + raw.length },
       sourceId: "path:0"
     });
@@ -333,12 +334,12 @@ describe("applyEditAction – moveElement", () => {
   it("moves all handles of an element by a delta", () => {
     const source = "\\draw (1,2) -- (3,4);";
     const h1 = makeHandle(source, {
-      world: { x: cm(1), y: cm(2) },
+      world: wp(cm(1), cm(2)),
       sourceSpan: { from: 6, to: 11 },
       sourceId: "elem-1"
     });
     const h2 = makeHandle(source, {
-      world: { x: cm(3), y: cm(4) },
+      world: wp(cm(3), cm(4)),
       sourceSpan: { from: 15, to: 20 },
       id: "handle-15-20",
       sourceId: "elem-1"
@@ -347,7 +348,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [h1, h2], {
       kind: "moveElement",
       elementId: "elem-1",
-      delta: { x: cm(1), y: cm(1) }
+      delta: wp(cm(1), cm(1))
     });
 
     expect(result.kind).toBe("success");
@@ -359,12 +360,12 @@ describe("applyEditAction – moveElement", () => {
   it("moves handles for multiple element ids in one action", () => {
     const source = "\\node (A) at (1,2) {}; \\node (B) at (3,4) {};";
     const h1 = makeHandle(source, {
-      world: { x: cm(1), y: cm(2) },
+      world: wp(cm(1), cm(2)),
       sourceSpan: { from: 14, to: 19 },
       sourceId: "path:0"
     });
     const h2 = makeHandle(source, {
-      world: { x: cm(3), y: cm(4) },
+      world: wp(cm(3), cm(4)),
       sourceSpan: { from: 34, to: 39 },
       id: "handle-34-39",
       sourceId: "path:1"
@@ -373,7 +374,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [h1, h2], {
       kind: "moveElements",
       elementIds: ["path:0", "path:1"],
-      delta: { x: cm(1), y: cm(0) }
+      delta: wp(cm(1), cm(0))
     });
 
     expect(result.kind).toBe("success");
@@ -388,7 +389,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [], {
       kind: "moveElement",
       elementId: "nonexistent",
-      delta: { x: cm(1), y: cm(1) }
+      delta: wp(cm(1), cm(1))
     });
     expect(result.kind).toBe("unsupported");
   });
@@ -398,7 +399,7 @@ describe("applyEditAction – moveElement", () => {
     const unsupportedRaw = "(A)";
     const unsupportedFrom = source.indexOf(unsupportedRaw);
     const unsupported = makeHandle(source, {
-      world: { x: cm(0), y: cm(0) },
+      world: wp(cm(0), cm(0)),
       sourceSpan: { from: unsupportedFrom, to: unsupportedFrom + unsupportedRaw.length },
       sourceId: "elem-1",
       kind: "path-control",
@@ -408,7 +409,7 @@ describe("applyEditAction – moveElement", () => {
     const supportedRaw = "(1,2)";
     const supportedFrom = source.lastIndexOf(supportedRaw);
     const supported = makeHandle(source, {
-      world: { x: cm(1), y: cm(2) },
+      world: wp(cm(1), cm(2)),
       sourceSpan: { from: supportedFrom, to: supportedFrom + supportedRaw.length },
       sourceId: "elem-1"
     });
@@ -416,7 +417,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [unsupported, supported], {
       kind: "moveElement",
       elementId: "elem-1",
-      delta: { x: cm(1), y: cm(0) }
+      delta: wp(cm(1), cm(0))
     });
 
     expect(result.kind).toBe("partial");
@@ -430,12 +431,12 @@ describe("applyEditAction – moveElement", () => {
     // Both handles in same source; higher-offset patch applied first
     const source = "\\node (A) at (1,2) {}; \\node (B) at (3,4) {};";
     const h1 = makeHandle(source, {
-      world: { x: cm(1), y: cm(2) },
+      world: wp(cm(1), cm(2)),
       sourceSpan: { from: 14, to: 19 },
       sourceId: "multi"
     });
     const h2 = makeHandle(source, {
-      world: { x: cm(3), y: cm(4) },
+      world: wp(cm(3), cm(4)),
       sourceSpan: { from: 34, to: 39 },
       id: "handle-34-39",
       sourceId: "multi"
@@ -444,7 +445,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [h1, h2], {
       kind: "moveElement",
       elementId: "multi",
-      delta: { x: cm(10), y: cm(10) }
+      delta: wp(cm(10), cm(10))
     });
 
     expect(result.kind).toBe("success");
@@ -464,7 +465,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [], {
       kind: "moveElement",
       elementId: "path:0",
-      delta: { x: cm(1), y: cm(2) }
+      delta: wp(cm(1), cm(2))
     });
 
     expect(result.kind).toBe("success");
@@ -483,7 +484,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, semantic.editHandles, {
       kind: "moveElement",
       elementId: "path:0",
-      delta: { x: cm(2), y: cm(3) }
+      delta: wp(cm(2), cm(3))
     });
 
     expect(result.kind).toBe("success");
@@ -508,7 +509,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, semantic.editHandles, {
       kind: "moveElement",
       elementId: "path:0",
-      delta: { x: cm(0.29), y: cm(0.12) }
+      delta: wp(cm(0.29), cm(0.12))
     });
 
     expect(result.kind).toBe("success");
@@ -538,7 +539,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, semantic.editHandles, {
       kind: "moveElement",
       elementId: "path:0",
-      delta: { x: cm(0.29), y: cm(0.12) }
+      delta: wp(cm(0.29), cm(0.12))
     });
 
     expect(result.kind).toBe("success");
@@ -565,7 +566,7 @@ describe("applyEditAction – moveElement", () => {
     const first = applyEditAction(source, [], {
       kind: "moveElement",
       elementId: "path:0",
-      delta: { x: cm(0.1), y: cm(0) }
+      delta: wp(cm(0.1), cm(0))
     });
     expect(first.kind).toBe("success");
     if (first.kind !== "success") return;
@@ -574,7 +575,7 @@ describe("applyEditAction – moveElement", () => {
     const second = applyEditAction(first.newSource, [], {
       kind: "moveElement",
       elementId: "path:0",
-      delta: { x: cm(0.1), y: cm(0) }
+      delta: wp(cm(0.1), cm(0))
     });
     expect(second.kind).toBe("success");
     if (second.kind !== "success") return;
@@ -593,7 +594,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [], {
       kind: "moveElement",
       elementId: "path:0",
-      delta: { x: cm(1), y: cm(2) }
+      delta: wp(cm(1), cm(2))
     });
 
     expect(result.kind).toBe("success");
@@ -612,7 +613,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [], {
       kind: "moveElement",
       elementId: "path:0",
-      delta: { x: cm(1), y: cm(2) }
+      delta: wp(cm(1), cm(2))
     });
 
     expect(result.kind).toBe("success");
@@ -635,7 +636,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [], {
       kind: "moveElement",
       elementId: "path:0",
-      delta: { x: cm(-0.21), y: cm(0.17) }
+      delta: wp(cm(-0.21), cm(0.17))
     });
 
     expect(result.kind).toBe("success");
@@ -656,7 +657,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [], {
       kind: "moveElement",
       elementId: "scope:0",
-      delta: { x: 5, y: -2 }
+      delta: wp(5, -2)
     });
 
     expect(result.kind).toBe("success");
@@ -676,7 +677,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [], {
       kind: "moveElement",
       elementId: "scope:0",
-      delta: { x: 4, y: 6 }
+      delta: wp(4, 6)
     });
 
     expect(result.kind).toBe("success");
@@ -695,7 +696,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [], {
       kind: "moveElement",
       elementId: "scope:0",
-      delta: { x: 4, y: 6 }
+      delta: wp(4, 6)
     });
 
     expect(result.kind).toBe("success");
@@ -715,7 +716,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [], {
       kind: "moveElement",
       elementId: "scope:0",
-      delta: { x: 4, y: -6 }
+      delta: wp(4, -6)
     });
 
     expect(result.kind).toBe("success");
@@ -734,7 +735,7 @@ describe("applyEditAction – moveElement", () => {
     const raw = "(1,1)";
     const from = source.lastIndexOf(raw);
     const handle = makeHandle(source, {
-      world: { x: cm(1), y: cm(1) },
+      world: wp(cm(1), cm(1)),
       sourceSpan: { from, to: from + raw.length },
       sourceId: "path:2"
     });
@@ -742,7 +743,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [handle], {
       kind: "moveElements",
       elementIds: ["scope:0", "path:2"],
-      delta: { x: 3, y: 2 }
+      delta: wp(3, 2)
     });
 
     expect(result.kind).toBe("success");
@@ -762,7 +763,7 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [], {
       kind: "moveElement",
       elementId: "path:0",
-      delta: { x: cm(1), y: cm(2) }
+      delta: wp(cm(1), cm(2))
     });
 
     expect(result.kind).toBe("success");
@@ -794,7 +795,7 @@ describe("applyEditAction – moveElement with positioning", () => {
     const result = applyEditAction(source, handles, {
       kind: "moveElement",
       elementId,
-      delta: { x: cm(1), y: cm(2) }
+      delta: wp(cm(1), cm(2))
     });
 
     expect(result.kind).toBe("success");
@@ -822,7 +823,7 @@ describe("applyEditAction – moveElement with positioning", () => {
     const result = applyEditAction(source, handles, {
       kind: "moveElement",
       elementId: posHandle.sourceRef.sourceId,
-      delta: { x: 0, y: cm(2) }
+      delta: wp(0, cm(2))
     });
 
     expect(result.kind).toBe("success");
@@ -2043,7 +2044,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: 100, y: 100 }
+      newWorld: wp(100, 100)
     });
 
     expect(result.kind).toBe("success");
@@ -2061,7 +2062,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "top-left",
-      newWorld: { x: 0, y: 0 }
+      newWorld: wp(0, 0)
     });
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
@@ -2079,7 +2080,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "right",
-      newWorld: { x: 90, y: 0 }
+      newWorld: wp(90, 0)
     });
 
     expect(result.kind).toBe("success");
@@ -2097,7 +2098,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "top-right",
-      newWorld: { x: 100, y: 100 }
+      newWorld: wp(100, 100)
     });
 
     expect(result.kind).toBe("success");
@@ -2116,7 +2117,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "top-right",
-      newWorld: { x: 120, y: 60 }
+      newWorld: wp(120, 60)
     });
 
     expect(result.kind).toBe("success");
@@ -2134,7 +2135,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "right",
-      newWorld: { x: 30, y: 0 }
+      newWorld: wp(30, 0)
     });
 
     expect(result.kind).toBe("success");
@@ -2154,7 +2155,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: 0, y: 0 }
+      newWorld: wp(0, 0)
     });
 
     expect(result.kind).toBe("success");
@@ -2189,7 +2190,7 @@ describe("applyEditAction – resizeElement", () => {
         kind: "resizeElement",
         elementId: "path:0",
         role: "right",
-        newWorld: { x: 45, y: 0 }
+        newWorld: wp(45, 0)
       },
       { evaluateOptions: { textEngine: fakeTextEngine } }
     );
@@ -2208,7 +2209,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "right",
-      newWorld: { x: 120, y: 0 }
+      newWorld: wp(120, 0)
     });
 
     expect(result.kind).toBe("success");
@@ -2227,7 +2228,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "right",
-      newWorld: { x: 120, y: 0 }
+      newWorld: wp(120, 0)
     });
 
     expect(result.kind).toBe("success");
@@ -2246,7 +2247,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: 120, y: 120 }
+      newWorld: wp(120, 120)
     });
 
     expect(result.kind).toBe("success");
@@ -2265,7 +2266,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "top",
-      newWorld: { x: 0, y: 120 }
+      newWorld: wp(0, 120)
     });
 
     expect(result.kind).toBe("success");
@@ -2290,7 +2291,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom",
-      newWorld: { x: (bounds.minX + bounds.maxX) / 2, y: bounds.maxY - 20 }
+      newWorld: wp((bounds.minX + bounds.maxX) / 2, bounds.maxY - 20)
     });
 
     expect(result.kind).toBe("success");
@@ -2315,7 +2316,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: bounds.maxX - 20, y: bounds.maxY }
+      newWorld: wp(bounds.maxX - 20, bounds.maxY)
     });
 
     expect(result.kind).toBe("success");
@@ -2333,7 +2334,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: cm(2), y: cm(1.2) }
+      newWorld: wp(cm(2), cm(1.2))
     });
 
     expect(result.kind).toBe("success");
@@ -2350,7 +2351,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: cm(2), y: cm(1.2) }
+      newWorld: wp(cm(2), cm(1.2))
     });
 
     expect(result.kind).toBe("success");
@@ -2367,7 +2368,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: cm(2), y: cm(1) }
+      newWorld: wp(cm(2), cm(1))
     });
 
     expect(result.kind).toBe("success");
@@ -2385,7 +2386,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: cm(2), y: cm(1) }
+      newWorld: wp(cm(2), cm(1))
     });
 
     expect(result.kind).toBe("success");
@@ -2403,7 +2404,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: cm(1.2), y: cm(0.4) },
+      newWorld: wp(cm(1.2), cm(0.4)),
       preserveAspect: true
     });
 
@@ -2422,7 +2423,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: cm(2), y: cm(0.5) },
+      newWorld: wp(cm(2), cm(0.5)),
       preserveAspect: true,
       preserveAspectRatio: 0.5
     });
@@ -2442,7 +2443,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: cm(-0.68), y: cm(2.76) }
+      newWorld: wp(cm(-0.68), cm(2.76))
     });
 
     expect(result.kind).toBe("success");
@@ -2460,7 +2461,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: cm(2), y: cm(1.2) }
+      newWorld: wp(cm(2), cm(1.2))
     });
 
     expect(result.kind).toBe("success");
@@ -2478,7 +2479,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: cm(2), y: cm(1.2) }
+      newWorld: wp(cm(2), cm(1.2))
     });
 
     expect(result.kind).toBe("success");
@@ -2496,7 +2497,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "top-left",
-      newWorld: { x: cm(-1), y: cm(2) }
+      newWorld: wp(cm(-1), cm(2))
     });
 
     expect(result.kind).toBe("success");
@@ -2518,7 +2519,7 @@ describe("applyEditAction – resizeElement", () => {
         kind: "resizeElement",
         elementId: "path:0",
         role: "top-right",
-        newWorld: { x: cm(dragX), y: cm(dragY) }
+        newWorld: wp(cm(dragX), cm(dragY))
       });
 
       expect(result.kind).toBe("success");
@@ -2594,13 +2595,13 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: 120, y: 120 }
+      newWorld: wp(120, 120)
     });
     const adornedResult = applyEditAction(adornedSource, [], {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: 120, y: 120 }
+      newWorld: wp(120, 120)
     });
 
     expect(plainResult.kind).toBe("success");
@@ -2632,7 +2633,7 @@ describe("applyEditAction – resizeElement", () => {
     const result = applyEditAction(source, semantic.editHandles, {
       kind: "moveElements",
       elementIds: ["path:0"],
-      delta: { x: 1, y: 0 }
+      delta: wp(1, 0)
     });
 
     expect(result.kind).toBe("success");
@@ -2676,7 +2677,7 @@ describe("applyEditAction – resizeElement", () => {
     const result = applyEditAction(source, semantic.editHandles, {
       kind: "moveElements",
       elementIds: [fitPathId],
-      delta: { x: 1, y: 0 }
+      delta: wp(1, 0)
     });
 
     expect(result.kind).toBe("unsupported");
@@ -2696,7 +2697,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: cm(2), y: cm(1.2) }
+      newWorld: wp(cm(2), cm(1.2))
     });
 
     expect(result.kind).toBe("success");
@@ -2713,7 +2714,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: cm(1.5), y: cm(1.5) }
+      newWorld: wp(cm(1.5), cm(1.5))
     });
 
     expect(result.kind).toBe("success");
@@ -2730,7 +2731,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "top-left",
-      newWorld: { x: cm(-1), y: cm(2) }
+      newWorld: wp(cm(-1), cm(2))
     });
 
     expect(result.kind).toBe("success");
@@ -2747,7 +2748,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "top-left",
-      newWorld: { x: cm(-1), y: cm(2) }
+      newWorld: wp(cm(-1), cm(2))
     });
 
     expect(result.kind).toBe("success");
@@ -2764,7 +2765,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "top-left",
-      newWorld: { x: cm(-1), y: cm(2) }
+      newWorld: wp(cm(-1), cm(2))
     });
 
     expect(result.kind).toBe("success");
@@ -2783,7 +2784,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "scope:0",
       role: "top-left",
-      newWorld: { x: cm(-1), y: cm(2) }
+      newWorld: wp(cm(-1), cm(2))
     });
 
     expect(result.kind).toBe("success");
@@ -2817,7 +2818,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "scope:0",
       role: "top-right",
-      newWorld: { x: before.maxX + cm(2), y: before.maxY },
+      newWorld: wp(before.maxX + cm(2), before.maxY),
       referenceBounds: before,
       referenceScopeTransform: { xscale: 1, yscale: 1, xshift: 0, yshift: 0 }
     });
@@ -2847,7 +2848,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "right",
-      newWorld: { x: 10, y: 0 }
+      newWorld: wp(10, 0)
     });
 
     expect(result.kind).toBe("unsupported");
@@ -2862,7 +2863,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: "path:0",
       role: "bottom-right",
-      newWorld: { x: 120, y: 120 }
+      newWorld: wp(120, 120)
     });
 
     expect(result.kind).toBe("success");
@@ -2900,7 +2901,7 @@ describe("applyEditAction – resizeElement", () => {
       kind: "resizeElement",
       elementId: fitPathId,
       role: "bottom-right",
-      newWorld: { x: cm(2), y: cm(1) }
+      newWorld: wp(cm(2), cm(1))
     });
 
     expect(result.kind).toBe("unsupported");
@@ -2923,7 +2924,7 @@ describe("applyEditAction – addElement", () => {
     const result = applyEditAction(source, [], {
       kind: "addElement",
       template: { kind: "node", text: "A" },
-      at: { x: cm(2), y: cm(3) }
+      at: wp(cm(2), cm(3))
     });
 
     expect(result.kind).toBe("success");
@@ -2943,11 +2944,11 @@ describe("applyEditAction – addElement", () => {
       kind: "addElement",
       template: {
         kind: "bezier",
-        to: { x: cm(3), y: cm(1) },
-        control1: { x: cm(1), y: cm(2) },
-        control2: { x: cm(2), y: cm(2) }
+        to: wp(cm(3), cm(1)),
+        control1: wp(cm(1), cm(2)),
+        control2: wp(cm(2), cm(2))
       },
-      at: { x: cm(0), y: cm(0) }
+      at: wp(cm(0), cm(0))
     });
 
     expect(result.kind).toBe("success");
@@ -2971,9 +2972,9 @@ describe("applyEditAction – addElement", () => {
         hasArrow: true,
         fromAnchor: { nodeName: "A", anchor: "center" },
         toAnchor: { nodeName: "B", anchor: "east" },
-        to: { x: cm(2), y: cm(0) }
+        to: wp(cm(2), cm(0))
       },
-      at: { x: cm(0), y: cm(0) }
+      at: wp(cm(0), cm(0))
     });
 
     expect(result.kind).toBe("success");
@@ -2996,7 +2997,7 @@ describe("applyEditAction – addElement", () => {
         columns: 3,
         matrixKind: "nodes"
       },
-      at: { x: cm(1), y: cm(2) }
+      at: wp(cm(1), cm(2))
     });
 
     expect(result.kind).toBe("success");
@@ -3845,8 +3846,8 @@ describe("applyEditAction – adornment placement", () => {
     const result = applyEditAction(source, [], {
       kind: "moveAdornment",
       targetId: "node-adornment:node:0:2:label:0",
-      ownerPoint: { x: 0, y: 0 },
-      newWorld: { x: 0, y: 0 }
+      ownerPoint: wp(0, 0),
+      newWorld: wp(0, 0)
     });
 
     expect(result.kind).toBe("success");
@@ -4125,7 +4126,7 @@ describe("applyEditAction – path-attached nodes", () => {
       kind: "resizeElement",
       elementId: node.id,
       role: "bottom-right",
-      newWorld: { x: 60, y: 40 }
+      newWorld: wp(60, 40)
     });
 
     expect(result.kind).toBe("success");
@@ -4146,10 +4147,7 @@ describe("applyEditAction – path-attached nodes", () => {
     const evaluated = evaluateTikzFigure(parsed.figure, source);
     const bounds = collectSourceWorldBounds(evaluated.scene.elements).get(node.id);
     if (!bounds) throw new Error("Expected node bounds");
-    const center = {
-      x: (bounds.minX + bounds.maxX) / 2,
-      y: (bounds.minY + bounds.maxY) / 2
-    };
+    const center = wp((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2);
 
     const shrunk = applyEditAction(source, [], {
       kind: "resizeElement",
@@ -4188,8 +4186,8 @@ describe("applyEditAction – path-attached nodes", () => {
 
   it("preserves the current explicit vertical side when drag jitter stays near-axis", () => {
     const direction = resolveDraggedPathAttachedNodeDirection(
-      { x: 20, y: 0 },
-      { x: 10, y: -0.5 },
+      wp(20, 0),
+      wp(10, -0.5),
       { kind: "explicit-direction", direction: "above", family: "cardinal-diagonal" }
     );
 

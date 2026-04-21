@@ -1,11 +1,13 @@
 import {
   isCoordinateEditHandle,
+  isFrameLocalCoordinateEditHandle,
   isRelativeCoordinateEditHandle,
   type EditHandle
 } from "../semantic/types.js";
 import { pt } from "../coords/scalars.js";
-import { worldVector } from "../coords/points.js";
+import { worldPoint, worldVector } from "../coords/points.js";
 import type { WorldPoint } from "../coords/points.js";
+import { ptToCm } from "../coords/source.js";
 import { worldToLocal, worldDeltaToLocalDelta, localToSourceUnits } from "./coords.js";
 import { CM_PER_PT, formatNumber } from "./format.js";
 import { formatCoordinate, formatPolarCoordinate } from "./style.js";
@@ -47,6 +49,10 @@ export function supportsUnsupportedCoordinateDetach(handle: EditHandle): boolean
   return handle.kind === "path-point" && handle.coordinateForm === "named";
 }
 
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
+
 function rewriteUnsupportedCoordinate(
   newWorld: WorldPoint,
   handle: EditHandle,
@@ -56,10 +62,23 @@ function rewriteUnsupportedCoordinate(
     return null;
   }
 
-  return rewriteCartesian(newWorld, {
-    ...handle,
-    coordinateForm: "cartesian"
-  }, source);
+  if (isFrameLocalCoordinateEditHandle(handle)) {
+    return rewriteCartesian(newWorld, {
+      ...handle,
+      coordinateForm: "cartesian"
+    }, source);
+  }
+
+  if (!isCoordinateEditHandle(handle)) {
+    return null;
+  }
+
+  const cmPoint = {
+    x: ptToCm(newWorld.x),
+    y: ptToCm(newWorld.y)
+  };
+  const oldRaw = source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to);
+  return formatCoordinate(oldRaw, formatNumber(cmPoint.x), formatNumber(cmPoint.y));
 }
 
 function rewriteCartesian(
@@ -67,10 +86,10 @@ function rewriteCartesian(
   handle: EditHandle,
   source: string
 ): string | null {
-  if (!isCoordinateEditHandle(handle)) {
+  if (!isFrameLocalCoordinateEditHandle(handle)) {
     return null;
   }
-  const local = worldToLocal(newWorld, handle.transform);
+  const local = worldToLocal(newWorld, handle.frame);
   if (!local) {
     return null;
   }
@@ -85,10 +104,10 @@ function rewritePolar(
   handle: EditHandle,
   source: string
 ): string | null {
-  if (!isCoordinateEditHandle(handle)) {
+  if (!isFrameLocalCoordinateEditHandle(handle)) {
     return null;
   }
-  const local = worldToLocal(newWorld, handle.transform);
+  const local = worldToLocal(newWorld, handle.frame);
   if (!local) {
     return null;
   }
@@ -112,7 +131,7 @@ function rewriteDelta(
     return null;
   }
   const delta = worldVector(pt(newWorld.x - base.x), pt(newWorld.y - base.y));
-  const localDelta = worldDeltaToLocalDelta(delta, handle.transform);
+  const localDelta = worldDeltaToLocalDelta(delta, handle.frame);
   if (!localDelta) {
     return null;
   }
@@ -147,7 +166,7 @@ function applyInsertionSyntax(source: string, handle: EditHandle, coordinate: st
   return coordinate;
 }
 
-function toPolar(point: Pick<WorldPoint, "x" | "y">): { angleDeg: number; radius: number } {
+function toPolar(point: { x: number; y: number }): { angleDeg: number; radius: number } {
   const radius = Math.sqrt(point.x * point.x + point.y * point.y);
   let angleDeg = (Math.atan2(point.y, point.x) * 180) / Math.PI;
   if (angleDeg < 0) {
@@ -196,11 +215,11 @@ function anchorOffsetsForDirection(
   };
   const m = dirMeta[direction];
   if (!m) {
-    return { targetAnchor: { x: 0, y: 0 }, currentAnchor: { x: 0, y: 0 } };
+    return { targetAnchor: wp(0, 0), currentAnchor: wp(0, 0) };
   }
   return {
-    targetAnchor: { x: m.tx * targetHW, y: m.ty * targetHH },
-    currentAnchor: { x: m.cx * currentHW, y: m.cy * currentHH }
+    targetAnchor: wp(m.tx * targetHW, m.ty * targetHH),
+    currentAnchor: wp(m.cx * currentHW, m.cy * currentHH)
   };
 }
 
@@ -274,10 +293,7 @@ function rewritePositioning(
   }
   const ctx = handle.positioningContext;
 
-  const centerDeltaWorld = {
-    x: newWorld.x - ctx.targetCenter.x,
-    y: newWorld.y - ctx.targetCenter.y
-  };
+  const centerDeltaWorld = wp(newWorld.x - ctx.targetCenter.x, newWorld.y - ctx.targetCenter.y);
   const c2cXcm = centerDeltaWorld.x * CM_PER_PT;
   const c2cYcm = centerDeltaWorld.y * CM_PER_PT;
   const absCx = Math.abs(c2cXcm);
@@ -288,10 +304,10 @@ function rewritePositioning(
   const computeShift = (direction: string): WorldPoint => {
     const offsets = ctx.anchorOffsetsByDirection?.[direction]
       ?? anchorOffsetsForDirection(direction, ctx.targetAnchorHW, ctx.targetAnchorHH, ctx.currentAnchorHW, ctx.currentAnchorHH);
-    return {
-      x: centerDeltaWorld.x - offsets.targetAnchor.x + offsets.currentAnchor.x,
-      y: centerDeltaWorld.y - offsets.targetAnchor.y + offsets.currentAnchor.y
-    };
+    return wp(
+      centerDeltaWorld.x - offsets.targetAnchor.x + offsets.currentAnchor.x,
+      centerDeltaWorld.y - offsets.targetAnchor.y + offsets.currentAnchor.y
+    );
   };
 
   let direction = ctx.direction;

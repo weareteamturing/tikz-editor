@@ -1,4 +1,6 @@
-import type { WorldPoint } from "../../coords/points.js";
+import { worldPoint, worldVector } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
+import type { WorldPoint, WorldVector } from "../../coords/points.js";
 import type { PathItem, PathOptionItem } from "../../ast/types.js";
 import type { SemanticContext } from "../context.js";
 import { evaluateCoordinate, evaluateRawCoordinate } from "../coords/evaluate.js";
@@ -6,6 +8,14 @@ import { parseLength } from "../coords/parse-length.js";
 import type { ScenePathCommand } from "../types.js";
 import { clamp, interpolate, normalizeOptionValue } from "./shared.js";
 import { expandPathMacroBindings } from "./macro-expansion.js";
+
+function wp(x: number, y: number): WorldPoint {
+  return worldPoint(pt(x), pt(y));
+}
+
+function wv(x: number, y: number): WorldVector {
+  return worldVector(pt(x), pt(y));
+}
 
 export function parseParabolaFromItems(
   items: PathItem[],
@@ -67,7 +77,7 @@ export function parseParabolaFromItems(
   if (bendSpec.kind === "saved") {
     bendPoint = savedPoint;
   } else if (bendSpec.kind === "height") {
-    bendPoint = { x: savedPoint.x, y: savedPoint.y + bendSpec.height };
+    bendPoint = wp(savedPoint.x, savedPoint.y + bendSpec.height);
   } else {
     bendPoint = evaluateParabolaBendCoordinate(bendSpec.raw, context, savedPoint, bendSpec.relativePrefix);
   }
@@ -76,14 +86,8 @@ export function parseParabolaFromItems(
     return null;
   }
 
-  const toBend = {
-    x: bendPoint.x - start.x,
-    y: bendPoint.y - start.y
-  };
-  const toEnd = {
-    x: endPoint.x - bendPoint.x,
-    y: endPoint.y - bendPoint.y
-  };
+  const toBend = wv(bendPoint.x - start.x, bendPoint.y - start.y);
+  const toEnd = wv(endPoint.x - bendPoint.x, endPoint.y - bendPoint.y);
 
   return {
     consumedIndex: cursor,
@@ -194,22 +198,16 @@ function evaluateParabolaBendCoordinate(
   return evaluated.world;
 }
 
-function buildParabolaCommands(start: WorldPoint, toBend: WorldPoint, toEnd: WorldPoint): ScenePathCommand[] {
+function buildParabolaCommands(start: WorldPoint, toBend: WorldVector, toEnd: WorldVector): ScenePathCommand[] {
   const commands: ScenePathCommand[] = [];
 
   const hasBendSegment = Math.abs(toBend.x) > 1e-9 || Math.abs(toBend.y) > 1e-9;
-  const bend = { x: start.x + toBend.x, y: start.y + toBend.y };
+  const bend = wp(start.x + toBend.x, start.y + toBend.y);
   if (hasBendSegment) {
     commands.push({
       kind: "C",
-      c1: {
-        x: start.x + 0.1125 * toBend.x,
-        y: start.y + 0.225 * toBend.y
-      },
-      c2: {
-        x: start.x + 0.5 * toBend.x,
-        y: start.y + toBend.y
-      },
+      c1: wp(start.x + 0.1125 * toBend.x, start.y + 0.225 * toBend.y),
+      c2: wp(start.x + 0.5 * toBend.x, start.y + toBend.y),
       to: bend
     });
   }
@@ -218,18 +216,9 @@ function buildParabolaCommands(start: WorldPoint, toBend: WorldPoint, toEnd: Wor
   if (hasEndSegment) {
     commands.push({
       kind: "C",
-      c1: {
-        x: bend.x + 0.5 * toEnd.x,
-        y: bend.y
-      },
-      c2: {
-        x: bend.x + 0.8875 * toEnd.x,
-        y: bend.y + 0.775 * toEnd.y
-      },
-      to: {
-        x: bend.x + toEnd.x,
-        y: bend.y + toEnd.y
-      }
+      c1: wp(bend.x + 0.5 * toEnd.x, bend.y),
+      c2: wp(bend.x + 0.8875 * toEnd.x, bend.y + 0.775 * toEnd.y),
+      to: wp(bend.x + toEnd.x, bend.y + toEnd.y)
     });
   }
 

@@ -1,4 +1,6 @@
 import type { ArrowMarker, ScenePath, ScenePathCommand } from "../../semantic/types.js";
+import { worldPoint, worldVector } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import { buildArrowTipMetrics, computeArrowShortening, normalizeArrowTip } from "./metrics.js";
 import {
   clonePathCommand,
@@ -150,9 +152,9 @@ function frameAlongPathForSide(
       : sampleFrameFromEndExtrapolated(originalSegments, distance);
   if (!forwardFrame) {
     return {
-      point: { x: 0, y: 0 },
-      tangent: { x: 1, y: 0 },
-      normal: { x: 0, y: 1 }
+      point: worldPoint(pt(0), pt(0)),
+      tangent: worldVector(pt(1), pt(0)),
+      normal: worldVector(pt(0), pt(1))
     };
   }
   return orientFrameForSide(forwardFrame, side);

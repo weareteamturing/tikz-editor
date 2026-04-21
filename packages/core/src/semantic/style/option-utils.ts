@@ -2,7 +2,11 @@ import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionListAst } from "../../options/types.js";
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import { parseCoordinateLike, parseLength, parseQuantityExpression } from "../coords/parse-length.js";
+import { worldPoint } from "../../coords/points.js";
 import type { WorldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
+import { worldTransform } from "../../coords/transforms.js";
+import type { WorldTransform } from "../../coords/transforms.js";
 import type { ResolvedStyle } from "../types.js";
 import { DEFAULT_TEXT_FONT_SIZE, FONT_SIZE_COMMAND_FACTORS } from "./constants.js";
 
@@ -161,7 +165,7 @@ export function parseAxisVector(raw: string, axis: "x" | "y"): TransformAxisVect
 export function parseCmTransformValue(
   raw: string,
   resolveCoordinate?: (raw: string) => WorldPoint | null
-): { a: number; b: number; c: number; d: number; e: number; f: number } | null {
+): WorldTransform | null {
   const normalized = normalizeOptionValue(raw);
   if (normalized.length === 0) {
     return null;
@@ -188,13 +192,13 @@ export function parseCmTransformValue(
     if (x == null || y == null) {
       return null;
     }
-    return { a, b, c, d, e: x, f: y };
+    return worldTransform(a, b, c, d, x, y);
   }
 
   if (resolveCoordinate) {
     const resolved = resolveCoordinate(translationRaw);
     if (resolved) {
-      return { a, b, c, d, e: resolved.x, f: resolved.y };
+      return worldTransform(a, b, c, d, resolved.x, resolved.y);
     }
   }
 
@@ -233,7 +237,7 @@ export function parseRotateAroundValue(
     if (x == null || y == null) {
       return null;
     }
-    return { angleDeg: parsedAngle.value, pivot: { x, y } };
+    return { angleDeg: parsedAngle.value, pivot: worldPoint(pt(x), pt(y)) };
   }
 
   if (resolveCoordinate) {

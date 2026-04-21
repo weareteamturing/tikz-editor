@@ -57,7 +57,7 @@ import {
   ScenePath,
   SceneText
 } from "tikz-editor/semantic/types";
-import { svgPoint as makeSvgPoint, viewportPoint, clientPoint as makeClientPoint, svgBounds, pt, px } from "tikz-editor/coords/index";
+import { svgPoint as makeSvgPoint, viewportPoint, clientPoint as makeClientPoint, svgBounds, worldPoint as makeWorldPoint, pt, px } from "tikz-editor/coords/index";
 import { renderTikzToSvg } from "tikz-editor/render/index";
 import { type SvgDiffHints, type SvgViewBox } from "tikz-editor/svg/index";
 import type { SvgRenderModel } from "tikz-editor/svg";
@@ -790,7 +790,7 @@ function mergeBoundsList(boundsList: readonly SvgBounds[]): SvgBounds | null {
   if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
     return null;
   }
-  return { minX, minY, maxX, maxY };
+  return svgBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
 }
 
 function boundsMaxDimension(bounds: SvgBounds): number {
@@ -2087,19 +2087,21 @@ export const CanvasPanel = memo(function CanvasPanel({
       return;
     }
 
-    const snippet = generateFreehandToolSource(draft, canvasTransform.scale, freehandSmoothingPx);
-    if (snippet) {
-      const firstPoint = draft.points[0]!;
-      const lastPoint = draft.points[draft.points.length - 1]!;
-      queueSelectionForAddedElement({
-        x: (firstPoint.x + lastPoint.x) / 2,
-        y: (firstPoint.y + lastPoint.y) / 2
-      });
-      const ok = applyActionWithFeedback({
-        kind: "pasteStatements",
-        snippets: [snippet],
-        delta: { x: 0, y: 0 }
-      });
+      const snippet = generateFreehandToolSource(draft, canvasTransform.scale, freehandSmoothingPx);
+      if (snippet) {
+        const firstPoint = draft.points[0]!;
+        const lastPoint = draft.points[draft.points.length - 1]!;
+        queueSelectionForAddedElement(
+          makeWorldPoint(
+            pt((firstPoint.x + lastPoint.x) / 2),
+            pt((firstPoint.y + lastPoint.y) / 2)
+          )
+        );
+        const ok = applyActionWithFeedback({
+          kind: "pasteStatements",
+          snippets: [snippet],
+          delta: makeWorldPoint(pt(0), pt(0))
+        });
       if (!ok.sourceChanged) {
         pendingAddedSelectionRef.current = null;
       }
@@ -2157,7 +2159,7 @@ export const CanvasPanel = memo(function CanvasPanel({
         const ok = applyActionWithFeedback({
           kind: "pasteStatements",
           snippets: [snippet],
-          delta: { x: 0, y: 0 }
+          delta: makeWorldPoint(pt(0), pt(0))
         });
         if (!ok.sourceChanged) {
           pendingAddedSelectionRef.current = null;

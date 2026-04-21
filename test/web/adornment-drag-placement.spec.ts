@@ -5,16 +5,17 @@ import {
 } from "../../packages/app/src/ui/canvas-panel/useCanvasDragController.js";
 import type { AdornmentOwnerGeometry } from "../../packages/core/src/ast/types.js";
 import type { SceneAdornment } from "../../packages/core/src/semantic/types.js";
-import type { WorldPoint } from "../../packages/core/src/coords/points.js";
+import type { WorldPoint, WorldVector } from "../../packages/core/src/coords/points.js";
+import { wp, wv } from "../coords-helpers.js";
 
 describe("adornment drag placement", () => {
   it("keeps dragged adornment distance continuous", () => {
     const placement = resolveAdornmentDragPlacement(
-      { x: 10.24, y: 0 },
-      { x: 0, y: 0 },
+      wp(10.24, 0),
+      wp(0, 0),
       {
         shape: "coordinate",
-        center: { x: 0, y: 0 },
+        center: wp(0, 0),
         anchorHalfWidth: 0,
         anchorHalfHeight: 0,
         anchorRadius: 0
@@ -30,11 +31,11 @@ describe("adornment drag placement", () => {
 
   it("keeps dragged adornment angle continuous", () => {
     const placement = resolveAdornmentDragPlacement(
-      { x: 10, y: 10 },
-      { x: 0, y: 0 },
+      wp(10, 10),
+      wp(0, 0),
       {
         shape: "coordinate",
-        center: { x: 0, y: 0 },
+        center: wp(0, 0),
         anchorHalfWidth: 0,
         anchorHalfHeight: 0,
         anchorRadius: 0
@@ -51,21 +52,21 @@ describe("adornment drag placement", () => {
   it("makes center snapping less aggressive than before", () => {
     const ownerGeometry = {
       shape: "rectangle" as const,
-      center: { x: 0, y: 0 },
+      center: wp(0, 0),
       anchorHalfWidth: 8,
       anchorHalfHeight: 8,
       anchorRadius: 8
     };
 
     const nearBorder = resolveAdornmentDragPlacement(
-      { x: 9.2, y: 0 },
-      { x: 0, y: 0 },
+      wp(9.2, 0),
+      wp(0, 0),
       ownerGeometry,
       { allowCenter: true }
     );
     const veryNearCenter = resolveAdornmentDragPlacement(
-      { x: 0.6, y: 0 },
-      { x: 0, y: 0 },
+      wp(0.6, 0),
+      wp(0, 0),
       ownerGeometry,
       { allowCenter: true }
     );
@@ -81,15 +82,15 @@ describe("adornment drag placement", () => {
 
   it("preserves pointer grab offset while dragging", () => {
     const adjusted = applyAdornmentWorldPointerOffset(
-      { x: 12, y: 6 },
-      { x: 2.5, y: -1.5 }
+      wp(12, 6),
+      wv(2.5, -1.5)
     );
 
-    expect(adjusted).toEqual({ x: 9.5, y: 7.5 });
+    expect(adjusted).toEqual(wp(9.5, 7.5));
   });
 
   it("does not jump on pickup for a pin with explicit pin distance", () => {
-    const ownerCenter = { x: 0, y: 0 };
+    const ownerCenter = wp(0, 0);
     const ownerGeometry = {
       shape: "rectangle" as const,
       center: ownerCenter,
@@ -115,20 +116,14 @@ describe("adornment drag placement", () => {
     };
     const angleDeg = 0.38;
     const radians = (angleDeg * Math.PI) / 180;
-    const direction = { x: Math.cos(radians), y: Math.sin(radians) };
+    const direction = wv(Math.cos(radians), Math.sin(radians));
     const borderDistance = 1 / Math.max(Math.abs(direction.x) / ownerGeometry.anchorHalfWidth, Math.abs(direction.y) / ownerGeometry.anchorHalfHeight);
-    const reference = {
-      x: ownerCenter.x + direction.x * (borderDistance + 30),
-      y: ownerCenter.y + direction.y * (borderDistance + 30)
-    };
-    const fakeTextCenter = {
-      x: reference.x + 11.08,
-      y: reference.y
-    };
-    const offset = {
-      x: fakeTextCenter.x - reference.x,
-      y: fakeTextCenter.y - reference.y
-    };
+    const reference = wp(
+      ownerCenter.x + direction.x * (borderDistance + 30),
+      ownerCenter.y + direction.y * (borderDistance + 30)
+    );
+    const fakeTextCenter = wp(reference.x + 11.08, reference.y);
+    const offset = wv(fakeTextCenter.x - reference.x, fakeTextCenter.y - reference.y);
     const afterPickup = applyAdornmentWorldPointerOffset(fakeTextCenter, offset);
 
     const placement = resolveAdornmentDragPlacement(afterPickup, ownerCenter, ownerGeometry, { allowCenter: false });
@@ -139,7 +134,7 @@ describe("adornment drag placement", () => {
   });
 
   it("keeps cursor aligned when dragging across large angle changes", () => {
-    const ownerCenter = { x: 0, y: 0 };
+    const ownerCenter = wp(0, 0);
     const ownerGeometry = {
       shape: "rectangle" as const,
       center: ownerCenter,
@@ -148,7 +143,7 @@ describe("adornment drag placement", () => {
       anchorRadius: 0
     };
 
-    const pointerWorld = { x: 100, y: 45 };
+    const pointerWorld = wp(100, 45);
     const placement = resolveAdornmentDragPlacement(
       pointerWorld,
       ownerCenter,
@@ -156,7 +151,7 @@ describe("adornment drag placement", () => {
       {
         allowCenter: false,
         textDrag: {
-          pointerOffsetFromCenter: { x: 0, y: 0 },
+          pointerOffsetFromCenter: wv(0, 0),
           halfWidth: 20,
           halfHeight: 8
         }
@@ -174,7 +169,7 @@ describe("adornment drag placement", () => {
 
   it("uses transformed owner geometry when resolving drag distance", () => {
     const rotation = 45 * Math.PI / 180;
-    const ownerCenter = { x: 0, y: 0 };
+    const ownerCenter = wp(0, 0);
     const ownerGeometry = {
       shape: "rectangle" as const,
       center: ownerCenter,
@@ -193,7 +188,7 @@ describe("adornment drag placement", () => {
 
     const transformedBorderX = 10 * Math.SQRT2;
     const placement = resolveAdornmentDragPlacement(
-      { x: transformedBorderX + 6, y: 0 },
+      wp(transformedBorderX + 6, 0),
       ownerCenter,
       ownerGeometry,
       { allowCenter: false }
@@ -206,7 +201,7 @@ describe("adornment drag placement", () => {
   });
 
   it("keeps a horizontal drag grabbed inside the pin body without collapsing to the owner border", () => {
-    const ownerCenter = { x: 0.04, y: 0.62 };
+    const ownerCenter = wp(0.04, 0.62);
     const ownerGeometry = {
       shape: "rectangle" as const,
       center: ownerCenter,
@@ -224,14 +219,11 @@ describe("adornment drag placement", () => {
       halfWidth: bodyHalfWidth,
       halfHeight: bodyHalfHeight
     });
-    const pointerOffsetFromCenter = {
-      x: -39,
-      y: -9
-    };
-    const movedWorldPointer = {
-      x: initialPlacement.center.x + pointerOffsetFromCenter.x + 60,
-      y: initialPlacement.center.y + pointerOffsetFromCenter.y
-    };
+    const pointerOffsetFromCenter = wv(-39, -9);
+    const movedWorldPointer = wp(
+      initialPlacement.center.x + pointerOffsetFromCenter.x + 60,
+      initialPlacement.center.y + pointerOffsetFromCenter.y
+    );
 
     const placement = resolveAdornmentDragPlacement(
       movedWorldPointer,
@@ -277,40 +269,40 @@ function resolveBodyCenterFromPlacement(input: {
 }): { center: WorldPoint; anchor: string; referenceWorldPoint: WorldPoint } {
   const direction = pointOnUnitCircle(input.angleDeg);
   const borderDistance = resolveOwnerBorderDistance(input.ownerGeometry, direction);
-  const borderWorldPoint = {
-    x: input.ownerCenter.x + direction.x * borderDistance,
-    y: input.ownerCenter.y + direction.y * borderDistance
-  };
-  const centerToBorder = {
-    x: borderWorldPoint.x - input.ownerCenter.x,
-    y: borderWorldPoint.y - input.ownerCenter.y
-  };
+  const borderWorldPoint = wp(
+    input.ownerCenter.x + direction.x * borderDistance,
+    input.ownerCenter.y + direction.y * borderDistance
+  );
+  const centerToBorder = wv(
+    borderWorldPoint.x - input.ownerCenter.x,
+    borderWorldPoint.y - input.ownerCenter.y
+  );
   const centerToBorderLength = Math.hypot(centerToBorder.x, centerToBorder.y);
   const shiftDirection = centerToBorderLength <= 1e-6
     ? direction
-    : {
-        x: centerToBorder.x / centerToBorderLength,
-        y: centerToBorder.y / centerToBorderLength
-      };
-  const referenceWorldPoint = {
-    x: borderWorldPoint.x + shiftDirection.x * input.distancePt,
-    y: borderWorldPoint.y + shiftDirection.y * input.distancePt
-  };
+    : wv(
+        centerToBorder.x / centerToBorderLength,
+        centerToBorder.y / centerToBorderLength
+      );
+  const referenceWorldPoint = wp(
+    borderWorldPoint.x + shiftDirection.x * input.distancePt,
+    borderWorldPoint.y + shiftDirection.y * input.distancePt
+  );
   const anchor = centerToBorderLength <= 1e-6
     ? anchorFacingAway(input.angleDeg)
-    : autoAnchorFromVector({ x: shiftDirection.y, y: -shiftDirection.x });
+    : autoAnchorFromVector(wv(shiftDirection.y, -shiftDirection.x));
   const centerOffset = anchorOffsetFromCenter(anchor, input.halfWidth, input.halfHeight);
   return {
-    center: {
-      x: referenceWorldPoint.x - centerOffset.x,
-      y: referenceWorldPoint.y - centerOffset.y
-    },
+    center: wp(
+      referenceWorldPoint.x - centerOffset.x,
+      referenceWorldPoint.y - centerOffset.y
+    ),
     anchor,
     referenceWorldPoint
   };
 }
 
-function resolveOwnerBorderDistance(ownerGeometry: AdornmentOwnerGeometry, direction: WorldPoint): number {
+function resolveOwnerBorderDistance(ownerGeometry: AdornmentOwnerGeometry, direction: WorldVector): number {
   if (ownerGeometry.shape === "rectangle") {
     return 1 / Math.max(
       Math.abs(direction.x) / Math.max(ownerGeometry.anchorHalfWidth, 1e-6),
@@ -328,9 +320,9 @@ function resolveOwnerBorderDistance(ownerGeometry: AdornmentOwnerGeometry, direc
   return 0;
 }
 
-function pointOnUnitCircle(angleDeg: number): WorldPoint {
+function pointOnUnitCircle(angleDeg: number): WorldVector {
   const radians = (angleDeg * Math.PI) / 180;
-  return { x: Math.cos(radians), y: Math.sin(radians) };
+  return wv(Math.cos(radians), Math.sin(radians));
 }
 
 function anchorFacingAway(degrees: number): string {
@@ -345,7 +337,7 @@ function anchorFacingAway(degrees: number): string {
   return "north west";
 }
 
-function autoAnchorFromVector(vector: WorldPoint): string {
+function autoAnchorFromVector(vector: WorldVector): string {
   if (vector.x > 0.05) {
     if (vector.y > 0.05) return "south east";
     if (vector.y < -0.05) return "south west";
@@ -359,26 +351,26 @@ function autoAnchorFromVector(vector: WorldPoint): string {
   return vector.y > 0 ? "east" : "west";
 }
 
-function anchorOffsetFromCenter(anchor: string, halfWidth: number, halfHeight: number): WorldPoint {
+function anchorOffsetFromCenter(anchor: string, halfWidth: number, halfHeight: number): WorldVector {
   switch (anchor) {
     case "west":
-      return { x: -halfWidth, y: 0 };
+      return wv(-halfWidth, 0);
     case "east":
-      return { x: halfWidth, y: 0 };
+      return wv(halfWidth, 0);
     case "north":
-      return { x: 0, y: halfHeight };
+      return wv(0, halfHeight);
     case "south":
-      return { x: 0, y: -halfHeight };
+      return wv(0, -halfHeight);
     case "north west":
-      return { x: -halfWidth, y: halfHeight };
+      return wv(-halfWidth, halfHeight);
     case "north east":
-      return { x: halfWidth, y: halfHeight };
+      return wv(halfWidth, halfHeight);
     case "south west":
-      return { x: -halfWidth, y: -halfHeight };
+      return wv(-halfWidth, -halfHeight);
     case "south east":
-      return { x: halfWidth, y: -halfHeight };
+      return wv(halfWidth, -halfHeight);
     default:
-      return { x: 0, y: 0 };
+      return wv(0, 0);
   }
 }
 
