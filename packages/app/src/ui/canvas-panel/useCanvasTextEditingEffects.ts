@@ -7,15 +7,11 @@ import { clientToViewport, svgToViewport } from "../coords/convert";
 import { clientBoundsToViewport, svgBoundsToViewportBounds } from "../coords/text";
 import { clamp } from "./geometry";
 import { createSourceRenderOffsetMap } from "./text-offset-map";
+import { applyTextMeasureFont, createVisualTextLayout } from "./text-visual-layout";
 import type { TextSelectionOverlay, TextSelectionOverlayBox } from "./types";
 
 export type UseCanvasTextEditingEffectsArgs = {
   [key: string]: any;
-};
-
-type LogicalLineRange = {
-  start: number;
-  end: number;
 };
 
 type RegionSelectionOverlayBox = {
@@ -29,53 +25,23 @@ type RegionSelectionOverlay = {
   rects: RegionSelectionOverlayBox[];
 };
 
-function collectLogicalLineRanges(text: string): LogicalLineRange[] {
-  if (text.length === 0) {
-    return [{ start: 0, end: 0 }];
+let fallbackOverlayMeasureContext: CanvasRenderingContext2D | null | undefined;
+
+function getFallbackOverlayMeasureContext(): CanvasRenderingContext2D | null {
+  if (fallbackOverlayMeasureContext !== undefined) {
+    return fallbackOverlayMeasureContext;
   }
-  const ranges: LogicalLineRange[] = [];
-  let start = 0;
-  let cursor = 0;
-  while (cursor < text.length) {
-    if (text[cursor] === "\r") {
-      const next = text[cursor + 1] === "\n" ? cursor + 2 : cursor + 1;
-      ranges.push({ start, end: cursor });
-      start = next;
-      cursor = next;
-      continue;
-    }
-    if (text[cursor] === "\n") {
-      ranges.push({ start, end: cursor });
-      start = cursor + 1;
-      cursor += 1;
-      continue;
-    }
-    if (text[cursor] === "\\" && text[cursor + 1] === "\\") {
-      let next = cursor + 2;
-      if (text[next] === "*") {
-        next += 1;
-      }
-      while (next < text.length && /\s/.test(text[next] ?? "")) {
-        next += 1;
-      }
-      if (text[next] === "[") {
-        let bracketCursor = next + 1;
-        while (bracketCursor < text.length && text[bracketCursor] !== "]") {
-          bracketCursor += 1;
-        }
-        if (bracketCursor < text.length) {
-          next = bracketCursor + 1;
-        }
-      }
-      ranges.push({ start, end: cursor });
-      start = next;
-      cursor = next;
-      continue;
-    }
-    cursor += 1;
+  if (typeof document === "undefined") {
+    fallbackOverlayMeasureContext = null;
+    return fallbackOverlayMeasureContext;
   }
-  ranges.push({ start, end: text.length });
-  return ranges;
+  const canvas = document.createElement("canvas");
+  fallbackOverlayMeasureContext = canvas.getContext("2d");
+  return fallbackOverlayMeasureContext;
+}
+
+function applyFallbackOverlayFont(ctx: CanvasRenderingContext2D | null, target: any): void {
+  applyTextMeasureFont(ctx, target?.style);
 }
 
 function resolveRegionSelectionOverlay(
@@ -86,21 +52,22 @@ function resolveRegionSelectionOverlay(
   caret: RegionSelectionOverlayBox | null;
   rects: RegionSelectionOverlayBox[];
 } {
-  const ranges = collectLogicalLineRanges(target.text);
+  const ctx = getFallbackOverlayMeasureContext();
+  applyFallbackOverlayFont(ctx, target);
+  const layout = createVisualTextLayout(
+    target.text,
+    target.renderSourceText ?? target.text,
+    (text) => {
+      if (!ctx) {
+        return Number.NaN;
+      }
+      return ctx.measureText(text).width;
+    }
+  );
+  const ranges = layout.sourceLineRanges;
   const lineHeight = target.region.height / Math.max(1, ranges.length);
   if (selectionStart === selectionEnd) {
-    const pivot = target.text.length === 0 ? 0 : Math.min(Math.max(0, selectionStart), target.text.length - 1);
-    let lineIndex = ranges.length - 1;
-    for (let index = 0; index < ranges.length; index += 1) {
-      const range = ranges[index]!;
-      if (pivot >= range.start && pivot < range.end) {
-        lineIndex = index;
-        break;
-      }
-    }
-    const range = ranges[lineIndex] ?? { start: 0, end: target.text.length };
-    const denominator = Math.max(1, range.end - range.start);
-    const ratio = (selectionStart - range.start) / denominator;
+    const { lineIndex, ratio } = layout.getCaretPosition(selectionStart);
     const left = target.region.x + clamp(ratio, 0, 1) * target.region.width;
     const top = target.region.y + lineIndex * lineHeight;
     const height = Math.max(1, lineHeight);
@@ -122,9 +89,7 @@ function resolveRegionSelectionOverlay(
     if (localEnd <= localStart) {
       continue;
     }
-    const denominator = Math.max(1, range.end - range.start);
-    const leftRatio = (localStart - range.start) / denominator;
-    const rightRatio = (localEnd - range.start) / denominator;
+    const { leftRatio, rightRatio } = layout.getLineSelectionRatios(localStart, localEnd, index);
     const left = target.region.x + clamp(leftRatio, 0, 1) * target.region.width;
     const right = target.region.x + clamp(rightRatio, 0, 1) * target.region.width;
     const top = target.region.y + index * lineHeight;

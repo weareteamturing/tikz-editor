@@ -46,6 +46,19 @@ async function readTextareaSelectedText(page: Page): Promise<string> {
   });
 }
 
+async function readCanvasCaretCenter(page: Page): Promise<{ x: number; y: number }> {
+  const caret = page.getByTestId("canvas-text-selection-caret");
+  await expect(caret).toBeVisible();
+  const box = await caret.boundingBox();
+  if (!box) {
+    throw new Error("Expected caret bounds.");
+  }
+  return {
+    x: box.x + box.width / 2,
+    y: box.y + box.height / 2
+  };
+}
+
 async function dispatchTextareaBeforeInput(
   page: Page,
   inputType: string,
@@ -637,6 +650,28 @@ test("fallback-rendered invalid MathJax text still enters canvas edit mode", asy
   await page.keyboard.type("x$");
   await expect(textarea).toHaveValue("$x$");
   await expect.poll(async () => await readStoreSource(page)).toContain("{$x$}");
+});
+
+test("explicit multiline math nodes collapse first-line caret positions by rendered prefix width", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[align=center] at (0,0) {$x$ \\ variable};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toHaveValue(String.raw`$x$ \\ variable`);
+
+  const centers: Array<{ x: number; y: number }> = [];
+  for (const offset of [0, 1, 2, 3, 7]) {
+    await setTextareaSelection(page, offset, offset);
+    centers.push(await readCanvasCaretCenter(page));
+  }
+
+  expect(centers[0]?.x).toBeCloseTo(centers[1]?.x ?? 0, 3);
+  expect(centers[2]?.x).toBeCloseTo(centers[3]?.x ?? 0, 3);
+  expect((centers[2]?.x ?? 0)).toBeGreaterThan(centers[1]?.x ?? 0);
+  expect((centers[4]?.y ?? 0)).toBeGreaterThan((centers[0]?.y ?? 0) + 10);
 });
 
 test("wrapped text-width nodes enter canvas edit mode and update source through the popup textarea", async ({ page }) => {

@@ -538,6 +538,9 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
   ): number {
     for (const run of runs) {
       if (run.kind === 'space') {
+        if (run.breakRef.kind === 'mspace') {
+          continue;
+        }
         const w = measurement.measureText(' ', run.wrapper);
         if (w > 0) {
           return w;

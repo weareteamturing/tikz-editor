@@ -125,7 +125,11 @@ export function createMeasurementService(): MeasurementService {
       if (run.kind === 'text') {
         precomputeWord(run.text, run.wrapper);
       } else if (run.kind === 'space') {
-        measureText(' ', run.wrapper);
+        if (run.breakRef.kind === 'mspace') {
+          measureMath(run.wrapper);
+        } else {
+          measureText(' ', run.wrapper);
+        }
       } else {
         measureMath(run.wrapper);
       }

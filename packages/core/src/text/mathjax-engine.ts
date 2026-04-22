@@ -76,6 +76,7 @@ const DEFAULT_FONT: MathJaxFont = "mathjax-newcm";
 const MIDLINE_FROM_BASELINE_RATIO = 0.215;
 const MATHJAX_PARAGRAPH_PT_PER_WIDTH_UNIT = 10;
 const MATHJAX_PARAGRAPH_WIDTH_UNIT_STEP = 0.001;
+const EXPLICIT_MULTILINE_UNBOUNDED_PARBOX_WIDTH_PT = 10000;
 const SINGLE_LINE_WIDTH_EPSILON_PT = 1e-4;
 const BROWSER_STARTUP_COMPONENT_URL = "https://cdn.jsdelivr.net/npm/mathjax@4/startup.js";
 const BROWSER_STARTUP_COMPONENT_ID = "tikz-editor-mathjax-startup";
@@ -991,11 +992,20 @@ function buildMeasuredCacheEntry(params: {
     });
   }
 
+  if (textWidthPt == null && explicitMultiline) {
+    return buildExplicitMultilineUnboundedCacheEntry({
+      runtime,
+      cacheKey,
+      sourceText,
+      font,
+      mode,
+      alignment
+    });
+  }
+
   const measuredWidth =
     textWidthPt ??
-    (explicitMultiline
-      ? measureExplicitMultilineNaturalWidth(runtime, exactSingleLineWidthCache, sourceText, font, mode)
-      : measureNaturalWidth(runtime, sourceText, font, mode));
+    measureNaturalWidth(runtime, sourceText, font, mode);
   if (!(Number.isFinite(measuredWidth) && measuredWidth > 0)) {
     return null;
   }
@@ -1255,12 +1265,19 @@ function renderMeasuredNodeWithPromise(
     return runtime.tex2svgPromise!(tex, { display: false });
   }
 
+  if (params.textWidthPt == null && explicitMultiline) {
+    return renderExplicitMultilineUnboundedNodeWithPromise(runtime, {
+      sourceText: params.sourceText,
+      font: params.font,
+      mode: params.mode,
+      alignment: params.alignment
+    });
+  }
+
   const measuredWidthPromise =
     params.textWidthPt != null
       ? Promise.resolve(params.textWidthPt)
-      : explicitMultiline
-        ? measureExplicitMultilineNaturalWidthWithPromise(runtime, params.sourceText, params.font, params.mode)
-        : measureNaturalWidthWithPromise(runtime, params.sourceText, params.font, params.mode);
+      : measureNaturalWidthWithPromise(runtime, params.sourceText, params.font, params.mode);
 
   return measuredWidthPromise.then((measuredWidthPt) => {
     if (!(Number.isFinite(measuredWidthPt) && measuredWidthPt > 0)) {
@@ -1294,6 +1311,62 @@ function resolveParagraphReportById(runtime: MathJaxRuntime, paragraphId: string
     getActiveMathJaxOutputJax();
   const reports = getKnuthPlassReportsFromOutputJax(outputJax);
   return reports.find((report) => report.paragraphId === paragraphId) ?? null;
+}
+
+function buildExplicitMultilineUnboundedCacheEntry(params: {
+  runtime: MathJaxRuntime;
+  cacheKey: string;
+  sourceText: string;
+  font: TextFontOptions;
+  mode: "text" | "math";
+  alignment: NodeTextParagraphAlignment | null;
+}): CachedRenderEntry | null {
+  const { runtime, cacheKey, sourceText, font, mode, alignment } = params;
+  const adaptor = runtime.startup?.adaptor ?? null;
+  applyKnuthPlassRuntimeOptions(runtime, alignment);
+  const wideTex = buildWrappedTeX(sourceText, EXPLICIT_MULTILINE_UNBOUNDED_PARBOX_WIDTH_PT, font, mode);
+  const wideNode = runtime.tex2svg(wideTex, { display: false });
+  const wideEntry = buildCacheEntryWithMetadata(cacheKey, wideNode, adaptor, sourceText, null);
+  const exactWidthPt = measureParagraphRunWidth(resolveParagraphReportById(runtime, wideEntry?.paragraphId ?? null));
+  if (!(Number.isFinite(exactWidthPt) && exactWidthPt != null && exactWidthPt > 0)) {
+    return wideEntry;
+  }
+
+  const exactTex = buildWrappedTeX(sourceText, exactWidthPt, font, mode);
+  const exactNode = runtime.tex2svg(exactTex, { display: false });
+  return buildCacheEntryWithMetadata(cacheKey, exactNode, adaptor, sourceText, null);
+}
+
+async function renderExplicitMultilineUnboundedNodeWithPromise(
+  runtime: MathJaxRuntime,
+  params: {
+    sourceText: string;
+    font: TextFontOptions;
+    mode: "text" | "math";
+    alignment: NodeTextParagraphAlignment | null;
+  }
+): Promise<unknown> {
+  if (typeof runtime.tex2svgPromise !== "function") {
+    return Promise.reject(new Error("MathJax promise renderer is unavailable."));
+  }
+
+  const adaptor = runtime.startup?.adaptor ?? null;
+  applyKnuthPlassRuntimeOptions(runtime, params.alignment);
+  const wideTex = buildWrappedTeX(
+    params.sourceText,
+    EXPLICIT_MULTILINE_UNBOUNDED_PARBOX_WIDTH_PT,
+    params.font,
+    params.mode
+  );
+  const wideNode = await runtime.tex2svgPromise(wideTex, { display: false });
+  const wideEntry = buildCacheEntryWithMetadata("__measure__", wideNode, adaptor, params.sourceText, null);
+  const exactWidthPt = await waitForParagraphRunWidth(runtime, wideEntry?.paragraphId ?? null);
+  if (!(Number.isFinite(exactWidthPt) && exactWidthPt != null && exactWidthPt > 0)) {
+    return wideNode;
+  }
+
+  const exactTex = buildWrappedTeX(params.sourceText, exactWidthPt, params.font, params.mode);
+  return runtime.tex2svgPromise(exactTex, { display: false });
 }
 
 function buildExactSingleLineCacheEntry(params: {

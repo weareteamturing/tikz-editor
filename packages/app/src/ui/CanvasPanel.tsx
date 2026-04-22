@@ -78,6 +78,7 @@ import {
   resolveBezierControlsFromBend
 } from "./canvas-panel/interaction-helpers";
 import { useCanvasDragController } from "./canvas-panel/useCanvasDragController";
+import { applyTextMeasureFont, collectLogicalLineRanges, createVisualTextLayout } from "./canvas-panel/text-visual-layout";
 import type {
   ApplyActionFeedback,
   DragState,
@@ -588,55 +589,6 @@ function resolveWordSelectionRange(
   return { start, end };
 }
 
-function collectLogicalLineRanges(text: string): TextLineRange[] {
-  if (text.length === 0) {
-    return [{ start: 0, end: 0 }];
-  }
-  const ranges: TextLineRange[] = [];
-  let start = 0;
-  let cursor = 0;
-  while (cursor < text.length) {
-    if (text[cursor] === "\r") {
-      const next = text[cursor + 1] === "\n" ? cursor + 2 : cursor + 1;
-      ranges.push({ start, end: cursor });
-      start = next;
-      cursor = next;
-      continue;
-    }
-    if (text[cursor] === "\n") {
-      ranges.push({ start, end: cursor });
-      start = cursor + 1;
-      cursor += 1;
-      continue;
-    }
-    if (text[cursor] === "\\" && text[cursor + 1] === "\\") {
-      let next = cursor + 2;
-      if (text[next] === "*") {
-        next += 1;
-      }
-      while (next < text.length && /\s/.test(text[next] ?? "")) {
-        next += 1;
-      }
-      if (text[next] === "[") {
-        let bracketCursor = next + 1;
-        while (bracketCursor < text.length && text[bracketCursor] !== "]") {
-          bracketCursor += 1;
-        }
-        if (bracketCursor < text.length) {
-          next = bracketCursor + 1;
-        }
-      }
-      ranges.push({ start, end: cursor });
-      start = next;
-      cursor = next;
-      continue;
-    }
-    cursor += 1;
-  }
-  ranges.push({ start, end: text.length });
-  return ranges;
-}
-
 function resolveLogicalLineRangeForOffset(text: string, offset: number): TextLineRange {
   const boundedOffset = clamp(offset, 0, text.length);
   const ranges = collectLogicalLineRanges(text);
@@ -681,6 +633,25 @@ function resolveTextSelectionRangeForDrag(
   };
 }
 
+let fallbackTextMeasureContext: CanvasRenderingContext2D | null | undefined;
+
+function getFallbackTextMeasureContext(): CanvasRenderingContext2D | null {
+  if (fallbackTextMeasureContext !== undefined) {
+    return fallbackTextMeasureContext;
+  }
+  if (typeof document === "undefined") {
+    fallbackTextMeasureContext = null;
+    return fallbackTextMeasureContext;
+  }
+  const canvas = document.createElement("canvas");
+  fallbackTextMeasureContext = canvas.getContext("2d");
+  return fallbackTextMeasureContext;
+}
+
+function applyFallbackMeasureFont(ctx: CanvasRenderingContext2D | null, target: EditableTextTarget): void {
+  applyTextMeasureFont(ctx, target.style);
+}
+
 function estimateTextOffsetFromClient(
   target: EditableTextTarget,
   clientPoint: ClientPoint,
@@ -701,7 +672,34 @@ function estimateTextOffsetFromClient(
     contentBox.width <= 1e-6
       ? 1
       : clamp((localPoint.x - contentBox.x) / contentBox.width, 0, 1);
-  return clamp(Math.round(xRatio * target.text.length), 0, target.text.length);
+
+  const ranges = collectLogicalLineRanges(target.text);
+  if (ranges.length <= 1) {
+    return clamp(Math.round(xRatio * target.text.length), 0, target.text.length);
+  }
+
+  const ctx = getFallbackTextMeasureContext();
+  applyFallbackMeasureFont(ctx, target);
+  const layout = createVisualTextLayout(
+    target.text,
+    target.renderSourceText ?? target.text,
+    (text) => {
+      if (!ctx) {
+        return Number.NaN;
+      }
+      return ctx.measureText(text).width;
+    }
+  );
+
+  const yRatio =
+    contentBox.height <= 1e-6
+      ? 0
+      : clamp((localPoint.y - contentBox.y) / contentBox.height, 0, 0.999999);
+  const lineIndex = Math.min(
+    ranges.length - 1,
+    Math.max(0, Math.floor(yRatio * ranges.length))
+  );
+  return layout.resolveSourceOffsetFromLineRatio(lineIndex, xRatio);
 }
 
 function estimateTextLineRangeFromClient(

@@ -577,6 +577,72 @@ World};
     expect(countLineboxes(result.svg.svg)).toBeGreaterThan(1);
   });
 
+  it("keeps explicit multiline rendering for align=center when the first line is inline math", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[align=center] at (0,0) {$x$ \\ variable};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.text).toBe("$x$\nvariable");
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.layoutKind).toBe("explicit-multiline");
+      }
+    }
+    expect(result.svg.svg).toContain(String.raw`\parbox[t]{`);
+    expect(result.svg.svg).toContain('data-paragraph-id=');
+    expect(countLineboxes(result.svg.svg)).toBeGreaterThan(1);
+    const xs = readLineboxTranslateXs(result.svg.svg);
+    expect(xs.some((x) => x > 0.5)).toBe(true);
+  });
+
+  it("uses a wide fixed parbox for align=left explicit multiline text without text width", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[align=left] at (0,0) {a \\ variable};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.text).toBe("a\nvariable");
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.layoutKind).toBe("explicit-multiline");
+      }
+    }
+
+    expect(countLineboxes(result.svg.svg)).toBe(2);
+    expect(result.svg.svg).not.toContain('data-c="2D"');
+    expect(result.semantic.scene.bounds).toBeDefined();
+    expect((result.semantic.scene.bounds?.maxX ?? 0) - (result.semantic.scene.bounds?.minX ?? 0)).toBeLessThan(100);
+  });
+
+  it("does not hyphenate the second line of align=left explicit multiline inline math nodes without text width", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[align=left] at (0,0) {$x$ \\ variable};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.text).toBe("$x$\nvariable");
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        expect(renderInfo.layoutKind).toBe("explicit-multiline");
+      }
+    }
+
+    expect(countLineboxes(result.svg.svg)).toBe(2);
+    expect(result.svg.svg).not.toContain('data-c="2D"');
+    expect(result.semantic.scene.bounds).toBeDefined();
+    expect((result.semantic.scene.bounds?.maxX ?? 0) - (result.semantic.scene.bounds?.minX ?? 0)).toBeLessThan(100);
+  });
+
   it("does not preserve a leading space after \\\\ for wrapped text width nodes", async () => {
     const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
   \node[draw,text width=5cm] (A) at (-1, -1) {This is the first line \\ and this is the second};

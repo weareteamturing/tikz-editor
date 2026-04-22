@@ -744,7 +744,7 @@ function buildRunRawRanges(
       return false;
     }
     if (run.kind === 'space') {
-      return /\s/.test(sourceText.charAt(start as number));
+      return /\s/.test(sourceText.charAt(start as number)) || consumeTeXLinebreakCommand(start as number) != null;
     }
     const text = String(run.text ?? '');
     return text.length > 0 && sourceText.startsWith(text, start as number);
