@@ -4,6 +4,8 @@ import { renderTikzToSvg, renderTikzToSvgAsync } from "../packages/core/src/rend
 import { parseLength } from "../packages/core/src/semantic/coords/parse-length.js";
 import type { SceneCircle, ScenePath, SceneText } from "../packages/core/src/semantic/types.js";
 import { applyMatrix } from "../packages/core/src/semantic/transform.js";
+import { getKnuthPlassReportsFromOutputJax } from "../packages/core/src/text/knuth-plass/index.js";
+import { getActiveMathJaxOutputJax } from "../packages/core/src/text/mathjax-engine.js";
 import type { NodeTextEngine, NodeTextMeasureRequest, NodeTextMetrics } from "../packages/core/src/text/types.js";
 
 function readLineboxTranslateXs(svg: string): number[] {
@@ -19,6 +21,11 @@ function readLineboxTranslateXs(svg: string): number[] {
 
 function countLineboxes(svg: string): number {
   return (svg.match(/data-mjx-linebox=/g) ?? []).length;
+}
+
+function reportForParagraphId(paragraphId: string | null) {
+  const reports = getKnuthPlassReportsFromOutputJax(getActiveMathJaxOutputJax());
+  return reports.find((report) => report.paragraphId === paragraphId) ?? null;
 }
 
 function pathBounds(path: ScenePath): { minX: number; minY: number; maxX: number; maxY: number } | null {
@@ -554,6 +561,7 @@ World};
     }
     expect(result.svg.svg).toContain(String.raw`\parbox[t]{`);
     expect(result.svg.svg).toContain('data-paragraph-id=');
+    expect(result.svg.svg).not.toContain(String.raw`\begin{array}`);
     expect(countLineboxes(result.svg.svg)).toBeGreaterThan(1);
   });
 
@@ -599,7 +607,7 @@ World};
     expect(xs.some((x) => x > 0.5)).toBe(true);
   });
 
-  it("uses a wide fixed parbox for align=left explicit multiline text without text width", async () => {
+  it("keeps align=left explicit multiline text without text width on the fixed-lines paragraph path", async () => {
     const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
   \node[align=left] at (0,0) {a \\ variable};
 \end{tikzpicture}`);
@@ -616,6 +624,9 @@ World};
     }
 
     expect(countLineboxes(result.svg.svg)).toBe(2);
+    expect(result.svg.svg).toContain('data-paragraph-id=');
+    expect(result.svg.svg).not.toContain(String.raw`\begin{array}`);
+    expect(result.svg.svg).not.toContain("10000pt");
     expect(result.svg.svg).not.toContain('data-c="2D"');
     expect(result.semantic.scene.bounds).toBeDefined();
     expect((result.semantic.scene.bounds?.maxX ?? 0) - (result.semantic.scene.bounds?.minX ?? 0)).toBeLessThan(100);
@@ -638,6 +649,9 @@ World};
     }
 
     expect(countLineboxes(result.svg.svg)).toBe(2);
+    expect(result.svg.svg).toContain('data-paragraph-id=');
+    expect(result.svg.svg).not.toContain(String.raw`\begin{array}`);
+    expect(result.svg.svg).not.toContain("10000pt");
     expect(result.svg.svg).not.toContain('data-c="2D"');
     expect(result.semantic.scene.bounds).toBeDefined();
     expect((result.semantic.scene.bounds?.maxX ?? 0) - (result.semantic.scene.bounds?.minX ?? 0)).toBeLessThan(100);
@@ -686,6 +700,7 @@ World};
     }
     expect(result.svg.svg).toContain(String.raw`\parbox[t]{`);
     expect(result.svg.svg).toContain('data-paragraph-id=');
+    expect(result.svg.svg).not.toContain(String.raw`\begin{array}`);
     expect(countLineboxes(result.svg.svg)).toBeGreaterThan(1);
   });
 
@@ -728,6 +743,7 @@ World};
 
     expect(result.svg.svg).toContain(String.raw`\parbox[t]{`);
     expect(result.svg.svg).toContain('data-paragraph-id=');
+    expect(result.svg.svg).not.toContain(String.raw`\begin{array}`);
     expect(countLineboxes(result.svg.svg)).toBeGreaterThan(1);
     expect(result.svg.svg).toContain(String.raw`\\[10pt]`);
     expect(result.svg.svg).not.toContain('data-c="5B"');
@@ -822,12 +838,14 @@ World};
       expect(renderInfo?.mode).toBe("mathjax");
       if (renderInfo?.mode === "mathjax") {
         expect(renderInfo.layoutKind).toBe("explicit-multiline");
+        expect(renderInfo.paragraphId).toBeTruthy();
       }
     }
-    expect(result.svg.svg).toContain(
-      String.raw`\begin{array}{@{}c@{}}\mbox{This is the first line}\\\mbox{and this is the second line which is much longer}\end{array}`
-    );
-    expect(result.svg.svg).toContain('preserveAspectRatio="xMidYMid meet"');
+    expect(result.svg.svg).toContain('data-paragraph-id=');
+    expect(result.svg.svg).not.toContain(String.raw`\begin{array}`);
+    expect(countLineboxes(result.svg.svg)).toBe(2);
+    const centeredXs = readLineboxTranslateXs(result.svg.svg);
+    expect(centeredXs[0] ?? 0).toBeGreaterThan(0.5);
   });
 
   it("right-aligns explicit line breaks inside text width when align=right", async () => {
@@ -843,12 +861,100 @@ World};
       expect(renderInfo?.mode).toBe("mathjax");
       if (renderInfo?.mode === "mathjax") {
         expect(renderInfo.layoutKind).toBe("explicit-multiline");
+        expect(renderInfo.paragraphId).toBeTruthy();
       }
     }
-    expect(result.svg.svg).toContain(
-      String.raw`\begin{array}{@{}r@{}}\mbox{This is the first line}\\\mbox{and this is the second line which is much longer}\end{array}`
-    );
+    expect(result.svg.svg).toContain('data-paragraph-id=');
+    expect(result.svg.svg).not.toContain(String.raw`\begin{array}`);
+    expect(countLineboxes(result.svg.svg)).toBe(2);
+    const rightXs = readLineboxTranslateXs(result.svg.svg);
+    expect(rightXs[0] ?? 0).toBeGreaterThan(0.5);
+  });
+
+  it("keeps centered explicit multiline text-width paragraphs on the wrapped-explicit path across multiple forced breaks", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=10cm,align=center] at (0,0) {Alpha \\ Beta \\ The longest line here};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    let reportParagraphId: string | null = null;
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text" && text.textRenderInfo?.mode === "mathjax") {
+      expect(text.text).toBe("Alpha\nBeta\nThe longest line here");
+      expect(text.textRenderInfo.layoutKind).toBe("explicit-multiline");
+      expect(text.textRenderInfo.paragraphId).toBeTruthy();
+      reportParagraphId = text.textRenderInfo.paragraphId;
+    }
+    const report = reportForParagraphId(reportParagraphId);
+    expect(result.svg.svg).toContain('data-paragraph-id=');
+    expect(result.svg.svg).not.toContain(String.raw`\begin{array}`);
+    expect(countLineboxes(result.svg.svg)).toBe(3);
+    expect(report?.layoutMode).toBe("wrapped-explicit");
+    expect(report?.lines).toHaveLength(3);
+    expect(report?.errors.some((entry) => entry === "pass=single-line")).toBe(false);
+    expect(result.svg.svg).toContain('preserveAspectRatio="xMidYMid meet"');
+  });
+
+  it("keeps right-aligned explicit multiline text-width paragraphs on the wrapped-explicit path across multiple forced breaks", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=10cm,align=right] at (0,0) {Alpha \\ Beta \\ The longest line here};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    let reportParagraphId: string | null = null;
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text" && text.textRenderInfo?.mode === "mathjax") {
+      expect(text.text).toBe("Alpha\nBeta\nThe longest line here");
+      expect(text.textRenderInfo.layoutKind).toBe("explicit-multiline");
+      expect(text.textRenderInfo.paragraphId).toBeTruthy();
+      reportParagraphId = text.textRenderInfo.paragraphId;
+    }
+    const report = reportForParagraphId(reportParagraphId);
+    expect(result.svg.svg).toContain('data-paragraph-id=');
+    expect(result.svg.svg).not.toContain(String.raw`\begin{array}`);
+    expect(countLineboxes(result.svg.svg)).toBe(3);
+    expect(report?.layoutMode).toBe("wrapped-explicit");
+    expect(report?.lines).toHaveLength(3);
+    expect(report?.errors.some((entry) => entry === "pass=single-line")).toBe(false);
     expect(result.svg.svg).toContain('preserveAspectRatio="xMaxYMid meet"');
+  });
+
+  it("preserves \\\\[<len>] for centered text-width paragraphs with multiple explicit breaks", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=10cm,align=center] at (0,0) {Alpha \\[10pt] Beta \\ The longest line here};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    const report =
+      text?.kind === "Text" && text.textRenderInfo?.mode === "mathjax"
+        ? reportForParagraphId(text.textRenderInfo.paragraphId)
+        : null;
+    expect(countLineboxes(result.svg.svg)).toBe(3);
+    expect(result.svg.svg).toContain('data-lineleading="10pt"');
+    expect(result.svg.svg).not.toContain('data-c="5B"');
+    expect(result.svg.svg).not.toContain('data-c="5D"');
+    expect(report?.layoutMode).toBe("wrapped-explicit");
+    expect(report?.lines).toHaveLength(3);
+    expect(report?.lines[0]?.break?.lineLeading).toBe("10pt");
+  });
+
+  it("preserves \\\\[<len>] for right-aligned text-width paragraphs with multiple explicit breaks", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=10cm,align=right] at (0,0) {Alpha \\[10pt] Beta \\ The longest line here};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    const report =
+      text?.kind === "Text" && text.textRenderInfo?.mode === "mathjax"
+        ? reportForParagraphId(text.textRenderInfo.paragraphId)
+        : null;
+    expect(countLineboxes(result.svg.svg)).toBe(3);
+    expect(result.svg.svg).toContain('data-lineleading="10pt"');
+    expect(result.svg.svg).not.toContain('data-c="5B"');
+    expect(result.svg.svg).not.toContain('data-c="5D"');
+    expect(report?.layoutMode).toBe("wrapped-explicit");
+    expect(report?.lines).toHaveLength(3);
+    expect(report?.lines[0]?.break?.lineLeading).toBe("10pt");
   });
 
   it("preserves node font italic styling through MathJax wrappers in async mode", async () => {

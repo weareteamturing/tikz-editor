@@ -911,6 +911,32 @@ test("explicit multiline aligned text keeps authored line breaks and canvas sele
   }
 });
 
+test("wrapped multiline MathJax nodes edit without paragraph-geometry fallback errors", async ({ page }) => {
+  const geometryErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() !== "error") {
+      return;
+    }
+    const text = message.text();
+    if (text.includes("Missing paragraph geometry for multiline MathJax")) {
+      geometryErrors.push(text);
+    }
+  });
+
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[draw,text width=3cm,align=right] at (0,0) {alpha beta gamma delta epsilon};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toHaveValue("alpha beta gamma delta epsilon");
+
+  await setTextareaSelection(page, 0, 5);
+  await expect.poll(async () => page.getByTestId("canvas-text-selection-rect").count()).toBeGreaterThan(0);
+  await expect(geometryErrors).toEqual([]);
+});
+
 test("filled nodes still enter text edit mode from the text region and remain draggable from the move region", async ({ page }) => {
   await gotoApp(page);
   const initialSource = String.raw`\begin{tikzpicture}
@@ -1030,6 +1056,26 @@ test("clicking rendered wrapped text updates the textarea selection", async ({ p
   await expect.poll(async () => await readTextareaSelection(page)).not.toEqual(initialSelection);
 });
 
+test("clicking rendered wrapped align=right multiline text updates the textarea selection", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[text width=2.6cm,align=right] at (0,0) {alpha beta gamma delta epsilon};
+\end{tikzpicture}`);
+
+  const textRegion = page.locator("[data-hit-region-target-id='path:0'][data-hit-region-interaction-mode='text']").first();
+  const box = await textRegion.boundingBox();
+  if (!box) {
+    throw new Error("Missing wrapped align=right text hit-region bounds.");
+  }
+
+  await page.mouse.click(box.x + 8, box.y + box.height * 0.3);
+  const initialSelection = await readTextareaSelection(page);
+  await expect(page.getByTestId("canvas-text-edit-textarea")).toHaveValue("alpha beta gamma delta epsilon");
+
+  await page.mouse.click(box.x + box.width - 8, box.y + box.height * 0.75);
+  await expect.poll(async () => await readTextareaSelection(page)).not.toEqual(initialSelection);
+});
+
 test("dragging across rendered MathJax node text creates a canvas selection in Chrome", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}
@@ -1060,6 +1106,118 @@ test("dragging across rendered MathJax node text creates a canvas selection in C
     return selection.start != null && selection.end != null && selection.end > selection.start;
   }).toBe(true);
   await expect.poll(async () => page.getByTestId("canvas-text-selection-rect").count()).toBeGreaterThan(0);
+});
+
+test("dragging across wrapped align=right multiline text creates a multiline canvas selection", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[text width=2.6cm,align=right] at (0,0) {alpha beta gamma delta epsilon};
+\end{tikzpicture}`);
+
+  await waitForHitRegions(page, 1);
+  await dispatchTextRegionPointerDrag(page, {
+    targetId: "path:0",
+    clickCount: 1,
+    startRatioX: 0.9,
+    startRatioY: 0.2,
+    endRatioX: 0.1,
+    endRatioY: 0.85
+  });
+
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeVisible();
+  await expect(textarea).toBeFocused();
+  await expect.poll(async () => {
+    const selection = await readTextareaSelection(page);
+    return selection.start != null && selection.end != null && selection.end > selection.start;
+  }).toBe(true);
+  await expect.poll(async () => page.getByTestId("canvas-text-selection-rect").count()).toBeGreaterThan(1);
+});
+
+test("textarea selection projects to multiple canvas rects for wrapped align=right multiline text", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[text width=2.6cm,align=right] at (0,0) {alpha beta gamma delta epsilon};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  await expect(page.getByTestId("canvas-text-edit-textarea")).toHaveValue("alpha beta gamma delta epsilon");
+
+  await setTextareaSelection(page, 0, "alpha beta gamma delta epsilon".length);
+  await expect(page.getByTestId("canvas-text-selection-caret")).toHaveCount(0);
+  await expect.poll(async () => page.getByTestId("canvas-text-selection-rect").count()).toBeGreaterThan(1);
+});
+
+test("clicking rendered wrapped-explicit align=right text updates the textarea selection", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[text width=3cm,align=right] at (0,0) {Alpha \\[10pt] Beta \\ The longest line here};
+\end{tikzpicture}`);
+
+  const textRegion = page.locator("[data-hit-region-target-id='path:0'][data-hit-region-interaction-mode='text']").first();
+  const box = await textRegion.boundingBox();
+  if (!box) {
+    throw new Error("Missing wrapped-explicit align=right text hit-region bounds.");
+  }
+
+  await page.mouse.click(box.x + box.width - 8, box.y + box.height * 0.2);
+  const initialSelection = await readTextareaSelection(page);
+  await expect(page.getByTestId("canvas-text-edit-textarea")).toHaveValue("Alpha \\\\[10pt] Beta \\\\ The longest line here");
+
+  await page.mouse.click(box.x + 8, box.y + box.height * 0.85);
+  await expect.poll(async () => await readTextareaSelection(page)).not.toEqual(initialSelection);
+});
+
+test("dragging across wrapped-explicit align=right text creates a multiline canvas selection", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[text width=3cm,align=right] at (0,0) {Alpha \\[10pt] Beta \\ The longest line here};
+\end{tikzpicture}`);
+
+  await waitForHitRegions(page, 1);
+  await dispatchTextRegionPointerDrag(page, {
+    targetId: "path:0",
+    clickCount: 1,
+    startRatioX: 0.95,
+    startRatioY: 0.1,
+    endRatioX: 0.1,
+    endRatioY: 0.9
+  });
+
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeVisible();
+  await expect(textarea).toBeFocused();
+  await expect.poll(async () => {
+    const selection = await readTextareaSelection(page);
+    return selection.start != null && selection.end != null && selection.end > selection.start;
+  }).toBe(true);
+  await expect.poll(async () => page.getByTestId("canvas-text-selection-rect").count()).toBeGreaterThan(1);
+});
+
+test("wrapped-explicit align=right selections cross the \\[10pt] boundary without paragraph-geometry errors", async ({ page }) => {
+  const geometryErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() !== "error") {
+      return;
+    }
+    const text = message.text();
+    if (text.includes("paragraph geometry")) {
+      geometryErrors.push(text);
+    }
+  });
+
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[text width=3cm,align=right] at (0,0) {Alpha \\[10pt] Beta \\ The longest line here};
+\end{tikzpicture}`);
+
+  await clickTextHitRegionByTargetId(page, "path:0");
+  await expect(page.getByTestId("canvas-text-edit-textarea")).toHaveValue("Alpha \\\\[10pt] Beta \\\\ The longest line here");
+
+  await setTextareaSelection(page, 0, "Alpha \\\\[10pt] Beta \\\\ The longest line here".length);
+  await expect(page.getByTestId("canvas-text-selection-caret")).toHaveCount(0);
+  await expect.poll(async () => page.getByTestId("canvas-text-selection-rect").count()).toBeGreaterThan(1);
+  await expect(geometryErrors).toEqual([]);
 });
 
 test("cmd/ctrl+x stays scoped to the textarea while editing node text", async ({ page }) => {
@@ -1246,6 +1404,7 @@ test("typing trailing backslash in node text stays local until stabilized by nex
   await expect(textarea).toBeVisible();
   await expect(textarea).toBeFocused();
   await expect(textarea).toHaveValue("A");
+  await textarea.press("End");
   await expect.poll(async () => await readTextareaSelection(page)).toEqual({ start: 1, end: 1 });
   await page.keyboard.type("\\");
   await expect(textarea).toHaveValue("A\\");
@@ -1272,6 +1431,7 @@ test("typing two backslashes then backspacing twice restores original node sourc
   await expect(textarea).toBeVisible();
   await expect(textarea).toBeFocused();
   await expect(textarea).toHaveValue("A");
+  await textarea.press("End");
   await expect.poll(async () => await readTextareaSelection(page)).toEqual({ start: 1, end: 1 });
 
   await page.keyboard.type("\\\\");

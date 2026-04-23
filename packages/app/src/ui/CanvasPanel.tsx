@@ -2243,6 +2243,7 @@ export const CanvasPanel = memo(function CanvasPanel({
           sceneText.textRenderInfo?.mode === "mathjax"
             ? sceneText.textRenderInfo.renderSourceText
             : sourceSlice,
+        usesMathJax: sceneText.textRenderInfo?.mode === "mathjax",
         paragraphId:
           sceneText.textRenderInfo?.mode === "mathjax"
             ? sceneText.textRenderInfo.paragraphId
@@ -2332,7 +2333,16 @@ export const CanvasPanel = memo(function CanvasPanel({
     async (target: EditableTextTarget, clientPoint: ClientPoint): Promise<number | null> => {
       const outputJax = getActiveMathJaxOutputJax();
       const containerElement = resolveRenderedMathTextElement(target);
+      const requiresParagraphGeometry = target.usesMathJax && target.layoutKind !== "single-line";
       if (!target.paragraphId || !outputJax || !containerElement) {
+        if (requiresParagraphGeometry) {
+          console.error("[canvas-text-edit] Missing paragraph geometry for multiline MathJax hit-testing.", {
+            sourceId: target.sourceId,
+            paragraphId: target.paragraphId,
+            layoutKind: target.layoutKind
+          });
+          return null;
+        }
         return estimateTextOffsetFromClient(
           target,
           clientPoint,
@@ -2366,6 +2376,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     async (target: EditableTextTarget, clientPoint: ClientPoint): Promise<TextLineRange | null> => {
       const outputJax = getActiveMathJaxOutputJax();
       const containerElement = resolveRenderedMathTextElement(target);
+      const requiresParagraphGeometry = target.usesMathJax && target.layoutKind !== "single-line";
       if (target.paragraphId && outputJax && containerElement) {
         const result = await getKnuthPlassLineRangeFromPoint(outputJax, {
           paragraphId: target.paragraphId,
@@ -2382,6 +2393,14 @@ export const CanvasPanel = memo(function CanvasPanel({
             end: Math.max(start, end)
           };
         }
+      }
+      if (requiresParagraphGeometry) {
+        console.error("[canvas-text-edit] Missing paragraph geometry for multiline MathJax line-range resolution.", {
+          sourceId: target.sourceId,
+          paragraphId: target.paragraphId,
+          layoutKind: target.layoutKind
+        });
+        return null;
       }
       return estimateTextLineRangeFromClient(
         target,
@@ -2433,14 +2452,17 @@ export const CanvasPanel = memo(function CanvasPanel({
       const clickCount = event.detail >= 2 ? event.detail : 1;
       const mode = resolveTextSelectionModeFromClickCount(clickCount);
       const clientPoint = makeClientPoint(px(event.clientX), px(event.clientY));
-      const provisionalOffset = estimateTextOffsetFromClient(
-        target,
-        clientPoint,
-        interactionSvgRef.current,
-        viewportRef,
-        svgResult,
-        canvasTransform
-      );
+      const requiresParagraphGeometry = target.usesMathJax && target.layoutKind !== "single-line";
+      const provisionalOffset = requiresParagraphGeometry
+        ? 0
+        : estimateTextOffsetFromClient(
+            target,
+            clientPoint,
+            interactionSvgRef.current,
+            viewportRef,
+            svgResult,
+            canvasTransform
+          );
       const provisionalLineRange = mode === "line"
         ? resolveLogicalLineRangeForOffset(target.text, provisionalOffset)
         : null;

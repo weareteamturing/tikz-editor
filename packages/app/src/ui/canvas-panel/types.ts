@@ -259,6 +259,7 @@ export type TextEditingSession = {
   selectionStart: number;
   selectionEnd: number;
   historyMergeKey: string;
+  usesMathJax: boolean;
   paragraphId: string | null;
   renderSourceText: string;
   layoutKind: NodeTextLayoutKind;
@@ -277,6 +278,7 @@ export type EditableTextTarget = {
   sourceSpan: Span;
   text: string;
   renderSourceText: string;
+  usesMathJax: boolean;
   paragraphId: string | null;
   layoutKind: NodeTextLayoutKind;
   style: SceneText["style"];

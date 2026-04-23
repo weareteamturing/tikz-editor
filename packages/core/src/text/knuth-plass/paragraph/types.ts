@@ -78,6 +78,7 @@ export interface BreakDecision {
   runIndex: number;
   sourceOffset: number;
   visibleHyphen: boolean;
+  lineLeading?: string;
   hyphenSource?: 'automatic' | 'explicit';
   splitOffset?: number;
   flagged?: boolean;

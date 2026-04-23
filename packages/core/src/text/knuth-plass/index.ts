@@ -17,6 +17,7 @@ export {
   getKnuthPlassSelectionRects,
   clearKnuthPlassCaretMappingCache,
   type KnuthPlassConfig,
+  type KnuthPlassLayoutMode,
   type MathJaxConfigLike,
   type MathJaxOutputConfig,
   type OutputJaxName,

@@ -2,6 +2,7 @@ import type { MeasurementService } from './measure.js';
 import type { AppliedBreak } from './applyBreaks.js';
 import type { GreedyLine, ParagraphRun } from './types.js';
 import type { ParagraphAlignment } from '../alignment.js';
+import type { KnuthPlassLayoutMode } from '../install.js';
 
 const JUSTIFY_SPACER = '\u200A';
 const JUSTIFY_SPACER_WIDTH_FACTOR = 0.2;
@@ -12,6 +13,7 @@ export interface ParagraphLayoutReport {
   paragraphId: string;
   width: number;
   alignment: ParagraphAlignment;
+  layoutMode: KnuthPlassLayoutMode;
   lines: LineReport[];
   runs: RunReport[];
   errors: string[];
@@ -59,6 +61,7 @@ export interface BreakReport {
   runIndex: number;
   sourceOffset: number;
   visibleHyphen: boolean;
+  lineLeading?: string;
   hyphenSource?: 'automatic' | 'explicit';
   splitOffset?: number;
 }
@@ -76,6 +79,7 @@ export interface BuildReportInput {
   paragraphId: string;
   width: number;
   alignment: ParagraphAlignment;
+  layoutMode: KnuthPlassLayoutMode;
   runs: ParagraphRun[];
   runWidths: Map<number, number>;
   lines: GreedyLine[];
@@ -159,6 +163,7 @@ export function buildParagraphLayoutReport({
   paragraphId,
   width,
   alignment,
+  layoutMode,
   runs,
   runWidths,
   lines,
@@ -316,6 +321,7 @@ export function buildParagraphLayoutReport({
             runIndex: appliedBreak.runIndex,
             sourceOffset: appliedBreak.sourceOffset,
             visibleHyphen: appliedBreak.visibleHyphen,
+            lineLeading: appliedBreak.lineLeading,
             hyphenSource: appliedBreak.hyphenSource,
             splitOffset: appliedBreak.splitOffset,
           }
@@ -325,6 +331,7 @@ export function buildParagraphLayoutReport({
               runIndex: line.break.runIndex,
               sourceOffset: line.break.sourceOffset,
               visibleHyphen: line.break.visibleHyphen,
+              lineLeading: line.break.lineLeading,
               hyphenSource: line.break.hyphenSource,
               splitOffset: line.break.splitOffset,
             }
@@ -336,6 +343,7 @@ export function buildParagraphLayoutReport({
     paragraphId,
     width,
     alignment,
+    layoutMode,
     lines: lineReports,
     runs: runReports,
     errors,

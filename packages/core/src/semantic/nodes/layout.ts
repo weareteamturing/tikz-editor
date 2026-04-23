@@ -165,6 +165,11 @@ export function resolveNodeLayout(
       paragraphAlignment
     };
   } else {
+    if (textEngine && layoutKind !== "single-line") {
+      throw new Error(
+        `Multiline MathJax measurement failed for node text layout (${layoutKind}).`
+      );
+    }
     const maxLineLength = textLines.reduce((max, line) => Math.max(max, line.length), 0);
     textNaturalWidth = maxLineLength * charWidth;
     textNaturalHeight = textLines.length * lineHeight;

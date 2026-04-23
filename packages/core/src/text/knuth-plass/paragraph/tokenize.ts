@@ -102,23 +102,63 @@ function normalizeForcedLineLeadingRuns(runs: ParagraphRun[]): ParagraphRun[] {
     }
   >();
 
+  const findLineLeadingTarget = (
+    forcedRunIndex: number
+  ): {
+    lineLeading: string;
+    consumed: number;
+    targetWrapper: AnyWrapper;
+    targetChildIndex: number;
+    targetWordIndex: number;
+    targetRunIndex: number;
+  } | null => {
+    for (let j = forcedRunIndex + 1; j < runs.length; j++) {
+      const candidate = runs[j];
+      if (!candidate) {
+        break;
+      }
+      if (candidate.kind === 'space') {
+        if (
+          candidate.breakRef.kind === 'mspace' &&
+          candidate.breakRef.isForcedLineBreak
+        ) {
+          break;
+        }
+        continue;
+      }
+      if (candidate.kind !== 'text') {
+        break;
+      }
+      const parsed = extractForcedLineLeadingPrefix(candidate.text);
+      if (!parsed) {
+        return null;
+      }
+      return {
+        lineLeading: parsed.lineLeading,
+        consumed: parsed.consumed,
+        targetWrapper: candidate.wrapper,
+        targetChildIndex: candidate.childIndex,
+        targetWordIndex: candidate.wordIndex,
+        targetRunIndex: j,
+      };
+    }
+    return null;
+  };
+
   for (let i = 0; i < runs.length - 1; i++) {
     const run = runs[i];
     if (run.kind !== 'space') continue;
     if (run.breakRef.kind !== 'mspace') continue;
     if (!run.breakRef.isForcedLineBreak && !run.breakRef.lineLeading) continue;
 
-    const next = runs[i + 1];
-    if (!next || next.kind !== 'text') continue;
-
-    const parsed = extractForcedLineLeadingPrefix(next.text);
+    const parsed = findLineLeadingTarget(i);
     if (!parsed) continue;
     lineLeadingByForcedRun.set(i, {
       lineLeading: parsed.lineLeading,
       consumed: parsed.consumed,
-      targetWrapper: next.wrapper,
-      targetChildIndex: next.childIndex,
-      targetWordIndex: next.wordIndex,
+      targetWrapper: parsed.targetWrapper,
+      targetChildIndex: parsed.targetChildIndex,
+      targetWordIndex: parsed.targetWordIndex,
     });
   }
 
@@ -128,7 +168,25 @@ function normalizeForcedLineLeadingRuns(runs: ParagraphRun[]): ParagraphRun[] {
 
   const trimmedByTextRun = new Map<number, number>();
   for (const [forcedRunIndex, parsed] of lineLeadingByForcedRun.entries()) {
-    trimmedByTextRun.set(forcedRunIndex + 1, parsed.consumed);
+    for (let j = forcedRunIndex + 1; j < runs.length; j++) {
+      const candidate = runs[j];
+      if (
+        candidate?.kind === 'text' &&
+        candidate.wrapper === parsed.targetWrapper &&
+        candidate.childIndex === parsed.targetChildIndex &&
+        candidate.wordIndex === parsed.targetWordIndex
+      ) {
+        trimmedByTextRun.set(j, parsed.consumed);
+        break;
+      }
+      if (
+        candidate?.kind === 'space' &&
+        candidate.breakRef.kind === 'mspace' &&
+        candidate.breakRef.isForcedLineBreak
+      ) {
+        break;
+      }
+    }
   }
 
   const normalized: ParagraphRun[] = [];

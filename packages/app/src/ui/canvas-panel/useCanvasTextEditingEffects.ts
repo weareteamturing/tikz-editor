@@ -256,6 +256,8 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
     const renderEnd = Math.max(renderAnchor, renderFocus);
 
     void (async () => {
+      const requiresParagraphGeometry =
+        target.usesMathJax && target.layoutKind !== "single-line";
       const pushOverlay = (overlay: TextSelectionOverlay | null) => {
         dispatchCanvasTextEditAction({
           type: "overlay_resolved",
@@ -267,6 +269,15 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
         });
       };
       const setRegionFallbackOverlay = () => {
+        if (requiresParagraphGeometry) {
+          console.error("[canvas-text-edit] Missing paragraph geometry for multiline MathJax overlay.", {
+            sourceId: target.sourceId,
+            paragraphId: target.paragraphId,
+            layoutKind: target.layoutKind
+          });
+          pushOverlay(null);
+          return;
+        }
         if (!svgResult) {
           pushOverlay(null);
           return;

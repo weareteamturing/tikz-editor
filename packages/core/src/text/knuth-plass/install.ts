@@ -17,9 +17,14 @@ import {
 } from './editor/hitmap.js';
 
 export type OutputJaxName = 'svg' | 'chtml';
+export type KnuthPlassLayoutMode =
+  | 'wrap'
+  | 'fixed-lines'
+  | 'wrapped-explicit';
 
 export interface KnuthPlassConfig {
   alignment?: ParagraphAlignment;
+  layoutMode?: KnuthPlassLayoutMode;
   pretolerance?: number;
   tolerance?: number;
   linepenalty?: number;

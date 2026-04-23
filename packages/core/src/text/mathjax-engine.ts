@@ -3,7 +3,8 @@ import {
   KnuthPlassVisitor,
   getKnuthPlassReportsFromOutputJax,
   installKnuthPlassVisitor,
-  setKnuthPlassOptionsOnOutputJax
+  setKnuthPlassOptionsOnOutputJax,
+  type KnuthPlassLayoutMode
 } from "./knuth-plass/index.js";
 import { preloadEnglishHyphenator } from "./knuth-plass/paragraph/hyphenate.js";
 import type { ParagraphLayoutReport } from "./knuth-plass/index.js";
@@ -76,7 +77,6 @@ const DEFAULT_FONT: MathJaxFont = "mathjax-newcm";
 const MIDLINE_FROM_BASELINE_RATIO = 0.215;
 const MATHJAX_PARAGRAPH_PT_PER_WIDTH_UNIT = 10;
 const MATHJAX_PARAGRAPH_WIDTH_UNIT_STEP = 0.001;
-const EXPLICIT_MULTILINE_UNBOUNDED_PARBOX_WIDTH_PT = 10000;
 const SINGLE_LINE_WIDTH_EPSILON_PT = 1e-4;
 const BROWSER_STARTUP_COMPONENT_URL = "https://cdn.jsdelivr.net/npm/mathjax@4/startup.js";
 const BROWSER_STARTUP_COMPONENT_ID = "tikz-editor-mathjax-startup";
@@ -138,10 +138,8 @@ let activeBrowserFont: MathJaxFont = DEFAULT_FONT;
 type WorkerFontLoader = (name: string) => Promise<unknown>;
 let workerFontLoader: WorkerFontLoader | null = null;
 const EXPLICIT_LINE_BREAK_TOKEN_PATTERN = /\\\\(?:\[[^\]]*\])?/;
-const EXPLICIT_LINE_BREAK_BOUNDARY_PATTERN = /[ \t\r\n]*\\\\(?:\[[^\]]*\])?[ \t\r\n]*/g;
 const EXPLICIT_LINE_BREAK_CANONICAL_PATTERN = /[ \t\r\n]*(\\\\(?:\[[^\]]*\])?)[ \t\r\n]*/g;
 const EXPLICIT_LINE_BREAK_WITH_LEADING_PATTERN = /[ \t\r\n]*\\\\(?:\[([^\]]*)\])?[ \t\r\n]*/g;
-const MATHJAX_ARRAY_VERTICAL_PADDING_UNITS = 175;
 
 /**
  * Register a font loader for the worker runtime. Must be called before the first
@@ -259,6 +257,8 @@ async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
         fontFamily: request.fontFamily
       });
       const alignment = resolveParagraphAlignment(request.textWidthPt, request.alignment);
+      const requiresParagraphGeometry =
+        normalizedWidth != null || hasExplicitMultilineBreaks(prepared.text);
       const cacheKey = measurementKey(mode, prepared.text, normalizedWidth, prepared.font, alignment);
 
       let entry: CachedRenderEntry | null = cache.get(cacheKey) ?? null;
@@ -293,6 +293,10 @@ async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
           }
           return null;
         }
+      }
+
+      if (requiresParagraphGeometry && entry.paragraphId == null) {
+        throw new Error("Multiline MathJax measurement did not produce paragraph geometry.");
       }
 
       return {
@@ -880,19 +884,12 @@ function queueAsyncCachePopulate(
       if (cache.has(params.cacheKey)) {
         return;
       }
-      const trimArrayVerticalPadding = shouldUseExplicitMultilineArrayRendering(
-        params.mode,
-        params.textWidthPt,
-        hasExplicitMultilineBreaks(params.sourceText),
-        params.alignment
-      );
       const entry = buildCacheEntryWithMetadata(
         params.cacheKey,
         node,
         runtime.startup?.adaptor ?? null,
         params.sourceText,
-        null,
-        { trimArrayVerticalPadding }
+        null
       );
       if (entry) {
         cache.set(params.cacheKey, entry);
@@ -917,10 +914,7 @@ function buildCacheEntryWithMetadata(
   containerNode: unknown,
   adaptor: MathJaxAdaptor | null,
   renderSourceText: string,
-  paragraphId: string | null,
-  options?: {
-    trimArrayVerticalPadding?: boolean;
-  }
+  paragraphId: string | null
 ): CachedRenderEntry | null {
   const extracted = extractSvgPayload(containerNode, adaptor);
   if (!extracted) {
@@ -933,19 +927,18 @@ function buildCacheEntryWithMetadata(
   }
 
   const body = extracted.body;
-  const effectiveViewBox = options?.trimArrayVerticalPadding ? trimArrayVerticalPaddingFromViewBox(viewBox) : viewBox;
   const resolvedParagraphId = paragraphId ?? extractParagraphIdFromSvgBody(body);
-  const baseWidthPt = (effectiveViewBox.width / 1000) * DEFAULT_TEXT_FONT_SIZE;
-  const baseHeightPt = (effectiveViewBox.height / 1000) * DEFAULT_TEXT_FONT_SIZE;
-  const ascentUnits = Math.max(0, -effectiveViewBox.y);
-  const descentUnits = Math.max(0, effectiveViewBox.height - ascentUnits);
+  const baseWidthPt = (viewBox.width / 1000) * DEFAULT_TEXT_FONT_SIZE;
+  const baseHeightPt = (viewBox.height / 1000) * DEFAULT_TEXT_FONT_SIZE;
+  const ascentUnits = Math.max(0, -viewBox.y);
+  const descentUnits = Math.max(0, viewBox.height - ascentUnits);
   const baseLineYPt = -(((ascentUnits - descentUnits) / 2) / 1000) * DEFAULT_TEXT_FONT_SIZE;
   const midLineYPt = baseLineYPt + DEFAULT_TEXT_FONT_SIZE * MIDLINE_FROM_BASELINE_RATIO;
 
   return {
     payload: {
       cacheKey,
-      viewBox: effectiveViewBox,
+      viewBox,
       body
     },
     baseWidthPt,
@@ -954,18 +947,6 @@ function buildCacheEntryWithMetadata(
     midLineYPt,
     paragraphId: resolvedParagraphId,
     renderSourceText
-  };
-}
-
-function trimArrayVerticalPaddingFromViewBox(viewBox: NodeTextRenderPayload["viewBox"]): NodeTextRenderPayload["viewBox"] {
-  const trim = MATHJAX_ARRAY_VERTICAL_PADDING_UNITS;
-  if (viewBox.height <= trim * 2 + 1) {
-    return viewBox;
-  }
-  return {
-    ...viewBox,
-    y: viewBox.y + trim,
-    height: viewBox.height - trim * 2
   };
 }
 
@@ -982,49 +963,36 @@ function buildMeasuredCacheEntry(params: {
   const { runtime, exactSingleLineWidthCache, cacheKey, sourceText, textWidthPt, font, mode, alignment } = params;
   const adaptor = runtime.startup?.adaptor ?? null;
   const explicitMultiline = hasExplicitMultilineBreaks(sourceText);
-  if (shouldUseExplicitMultilineArrayRendering(mode, textWidthPt, explicitMultiline, alignment)) {
-    const tex = buildExplicitMultilineTeX(sourceText, font, alignment);
-    const node = runtime.tex2svg(tex, { display: false });
-    // Array-rendered explicit multiline text does not produce Knuth-Plass paragraph
-    // geometry, so it must use the region-based caret/selection fallback path.
-    return buildCacheEntryWithMetadata(cacheKey, node, adaptor, sourceText, null, {
-      trimArrayVerticalPadding: true
-    });
-  }
-
-  if (textWidthPt == null && explicitMultiline) {
-    return buildExplicitMultilineUnboundedCacheEntry({
-      runtime,
-      cacheKey,
-      sourceText,
-      font,
-      mode,
-      alignment
-    });
-  }
+  const layoutMode = resolveKnuthPlassLayoutMode(textWidthPt, explicitMultiline);
 
   const measuredWidth =
     textWidthPt ??
-    measureNaturalWidth(runtime, sourceText, font, mode);
-  if (!(Number.isFinite(measuredWidth) && measuredWidth > 0)) {
+    (explicitMultiline
+      ? measureFixedLinesParagraphWidth(runtime, exactSingleLineWidthCache, sourceText, font, mode)
+      : measureNaturalWidth(runtime, sourceText, font, mode));
+  if (measuredWidth == null || !Number.isFinite(measuredWidth) || measuredWidth <= 0) {
     return null;
   }
+  const resolvedWidth = measuredWidth;
   if (textWidthPt == null && !explicitMultiline) {
     return buildExactSingleLineCacheEntry({
       runtime,
       cacheKey,
       sourceText,
-      measuredWidthPt: measuredWidth,
+      measuredWidthPt: resolvedWidth,
       font,
       mode,
       alignment
     });
   }
-  const renderWidth = measuredWidth;
-  const tex = buildWrappedTeX(sourceText, renderWidth, font, mode);
-  applyKnuthPlassRuntimeOptions(runtime, alignment);
+  const tex = buildWrappedTeX(sourceText, resolvedWidth, font, mode);
+  applyKnuthPlassRuntimeOptions(runtime, alignment, layoutMode);
   const node = runtime.tex2svg(tex, { display: false });
-  return buildCacheEntryWithMetadata(cacheKey, node, adaptor, sourceText, null);
+  const entry = buildCacheEntryWithMetadata(cacheKey, node, adaptor, sourceText, null);
+  if (explicitMultiline && entry?.paragraphId == null) {
+    throw new Error("Multiline MathJax render did not produce a paragraph report.");
+  }
+  return entry;
 }
 
 function measureNaturalWidth(
@@ -1040,34 +1008,26 @@ function measureNaturalWidth(
   return entry?.baseWidthPt ?? Number.NaN;
 }
 
-function measureExplicitMultilineNaturalWidth(
+function measureFixedLinesParagraphWidth(
   runtime: MathJaxRuntime,
   exactSingleLineWidthCache: Map<string, number>,
   sourceText: string,
   font: TextFontOptions,
   mode: "text" | "math"
-): number {
+): number | null {
   const lines = splitExplicitMultilineSource(sourceText);
   if (lines.length === 0) {
-    return Number.NaN;
+    return null;
   }
 
   let maxWidth = 0;
   for (const line of lines) {
-    if (line.length === 0) {
-      continue;
-    }
     const width = measureExactSingleLineWidth(runtime, exactSingleLineWidthCache, line, font, mode);
     if (Number.isFinite(width)) {
       maxWidth = Math.max(maxWidth, width);
     }
   }
-
-  const fallbackWidth =
-    maxWidth > 0 ? maxWidth : measureNaturalWidth(runtime, sourceText.replace(EXPLICIT_LINE_BREAK_BOUNDARY_PATTERN, ""), font, mode);
-  return Number.isFinite(fallbackWidth) && fallbackWidth > 0
-    ? fallbackWidth + MATHJAX_PARAGRAPH_PT_PER_WIDTH_UNIT * MATHJAX_PARAGRAPH_WIDTH_UNIT_STEP
-    : fallbackWidth;
+  return maxWidth > 0 ? maxWidth : null;
 }
 
 async function measureNaturalWidthWithPromise(
@@ -1086,35 +1046,25 @@ async function measureNaturalWidthWithPromise(
   return entry?.baseWidthPt ?? Number.NaN;
 }
 
-async function measureExplicitMultilineNaturalWidthWithPromise(
+async function measureFixedLinesParagraphWidthWithPromise(
   runtime: MathJaxRuntime,
   sourceText: string,
   font: TextFontOptions,
   mode: "text" | "math"
-): Promise<number> {
+): Promise<number | null> {
   const lines = splitExplicitMultilineSource(sourceText);
   if (lines.length === 0) {
-    return Number.NaN;
+    return null;
   }
 
   let maxWidth = 0;
   for (const line of lines) {
-    if (line.length === 0) {
-      continue;
-    }
     const width = await measureExactSingleLineWidthWithPromise(runtime, line, font, mode);
     if (Number.isFinite(width)) {
       maxWidth = Math.max(maxWidth, width);
     }
   }
-
-  const fallbackWidth =
-    maxWidth > 0
-      ? maxWidth
-      : await measureNaturalWidthWithPromise(runtime, sourceText.replace(EXPLICIT_LINE_BREAK_BOUNDARY_PATTERN, ""), font, mode);
-  return Number.isFinite(fallbackWidth) && fallbackWidth > 0
-    ? fallbackWidth + MATHJAX_PARAGRAPH_PT_PER_WIDTH_UNIT * MATHJAX_PARAGRAPH_WIDTH_UNIT_STEP
-    : fallbackWidth;
+  return maxWidth > 0 ? maxWidth : null;
 }
 
 function measureParagraphRunWidth(report: ParagraphLayoutReport | null): number | null {
@@ -1203,7 +1153,7 @@ async function measureExactSingleLineWidthWithPromise(
     return Number.NaN;
   }
   const tex = buildWrappedTeX(sourceText, measuredWidthPt, font, mode);
-  applyKnuthPlassRuntimeOptions(runtime, null);
+  applyKnuthPlassRuntimeOptions(runtime, null, "fixed-lines");
   const initialNode = await runtime.tex2svgPromise(tex, { display: false });
   const adaptor = runtime.startup?.adaptor ?? null;
   const initialEntry = buildCacheEntryWithMetadata("__measure__", initialNode, adaptor, sourceText, null);
@@ -1245,48 +1195,45 @@ function renderMeasuredNodeWithPromise(
   if (typeof runtime.tex2svgPromise !== "function") {
     return Promise.reject(new Error("MathJax promise renderer is unavailable."));
   }
+  const explicitMultiline = hasExplicitMultilineBreaks(params.sourceText);
+  const layoutMode = resolveKnuthPlassLayoutMode(params.textWidthPt, explicitMultiline);
 
   const runMeasuredRender = (resolvedWidthPt: number): Promise<unknown> => {
     const tex = buildWrappedTeX(params.sourceText, resolvedWidthPt, params.font, params.mode);
-    applyKnuthPlassRuntimeOptions(runtime, params.alignment);
-    return runtime.tex2svgPromise!(tex, { display: false });
-  };
-  const explicitMultiline = hasExplicitMultilineBreaks(params.sourceText);
-
-  if (
-    shouldUseExplicitMultilineArrayRendering(
-      params.mode,
-      params.textWidthPt,
-      explicitMultiline,
-      params.alignment
-    )
-  ) {
-    const tex = buildExplicitMultilineTeX(params.sourceText, params.font, params.alignment);
-    return runtime.tex2svgPromise!(tex, { display: false });
-  }
-
-  if (params.textWidthPt == null && explicitMultiline) {
-    return renderExplicitMultilineUnboundedNodeWithPromise(runtime, {
-      sourceText: params.sourceText,
-      font: params.font,
-      mode: params.mode,
-      alignment: params.alignment
+    applyKnuthPlassRuntimeOptions(runtime, params.alignment, layoutMode);
+    return runtime.tex2svgPromise!(tex, { display: false }).then((node) => {
+      if (explicitMultiline) {
+        const entry = buildCacheEntryWithMetadata(
+          "__measure__",
+          node,
+          runtime.startup?.adaptor ?? null,
+          params.sourceText,
+          null
+        );
+        if (entry?.paragraphId == null) {
+          throw new Error("Multiline MathJax render did not produce a paragraph report.");
+        }
+      }
+      return node;
     });
-  }
+  };
 
   const measuredWidthPromise =
     params.textWidthPt != null
       ? Promise.resolve(params.textWidthPt)
-      : measureNaturalWidthWithPromise(runtime, params.sourceText, params.font, params.mode);
+      : explicitMultiline
+        ? measureFixedLinesParagraphWidthWithPromise(runtime, params.sourceText, params.font, params.mode)
+        : measureNaturalWidthWithPromise(runtime, params.sourceText, params.font, params.mode);
 
   return measuredWidthPromise.then((measuredWidthPt) => {
-    if (!(Number.isFinite(measuredWidthPt) && measuredWidthPt > 0)) {
+    if (measuredWidthPt == null || !Number.isFinite(measuredWidthPt) || measuredWidthPt <= 0) {
       throw new Error("Unable to measure paragraph width.");
     }
+    const resolvedWidthPt = measuredWidthPt;
     if (params.textWidthPt != null || explicitMultiline) {
-      return runMeasuredRender(measuredWidthPt);
+      return runMeasuredRender(resolvedWidthPt);
     }
-    return renderExactSingleLineNodeWithPromise(runtime, runMeasuredRender, params.sourceText, measuredWidthPt);
+    return renderExactSingleLineNodeWithPromise(runtime, runMeasuredRender, params.sourceText, resolvedWidthPt);
   });
 }
 
@@ -1313,62 +1260,6 @@ function resolveParagraphReportById(runtime: MathJaxRuntime, paragraphId: string
   return reports.find((report) => report.paragraphId === paragraphId) ?? null;
 }
 
-function buildExplicitMultilineUnboundedCacheEntry(params: {
-  runtime: MathJaxRuntime;
-  cacheKey: string;
-  sourceText: string;
-  font: TextFontOptions;
-  mode: "text" | "math";
-  alignment: NodeTextParagraphAlignment | null;
-}): CachedRenderEntry | null {
-  const { runtime, cacheKey, sourceText, font, mode, alignment } = params;
-  const adaptor = runtime.startup?.adaptor ?? null;
-  applyKnuthPlassRuntimeOptions(runtime, alignment);
-  const wideTex = buildWrappedTeX(sourceText, EXPLICIT_MULTILINE_UNBOUNDED_PARBOX_WIDTH_PT, font, mode);
-  const wideNode = runtime.tex2svg(wideTex, { display: false });
-  const wideEntry = buildCacheEntryWithMetadata(cacheKey, wideNode, adaptor, sourceText, null);
-  const exactWidthPt = measureParagraphRunWidth(resolveParagraphReportById(runtime, wideEntry?.paragraphId ?? null));
-  if (!(Number.isFinite(exactWidthPt) && exactWidthPt != null && exactWidthPt > 0)) {
-    return wideEntry;
-  }
-
-  const exactTex = buildWrappedTeX(sourceText, exactWidthPt, font, mode);
-  const exactNode = runtime.tex2svg(exactTex, { display: false });
-  return buildCacheEntryWithMetadata(cacheKey, exactNode, adaptor, sourceText, null);
-}
-
-async function renderExplicitMultilineUnboundedNodeWithPromise(
-  runtime: MathJaxRuntime,
-  params: {
-    sourceText: string;
-    font: TextFontOptions;
-    mode: "text" | "math";
-    alignment: NodeTextParagraphAlignment | null;
-  }
-): Promise<unknown> {
-  if (typeof runtime.tex2svgPromise !== "function") {
-    return Promise.reject(new Error("MathJax promise renderer is unavailable."));
-  }
-
-  const adaptor = runtime.startup?.adaptor ?? null;
-  applyKnuthPlassRuntimeOptions(runtime, params.alignment);
-  const wideTex = buildWrappedTeX(
-    params.sourceText,
-    EXPLICIT_MULTILINE_UNBOUNDED_PARBOX_WIDTH_PT,
-    params.font,
-    params.mode
-  );
-  const wideNode = await runtime.tex2svgPromise(wideTex, { display: false });
-  const wideEntry = buildCacheEntryWithMetadata("__measure__", wideNode, adaptor, params.sourceText, null);
-  const exactWidthPt = await waitForParagraphRunWidth(runtime, wideEntry?.paragraphId ?? null);
-  if (!(Number.isFinite(exactWidthPt) && exactWidthPt != null && exactWidthPt > 0)) {
-    return wideNode;
-  }
-
-  const exactTex = buildWrappedTeX(params.sourceText, exactWidthPt, params.font, params.mode);
-  return runtime.tex2svgPromise(exactTex, { display: false });
-}
-
 function buildExactSingleLineCacheEntry(params: {
   runtime: MathJaxRuntime;
   cacheKey: string;
@@ -1382,7 +1273,7 @@ function buildExactSingleLineCacheEntry(params: {
   const adaptor = runtime.startup?.adaptor ?? null;
   const renderWithWidth = (widthPt: number) => {
     const tex = buildWrappedTeX(sourceText, widthPt, font, mode);
-    applyKnuthPlassRuntimeOptions(runtime, alignment);
+    applyKnuthPlassRuntimeOptions(runtime, alignment, "fixed-lines");
     return runtime.tex2svg(tex, { display: false });
   };
 
@@ -1488,18 +1379,6 @@ function splitExplicitMultilineSegments(
 
   lines.push(text.slice(cursor));
   return { lines, breakLeadings };
-}
-
-function shouldUseExplicitMultilineArrayRendering(
-  mode: "text" | "math",
-  textWidthPt: number | null,
-  explicitMultiline: boolean,
-  alignment: NodeTextParagraphAlignment | null
-): boolean {
-  if (mode !== "text" || !explicitMultiline) {
-    return false;
-  }
-  return textWidthPt != null && (alignment === "center" || alignment === "ragged-left");
 }
 
 function extractSvgPayload(
@@ -1615,22 +1494,35 @@ function resolveParagraphAlignment(
   return alignment ?? "ragged-right";
 }
 
+function resolveKnuthPlassLayoutMode(
+  textWidthPt: number | null,
+  explicitMultiline: boolean
+): KnuthPlassLayoutMode {
+  if (textWidthPt == null) {
+    return "fixed-lines";
+  }
+  return explicitMultiline ? "wrapped-explicit" : "wrap";
+}
+
 function applyKnuthPlassRuntimeOptions(
   runtime: MathJaxRuntime,
-  alignment: NodeTextParagraphAlignment | null
+  alignment: NodeTextParagraphAlignment | null,
+  layoutMode: KnuthPlassLayoutMode
 ): void {
-  if (!alignment) {
-    return;
-  }
-
   const outputJax = runtime.outputJax ?? runtime.startup?.output ?? runtime.startup?.document?.outputJax;
   if (outputJax && typeof outputJax === "object") {
-    setKnuthPlassOptionsOnOutputJax(outputJax, { alignment });
+    setKnuthPlassOptionsOnOutputJax(outputJax, {
+      layoutMode,
+      ...(alignment ? { alignment } : {})
+    });
     return;
   }
 
   // Best-effort fallback for runtimes that do not expose the active output jax.
-  KnuthPlassVisitor.configure({ alignment });
+  KnuthPlassVisitor.configure({
+    layoutMode,
+    ...(alignment ? { alignment } : {})
+  });
 }
 
 function buildWrappedTeX(
@@ -1663,48 +1555,6 @@ function buildWrappedTeX(
   return `\\parbox[t]{${formatPt(textWidthPt)}pt}{${styledText}}`;
 }
 
-function buildExplicitMultilineTeX(
-  text: string,
-  font: TextFontOptions,
-  alignment: NodeTextParagraphAlignment | null
-): string {
-  const { lines, breakLeadings } = splitExplicitMultilineSegments(text);
-  const aligned = explicitMultilineStackAlignment(alignment);
-  const columnSpec = `@{}${aligned}@{}`;
-  const rowBlocks = lines.map((line) => `\\mbox{${applyTextFontSwitches(line, font)}}`);
-  let rows = rowBlocks[0] ?? "";
-  for (let i = 1; i < rowBlocks.length; i++) {
-    const breakLeading = breakLeadings[i - 1];
-    rows += `\\\\${breakLeading ? `[${breakLeading}]` : ""}${rowBlocks[i]}`;
-  }
-  return `{\\def\\arraystretch{0.8}\\begin{array}{${columnSpec}}${rows}\\end{array}}`;
-}
-
-function explicitMultilineStackAlignment(alignment: NodeTextParagraphAlignment | null): "l" | "c" | "r" {
-  if (alignment === "center") {
-    return "c";
-  }
-  if (alignment === "ragged-left") {
-    return "r";
-  }
-  return "l";
-}
-
-function applyTextFontSwitches(text: string, font: TextFontOptions): string {
-  let styledText = text;
-  if (font.fontFamily === "sans") {
-    styledText = `\\textsf{${styledText}}`;
-  } else if (font.fontFamily === "monospace") {
-    styledText = `\\texttt{${styledText}}`;
-  }
-  if (font.fontWeight === "bold") {
-    styledText = `\\textbf{${styledText}}`;
-  }
-  if (font.fontStyle === "italic") {
-    styledText = `\\textit{${styledText}}`;
-  }
-  return styledText;
-}
 
 function normalizeMathJaxTextInput(
   text: string,

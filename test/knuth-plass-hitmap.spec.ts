@@ -38,6 +38,7 @@ function makeTwoLineReport(): ParagraphLayoutReport {
     paragraphId: "paragraph:1",
     width: 17,
     alignment: "ragged-right",
+    layoutMode: "wrap",
     lines: [
       {
         lineIndex: 0,
@@ -121,6 +122,7 @@ function makeExplicitMultilineMathReport(): ParagraphLayoutReport {
     paragraphId: "paragraph:math",
     width: 3.478,
     alignment: "center",
+    layoutMode: "fixed-lines",
     lines: [
       {
         lineIndex: 0,

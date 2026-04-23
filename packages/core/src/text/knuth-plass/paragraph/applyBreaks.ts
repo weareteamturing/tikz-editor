@@ -608,6 +608,7 @@ export function applyBreaks(
         runIndex: breakDecision.runIndex,
         sourceOffset: breakDecision.sourceOffset,
         visibleHyphen: false,
+        lineLeading: breakDecision.lineLeading,
       });
       continue;
     }
@@ -658,6 +659,7 @@ export function applyBreaks(
         runIndex: run.runIndex,
         sourceOffset: run.sourceEnd,
         visibleHyphen: false,
+        lineLeading: run.breakRef.lineLeading,
       });
       continue;
     }
@@ -668,6 +670,7 @@ export function applyBreaks(
       runIndex: breakDecision.runIndex,
       sourceOffset: breakDecision.sourceOffset,
       visibleHyphen: false,
+      lineLeading: breakDecision.lineLeading,
     });
   }
 
