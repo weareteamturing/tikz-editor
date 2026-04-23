@@ -22,9 +22,15 @@ export type KnuthPlassLayoutMode =
   | 'fixed-lines'
   | 'wrapped-explicit';
 
+export interface WrappedTextGap {
+  sourceStart: number;
+  widthEm: number;
+}
+
 export interface KnuthPlassConfig {
   alignment?: ParagraphAlignment;
   layoutMode?: KnuthPlassLayoutMode;
+  wrappedTextGaps?: WrappedTextGap[];
   pretolerance?: number;
   tolerance?: number;
   linepenalty?: number;

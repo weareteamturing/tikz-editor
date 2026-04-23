@@ -41,16 +41,17 @@ export function buildAlignmentProfile(
   spaceWidth: number
 ): AlignmentProfile {
   const s = Math.max(spaceWidth, 0);
+  const raggedStretch = 6 * s;
 
   if (alignment === 'ragged-left') {
     return {
       alignment,
       interwordStretch: 0,
       interwordShrink: 0,
-      leftskip: { width: 0, stretch: 6 * s, shrink: 0 },
+      leftskip: { width: 0, stretch: raggedStretch, shrink: 0 },
       rightskip: { width: 0, stretch: 0, shrink: 0 },
       parfillskip: { width: 0, stretch: 0, shrink: 0 },
-      preventOverflow: true,
+      preventOverflow: false,
     };
   }
 
@@ -71,10 +72,10 @@ export function buildAlignmentProfile(
       alignment,
       interwordStretch: 0,
       interwordShrink: 0,
-      leftskip: { width: 0, stretch: 6 * s, shrink: 0 },
-      rightskip: { width: 0, stretch: 6 * s, shrink: 0 },
+      leftskip: { width: 0, stretch: raggedStretch, shrink: 0 },
+      rightskip: { width: 0, stretch: raggedStretch, shrink: 0 },
       parfillskip: { width: 0, stretch: 0, shrink: 0 },
-      preventOverflow: true,
+      preventOverflow: false,
     };
   }
 
@@ -83,8 +84,8 @@ export function buildAlignmentProfile(
     interwordStretch: 0,
     interwordShrink: 0,
     leftskip: { width: 0, stretch: 0, shrink: 0 },
-    rightskip: { width: 0, stretch: 6 * s, shrink: 0 },
+    rightskip: { width: 0, stretch: raggedStretch, shrink: 0 },
     parfillskip: { width: 0, stretch: Number.POSITIVE_INFINITY, shrink: 0 },
-    preventOverflow: true,
+    preventOverflow: false,
   };
 }

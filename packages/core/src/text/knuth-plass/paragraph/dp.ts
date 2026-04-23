@@ -7,7 +7,7 @@ export interface DpResult {
   errors: string[];
   canProceed: boolean;
   totalCost: number;
-  mode: 'feasible' | 'infeasible';
+  mode: 'feasible' | 'overfull';
 }
 
 export interface DpOptions {
@@ -81,18 +81,25 @@ interface CandidateScore {
   lineNaturalWidth: number;
   spaceDeltaPerGap: number;
   xOffset: number;
+  constraintViolation: boolean;
 }
 
-interface MemoChoice {
+const CONSTRAINT_VIOLATION_DEMERITS = 1_000_000_000_000;
+
+interface ActiveChoice {
   candidate: BreakCandidate;
   fitnessClass: FitnessClass;
   score: CandidateScore;
 }
 
-interface MemoEntry {
+interface ActiveState {
+  key: string;
+  cursor: Cursor;
+  previousFitnessClass: FitnessClass | null;
+  previousFlagged: boolean;
   cost: number;
-  choice: MemoChoice | null;
-  isSingleLine: boolean;
+  previousStateKey: string | null;
+  incomingChoice: ActiveChoice | null;
 }
 
 type FitnessClass = 0 | 1 | 2 | 3; // very loose, loose, decent, tight
@@ -101,13 +108,6 @@ const MAX_RUNS_FOR_DP = 3000;
 const MAX_BREAKPOINTS_FOR_DP = 1200;
 const MAX_ESTIMATED_EDGES = 2_000_000;
 const MAX_DP_STATES = 20000;
-
-function breakSourceOffset(candidate: BreakCandidate): number {
-  if (!candidate.break) {
-    return Number.POSITIVE_INFINITY;
-  }
-  return candidate.break.sourceOffset;
-}
 
 function badnessFromRatio(ratio: number): number {
   const abs = Math.abs(ratio);
@@ -484,6 +484,7 @@ function scoreCandidate(
   let ratio = 0;
   let badness = 0;
   let feasible = true;
+  let constraintViolation = false;
 
   if (delta > 0) {
     if (!Number.isFinite(totalStretch)) {
@@ -531,7 +532,10 @@ function scoreCandidate(
   }
 
   if (options.allowInfeasible) {
-    // In infeasible fallback mode we still want TeX-like behavior for ragged
+    if (!feasible || (delta < 0 && options.preventOverflow) || badness > tolerance) {
+      constraintViolation = true;
+    }
+    // In canonical overfull mode we still want TeX-like behavior for ragged
     // paragraph profiles: overflowing a line should be a last resort.
     if (delta < 0 && options.preventOverflow) {
       const overflow = -delta;
@@ -574,6 +578,10 @@ function scoreCandidate(
     demerits -= penalty * penalty;
   }
 
+  if (constraintViolation) {
+    demerits += CONSTRAINT_VIOLATION_DEMERITS;
+  }
+
   let xOffset = options.leftskipWidth;
   if (ratio > 0 && Number.isFinite(options.leftskipStretch)) {
     xOffset += ratio * options.leftskipStretch;
@@ -601,6 +609,7 @@ function scoreCandidate(
             : 0
         : 0,
     xOffset: Number.isFinite(xOffset) ? xOffset : 0,
+    constraintViolation,
   };
 }
 
@@ -627,7 +636,7 @@ export function breakWithDp(
       errors: ['Target width is non-positive; DP linebreaking skipped.'],
       canProceed: false,
       totalCost: Infinity,
-      mode: options.allowInfeasible ? 'infeasible' : 'feasible',
+      mode: options.allowInfeasible ? 'overfull' : 'feasible',
     };
   }
 
@@ -639,7 +648,7 @@ export function breakWithDp(
       ],
       canProceed: false,
       totalCost: Infinity,
-      mode: options.allowInfeasible ? 'infeasible' : 'feasible',
+      mode: options.allowInfeasible ? 'overfull' : 'feasible',
     };
   }
 
@@ -655,7 +664,7 @@ export function breakWithDp(
       errors: ['Paragraph has no breakable content after trimming leading spaces.'],
       canProceed: false,
       totalCost: Infinity,
-      mode: options.allowInfeasible ? 'infeasible' : 'feasible',
+      mode: options.allowInfeasible ? 'overfull' : 'feasible',
     };
   }
 
@@ -676,7 +685,7 @@ export function breakWithDp(
       ],
       canProceed: false,
       totalCost: Infinity,
-      mode: options.allowInfeasible ? 'infeasible' : 'feasible',
+      mode: options.allowInfeasible ? 'overfull' : 'feasible',
     };
   }
 
@@ -690,7 +699,7 @@ export function breakWithDp(
       ],
       canProceed: false,
       totalCost: Infinity,
-      mode: options.allowInfeasible ? 'infeasible' : 'feasible',
+      mode: options.allowInfeasible ? 'overfull' : 'feasible',
     };
   }
 
@@ -715,48 +724,40 @@ export function breakWithDp(
     allowInfeasible: options.allowInfeasible ?? false,
   };
 
-  const memo = new Map<string, MemoEntry>();
-  const active = new Set<string>();
+  const states = new Map<string, ActiveState>();
+  const queue: string[] = [];
   let stateCount = 0;
+  const firstKey = cursorKey(firstCursor, null, false);
+  states.set(firstKey, {
+    key: firstKey,
+    cursor: firstCursor,
+    previousFitnessClass: null,
+    previousFlagged: false,
+    cost: 0,
+    previousStateKey: null,
+    incomingChoice: null,
+  });
+  queue.push(firstKey);
+  stateCount = 1;
 
-  const solve = (
-    cursor: Cursor,
-    previousFitnessClass: FitnessClass | null,
-    previousFlagged: boolean
-  ): MemoEntry => {
-    const normalizedCursor = normalizeCursor(model, cursor, forcedPenalties);
-    if (normalizedCursor.runIndex >= model.runs.length) {
-      return { cost: 0, choice: null, isSingleLine: false };
+  let bestFinal:
+    | {
+        cost: number;
+        fromStateKey: string;
+        choice: ActiveChoice;
+      }
+    | null = null;
+
+  while (queue.length > 0) {
+    const stateKey = queue.shift()!;
+    const state = states.get(stateKey);
+    if (!state) {
+      continue;
     }
-
-    const key = cursorKey(normalizedCursor, previousFitnessClass, previousFlagged);
-    const cached = memo.get(key);
-    if (cached) return cached;
-
-    if (active.has(key)) {
-      return { cost: Infinity, choice: null, isSingleLine: false };
-    }
-
-    active.add(key);
-    stateCount += 1;
-    if (stateCount > MAX_DP_STATES) {
-      active.delete(key);
-      return {
-        cost: Infinity,
-        choice: null,
-        isSingleLine: false,
-      };
-    }
-
-    let bestCost = Infinity;
-    let bestChoice: MemoChoice | null = null;
-    let bestBadness = Infinity;
-    let bestNaturalWidth = -Infinity;
-    let bestSourceOffset = -Infinity;
 
     const candidates = generateCandidates(
       model,
-      normalizedCursor,
+      state.cursor,
       forcedPenalties,
       spacePenalties,
       glueMetrics,
@@ -776,133 +777,124 @@ export function breakWithDp(
         continue;
       }
 
-      let totalCost = score.demerits;
+      let totalCost = state.cost + score.demerits;
 
       if (
-        previousFitnessClass !== null &&
-        incompatibleFitness(previousFitnessClass, score.fitnessClass)
+        state.previousFitnessClass !== null &&
+        incompatibleFitness(state.previousFitnessClass, score.fitnessClass)
       ) {
         totalCost += resolvedOptions.adjdemerits;
       }
 
-      if (previousFlagged && candidate.flagged) {
+      if (state.previousFlagged && candidate.flagged) {
         totalCost += resolvedOptions.doublehyphendemerits;
       }
 
-      let future: MemoEntry | null = null;
-      if (!isLastLine) {
-        future = solve(candidate.nextCursor, score.fitnessClass, candidate.flagged);
-        totalCost += future.cost;
+      const choice: ActiveChoice = {
+        candidate,
+        fitnessClass: score.fitnessClass,
+        score,
+      };
 
-        if (candidate.flagged && future.isSingleLine) {
+      if (isLastLine) {
+        if (state.previousFlagged) {
           totalCost += resolvedOptions.finalhyphendemerits;
         }
-      }
-
-      if (totalCost < bestCost) {
-        bestCost = totalCost;
-        bestBadness = score.badness;
-        bestNaturalWidth = candidate.naturalWidth;
-        bestSourceOffset = breakSourceOffset(candidate);
-        bestChoice = {
-          candidate,
-          fitnessClass: score.fitnessClass,
-          score,
-        };
+        if (bestFinal === null || totalCost < bestFinal.cost) {
+          bestFinal = {
+            cost: totalCost,
+            fromStateKey: stateKey,
+            choice,
+          };
+        }
         continue;
       }
 
-      if (totalCost !== bestCost) {
+      const nextCursor = normalizeCursor(model, candidate.nextCursor, forcedPenalties);
+      const nextKey = cursorKey(nextCursor, score.fitnessClass, candidate.flagged);
+      const existing = states.get(nextKey);
+      if (existing && totalCost >= existing.cost) {
         continue;
       }
 
-      // TeX-style ragged-right configurations frequently produce equal
-      // demerits. Prefer the candidate with lower badness, then a fuller
-      // line and later breakpoint to avoid a systematic "earliest break"
-      // bias from iteration order.
-      const sourceOffset = breakSourceOffset(candidate);
-      const isBetterTie =
-        score.badness < bestBadness ||
-        (score.badness === bestBadness &&
-          (candidate.naturalWidth > bestNaturalWidth ||
-            (candidate.naturalWidth === bestNaturalWidth &&
-              sourceOffset > bestSourceOffset)));
-
-      if (isBetterTie) {
-        bestBadness = score.badness;
-        bestNaturalWidth = candidate.naturalWidth;
-        bestSourceOffset = sourceOffset;
-        bestChoice = {
-          candidate,
-          fitnessClass: score.fitnessClass,
-          score,
-        };
+      const nextState: ActiveState = {
+        key: nextKey,
+        cursor: nextCursor,
+        previousFitnessClass: score.fitnessClass,
+        previousFlagged: candidate.flagged,
+        cost: totalCost,
+        previousStateKey: stateKey,
+        incomingChoice: choice,
+      };
+      states.set(nextKey, nextState);
+      queue.push(nextKey);
+      if (!existing) {
+        stateCount += 1;
+        if (stateCount > MAX_DP_STATES) {
+          return {
+            lines: [],
+            errors: [`DP state limit exceeded (${MAX_DP_STATES}).`],
+            canProceed: false,
+            totalCost: Infinity,
+            mode: resolvedOptions.allowInfeasible ? 'overfull' : 'feasible',
+          };
+        }
       }
     }
+  }
 
-    const result: MemoEntry = {
-      cost: bestCost,
-      choice: bestChoice,
-      isSingleLine: bestChoice ? bestChoice.candidate.break === null : false,
-    };
-
-    memo.set(key, result);
-    active.delete(key);
-    return result;
-  };
-
-  const root = solve(firstCursor, null, false);
-
-  if (!Number.isFinite(root.cost) || !root.choice) {
+  if (!bestFinal || !Number.isFinite(bestFinal.cost)) {
     return {
       lines: [],
       errors: [
         'DP failed to find a valid linebreak sequence.',
-        stateCount > MAX_DP_STATES
-          ? `DP state limit exceeded (${MAX_DP_STATES}).`
-          : 'No valid candidate transitions were found.',
+        'No valid candidate transitions were found.',
       ],
       canProceed: false,
       totalCost: Infinity,
-      mode: resolvedOptions.allowInfeasible ? 'infeasible' : 'feasible',
+      mode: resolvedOptions.allowInfeasible ? 'overfull' : 'feasible',
     };
   }
 
-  const lines: GreedyLine[] = [];
+  const reversedChoices: ActiveChoice[] = [bestFinal.choice];
+  let stateKey: string | null = bestFinal.fromStateKey;
   const seen = new Set<string>();
-
-  let lineIndex = 0;
-  let cursor = firstCursor;
-  let previousFitnessClass: FitnessClass | null = null;
-  let previousFlagged = false;
-
-  while (cursor.runIndex < model.runs.length) {
-    const normalizedCursor = normalizeCursor(model, cursor, forcedPenalties);
-    const key = cursorKey(normalizedCursor, previousFitnessClass, previousFlagged);
-
-    if (seen.has(key)) {
+  while (stateKey) {
+    if (seen.has(stateKey)) {
       return {
         lines: [],
         errors: ['DP reconstruction loop detected.'],
         canProceed: false,
         totalCost: Infinity,
-        mode: resolvedOptions.allowInfeasible ? 'infeasible' : 'feasible',
+        mode: resolvedOptions.allowInfeasible ? 'overfull' : 'feasible',
       };
     }
-    seen.add(key);
-
-    const entry = memo.get(key);
-    if (!entry?.choice) {
+    seen.add(stateKey);
+    const state = states.get(stateKey);
+    if (!state) {
       return {
         lines: [],
-        errors: [`DP reconstruction failed at state ${key}.`],
+        errors: [`DP reconstruction failed at state ${stateKey}.`],
         canProceed: false,
         totalCost: Infinity,
-        mode: resolvedOptions.allowInfeasible ? 'infeasible' : 'feasible',
+        mode: resolvedOptions.allowInfeasible ? 'overfull' : 'feasible',
       };
     }
+    if (state.incomingChoice) {
+      reversedChoices.push(state.incomingChoice);
+    }
+    stateKey = state.previousStateKey;
+  }
 
-    const { candidate, score } = entry.choice;
+  const choices = reversedChoices.reverse();
+  const lines: GreedyLine[] = [];
+  let currentCursor = firstCursor;
+  let usedConstraintViolation = false;
+
+  for (let lineIndex = 0; lineIndex < choices.length; lineIndex++) {
+    const normalizedCursor = normalizeCursor(model, currentCursor, forcedPenalties);
+    const { candidate, score } = choices[lineIndex];
+    usedConstraintViolation ||= score.constraintViolation;
     lines.push({
       lineIndex,
       startRun: normalizedCursor.runIndex,
@@ -919,23 +911,17 @@ export function breakWithDp(
       xOffset: score.xOffset,
       break: candidate.break,
     });
-
-    lineIndex += 1;
-
     if (!candidate.break) {
       break;
     }
-
-    cursor = candidate.nextCursor;
-    previousFitnessClass = entry.choice.fitnessClass;
-    previousFlagged = candidate.flagged;
+    currentCursor = candidate.nextCursor;
   }
 
   return {
     lines,
     errors,
     canProceed: true,
-    totalCost: root.cost,
-    mode: resolvedOptions.allowInfeasible ? 'infeasible' : 'feasible',
+    totalCost: bestFinal.cost,
+    mode: usedConstraintViolation ? 'overfull' : 'feasible',
   };
 }

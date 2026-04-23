@@ -4,7 +4,8 @@ import {
   getKnuthPlassReportsFromOutputJax,
   installKnuthPlassVisitor,
   setKnuthPlassOptionsOnOutputJax,
-  type KnuthPlassLayoutMode
+  type KnuthPlassLayoutMode,
+  type WrappedTextGap
 } from "./knuth-plass/index.js";
 import { preloadEnglishHyphenator } from "./knuth-plass/paragraph/hyphenate.js";
 import type { ParagraphLayoutReport } from "./knuth-plass/index.js";
@@ -290,6 +291,9 @@ async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
               alignment
             });
             validationCache.set(request.text, null);
+          }
+          if (requiresParagraphGeometry) {
+            throw error;
           }
           return null;
         }
@@ -964,6 +968,8 @@ function buildMeasuredCacheEntry(params: {
   const adaptor = runtime.startup?.adaptor ?? null;
   const explicitMultiline = hasExplicitMultilineBreaks(sourceText);
   const layoutMode = resolveKnuthPlassLayoutMode(textWidthPt, explicitMultiline);
+  const wrappedTextGaps =
+    mode === "text" && textWidthPt != null ? collectWrappedTextGaps(sourceText) : [];
 
   const measuredWidth =
     textWidthPt ??
@@ -986,7 +992,7 @@ function buildMeasuredCacheEntry(params: {
     });
   }
   const tex = buildWrappedTeX(sourceText, resolvedWidth, font, mode);
-  applyKnuthPlassRuntimeOptions(runtime, alignment, layoutMode);
+  applyKnuthPlassRuntimeOptions(runtime, alignment, layoutMode, wrappedTextGaps);
   const node = runtime.tex2svg(tex, { display: false });
   const entry = buildCacheEntryWithMetadata(cacheKey, node, adaptor, sourceText, null);
   if (explicitMultiline && entry?.paragraphId == null) {
@@ -1197,10 +1203,14 @@ function renderMeasuredNodeWithPromise(
   }
   const explicitMultiline = hasExplicitMultilineBreaks(params.sourceText);
   const layoutMode = resolveKnuthPlassLayoutMode(params.textWidthPt, explicitMultiline);
+  const wrappedTextGaps =
+    params.mode === "text" && params.textWidthPt != null
+      ? collectWrappedTextGaps(params.sourceText)
+      : [];
 
   const runMeasuredRender = (resolvedWidthPt: number): Promise<unknown> => {
     const tex = buildWrappedTeX(params.sourceText, resolvedWidthPt, params.font, params.mode);
-    applyKnuthPlassRuntimeOptions(runtime, params.alignment, layoutMode);
+    applyKnuthPlassRuntimeOptions(runtime, params.alignment, layoutMode, wrappedTextGaps);
     return runtime.tex2svgPromise!(tex, { display: false }).then((node) => {
       if (explicitMultiline) {
         const entry = buildCacheEntryWithMetadata(
@@ -1507,12 +1517,14 @@ function resolveKnuthPlassLayoutMode(
 function applyKnuthPlassRuntimeOptions(
   runtime: MathJaxRuntime,
   alignment: NodeTextParagraphAlignment | null,
-  layoutMode: KnuthPlassLayoutMode
+  layoutMode: KnuthPlassLayoutMode,
+  wrappedTextGaps: WrappedTextGap[] = []
 ): void {
   const outputJax = runtime.outputJax ?? runtime.startup?.output ?? runtime.startup?.document?.outputJax;
   if (outputJax && typeof outputJax === "object") {
     setKnuthPlassOptionsOnOutputJax(outputJax, {
       layoutMode,
+      wrappedTextGaps,
       ...(alignment ? { alignment } : {})
     });
     return;
@@ -1521,8 +1533,177 @@ function applyKnuthPlassRuntimeOptions(
   // Best-effort fallback for runtimes that do not expose the active output jax.
   KnuthPlassVisitor.configure({
     layoutMode,
+    wrappedTextGaps,
     ...(alignment ? { alignment } : {})
   });
+}
+
+const WRAPPED_TEXT_SPACE_WIDTH_EM = 0.3333;
+const WRAPPED_TEXT_SENTENCE_SPACE_WIDTH_EM = 0.5;
+const SPACEFACTOR_SENTENCE_PUNCTUATION = new Set([".", "!", "?"]);
+const SPACEFACTOR_CLOSERS = new Set(['"', "'", ")", "]", "}"]);
+
+function formatEm(value: number): string {
+  return Number(value.toFixed(4)).toString();
+}
+
+function isAsciiLetter(char: string): boolean {
+  return /^[A-Za-z]$/.test(char);
+}
+
+function previousSentencePunctuation(text: string, index: number): string | null {
+  for (let i = index - 1; i >= 0; i--) {
+    const char = text[i];
+    if (!char.trim()) {
+      continue;
+    }
+    if (SPACEFACTOR_CLOSERS.has(char)) {
+      continue;
+    }
+    return SPACEFACTOR_SENTENCE_PUNCTUATION.has(char) ? char : null;
+  }
+  return null;
+}
+
+function nextSentenceWordStartsUppercase(text: string, index: number): boolean {
+  for (let i = index; i < text.length; i++) {
+    const char = text[i];
+    if (!char.trim()) {
+      continue;
+    }
+    if (SPACEFACTOR_CLOSERS.has(char) || char === "(" || char === "[" || char === "{") {
+      continue;
+    }
+    return /[A-Z]/.test(char);
+  }
+  return false;
+}
+
+function encodedGapCommand(widthEm: number): string {
+  return `\\hspace{${formatEm(widthEm)}em}`;
+}
+
+function computeWrappedTextGapWidth(text: string, start: number, end: number): number {
+  return previousSentencePunctuation(text, start) &&
+    nextSentenceWordStartsUppercase(text, end)
+    ? WRAPPED_TEXT_SENTENCE_SPACE_WIDTH_EM
+    : WRAPPED_TEXT_SPACE_WIDTH_EM;
+}
+
+function collectWrappedTextGaps(text: string): WrappedTextGap[] {
+  const gaps: WrappedTextGap[] = [];
+  let index = 0;
+  let inMath = false;
+
+  while (index < text.length) {
+    const char = text[index];
+
+    if (char === "$") {
+      const escaped = index > 0 && text[index - 1] === "\\";
+      if (!escaped) {
+        inMath = !inMath;
+      }
+      index += 1;
+      continue;
+    }
+
+    if (char === "\\") {
+      const next = text[index + 1] ?? "";
+      if (next === "\\") {
+        index += 2;
+        continue;
+      }
+      if (isAsciiLetter(next)) {
+        let end = index + 2;
+        while (end < text.length && isAsciiLetter(text[end])) {
+          end += 1;
+        }
+        if (!inMath && text[end] === " ") {
+          end += 1;
+        }
+        index = end;
+        continue;
+      }
+      index += Math.min(2, text.length - index);
+      continue;
+    }
+
+    if (!inMath && /\s/.test(char)) {
+      const start = index;
+      while (index < text.length && /\s/.test(text[index])) {
+        index += 1;
+      }
+      gaps.push({
+        sourceStart: start,
+        widthEm: computeWrappedTextGapWidth(text, start, index),
+      });
+      continue;
+    }
+
+    index += 1;
+  }
+
+  return gaps;
+}
+
+function encodeWrappedTextSpaces(text: string): string {
+  let encoded = "";
+  let index = 0;
+  let inMath = false;
+
+  while (index < text.length) {
+    const char = text[index];
+
+    if (char === "$") {
+      encoded += char;
+      const escaped = index > 0 && text[index - 1] === "\\";
+      if (!escaped) {
+        inMath = !inMath;
+      }
+      index += 1;
+      continue;
+    }
+
+    if (char === "\\") {
+      const next = text[index + 1] ?? "";
+      if (next === "\\") {
+        encoded += "\\\\";
+        index += 2;
+        continue;
+      }
+      if (isAsciiLetter(next)) {
+        let end = index + 2;
+        while (end < text.length && isAsciiLetter(text[end])) {
+          end += 1;
+        }
+        encoded += text.slice(index, end);
+        if (!inMath && text[end] === " ") {
+          encoded += " ";
+          end += 1;
+        }
+        index = end;
+        continue;
+      }
+      encoded += text.slice(index, Math.min(text.length, index + 2));
+      index += Math.min(2, text.length - index);
+      continue;
+    }
+
+    if (!inMath && /\s/.test(char)) {
+      const start = index;
+      while (index < text.length && /\s/.test(text[index])) {
+        index += 1;
+      }
+      const widthEm = computeWrappedTextGapWidth(text, start, index);
+      encoded += encodedGapCommand(widthEm);
+      continue;
+    }
+
+    encoded += char;
+    index += 1;
+  }
+
+  return encoded;
 }
 
 function buildWrappedTeX(
@@ -1531,7 +1712,8 @@ function buildWrappedTeX(
   font: TextFontOptions,
   mode: "text" | "math" = "text"
 ): string {
-  let styledText = text;
+  let styledText =
+    mode === "text" && textWidthPt != null ? encodeWrappedTextSpaces(text) : text;
   if (mode === "text" && font.fontFamily === "sans") {
     styledText = `\\textsf{${styledText}}`;
   } else if (mode === "text" && font.fontFamily === "monospace") {

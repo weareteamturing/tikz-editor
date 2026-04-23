@@ -1,13 +1,8 @@
 import type { MeasurementService } from './measure.js';
 import type { AppliedBreak } from './applyBreaks.js';
-import type { GreedyLine, ParagraphRun } from './types.js';
+import type { AnyWrapper, GreedyLine, ParagraphRun } from './types.js';
 import type { ParagraphAlignment } from '../alignment.js';
 import type { KnuthPlassLayoutMode } from '../install.js';
-
-const JUSTIFY_SPACER = '\u200A';
-const JUSTIFY_SPACER_WIDTH_FACTOR = 0.2;
-const JUSTIFY_SPACER_MIN_DELTA = 0.01;
-const MAX_JUSTIFY_SPACERS_PER_GAP = 12;
 
 export interface ParagraphLayoutReport {
   paragraphId: string;
@@ -20,7 +15,7 @@ export interface ParagraphLayoutReport {
   internalMode: 'canonical' | 'degraded';
   internalDegradeReason: string | null;
   externalFallbackUsed: boolean;
-  linebreakingMode: 'feasible' | 'infeasible' | 'unknown';
+  linebreakingMode: 'feasible' | 'overfull' | 'unknown';
 }
 
 export interface LineSegmentReport {
@@ -89,9 +84,12 @@ export interface BuildReportInput {
   internalMode?: 'canonical' | 'degraded';
   internalDegradeReason?: string | null;
   externalFallbackUsed?: boolean;
-  linebreakingMode?: 'feasible' | 'infeasible' | 'unknown';
+  linebreakingMode?: 'feasible' | 'overfull' | 'unknown';
   lineMetrics?: Array<{ ascent: number; descent: number }>;
 }
+
+const textSegmentWrapperBySegment = new WeakMap<object, AnyWrapper>();
+const textSegmentCaretStopsCache = new WeakMap<object, number[]>();
 
 function textSliceWidth(
   measurement: MeasurementService | undefined,
@@ -117,46 +115,36 @@ function textSliceWidth(
   return (fullWidth * (end - start)) / run.text.length;
 }
 
-function buildTextCaretStops(
-  measurement: MeasurementService | undefined,
-  run: Extract<ParagraphRun, { kind: 'text' }>,
-  segmentX: number,
-  start: number,
-  end: number,
-  segmentWidth: number
-): number[] {
-  const length = Math.max(0, end - start);
-  if (length === 0) {
-    return [segmentX];
+export function getOrBuildTextSegmentCaretStops(
+  segment: LineSegmentReport
+): number[] | null {
+  if (segment.kind !== 'text') {
+    return Array.isArray(segment.caretStops) ? segment.caretStops : null;
   }
 
-  const stops = new Array<number>(length + 1);
-  if (measurement) {
-    const base = measurement.measurePrefix(run.text, start, run.wrapper);
-    for (let i = 0; i <= length; i++) {
-      const width = measurement.measurePrefix(run.text, start + i, run.wrapper) - base;
-      stops[i] = segmentX + width;
-    }
-    return stops;
+  if (Array.isArray(segment.caretStops)) {
+    return segment.caretStops;
   }
 
-  for (let i = 0; i <= length; i++) {
-    const t = i / length;
-    stops[i] = segmentX + segmentWidth * t;
+  const cached = textSegmentCaretStopsCache.get(segment as object);
+  if (cached) {
+    return cached;
   }
+
+  const wrapper = textSegmentWrapperBySegment.get(segment as object);
+  if (!wrapper || typeof wrapper.textWidth !== 'function' || typeof segment.text !== 'string') {
+    return null;
+  }
+
+  const stops = new Array<number>(segment.text.length + 1);
+  stops[0] = segment.x;
+  for (let i = 1; i <= segment.text.length; i++) {
+    const width = Number(wrapper.textWidth(segment.text.slice(0, i))) || 0;
+    stops[i] = segment.x + width;
+  }
+  segment.caretStops = stops;
+  textSegmentCaretStopsCache.set(segment as object, stops);
   return stops;
-}
-
-function justifiedSpacerCount(deltaPerGap: number, spaceWidth: number): number {
-  if (deltaPerGap <= JUSTIFY_SPACER_MIN_DELTA || spaceWidth <= 0) {
-    return 0;
-  }
-
-  const unit = Math.max(spaceWidth * JUSTIFY_SPACER_WIDTH_FACTOR, 1e-6);
-  return Math.min(
-    MAX_JUSTIFY_SPACERS_PER_GAP,
-    Math.max(0, Math.round(deltaPerGap / unit))
-  );
 }
 
 export function buildParagraphLayoutReport({
@@ -192,21 +180,16 @@ export function buildParagraphLayoutReport({
 
   const lineReports: LineReport[] = lines.map((line) => {
     const appliedBreak = breakByLine.get(line.lineIndex) ?? null;
+    const resolvedBreak = appliedBreak ?? line.break ?? null;
     const segments: LineSegmentReport[] = [];
     const xStart = line.xOffset ?? 0;
     let x = xStart;
-    let pendingJustifyPrefixWidth = 0;
 
     for (let i = line.startRun; i <= line.endRun && i < runReports.length; i++) {
       const run = runs[i];
       if (!run) continue;
 
       if (run.kind === 'text') {
-        if (pendingJustifyPrefixWidth > 0) {
-          x += pendingJustifyPrefixWidth;
-          pendingJustifyPrefixWidth = 0;
-        }
-
         const startOffset = i === line.startRun ? line.startTextOffset : 0;
         const endOffset =
           i === line.endRun && line.endTextOffset !== null
@@ -225,7 +208,7 @@ export function buildParagraphLayoutReport({
           runWidths.get(run.runIndex) ?? 0
         );
 
-        segments.push({
+        const segment: LineSegmentReport = {
           runIndex: run.runIndex,
           kind: run.kind,
           text: run.text.slice(startOffset, endOffset),
@@ -233,22 +216,15 @@ export function buildParagraphLayoutReport({
           endOffset,
           x,
           width: segmentWidth,
-          caretStops: buildTextCaretStops(
-            measurement,
-            run,
-            x,
-            startOffset,
-            endOffset,
-            segmentWidth
-          ),
-        });
+        };
+        textSegmentWrapperBySegment.set(segment as object, run.wrapper);
+        segments.push(segment);
         x += segmentWidth;
         continue;
       }
 
       let segmentWidth = runWidths.get(run.runIndex) ?? 0;
       if (
-        alignment !== 'justified' &&
         run.kind === 'space' &&
         (line.spaceCount ?? 0) > 0 &&
         Number.isFinite(line.spaceDeltaPerGap ?? 0)
@@ -257,31 +233,6 @@ export function buildParagraphLayoutReport({
           0,
           segmentWidth + (line.spaceDeltaPerGap ?? 0)
         );
-      }
-
-      if (
-        alignment === 'justified' &&
-        run.kind === 'space' &&
-        run.breakRef.kind === 'mtext-space'
-      ) {
-        const deltaPerGap = Number(line.spaceDeltaPerGap ?? 0);
-        if (Number.isFinite(deltaPerGap) && deltaPerGap > 0) {
-          const count = justifiedSpacerCount(deltaPerGap, segmentWidth);
-          if (count > 0) {
-            if (!measurement) {
-              throw new Error(
-                'Missing measurement service for justified spacer-prefix geometry.'
-              );
-            }
-            const measuredPrefix = measurement.measureText(
-              JUSTIFY_SPACER.repeat(count),
-              run.wrapper
-            );
-            if (Number.isFinite(measuredPrefix) && measuredPrefix > 0) {
-              pendingJustifyPrefixWidth += measuredPrefix;
-            }
-          }
-        }
       }
       segments.push({
         runIndex: run.runIndex,
@@ -295,6 +246,25 @@ export function buildParagraphLayoutReport({
             : [x, x + segmentWidth],
       });
       x += segmentWidth;
+    }
+
+    if (resolvedBreak?.kind === 'hyphen' && resolvedBreak.visibleHyphen) {
+      const hyphenRun = runs[resolvedBreak.runIndex];
+      const hyphenWidth =
+        hyphenRun?.kind === 'text' && measurement
+          ? measurement.measureText('-', hyphenRun.wrapper)
+          : 0;
+      if (hyphenWidth > 0) {
+        segments.push({
+          runIndex: resolvedBreak.runIndex,
+          kind: 'text',
+          text: '-',
+          x,
+          width: hyphenWidth,
+          caretStops: [x, x + hyphenWidth],
+        });
+        x += hyphenWidth;
+      }
     }
 
     const metrics = lineMetrics[line.lineIndex] ?? { ascent: 0, descent: 0 };
@@ -315,27 +285,17 @@ export function buildParagraphLayoutReport({
       xStart,
       xEnd: x,
       segments,
-      break: appliedBreak
+      break: resolvedBreak
         ? {
-            kind: appliedBreak.kind,
-            runIndex: appliedBreak.runIndex,
-            sourceOffset: appliedBreak.sourceOffset,
-            visibleHyphen: appliedBreak.visibleHyphen,
-            lineLeading: appliedBreak.lineLeading,
-            hyphenSource: appliedBreak.hyphenSource,
-            splitOffset: appliedBreak.splitOffset,
+            kind: resolvedBreak.kind,
+            runIndex: resolvedBreak.runIndex,
+            sourceOffset: resolvedBreak.sourceOffset,
+            visibleHyphen: resolvedBreak.visibleHyphen,
+            lineLeading: resolvedBreak.lineLeading,
+            hyphenSource: resolvedBreak.hyphenSource,
+            splitOffset: resolvedBreak.splitOffset,
           }
-        : line.break
-          ? {
-              kind: line.break.kind,
-              runIndex: line.break.runIndex,
-              sourceOffset: line.break.sourceOffset,
-              visibleHyphen: line.break.visibleHyphen,
-              lineLeading: line.break.lineLeading,
-              hyphenSource: line.break.hyphenSource,
-              splitOffset: line.break.splitOffset,
-            }
-          : null,
+        : null,
     };
   });
 

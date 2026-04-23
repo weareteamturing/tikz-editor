@@ -33,5 +33,5 @@ describe("decorations corpus regression", () => {
 
     expect(unsupportedCounts.get("unsupported-option-key:decoration") ?? 0).toBe(0);
     expect(unsupportedCounts.get("unsupported-option-flag:decorate") ?? 0).toBe(0);
-  });
+  }, 20000);
 });

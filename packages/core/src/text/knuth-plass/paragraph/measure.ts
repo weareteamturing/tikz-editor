@@ -80,13 +80,11 @@ export function createMeasurementService(): MeasurementService {
   };
 
   const precomputeWord = (word: string, mtextWrapper: AnyWrapper): void => {
-    buildPrefixWidths(word, mtextWrapper);
     void measureText(word, mtextWrapper);
   };
 
   const measureWord = (word: string, mtextWrapper: AnyWrapper): number => {
-    const widths = buildPrefixWidths(word, mtextWrapper);
-    return widths[word.length] || 0;
+    return measureText(word, mtextWrapper);
   };
 
   const measurePrefix = (

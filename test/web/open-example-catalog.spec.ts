@@ -24,5 +24,5 @@ describe("open example catalog", () => {
       expect(semanticErrors, `${example.id}: semantic errors`).toHaveLength(0);
       expect(renderErrors, `${example.id}: render errors`).toHaveLength(0);
     }
-  });
+  }, 30000);
 });

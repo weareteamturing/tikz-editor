@@ -18,6 +18,7 @@ export {
   clearKnuthPlassCaretMappingCache,
   type KnuthPlassConfig,
   type KnuthPlassLayoutMode,
+  type WrappedTextGap,
   type MathJaxConfigLike,
   type MathJaxOutputConfig,
   type OutputJaxName,

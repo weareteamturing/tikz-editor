@@ -11,6 +11,7 @@ export interface AppliedBreak extends BreakDecision {
 
 export interface ApplyBreaksOptions {
   originalMtextTextByWrapper?: WeakMap<object, string[]>;
+  originalMspaceWidthByWrapper?: WeakMap<object, string | undefined>;
   alignment?: ParagraphAlignment;
   targetWidth?: number;
   spaceWidth?: number;
@@ -25,7 +26,6 @@ export interface ApplyBreaksResult {
 
 interface WrapperMutationPlan {
   childWordSplits: Map<number, Map<number, SplitMutation[]>>;
-  spacePrefixes: Map<number, Map<number, string>>;
   wordPrefixTrim: Map<number, Map<number, number>>;
 }
 
@@ -51,10 +51,6 @@ interface MtextBreakAction {
   splitOffset?: number;
 }
 
-const JUSTIFY_SPACER = '\u200A';
-const JUSTIFY_SPACER_WIDTH_FACTOR = 0.2;
-const JUSTIFY_SPACER_MIN_DELTA = 0.01;
-const MAX_JUSTIFY_SPACERS_PER_GAP = 12;
 const MTEXT_INDENT_PATCHED = Symbol('kp-mtext-indent-patched');
 const MTEXT_INDENT_PATCH_ORIGINAL = Symbol('kp-mtext-indent-original');
 
@@ -126,6 +122,50 @@ function restoreMtextWrapper(
   safeInvalidate(wrapper);
 }
 
+function formatEmLength(value: number): string {
+  return `${Number(value.toFixed(6))}em`;
+}
+
+function restoreMspaceWrapper(
+  wrapper: any,
+  originalMap?: WeakMap<object, string | undefined>
+): void {
+  if (!wrapper || typeof wrapper !== 'object') return;
+  if (!originalMap) return;
+  const attrs = wrapper?.node?.attributes;
+  if (!attrs || typeof attrs.set !== 'function') return;
+  const originalWidth = originalMap.get(wrapper);
+  attrs.set('width', originalWidth ?? '');
+  if (typeof wrapper.setBreakStyle === 'function') {
+    wrapper.setBreakStyle('');
+  }
+  safeInvalidate(wrapper);
+}
+
+function readMspaceWidth(wrapper: any): number {
+  if (!wrapper || typeof wrapper !== 'object') {
+    return 0;
+  }
+  const bbox =
+    (typeof wrapper.getBBox === 'function' && wrapper.getBBox()) ||
+    (typeof wrapper.getOuterBBox === 'function' && wrapper.getOuterBBox()) ||
+    null;
+  const width = Number(bbox?.w);
+  return Number.isFinite(width) ? width : 0;
+}
+
+function setMspaceWidth(wrapper: any, width: number): void {
+  if (!wrapper || typeof wrapper !== 'object') {
+    return;
+  }
+  const attrs = wrapper?.node?.attributes;
+  if (!attrs || typeof attrs.set !== 'function') {
+    return;
+  }
+  attrs.set('width', formatEmLength(Math.max(0, width)));
+  safeInvalidate(wrapper);
+}
+
 function ensureWrapperPlan(
   plans: Map<any, WrapperMutationPlan>,
   wrapper: any
@@ -134,7 +174,6 @@ function ensureWrapperPlan(
   if (!plan) {
     plan = {
       childWordSplits: new Map<number, Map<number, SplitMutation[]>>(),
-      spacePrefixes: new Map<number, Map<number, string>>(),
       wordPrefixTrim: new Map<number, Map<number, number>>(),
     };
     plans.set(wrapper, plan);
@@ -159,26 +198,6 @@ function pushSplit(
   const current = wordMap.get(wordIndex) ?? [];
   current.push({ splitOffset, insertKind });
   wordMap.set(wordIndex, current);
-}
-
-function pushSpacePrefix(
-  plans: Map<any, WrapperMutationPlan>,
-  wrapper: any,
-  childIndex: number,
-  wordIndex: number,
-  prefix: string
-): void {
-  if (!prefix) {
-    return;
-  }
-
-  const plan = ensureWrapperPlan(plans, wrapper);
-  let childMap = plan.spacePrefixes.get(childIndex);
-  if (!childMap) {
-    childMap = new Map<number, string>();
-    plan.spacePrefixes.set(childIndex, childMap);
-  }
-  childMap.set(wordIndex, (childMap.get(wordIndex) ?? '') + prefix);
 }
 
 function pushWordPrefixTrim(
@@ -256,23 +275,6 @@ function applyMtextAlignment(wrapper: any, alignment: ParagraphAlignment): void 
   wrapper.node.attributes.set('indentshiftlast', '0');
 }
 
-function justifiedSpacerPrefix(deltaPerGap: number, spaceWidth: number): string {
-  if (deltaPerGap <= JUSTIFY_SPACER_MIN_DELTA || spaceWidth <= 0) {
-    return '';
-  }
-
-  const unit = Math.max(spaceWidth * JUSTIFY_SPACER_WIDTH_FACTOR, 1e-6);
-  const count = Math.min(
-    MAX_JUSTIFY_SPACERS_PER_GAP,
-    Math.max(0, Math.round(deltaPerGap / unit))
-  );
-
-  if (count <= 0) {
-    return '';
-  }
-  return JUSTIFY_SPACER.repeat(count);
-}
-
 function countSplitsBeforeWord(
   wordSplits: Map<number, SplitMutation[]>,
   wordIndex: number
@@ -316,13 +318,11 @@ function mutateWrapperText(
   const children = getTextChildren(wrapper);
   const allChildIndices = new Set<number>([
     ...plan.childWordSplits.keys(),
-    ...plan.spacePrefixes.keys(),
     ...plan.wordPrefixTrim.keys(),
   ]);
 
   for (const childIndex of allChildIndices) {
     const wordSplits = plan.childWordSplits.get(childIndex) ?? new Map();
-    const spacePrefixes = plan.spacePrefixes.get(childIndex) ?? new Map();
     const wordPrefixTrim = plan.wordPrefixTrim.get(childIndex) ?? new Map();
     const child = children[childIndex];
     if (!child || !isTextChild(child)) {
@@ -393,17 +393,6 @@ function mutateWrapperText(
       tokens[tokenIndex].text = word;
     }
 
-    for (const [wordIndex, prefix] of spacePrefixes.entries()) {
-      if (wordIndex <= 0 || wordIndex >= wordIndices.length) {
-        errors.push(
-          `Mutation failed: justified prefix wordIndex ${wordIndex} out of range for child ${childIndex}.`
-        );
-        return false;
-      }
-      const tokenIndex = wordIndices[wordIndex];
-      tokens[tokenIndex].text = `${prefix}${tokens[tokenIndex].text}`;
-    }
-
     child.node.setText(
       tokens
         .map((token) =>
@@ -445,7 +434,8 @@ function mappedIndexForHyphen(
 function clearExistingBreakStyles(
   runs: ParagraphRun[],
   touchedMtextWrappers: Set<any>,
-  touchedMspaceWrappers: Set<any>
+  touchedMspaceWrappers: Set<any>,
+  originalMspaceWidthByWrapper?: WeakMap<object, string | undefined>
 ): void {
   for (const run of runs) {
     if (run.kind === 'text') {
@@ -470,10 +460,7 @@ function clearExistingBreakStyles(
   }
 
   for (const wrapper of touchedMspaceWrappers) {
-    if (wrapper && typeof wrapper.setBreakStyle === 'function') {
-      wrapper.setBreakStyle('');
-      safeInvalidate(wrapper);
-    }
+    restoreMspaceWrapper(wrapper, originalMspaceWidthByWrapper);
   }
 }
 
@@ -515,7 +502,12 @@ export function applyBreaks(
 
   const touchedMtextWrappers = new Set<any>();
   const touchedMspaceWrappers = new Set<any>();
-  clearExistingBreakStyles(runs, touchedMtextWrappers, touchedMspaceWrappers);
+  clearExistingBreakStyles(
+    runs,
+    touchedMtextWrappers,
+    touchedMspaceWrappers,
+    options.originalMspaceWidthByWrapper
+  );
 
   for (const wrapper of touchedMtextWrappers) {
     patchMtextIndentBehavior(wrapper);
@@ -524,36 +516,37 @@ export function applyBreaks(
 
   const plans = new Map<any, WrapperMutationPlan>();
   const mtextActionsInLineOrder: MtextBreakAction[] = [];
+  const justifiedSpaceWidths = new Map<number, number>();
 
   if (alignment === 'justified') {
-    const spaceWidth = Math.max(options.spaceWidth ?? 0, 0);
     for (const line of lines) {
       const delta = Number(line.spaceDeltaPerGap ?? 0);
-      if (!Number.isFinite(delta) || delta <= 0) {
-        continue;
-      }
-      const prefix = justifiedSpacerPrefix(delta, spaceWidth);
-      if (!prefix) {
+      if (!Number.isFinite(delta) || delta === 0) {
         continue;
       }
 
       for (let runIndex = line.startRun; runIndex <= line.endRun; runIndex++) {
         const run = runs[runIndex];
-        if (!run || run.kind !== 'space') {
+        if (
+          !run ||
+          run.kind !== 'space' ||
+          run.breakRef.kind !== 'mspace' ||
+          run.breakRef.isForcedLineBreak
+        ) {
           continue;
         }
-        if (run.breakRef.kind !== 'mtext-space') {
-          continue;
-        }
-
-        pushSpacePrefix(
-          plans,
-          run.breakRef.wrapper,
-          run.breakRef.childIndex,
-          run.breakRef.wordIndex,
-          prefix
+        justifiedSpaceWidths.set(
+          runIndex,
+          Math.max(0, readMspaceWidth(run.breakRef.wrapper) + delta)
         );
       }
+    }
+  }
+
+  for (const [runIndex, width] of justifiedSpaceWidths.entries()) {
+    const run = runs[runIndex];
+    if (run?.kind === 'space' && run.breakRef.kind === 'mspace') {
+      setMspaceWidth(run.breakRef.wrapper, width);
     }
   }
 
@@ -628,6 +621,10 @@ export function applyBreaks(
     }
 
     if (run.breakRef.kind === 'mspace') {
+      if (!run.breakRef.isForcedLineBreak && !run.breakRef.lineLeading) {
+        setMspaceWidth(run.breakRef.wrapper, 0);
+      }
+
       if (run.breakRef.lineLeading) {
         if (typeof run.breakRef.wrapper?.node?.attributes?.set === 'function') {
           run.breakRef.wrapper.node.attributes.set(
@@ -747,10 +744,7 @@ export function applyBreaks(
     }
 
     for (const wrapper of touchedMspaceWrappers) {
-      if (wrapper && typeof wrapper.setBreakStyle === 'function') {
-        wrapper.setBreakStyle('');
-        safeInvalidate(wrapper);
-      }
+      restoreMspaceWrapper(wrapper, options.originalMspaceWidthByWrapper);
     }
   }
 

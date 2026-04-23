@@ -1,4 +1,8 @@
-import type { LineSegmentReport, ParagraphLayoutReport } from '../paragraph/report.js';
+import {
+  getOrBuildTextSegmentCaretStops,
+  type LineSegmentReport,
+  type ParagraphLayoutReport,
+} from '../paragraph/report.js';
 import { px } from "../../../coords/scalars.js";
 import {
   parseSourceSpans,
@@ -1026,9 +1030,8 @@ async function buildStopsByLine(
       continue;
     }
 
-    const providedStops = Array.isArray(aligned.segment.caretStops)
-      ? aligned.segment.caretStops.map((value) => Number(value))
-      : [];
+    const providedStops = (getOrBuildTextSegmentCaretStops(aligned.segment) ?? [])
+      .map((value) => Number(value));
     if (
       providedStops.length !== rawLength + 1 ||
       !providedStops.every((value) => Number.isFinite(value))

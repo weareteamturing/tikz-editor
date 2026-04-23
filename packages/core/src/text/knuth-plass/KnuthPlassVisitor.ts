@@ -9,7 +9,6 @@ import {
 import { englishDefaults } from './languages/en.js';
 import { applyBreaks, type AppliedBreak } from './paragraph/applyBreaks.js';
 import { breakWithDp } from './paragraph/dp.js';
-import { greedyBreakParagraph } from './paragraph/greedy.js';
 import { createEnglishHyphenator, type Hyphenator } from './paragraph/hyphenate.js';
 import { runsToItems, type ParagraphModel } from './paragraph/items.js';
 import {
@@ -22,7 +21,7 @@ import {
 } from './paragraph/report.js';
 import { flattenParagraph } from './paragraph/tokenize.js';
 import type { AnyWrapper, GreedyLine, ParagraphRun } from './paragraph/types.js';
-import type { KnuthPlassLayoutMode } from './install.js';
+import type { KnuthPlassLayoutMode, WrappedTextGap } from './install.js';
 
 function widthOfRuns(runs: ParagraphRun[], runWidths: Map<number, number>): number {
   return runs.reduce((sum, run) => sum + (runWidths.get(run.runIndex) ?? 0), 0);
@@ -276,95 +275,6 @@ function buildFixedLines(
   }));
 }
 
-function buildGreedyWrappedLines(
-  model: ParagraphModel,
-  targetWidth: number,
-  alignment: ParagraphAlignment
-): { lines: GreedyLine[]; errors: string[] } {
-  const lines: GreedyLine[] = [];
-  const errors: string[] = [];
-  for (const segment of collectExplicitSegments(model.runs)) {
-    const forcedBreak =
-      segment.forcedBreakRun == null
-        ? null
-        : forcedBreakDecision(segment.forcedBreakRun, model.runs[segment.forcedBreakRun]!);
-    const segmentRuns = model.runs.slice(segment.startRun, segment.endRun + 1);
-    if (segmentRuns.length === 0) {
-      lines.push({
-        lineIndex: lines.length,
-        startRun: Math.max(0, segment.startRun),
-        startTextOffset: 0,
-        endRun: segment.startRun - 1,
-        endTextOffset: null,
-        width: 0,
-        targetWidth,
-        lineNaturalWidth: 0,
-        glueSetRatio: 0,
-        badness: 0,
-        spaceCount: 0,
-        spaceDeltaPerGap: 0,
-        xOffset: lineAlignmentOffset(alignment, targetWidth, 0),
-        break: forcedBreak,
-      });
-      continue;
-    }
-
-    const localRuns = cloneRunsWithLocalIndices(segmentRuns);
-    const globalToLocalRunIndex = new Map<number, number>();
-    for (const [localRunIndex, run] of segmentRuns.entries()) {
-      globalToLocalRunIndex.set(run.runIndex, localRunIndex);
-    }
-    const localModel: ParagraphModel = {
-      ...model,
-      runs: localRuns,
-      items: model.items
-        .filter((item) => globalToLocalRunIndex.has(item.payload.runIndex))
-        .map((item) => {
-          const localRunIndex = globalToLocalRunIndex.get(item.payload.runIndex)!;
-          if (item.kind === 'box') {
-            return {
-              ...item,
-              payload: {
-                ...item.payload,
-                runIndex: localRunIndex,
-              },
-            };
-          }
-          if (item.kind === 'glue') {
-            return {
-              ...item,
-              payload: {
-                ...item.payload,
-                runIndex: localRunIndex,
-              },
-            };
-          }
-          return {
-            ...item,
-            payload: {
-              ...item.payload,
-              runIndex: localRunIndex,
-            },
-          };
-        }),
-    };
-    const broken = greedyBreakParagraph(localModel, targetWidth);
-    errors.push(...broken.errors);
-    lines.push(
-      ...mapLocalLinesToGlobal(
-        broken.lines,
-        segmentRuns,
-        lines.length,
-        alignment,
-        targetWidth,
-        forcedBreak
-      )
-    );
-  }
-
-  return { lines, errors };
-}
-
 function buildWrappedExplicitLines(params: {
   runs: ParagraphRun[];
   measurement: MeasurementService;
@@ -392,8 +302,10 @@ function buildWrappedExplicitLines(params: {
 }): {
   lines: GreedyLine[];
   errors: string[];
-  passLabel: 'wrapped-explicit-pretolerance' | 'wrapped-explicit-tolerance' | 'wrapped-explicit-greedy';
-  linebreakingMode: 'feasible' | 'infeasible';
+  passLabel:
+    | 'wrapped-explicit-pretolerance'
+    | 'wrapped-explicit-tolerance';
+  linebreakingMode: 'feasible' | 'overfull';
 } {
   const {
     runs,
@@ -407,8 +319,10 @@ function buildWrappedExplicitLines(params: {
   } = params;
   const lines: GreedyLine[] = [];
   const errors: string[] = [];
-  let usedTolerance = false;
-  let usedGreedy = false;
+  let passLabel:
+    | 'wrapped-explicit-pretolerance'
+    | 'wrapped-explicit-tolerance' = 'wrapped-explicit-pretolerance';
+  let linebreakingMode: 'feasible' | 'overfull' = 'feasible';
 
   for (const [segmentIndex, segment] of collectExplicitSegments(runs).entries()) {
     const forcedBreak =
@@ -461,25 +375,27 @@ function buildWrappedExplicitLines(params: {
     const pass2Dp = breakWithDp(pass2Model, targetWidth, {
       ...commonDpOptions,
       tolerance: resolved.tolerance,
+      allowInfeasible: alignment !== 'justified',
     });
 
     let chosenLines: GreedyLine[] | null = null;
     if (pass1Dp.canProceed && pass1Dp.lines.length) {
       chosenLines = pass1Dp.lines;
+      linebreakingMode = pass1Dp.mode;
     } else if (pass2Dp.canProceed && pass2Dp.lines.length) {
       chosenLines = pass2Dp.lines;
-      usedTolerance = true;
+      linebreakingMode = pass2Dp.mode;
+      if (passLabel === 'wrapped-explicit-pretolerance') {
+        passLabel = 'wrapped-explicit-tolerance';
+      }
     } else {
-      const greedy = greedyBreakParagraph(pass2Model, targetWidth);
-      chosenLines = greedy.lines;
-      usedGreedy = true;
-      errors.push(
-        ...pass1Model.errors,
-        ...pass1Dp.errors,
-        ...pass2Model.errors,
-        ...pass2Dp.errors,
-        ...greedy.errors,
-        `wrapped-explicit segment ${segmentIndex} used greedy rescue`,
+      throw new Error(
+        `Wrapped-explicit segment ${segmentIndex} failed: ${[
+          ...pass1Model.errors,
+          ...pass1Dp.errors,
+          ...pass2Model.errors,
+          ...pass2Dp.errors,
+        ].join('; ') || 'no solution'}`
       );
     }
 
@@ -489,11 +405,9 @@ function buildWrappedExplicitLines(params: {
       );
     }
 
-    if (!usedGreedy) {
-      errors.push(...pass1Model.errors);
-      if (usedTolerance) {
-        errors.push(...pass1Dp.errors, ...pass2Model.errors, ...pass2Dp.errors);
-      }
+    errors.push(...pass1Model.errors);
+    if (passLabel !== 'wrapped-explicit-pretolerance') {
+      errors.push(...pass1Dp.errors, ...pass2Model.errors, ...pass2Dp.errors);
     }
 
     lines.push(
@@ -511,18 +425,63 @@ function buildWrappedExplicitLines(params: {
   return {
     lines,
     errors,
-    passLabel: usedGreedy
-      ? 'wrapped-explicit-greedy'
-      : usedTolerance
-        ? 'wrapped-explicit-tolerance'
-        : 'wrapped-explicit-pretolerance',
-    linebreakingMode: usedGreedy ? 'infeasible' : 'feasible',
+    passLabel,
+    linebreakingMode,
   };
+}
+
+function formatGapWidthEm(widthEm: number): string {
+  return `${Number(widthEm.toFixed(6))}em`;
+}
+
+function applyWrappedTextGapWidths(
+  runs: ParagraphRun[],
+  wrappedTextGaps: WrappedTextGap[] | undefined
+): void {
+  if (!wrappedTextGaps?.length) {
+    return;
+  }
+
+  const gapWidthBySourceStart = new Map<number, number>();
+  for (const gap of wrappedTextGaps) {
+    if (Number.isFinite(gap.widthEm) && gap.widthEm >= 0) {
+      gapWidthBySourceStart.set(gap.sourceStart, gap.widthEm);
+    }
+  }
+
+  if (gapWidthBySourceStart.size === 0) {
+    return;
+  }
+
+  for (const run of runs) {
+    if (run.kind !== 'space' || run.breakRef.kind !== 'mspace') {
+      continue;
+    }
+    if (run.breakRef.isForcedLineBreak) {
+      continue;
+    }
+    const widthEm = gapWidthBySourceStart.get(run.sourceStart);
+    if (widthEm === undefined) {
+      continue;
+    }
+    const attrs = run.breakRef.wrapper?.node?.attributes;
+    if (!attrs || typeof attrs.set !== 'function') {
+      continue;
+    }
+    attrs.set('width', formatGapWidthEm(widthEm));
+    if (typeof run.breakRef.wrapper?.setBreakStyle === 'function') {
+      run.breakRef.wrapper.setBreakStyle('');
+    }
+    if (typeof run.breakRef.wrapper?.invalidateBBox === 'function') {
+      run.breakRef.wrapper.invalidateBBox();
+    }
+  }
 }
 
 interface KnuthPlassLinebreakOptions {
   alignment?: ParagraphAlignment;
   layoutMode?: KnuthPlassLayoutMode;
+  wrappedTextGaps?: WrappedTextGap[];
   pretolerance?: number;
   tolerance?: number;
   linepenalty?: number;
@@ -585,6 +544,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
   private readonly reportByWrapper = new WeakMap<object, ParagraphLayoutReport>();
   private readonly paragraphIdByWrapper = new WeakMap<object, string>();
   private readonly originalMtextTextByWrapper = new WeakMap<object, string[]>();
+  private readonly originalMspaceWidthByWrapper = new WeakMap<object, string | undefined>();
   private nextParagraphNumber = 1;
 
   public readonly reports: ParagraphLayoutReport[] = [];
@@ -756,7 +716,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
       return;
     }
 
-    this.restoreParagraphMtextState(wrapper);
+    this.restoreParagraphWrapperState(wrapper);
 
     const options = this.getKnuthPlassOptions(wrapper);
     const resolved = this.resolveKnuthPlassOptions(options);
@@ -797,6 +757,8 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     }
 
     this.captureOriginalMtextStateFromRuns(runs);
+    applyWrappedTextGapWidths(runs, options.wrappedTextGaps);
+    this.captureOriginalMspaceStateFromRuns(runs);
 
     const spaceWidth = this.estimateSpaceWidth(runs, measurement, width);
     const alignmentProfile = buildAlignmentProfile(resolved.alignment, spaceWidth);
@@ -837,6 +799,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
         ) || width;
       const applyResult = applyBreaks(wrapper, runs, lines, {
         originalMtextTextByWrapper: this.originalMtextTextByWrapper,
+        originalMspaceWidthByWrapper: this.originalMspaceWidthByWrapper,
         alignment: resolved.alignment,
         targetWidth,
         spaceWidth,
@@ -896,6 +859,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
       const paragraphId = this.getParagraphId(wrapper);
       const applyResult = applyBreaks(wrapper, runs, wrappedExplicit.lines, {
         originalMtextTextByWrapper: this.originalMtextTextByWrapper,
+        originalMspaceWidthByWrapper: this.originalMspaceWidthByWrapper,
         alignment: resolved.alignment,
         targetWidth: width,
         spaceWidth,
@@ -968,6 +932,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     const pass2Dp = breakWithDp(pass2Model, width, {
       ...commonDpOptions,
       tolerance: resolved.tolerance,
+      allowInfeasible: resolved.alignment !== 'justified',
     });
 
     let chosenModel = pass1Model;
@@ -981,131 +946,25 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     }
 
     if (!chosenDp.canProceed || !chosenDp.lines.length) {
-      const singleLineWidth = widthOfRuns(runs, pass2Model.runWidths);
-      if (singleLineWidth <= width + 1e-6) {
-        const lines = singleLine(runs, pass2Model.runWidths);
-        const paragraphId = this.getParagraphId(wrapper);
-        const applyResult = applyBreaks(wrapper, runs, lines, {
-          originalMtextTextByWrapper: this.originalMtextTextByWrapper,
-          alignment: resolved.alignment,
-          targetWidth: width,
-          spaceWidth,
-          paragraphId,
-        });
-        if (!applyResult.canProceed) {
-          throw new Error(
-            `Single-line paragraph mutation failed: ${applyResult.errors.join('; ') || 'unknown error'}`
-          );
-        }
-        const stats = measurement.getStats();
-        this.saveReport(
-          wrapper,
-          width,
-          runs,
-          pass2Model.runWidths,
-          lines,
-          applyResult.appliedBreaks,
-          [
-            ...errors,
-            unsupportedKinds.length
-              ? `flattenWarnings=${unsupportedKinds.join(', ')}`
-              : 'flattenWarnings=none',
-            ...pass1Model.errors,
-            ...pass1Dp.errors,
-            ...pass2Model.errors,
-            ...pass2Dp.errors,
-            ...applyResult.errors,
-            `alignment=${resolved.alignment}`,
-            `layoutMode=${resolved.layoutMode}`,
-            'pass=single-line',
-            'dpMode=feasible',
-            'dpCost=0',
-            `measurement: textCache=${stats.textCacheEntries}, prefixCache=${stats.wordPrefixEntries}, mathCache=${stats.mathCacheEntries}`,
-            'internalMode=canonical',
-            'internalDegradeReason=none',
-          ],
-          measurement,
-          'canonical',
-          null,
-          false,
-          'feasible',
-          resolved.alignment,
-          resolved.layoutMode
-        );
-        return;
-      }
-      const greedyResult = buildGreedyWrappedLines(
-        pass2Model,
-        width,
-        resolved.alignment
+      const diagnostics = [
+        ...errors,
+        unsupportedKinds.length
+          ? `flattenWarnings=${unsupportedKinds.join(', ')}`
+          : 'flattenWarnings=none',
+        ...pass1Model.errors,
+        ...pass1Dp.errors,
+        ...pass2Model.errors,
+        ...pass2Dp.errors,
+      ];
+      throw new Error(
+        `Knuth-Plass ${resolved.layoutMode} layout failed: ${diagnostics.join('; ') || 'no solution'}`
       );
-      const paragraphId = this.getParagraphId(wrapper);
-      const applyResult = applyBreaks(wrapper, runs, greedyResult.lines, {
-        originalMtextTextByWrapper: this.originalMtextTextByWrapper,
-        alignment: resolved.alignment,
-        targetWidth: width,
-        spaceWidth,
-        paragraphId,
-      });
-      if (!applyResult.canProceed) {
-        const diagnostics = [
-          ...errors,
-          unsupportedKinds.length
-            ? `flattenWarnings=${unsupportedKinds.join(', ')}`
-            : 'flattenWarnings=none',
-          ...pass1Model.errors,
-          ...pass1Dp.errors,
-          ...pass2Model.errors,
-          ...pass2Dp.errors,
-          ...greedyResult.errors,
-          ...applyResult.errors,
-        ];
-        throw new Error(
-          `Knuth-Plass ${resolved.layoutMode} layout failed: ${diagnostics.join('; ') || 'no solution'}`
-        );
-      }
-      const stats = measurement.getStats();
-      this.saveReport(
-        wrapper,
-        width,
-        runs,
-        pass2Model.runWidths,
-        greedyResult.lines,
-        applyResult.appliedBreaks,
-        [
-          ...errors,
-          unsupportedKinds.length
-            ? `flattenWarnings=${unsupportedKinds.join(', ')}`
-            : 'flattenWarnings=none',
-          ...pass1Model.errors,
-          ...pass1Dp.errors,
-          ...pass2Model.errors,
-          ...pass2Dp.errors,
-          ...greedyResult.errors,
-          ...applyResult.errors,
-          `alignment=${resolved.alignment}`,
-          `layoutMode=${resolved.layoutMode}`,
-          'pass=greedy-wrap',
-          'dpMode=infeasible',
-          'dpCost=0',
-          `measurement: textCache=${stats.textCacheEntries}, prefixCache=${stats.wordPrefixEntries}, mathCache=${stats.mathCacheEntries}`,
-          'internalMode=canonical',
-          'internalDegradeReason=none',
-        ],
-        measurement,
-        'canonical',
-        null,
-        false,
-        'infeasible',
-        resolved.alignment,
-        resolved.layoutMode
-      );
-      return;
     }
 
     const paragraphId = this.getParagraphId(wrapper);
     const applyResult = applyBreaks(wrapper, runs, chosenDp.lines, {
       originalMtextTextByWrapper: this.originalMtextTextByWrapper,
+      originalMspaceWidthByWrapper: this.originalMspaceWidthByWrapper,
       alignment: resolved.alignment,
       targetWidth: width,
       spaceWidth,
@@ -1193,25 +1052,36 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     measurement: MeasurementService,
     width: number
   ): number {
+    let bestWidth = Number.POSITIVE_INFINITY;
     for (const run of runs) {
       if (run.kind === 'space') {
-        if (run.breakRef.kind === 'mspace') {
-          continue;
+        if (
+          run.breakRef.kind === 'mspace' &&
+          run.breakRef.isForcedLineBreak !== true
+        ) {
+          const measured = measurement.measureMath(run.wrapper);
+          if (measured > 0) {
+            bestWidth = Math.min(bestWidth, measured);
+            continue;
+          }
         }
-        const w = measurement.measureText(' ', run.wrapper);
+        const w =
+          run.breakRef.kind === 'mspace'
+            ? measurement.measureMath(run.wrapper)
+            : measurement.measureText(' ', run.wrapper);
         if (w > 0) {
-          return w;
+          bestWidth = Math.min(bestWidth, w);
         }
       }
       if (run.kind === 'text') {
         const w = measurement.measureText(' ', run.wrapper);
         if (w > 0) {
-          return w;
+          bestWidth = Math.min(bestWidth, w);
         }
       }
     }
 
-    return Math.max(width / 40, 0.25);
+    return Number.isFinite(bestWidth) ? bestWidth : Math.max(width / 40, 0.25);
   }
 
   private captureOriginalMtextStateFromRuns(runs: ParagraphRun[]): void {
@@ -1224,6 +1094,23 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
 
     for (const wrapper of wrappers) {
       this.captureOriginalMtextState(wrapper);
+    }
+  }
+
+  private captureOriginalMspaceStateFromRuns(runs: ParagraphRun[]): void {
+    for (const run of runs) {
+      if (
+        run.kind !== 'space' ||
+        run.breakRef.kind !== 'mspace' ||
+        this.originalMspaceWidthByWrapper.has(run.breakRef.wrapper)
+      ) {
+        continue;
+      }
+      const width = run.breakRef.wrapper?.node?.attributes?.get?.('width');
+      this.originalMspaceWidthByWrapper.set(
+        run.breakRef.wrapper,
+        typeof width === 'string' ? width : undefined
+      );
     }
   }
 
@@ -1240,7 +1127,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     this.originalMtextTextByWrapper.set(wrapper, snapshot);
   }
 
-  private restoreParagraphMtextState(paragraphWrapper: AnyWrapper): void {
+  private restoreParagraphWrapperState(paragraphWrapper: AnyWrapper): void {
     const stack: AnyWrapper[] = [paragraphWrapper];
     const seen = new Set<object>();
 
@@ -1252,6 +1139,8 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
 
       if (current.node?.isKind?.('mtext')) {
         this.restoreMtextWrapper(current);
+      } else if (current.node?.isKind?.('mspace')) {
+        this.restoreMspaceWrapper(current);
       }
 
       const children = Array.isArray(current.childNodes) ? current.childNodes : [];
@@ -1285,6 +1174,20 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     }
   }
 
+  private restoreMspaceWrapper(wrapper: AnyWrapper): void {
+    const originalWidth = this.originalMspaceWidthByWrapper.get(wrapper);
+    if (!wrapper?.node?.attributes || typeof wrapper.node.attributes.set !== 'function') {
+      return;
+    }
+    wrapper.node.attributes.set('width', originalWidth ?? '');
+    if (typeof wrapper.setBreakStyle === 'function') {
+      wrapper.setBreakStyle('');
+    }
+    if (typeof wrapper.invalidateBBox === 'function') {
+      wrapper.invalidateBBox();
+    }
+  }
+
   private saveReport(
     wrapper: AnyWrapper,
     width: number,
@@ -1297,7 +1200,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     internalMode: 'canonical' | 'degraded' = 'canonical',
     internalDegradeReason: string | null = null,
     externalFallbackUsed = false,
-    linebreakingMode: 'feasible' | 'infeasible' | 'unknown' = 'unknown',
+    linebreakingMode: 'feasible' | 'overfull' | 'unknown' = 'unknown',
     alignment: ParagraphAlignment = DEFAULT_PARAGRAPH_ALIGNMENT,
     layoutMode: KnuthPlassLayoutMode = 'wrap'
   ) {

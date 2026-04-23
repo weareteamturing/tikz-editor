@@ -23,6 +23,21 @@ function countLineboxes(svg: string): number {
   return (svg.match(/data-mjx-linebox=/g) ?? []).length;
 }
 
+function renderedMspaceAdvances(svg: string): number[] {
+  const advances: number[] = [];
+  const pairPattern =
+    /data-mml-node="mspace"[^>]*transform="translate\(([-+0-9.]+),0\)"[^>]*><\/g>\s*<g data-mml-node="mtext"[^>]*transform="translate\(([-+0-9.]+),0\)"/g;
+  for (const match of svg.matchAll(pairPattern)) {
+    const currentX = Number.parseFloat(match[1] ?? "");
+    const nextX = Number.parseFloat(match[2] ?? "");
+    if (!Number.isFinite(currentX) || !Number.isFinite(nextX)) {
+      continue;
+    }
+    advances.push(nextX - currentX);
+  }
+  return advances;
+}
+
 function reportForParagraphId(paragraphId: string | null) {
   const reports = getKnuthPlassReportsFromOutputJax(getActiveMathJaxOutputJax());
   return reports.find((report) => report.paragraphId === paragraphId) ?? null;
@@ -824,6 +839,95 @@ World};
     // discretionary hyphenation was applied by the line breaker.
     expect(result.svg.svg).toContain('data-c="2D"');
   });
+
+  it("uses wider sentence spacing than ordinary interword spacing in wrapped paragraphs", async () => {
+    const ordinary = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[text width=100pt,align=left] at (0,0) {A B};
+\end{tikzpicture}`);
+    const sentence = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[text width=100pt,align=left] at (0,0) {A. B};
+\end{tikzpicture}`);
+
+    const ordinaryText = ordinary.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    const sentenceText = sentence.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+
+    expect(ordinaryText?.kind).toBe("Text");
+    expect(sentenceText?.kind).toBe("Text");
+    if (ordinaryText?.kind === "Text" && sentenceText?.kind === "Text") {
+      const ordinaryReport = reportForParagraphId(
+        ordinaryText.textRenderInfo?.mode === "mathjax" ? ordinaryText.textRenderInfo.paragraphId : null
+      );
+      const sentenceReport = reportForParagraphId(
+        sentenceText.textRenderInfo?.mode === "mathjax" ? sentenceText.textRenderInfo.paragraphId : null
+      );
+      expect(ordinaryReport).not.toBeNull();
+      expect(sentenceReport).not.toBeNull();
+      const ordinarySpace = ordinaryReport?.runs.find((run) => run.kind === "space");
+      const sentenceSpace = sentenceReport?.runs.find((run) => run.kind === "space");
+      expect(sentenceSpace?.width ?? 0).toBeGreaterThan(ordinarySpace?.width ?? 0);
+    }
+  });
+
+  it("preserves rendered interword mspace advances for wrapped align=left paragraphs", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[align=left, text width=380pt] at (0,0) {Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu. In enim justo, rhoncus ut, imperdiet a, venenatis vitae, justo. Nullam dictum felis eu pede mollis pretium. Integer tincidunt. Cras dapibus. Vivamus elementum semper nisi. Aenean vulputate eleifend tellus. Aenean leo ligula, porttitor eu, consequat vitae, eleifend ac, enim. Aliquam lorem ante, dapibus in, viverra quis, feugiat a, tellus. Phasellus viverra nulla ut metus varius laoreet. Quisque rutrum. Aenean imperdiet. Etiam ultricies nisi vel augue. Curabitur ullamcorper ultricies nisi. Nam eget dui. Etiam rhoncus. Maecenas tempus, tellus eget condimentum rhoncus, sem quam semper libero, sit amet adipiscing sem neque sed ipsum. Nam quam nunc, blandit vel, luctus pulvinar, hendrerit id, lorem. Maecenas nec odio et ante tincidunt tempus. Donec vitae sapien ut libero venenatis faucibus. Nullam quis ante.};
+\end{tikzpicture}`);
+
+    const advances = renderedMspaceAdvances(result.svg.svg);
+    expect(advances.length).toBeGreaterThan(100);
+    expect(advances.every((advance) => advance > 0)).toBe(true);
+  });
+
+  it("keeps normal wrapped align=left lorem paragraphs on the canonical two-pass path", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[align=left, text width=380pt] at (0,0) {Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu. In enim justo, rhoncus ut, imperdiet a, venenatis vitae, justo. Nullam dictum felis eu pede mollis pretium. Integer tincidunt. Cras dapibus. Vivamus elementum semper nisi. Aenean vulputate eleifend tellus. Aenean leo ligula, porttitor eu, consequat vitae, eleifend ac, enim. Aliquam lorem ante, dapibus in, viverra quis, feugiat a, tellus. Phasellus viverra nulla ut metus varius laoreet. Quisque rutrum. Aenean imperdiet. Etiam ultricies nisi vel augue. Curabitur ullamcorper ultricies nisi. Nam eget dui. Etiam rhoncus. Maecenas tempus, tellus eget condimentum rhoncus, sem quam semper libero, sit amet adipiscing sem neque sed ipsum. Nam quam nunc, blandit vel, luctus pulvinar, hendrerit id, lorem. Maecenas nec odio et ante tincidunt tempus. Donec vitae sapien ut libero venenatis faucibus. Nullam quis ante.};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    const report =
+      text?.kind === "Text" && text.textRenderInfo?.mode === "mathjax"
+        ? reportForParagraphId(text.textRenderInfo.paragraphId)
+        : null;
+    expect(report).not.toBeNull();
+    expect(report?.errors.some((entry) => entry === "pass=emergency")).toBe(false);
+    expect(report?.linebreakingMode === "feasible" || report?.linebreakingMode === "overfull").toBe(true);
+  });
+
+  it("keeps wrapped justified line starts anchored at the left edge in the paragraph report", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[align=justify, text width=360pt] at (0,0) {Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu. In enim justo, rhoncus ut, imperdiet a, venenatis vitae, justo. Nullam dictum felis eu pede mollis pretium. Integer tincidunt. Cras dapibus. Vivamus elementum semper nisi. Aenean vulputate eleifend tellus. Aenean leo ligula, porttitor eu, consequat vitae, eleifend ac, enim. Aliquam lorem ante, dapibus in, viverra quis, feugiat a, tellus. Phasellus viverra nulla ut metus varius laoreet. Quisque rutrum. Aenean imperdiet. Etiam ultricies nisi vel augue. Curabitur ullamcorper ultricies nisi. Nam eget dui. Etiam rhoncus. Maecenas tempus, tellus eget condimentum rhoncus, sem quam semper libero, sit amet adipiscing sem neque sed ipsum. Nam quam nunc, blandit vel, luctus pulvinar, hendrerit id, lorem. Maecenas nec odio et ante tincidunt tempus. Donec vitae sapien ut libero venenatis faucibus. Nullam quis ante.};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    const report =
+      text?.kind === "Text" && text.textRenderInfo?.mode === "mathjax"
+        ? reportForParagraphId(text.textRenderInfo.paragraphId)
+        : null;
+    expect(report).not.toBeNull();
+    expect(report?.lines.length).toBeGreaterThan(1);
+    expect(report?.lines.every((line) => Math.abs(line.xStart) < 1e-6)).toBe(true);
+  });
+
+  it("keeps justified non-final wrapped lines tight to the target width", async () => {
+    const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[align=justify, text width=360pt] at (0,0) {Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu. In enim justo, rhoncus ut, imperdiet a, venenatis vitae, justo. Nullam dictum felis eu pede mollis pretium. Integer tincidunt. Cras dapibus. Vivamus elementum semper nisi. Aenean vulputate eleifend tellus. Aenean leo ligula, porttitor eu, consequat vitae, eleifend ac, enim. Aliquam lorem ante, dapibus in, viverra quis, feugiat a, tellus. Phasellus viverra nulla ut metus varius laoreet. Quisque rutrum. Aenean imperdiet. Etiam ultricies nisi vel augue. Curabitur ullamcorper ultricies nisi. Nam eget dui. Etiam rhoncus. Maecenas tempus, tellus eget condimentum rhoncus, sem quam semper libero, sit amet adipiscing sem neque sed ipsum. Nam quam nunc, blandit vel, luctus pulvinar, hendrerit id, lorem. Maecenas nec odio et ante tincidunt tempus. Donec vitae sapien ut libero venenatis faucibus. Nullam quis ante.};
+\end{tikzpicture}`);
+
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text" && text.textRenderInfo?.mode === "mathjax") {
+      const report = reportForParagraphId(text.textRenderInfo.paragraphId);
+      expect(report).not.toBeNull();
+      expect(report?.alignment).toBe("justified");
+      expect(report?.linebreakingMode).toBe("feasible");
+      expect(report?.errors.some((error) => error.includes("greedy-wrap")) ?? false).toBe(false);
+      const nonLastLines = report?.lines.slice(0, -1) ?? [];
+      expect(nonLastLines.length).toBeGreaterThan(0);
+      for (const line of nonLastLines) {
+        expect(Math.abs(line.targetWidth - line.xEnd)).toBeLessThan(0.08);
+      }
+    }
+  }, 30000);
 
   it("centers explicit line breaks inside text width when align=center", async () => {
     const result = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}

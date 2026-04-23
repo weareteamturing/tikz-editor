@@ -1,4 +1,3 @@
-import { renderTikzToSvgAsync } from "tikz-editor/render/index";
 import type {
   ThumbnailRenderFailure,
   ThumbnailRenderRequest,
@@ -112,6 +111,7 @@ function onWorkerMessage(event: MessageEvent<ThumbnailWorkerResponseMessage>): v
 
 async function renderThumbnailFallback(request: ThumbnailRenderRequest): Promise<ThumbnailRenderSuccess | ThumbnailRenderFailure> {
   try {
+    const { renderTikzToSvgAsync } = await import("tikz-editor/render/index");
     const rendered = await renderTikzToSvgAsync(request.source, {
       parse: {
         recover: request.parseOptions.recover ?? true,
