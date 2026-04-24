@@ -7,6 +7,7 @@ import {
   type AppMenuPlatformTarget
 } from "../app-menu";
 import { useEditorStore } from "../store/store";
+import { useWorkspaceListStore } from "../store/workspace-list-store";
 import { computeSnapshot, makeEmptySnapshot, setMathJaxFont, type ComputeRequest, type ComputeResponse } from "../compute";
 import { applyEditAction } from "tikz-editor/edit/actions";
 import { getRepeatSelectionEligibility } from "tikz-editor/edit/actions/repeat";
@@ -85,6 +86,16 @@ const EquationModal = lazy(async () => {
 const RepeatModal = lazy(async () => {
   const mod = await import("./RepeatModal");
   return { default: mod.RepeatModal };
+});
+
+const SaveWorkspaceModal = lazy(async () => {
+  const mod = await import("./SaveWorkspaceModal");
+  return { default: mod.SaveWorkspaceModal };
+});
+
+const ManageWorkspacesModal = lazy(async () => {
+  const mod = await import("./ManageWorkspacesModal");
+  return { default: mod.ManageWorkspacesModal };
 });
 
 function menuTargetFromPlatformId(platformId: string): AppMenuPlatformTarget {
@@ -209,6 +220,9 @@ export function App() {
   const menuDefinition = useMemo(() => filterAppMenuDefinitionForTarget(APP_MENU_DEFINITION, menuTarget), [menuTarget]);
   const [showOpenExampleModal, setShowOpenExampleModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showSaveWorkspaceModal, setShowSaveWorkspaceModal] = useState(false);
+  const [showManageWorkspacesModal, setShowManageWorkspacesModal] = useState(false);
+  const userWorkspaces = useWorkspaceListStore((s) => s.userWorkspaces);
   const [isDragOver, setIsDragOver] = useState(false);
   const isDesktop = platform.id.startsWith("desktop");
   const [equationModalState, setEquationModalState] = useState<
@@ -317,6 +331,12 @@ export function App() {
     },
     onRequestCloseAllDocuments: () => {
       requestCloseIntent({ kind: "close-all" });
+    },
+    onOpenSaveWorkspace: () => {
+      setShowSaveWorkspaceModal(true);
+    },
+    onOpenManageWorkspaces: () => {
+      setShowManageWorkspacesModal(true);
     }
   });
 
@@ -1044,11 +1064,15 @@ export function App() {
         { enabled: binding.enabled, checked: binding.checked }
       ])
     ) as Record<keyof typeof commandRuntime.bindings, { enabled: boolean; checked?: boolean }>;
+    const workspaceSignature = userWorkspaces
+      .map((ws) => `${ws.id}:${ws.name}`)
+      .join("|");
     void sync({
       definition: menuDefinition,
-      commandStates
+      commandStates,
+      workspaceSignature
     });
-  }, [commandRuntime.bindings, menuDefinition, platform.menu]);
+  }, [commandRuntime.bindings, menuDefinition, platform.menu, userWorkspaces]);
 
   // ── Keyboard shortcuts ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -1571,6 +1595,16 @@ export function App() {
               void handleUnsavedDecision(decision);
             }}
           />
+        </Suspense>
+      ) : null}
+      {showSaveWorkspaceModal ? (
+        <Suspense fallback={null}>
+          <SaveWorkspaceModal onClose={() => setShowSaveWorkspaceModal(false)} />
+        </Suspense>
+      ) : null}
+      {showManageWorkspacesModal ? (
+        <Suspense fallback={null}>
+          <ManageWorkspacesModal onClose={() => setShowManageWorkspacesModal(false)} />
         </Suspense>
       ) : null}
       {isDragOver ? (

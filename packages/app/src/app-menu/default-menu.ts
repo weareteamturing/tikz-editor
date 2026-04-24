@@ -556,28 +556,19 @@ export const APP_MENU_DEFINITION = [
       { kind: "separator" },
       {
         kind: "submenu",
-        label: "Layout",
+        label: "Workspace",
         items: [
-          {
-            kind: "command",
-            commandId: APP_MENU_COMMAND_IDS.RESET_LAYOUT,
-            label: "Reset Layout"
-          },
+          { kind: "workspace-list" },
           { kind: "separator" },
           {
             kind: "command",
-            commandId: APP_MENU_COMMAND_IDS.LAYOUT_PRESET_SOURCE_ON_TOP,
-            label: "Source on Top"
+            commandId: APP_MENU_COMMAND_IDS.SAVE_WORKSPACE_AS,
+            label: "Save Current Layout As..."
           },
           {
             kind: "command",
-            commandId: APP_MENU_COMMAND_IDS.LAYOUT_PRESET_CANVAS_ONLY,
-            label: "Canvas Only"
-          },
-          {
-            kind: "command",
-            commandId: APP_MENU_COMMAND_IDS.LAYOUT_PRESET_WIDE_INSPECTOR,
-            label: "Wide Inspector"
+            commandId: APP_MENU_COMMAND_IDS.MANAGE_WORKSPACES,
+            label: "Manage Workspaces..."
           }
         ]
       },

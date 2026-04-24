@@ -126,6 +126,8 @@ type RuntimeInput = {
   onOpenInsertEquation?: () => void;
   onOpenEditEquation?: (target: EquationNodeTarget) => void;
   onOpenRepeat?: () => void;
+  onOpenSaveWorkspace?: () => void;
+  onOpenManageWorkspaces?: () => void;
 };
 
 export type EditorCommandRuntime = {
@@ -180,7 +182,9 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     onInterruptAssistant,
     onOpenInsertEquation,
     onOpenEditEquation,
-    onOpenRepeat
+    onOpenRepeat,
+    onOpenSaveWorkspace,
+    onOpenManageWorkspaces
   } = input;
   const parseOptions = {
     activeFigureId,
@@ -933,81 +937,13 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       checked: showDevPanel,
       run: () => dispatch({ type: "TOGGLE_DEV_PANEL" })
     },
-    [APP_MENU_COMMAND_IDS.RESET_LAYOUT]: {
-      enabled: true,
-      run: () => {
-        const handle = getDockLayoutHandle();
-        if (handle) {
-          handle.resetLayout();
-          return;
-        }
-        dispatchLayoutFallback({
-          sourceVisible: true,
-          inspectorVisible: true,
-          objectsVisible: true,
-          stylesVisible: true,
-          figuresVisible: false,
-          assistantVisible: assistantAvailable,
-          activeRightTab: "inspector"
-        });
-      }
+    [APP_MENU_COMMAND_IDS.SAVE_WORKSPACE_AS]: {
+      enabled: onOpenSaveWorkspace != null,
+      run: () => onOpenSaveWorkspace?.()
     },
-    [APP_MENU_COMMAND_IDS.LAYOUT_PRESET_SOURCE_ON_TOP]: {
-      enabled: true,
-      run: () => {
-        const handle = getDockLayoutHandle();
-        if (handle) {
-          handle.applyPreset("sourceOnTop");
-          return;
-        }
-        dispatchLayoutFallback({
-          sourceVisible: true,
-          inspectorVisible: true,
-          objectsVisible: true,
-          stylesVisible: true,
-          figuresVisible: true,
-          assistantVisible: assistantAvailable,
-          activeRightTab: "inspector"
-        });
-      }
-    },
-    [APP_MENU_COMMAND_IDS.LAYOUT_PRESET_CANVAS_ONLY]: {
-      enabled: true,
-      run: () => {
-        const handle = getDockLayoutHandle();
-        if (handle) {
-          handle.applyPreset("canvasOnly");
-          return;
-        }
-        dispatchLayoutFallback({
-          sourceVisible: false,
-          inspectorVisible: false,
-          objectsVisible: false,
-          stylesVisible: false,
-          figuresVisible: false,
-          assistantVisible: false,
-          activeRightTab: "inspector"
-        });
-      }
-    },
-    [APP_MENU_COMMAND_IDS.LAYOUT_PRESET_WIDE_INSPECTOR]: {
-      enabled: true,
-      run: () => {
-        const handle = getDockLayoutHandle();
-        if (handle) {
-          handle.applyPreset("wideInspector");
-          return;
-        }
-        dispatchLayoutFallback({
-          sourceVisible: true,
-          inspectorVisible: true,
-          objectsVisible: true,
-          stylesVisible: true,
-          figuresVisible: true,
-          assistantVisible: assistantAvailable,
-          activeRightTab: "inspector"
-        });
-      }
+    [APP_MENU_COMMAND_IDS.MANAGE_WORKSPACES]: {
+      enabled: onOpenManageWorkspaces != null,
+      run: () => onOpenManageWorkspaces?.()
     },
     [APP_MENU_COMMAND_IDS.OPEN_SETTINGS]: {
       enabled: onOpenSettings != null,
@@ -1053,6 +989,8 @@ export function useEditorCommandRuntime(
     onOpenInsertEquation?: () => void;
     onOpenEditEquation?: (target: EquationNodeTarget) => void;
     onOpenRepeat?: () => void;
+    onOpenSaveWorkspace?: () => void;
+    onOpenManageWorkspaces?: () => void;
     activeHandleIdOverride?: string | null;
   } = {}
 ): EditorCommandRuntime {
@@ -1180,7 +1118,9 @@ export function useEditorCommandRuntime(
         onInterruptAssistant: options.onInterruptAssistant,
         onOpenInsertEquation: options.onOpenInsertEquation,
         onOpenEditEquation: options.onOpenEditEquation,
-        onOpenRepeat: options.onOpenRepeat
+        onOpenRepeat: options.onOpenRepeat,
+        onOpenSaveWorkspace: options.onOpenSaveWorkspace,
+        onOpenManageWorkspaces: options.onOpenManageWorkspaces
       }),
     [
       editAnalysisView,

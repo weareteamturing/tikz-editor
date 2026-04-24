@@ -81,7 +81,7 @@ function ContextMenuPopup({
             </div>
           );
         }
-        if (item.kind === "recent-files") {
+        if (item.kind === "recent-files" || item.kind === "workspace-list") {
           return null;
         }
 

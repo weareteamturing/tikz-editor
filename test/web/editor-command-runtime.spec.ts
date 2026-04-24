@@ -845,46 +845,11 @@ describe("editor-command-runtime", () => {
     });
   });
 
-  it("dispatches preset fallback state when dock handle is unavailable", () => {
-    vi.spyOn(DockLayoutModule, "getDockLayoutHandle").mockReturnValue(null);
-    const dispatch = vi.fn<(action: EditorAction) => void>();
-    const rendered = renderTikzToSvg(SOURCE);
-    const runtime = createEditorCommandRuntime(
-      makeInput({
-        dispatch,
-        snapshot: makeSnapshot(rendered),
-        selectedElementIds: new Set(),
-        showSourcePanel: false,
-        showInspectorPanel: false,
-        showObjectsPanel: false,
-        showStylesPanel: false,
-        showFiguresPanel: true,
-        showAssistantPanel: true
-      })
-    );
-
-    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.LAYOUT_PRESET_CANVAS_ONLY, "menu")).toBe(true);
-    expect(dispatch).toHaveBeenCalledWith({
-      type: "SYNC_LAYOUT_STATE",
-      sourceVisible: false,
-      inspectorVisible: false,
-      objectsVisible: false,
-      stylesVisible: false,
-      figuresVisible: false,
-      assistantVisible: false,
-      activeRightTab: "inspector"
-    });
-  });
-
-  it("delegates layout commands to the dock handle when available", () => {
+  it("delegates panel toggle to the dock handle when available", () => {
     const togglePanel = vi.fn();
-    const applyPreset = vi.fn();
-    const resetLayout = vi.fn();
     vi.spyOn(DockLayoutModule, "getDockLayoutHandle").mockReturnValue({
       getModel: vi.fn(),
-      togglePanel,
-      applyPreset,
-      resetLayout
+      togglePanel
     } as unknown as ReturnType<typeof DockLayoutModule.getDockLayoutHandle>);
     const dispatch = vi.fn<(action: EditorAction) => void>();
     const rendered = renderTikzToSvg(SOURCE);
@@ -897,12 +862,29 @@ describe("editor-command-runtime", () => {
     );
 
     expect(runtime.runCommand(APP_MENU_COMMAND_IDS.TOGGLE_OBJECTS_PANEL, "menu")).toBe(true);
-    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.LAYOUT_PRESET_SOURCE_ON_TOP, "menu")).toBe(true);
-    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.RESET_LAYOUT, "menu")).toBe(true);
     expect(togglePanel).toHaveBeenCalledWith("objects");
-    expect(applyPreset).toHaveBeenCalledWith("sourceOnTop");
-    expect(resetLayout).toHaveBeenCalledTimes(1);
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("routes save and manage workspace commands to host callbacks", () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const onOpenSaveWorkspace = vi.fn();
+    const onOpenManageWorkspaces = vi.fn();
+    const rendered = renderTikzToSvg(SOURCE);
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        onOpenSaveWorkspace,
+        onOpenManageWorkspaces
+      })
+    );
+
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.SAVE_WORKSPACE_AS, "menu")).toBe(true);
+    expect(onOpenSaveWorkspace).toHaveBeenCalledTimes(1);
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.MANAGE_WORKSPACES, "menu")).toBe(true);
+    expect(onOpenManageWorkspaces).toHaveBeenCalledTimes(1);
   });
 
   it("routes open settings command to host callback", () => {
@@ -1161,7 +1143,9 @@ function makeInput({
   onOpenSettings,
   onOpenInsertEquation,
   onOpenEditEquation,
-  onOpenRepeat
+  onOpenRepeat,
+  onOpenSaveWorkspace,
+  onOpenManageWorkspaces
 }: {
   dispatch: (action: EditorAction) => void;
   source?: string;
@@ -1197,6 +1181,8 @@ function makeInput({
   onOpenInsertEquation?: () => void;
   onOpenEditEquation?: (target: any) => void;
   onOpenRepeat?: () => void;
+  onOpenSaveWorkspace?: () => void;
+  onOpenManageWorkspaces?: () => void;
 }) {
   const activeFigureId = snapshot.parseResult?.activeFigureId ?? null;
 
@@ -1239,6 +1225,8 @@ function makeInput({
     onOpenSettings,
     onOpenInsertEquation,
     onOpenEditEquation,
-    onOpenRepeat
+    onOpenRepeat,
+    onOpenSaveWorkspace,
+    onOpenManageWorkspaces
   };
 }

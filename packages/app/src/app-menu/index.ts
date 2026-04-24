@@ -11,6 +11,7 @@ export type {
   AppMenuCommandItem,
   AppMenuSubmenuItem,
   AppMenuRecentFilesItem,
+  AppMenuWorkspaceListItem,
   AppMenuSeparatorItem,
   AppMenuCommandId
 } from "./types.js";

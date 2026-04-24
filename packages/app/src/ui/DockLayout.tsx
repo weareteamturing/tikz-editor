@@ -27,6 +27,47 @@ export const PANEL_IDS = {
   assistant: "assistant",
 } as const;
 
+const HOME_TABSET_IDS = ["source-tabset", "canvas-tabset", "right-tabset"] as const;
+
+type PanelHome = {
+  tabsetId: string;
+  dockLocation: DockLocation;
+  edgeLocation: DockLocation;
+};
+
+const PANEL_HOMES: Record<string, PanelHome> = {
+  [PANEL_IDS.source]: {
+    tabsetId: "source-tabset",
+    dockLocation: DockLocation.CENTER,
+    edgeLocation: DockLocation.LEFT,
+  },
+  [PANEL_IDS.figureNavigator]: {
+    tabsetId: "canvas-tabset",
+    dockLocation: DockLocation.BOTTOM,
+    edgeLocation: DockLocation.BOTTOM,
+  },
+  [PANEL_IDS.inspector]: {
+    tabsetId: "right-tabset",
+    dockLocation: DockLocation.CENTER,
+    edgeLocation: DockLocation.RIGHT,
+  },
+  [PANEL_IDS.objects]: {
+    tabsetId: "right-tabset",
+    dockLocation: DockLocation.CENTER,
+    edgeLocation: DockLocation.RIGHT,
+  },
+  [PANEL_IDS.styles]: {
+    tabsetId: "right-tabset",
+    dockLocation: DockLocation.CENTER,
+    edgeLocation: DockLocation.RIGHT,
+  },
+  [PANEL_IDS.assistant]: {
+    tabsetId: "right-tabset",
+    dockLocation: DockLocation.CENTER,
+    edgeLocation: DockLocation.RIGHT,
+  },
+};
+
 // ── Default layout ────────────────────────────────────────────────────────────
 
 function isAssistantAvailable(): boolean {
@@ -77,6 +118,7 @@ function buildDefaultLayout(): IJsonModel {
           type: "tabset",
           weight: 30,
           id: "source-tabset",
+          enableDeleteWhenEmpty: false,
           children: [
             { type: "tab", id: PANEL_IDS.source, name: "Source", component: "source" },
           ],
@@ -85,6 +127,7 @@ function buildDefaultLayout(): IJsonModel {
           type: "tabset",
           weight: 50,
           id: "canvas-tabset",
+          enableDeleteWhenEmpty: false,
           children: [
             { type: "tab", id: PANEL_IDS.canvas, name: "Canvas", component: "canvas", enableClose: false },
           ],
@@ -93,6 +136,7 @@ function buildDefaultLayout(): IJsonModel {
           type: "tabset",
           weight: 20,
           id: "right-tabset",
+          enableDeleteWhenEmpty: false,
           children: rightTabs,
         },
       ],
@@ -100,7 +144,8 @@ function buildDefaultLayout(): IJsonModel {
   };
 }
 
-/** Strip assistant tabs if assistant is not available on this platform. */
+/** Strip assistant tabs if assistant is not available on this platform,
+ *  and ensure the home tabsets survive being empty. */
 function sanitizeLayout(json: IJsonModel): IJsonModel {
   const normalizedGlobal = {
     ...(json.global ?? {}),
@@ -111,26 +156,29 @@ function sanitizeLayout(json: IJsonModel): IJsonModel {
     global: normalizedGlobal
   };
 
-  if (isAssistantAvailable()) return jsonWithNormalizedGlobal;
-
-  function stripAssistantTabs(node: LayoutJsonNode | null): LayoutJsonNode | null {
-    if (!node) {
+  function transform(node: LayoutJsonNode | null): LayoutJsonNode | null {
+    if (!node) return null;
+    if (!isAssistantAvailable() && node.type === "tab" && node.component === "assistant") {
       return null;
     }
-    if (node.type === "tab" && node.component === "assistant") return null;
-    if (node.children) {
-      node = {
-        ...node,
-        children: node.children
-          .map(stripAssistantTabs)
+    let next = node;
+    if (node.type === "tabset" && typeof node.id === "string" && (HOME_TABSET_IDS as readonly string[]).includes(node.id)) {
+      next = { ...next, enableDeleteWhenEmpty: false };
+    }
+    if (next.children) {
+      next = {
+        ...next,
+        children: next.children
+          .map(transform)
           .filter((child): child is LayoutJsonNode => child != null)
       };
     }
-    return node;
+    return next;
   }
+
   return {
     ...jsonWithNormalizedGlobal,
-    layout: stripAssistantTabs(jsonWithNormalizedGlobal.layout as LayoutJsonNode) as IJsonModel["layout"]
+    layout: transform(jsonWithNormalizedGlobal.layout as LayoutJsonNode) as IJsonModel["layout"]
   };
 }
 
@@ -159,6 +207,7 @@ function buildSourceOnTopLayout(): IJsonModel {
               type: "tabset",
               weight: 40,
               id: "source-tabset",
+              enableDeleteWhenEmpty: false,
               children: [
                 { type: "tab", id: PANEL_IDS.source, name: "Source", component: "source" },
               ],
@@ -167,6 +216,7 @@ function buildSourceOnTopLayout(): IJsonModel {
               type: "tabset",
               weight: 60,
               id: "canvas-tabset",
+              enableDeleteWhenEmpty: false,
               children: [
                 { type: "tab", id: PANEL_IDS.canvas, name: "Canvas", component: "canvas", enableClose: false },
                 { type: "tab", id: PANEL_IDS.figureNavigator, name: "Figures", component: "figure-navigator" },
@@ -178,6 +228,7 @@ function buildSourceOnTopLayout(): IJsonModel {
           type: "tabset",
           weight: 25,
           id: "right-tabset",
+          enableDeleteWhenEmpty: false,
           children: rightTabs,
         },
       ],
@@ -195,6 +246,7 @@ function buildCanvasOnlyLayout(): IJsonModel {
           type: "tabset",
           weight: 100,
           id: "canvas-tabset",
+          enableDeleteWhenEmpty: false,
           children: [
             { type: "tab", id: PANEL_IDS.canvas, name: "Canvas", component: "canvas", enableClose: false },
           ],
@@ -223,6 +275,7 @@ function buildWideInspectorLayout(): IJsonModel {
           type: "tabset",
           weight: 50,
           id: "canvas-tabset",
+          enableDeleteWhenEmpty: false,
           children: [
             { type: "tab", id: PANEL_IDS.canvas, name: "Canvas", component: "canvas", enableClose: false },
             { type: "tab", id: PANEL_IDS.source, name: "Source", component: "source" },
@@ -233,6 +286,7 @@ function buildWideInspectorLayout(): IJsonModel {
           type: "tabset",
           weight: 50,
           id: "right-tabset",
+          enableDeleteWhenEmpty: false,
           children: rightTabs,
         },
       ],
@@ -246,6 +300,21 @@ export const LAYOUT_PRESETS = {
   canvasOnly: buildCanvasOnlyLayout,
   wideInspector: buildWideInspectorLayout,
 } as const;
+
+export type BuiltInWorkspaceId = keyof typeof LAYOUT_PRESETS;
+
+export type BuiltInWorkspace = {
+  id: BuiltInWorkspaceId;
+  name: string;
+  build: () => IJsonModel;
+};
+
+export const BUILT_IN_WORKSPACES: readonly BuiltInWorkspace[] = [
+  { id: "default",        name: "Default",         build: buildDefaultLayout },
+  { id: "sourceOnTop",    name: "Source on Top",   build: buildSourceOnTopLayout },
+  { id: "canvasOnly",     name: "Canvas Only",     build: buildCanvasOnlyLayout },
+  { id: "wideInspector",  name: "Wide Inspector",  build: buildWideInspectorLayout },
+];
 
 // ── Sync helpers ──────────────────────────────────────────────────────────────
 
@@ -301,8 +370,10 @@ export type DockLayoutProps = {
 /** Ref handle exposed to allow external code to manipulate the layout model. */
 export type DockLayoutHandle = {
   getModel(): Model;
+  getCurrentJson(): IJsonModel;
   togglePanel(panelId: string): void;
   applyPreset(preset: keyof typeof LAYOUT_PRESETS): void;
+  applyLayoutJson(json: IJsonModel): void;
   resetLayout(): void;
 };
 
@@ -395,25 +466,14 @@ export function DockLayout({ repeatPreviewModel, onSubmitPrompt, onInterruptTurn
 
   const handle = useMemo<DockLayoutHandle>(() => ({
     getModel: () => modelRef.current,
+    getCurrentJson: () => modelRef.current.toJson(),
     togglePanel(panelId: string) {
       const m = modelRef.current;
       const existing = m.getNodeById(panelId);
       if (existing) {
         m.doAction(Actions.deleteTab(panelId));
       } else {
-        // Choose best target tabset and dock location for re-adding
-        let targetTabset: string;
-        let dockLocation = DockLocation.CENTER;
-        if (panelId === "source") {
-          targetTabset = "source-tabset";
-        } else if (panelId === PANEL_IDS.figureNavigator) {
-          targetTabset = "canvas-tabset";
-          dockLocation = DockLocation.BOTTOM;
-        } else {
-          targetTabset = "right-tabset";
-        }
-        const target = m.getNodeById(targetTabset);
-        const actualTarget = target ? targetTabset : m.getFirstTabSet().getId();
+        const home = PANEL_HOMES[panelId];
         const nameMap: Record<string, string> = {
           source: "Source",
           canvas: "Canvas",
@@ -423,16 +483,30 @@ export function DockLayout({ repeatPreviewModel, onSubmitPrompt, onInterruptTurn
           styles: "Styles",
           assistant: "Assistant",
         };
-        const added = m.doAction(
-          Actions.addNode(
-            { type: "tab", id: panelId, name: nameMap[panelId] ?? panelId, component: panelId },
-            actualTarget,
-            dockLocation,
-            -1
-          )
-        );
+        const tabJson = { type: "tab", id: panelId, name: nameMap[panelId] ?? panelId, component: panelId };
+
+        const homeTabset = home ? m.getNodeById(home.tabsetId) : null;
+        if (home && homeTabset) {
+          // Home tabset exists — add into it at the normal dock location.
+          m.doAction(Actions.addNode(tabJson, home.tabsetId, home.dockLocation, -1));
+        } else if (home) {
+          // Home tabset is gone — re-establish it at the expected edge of the root.
+          const rootId = m.getRoot().getId();
+          m.doAction(Actions.addNode(tabJson, rootId, home.edgeLocation, -1));
+          const newTabset = m.getNodeById(panelId)?.getParent();
+          if (newTabset && newTabset.getId() !== home.tabsetId) {
+            m.doAction(Actions.updateNodeAttributes(newTabset.getId(), {
+              id: home.tabsetId,
+              enableDeleteWhenEmpty: false,
+            }));
+          }
+        } else {
+          // Unknown panel — dock to the first tabset as a safety net.
+          m.doAction(Actions.addNode(tabJson, m.getFirstTabSet().getId(), DockLocation.CENTER, -1));
+        }
+
         // For figure-navigator docked below canvas, use a small weight
-        if (added && panelId === PANEL_IDS.figureNavigator) {
+        if (panelId === PANEL_IDS.figureNavigator) {
           const figTabset = m.getNodeById(PANEL_IDS.figureNavigator)?.getParent();
           if (figTabset) {
             m.doAction(Actions.updateNodeAttributes(figTabset.getId(), { weight: 15 }));
@@ -446,9 +520,12 @@ export function DockLayout({ repeatPreviewModel, onSubmitPrompt, onInterruptTurn
     },
     applyPreset(preset: keyof typeof LAYOUT_PRESETS) {
       const builder = LAYOUT_PRESETS[preset];
-      const json = builder();
-      const newModel = Model.fromJson(json);
-      saveDockLayout(json);
+      this.applyLayoutJson(builder());
+    },
+    applyLayoutJson(json: IJsonModel) {
+      const sanitized = sanitizeLayout(json);
+      const newModel = Model.fromJson(sanitized);
+      saveDockLayout(sanitized);
       syncLayoutStateToStore(newModel, dispatchRef.current);
       setModelRef.current(newModel);
     },

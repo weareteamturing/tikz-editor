@@ -1,5 +1,8 @@
 import {
   APP_MENU_COMMAND_IDS,
+  applyWorkspace,
+  findActiveWorkspaceId,
+  listAllWorkspaces,
   type AssistantAccountSnapshot,
   type DesktopContextMenuItem,
   type DesktopContextMenuPayload,
@@ -159,6 +162,7 @@ type NativeCommandState = {
 type NativeMenuSyncPayload = {
   definition: AppMenuDefinition;
   commandStates: Record<AppMenuCommandId, NativeCommandState>;
+  workspaceSignature?: string;
 };
 
 type NativeCommandRef = {
@@ -254,7 +258,7 @@ function serializeDesktopContextMenuItems(
       serialized.push({ kind: "separator" });
       continue;
     }
-    if (item.kind === "recent-files") {
+    if (item.kind === "recent-files" || item.kind === "workspace-list") {
       continue;
     }
     if (item.kind === "submenu") {
@@ -295,6 +299,7 @@ function createNativeDesktopMenuManager(options: {
   let currentMenu: { setAsAppMenu: () => Promise<unknown> } | null = null;
   let latestPayload: NativeMenuSyncPayload | null = null;
   let definitionKey: string | null = null;
+  let workspaceKey: string | null = null;
   let recentsDirty = true;
   let syncQueue = Promise.resolve();
 
@@ -335,9 +340,59 @@ function createNativeDesktopMenuManager(options: {
     recentFiles: readonly string[],
     origin: "platform" | "context-menu"
   ): Promise<any[]> {
-    return (
-      await Promise.all(items.map(async (item) => await buildMenuItem(item, commandStates, recentFiles, origin)))
-    ).filter((item): item is NonNullable<typeof item> => item != null);
+    const built: any[] = [];
+    for (const item of items) {
+      if (item.kind === "workspace-list") {
+        const expanded = await buildWorkspaceMenuItems();
+        built.push(...expanded);
+        continue;
+      }
+      const node = await buildMenuItem(item, commandStates, recentFiles, origin);
+      if (node != null) built.push(node);
+    }
+    return built;
+  }
+
+  async function buildWorkspaceMenuItems(): Promise<any[]> {
+    const menuApi = await import("@tauri-apps/api/menu");
+    const entries = listAllWorkspaces();
+    const activeId = findActiveWorkspaceId();
+    const items: any[] = [];
+    const workspaceMenuItems: Array<{
+      id: string;
+      item: { setChecked?: (checked: boolean) => Promise<void> };
+    }> = [];
+
+    async function syncWorkspaceChecks(checkedId: string | null): Promise<void> {
+      for (const ref of workspaceMenuItems) {
+        await ref.item.setChecked?.(ref.id === checkedId);
+      }
+    }
+
+    // Built-ins come first; user workspaces follow after a separator.
+    let sawBuiltIn = false;
+    let separatorInserted = false;
+    for (const entry of entries) {
+      if (entry.kind === "user" && sawBuiltIn && !separatorInserted) {
+        items.push(await menuApi.PredefinedMenuItem.new({ item: "Separator" }));
+        separatorInserted = true;
+      }
+      if (entry.kind === "built-in") sawBuiltIn = true;
+
+      const item = await menuApi.CheckMenuItem.new({
+        id: `view.workspace.apply.${entry.id}`,
+        text: entry.name,
+        checked: entry.id === activeId,
+        enabled: true,
+        action: () => {
+          applyWorkspace(entry.id);
+          void syncWorkspaceChecks(entry.id);
+        }
+      });
+      workspaceMenuItems.push({ id: entry.id, item });
+      items.push(item);
+    }
+    return items;
   }
 
   async function buildMenuItem(
@@ -409,6 +464,12 @@ function createNativeDesktopMenuManager(options: {
         text: item.label,
         items: builtItems
       });
+    }
+
+    if (item.kind === "workspace-list") {
+      // Expansion is handled inline by the caller via expandWorkspaceList.
+      // If we reach here, return null so it's filtered out.
+      return null;
     }
 
     const state = commandStates[item.commandId] ?? { enabled: false };
@@ -527,9 +588,16 @@ function createNativeDesktopMenuManager(options: {
       return;
     }
     const nextDefinitionKey = JSON.stringify(latestPayload.definition);
-    if (!currentMenu || recentsDirty || definitionKey !== nextDefinitionKey) {
+    const nextWorkspaceKey = latestPayload.workspaceSignature ?? "";
+    if (
+      !currentMenu ||
+      recentsDirty ||
+      definitionKey !== nextDefinitionKey ||
+      workspaceKey !== nextWorkspaceKey
+    ) {
       await rebuildMenu(latestPayload);
       definitionKey = nextDefinitionKey;
+      workspaceKey = nextWorkspaceKey;
       recentsDirty = false;
       return;
     }

@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { AppMenuDefinition, AppMenuItem } from "../app-menu";
 import type { CommandBindings } from "./editor-command-runtime";
+import { useWorkspaceListStore } from "../store/workspace-list-store";
+import { BUILT_IN_WORKSPACES } from "./DockLayout";
+import { applyWorkspace, findActiveWorkspaceId } from "./workspace-apply";
 import css from "./AppMenuBar.module.css";
 
 const IS_MAC_PLATFORM =
@@ -36,9 +39,12 @@ function MenuPopup({
   bindings: CommandBindings;
   onCommandRun: () => void;
 }) {
-  const hasCheckItems = items.some(
-    (item) => item.kind === "command" && bindings[item.commandId].checked != null
-  );
+  const userWorkspaces = useWorkspaceListStore((s) => s.userWorkspaces);
+  const activeWorkspaceId = findActiveWorkspaceId();
+  const hasWorkspaceList = items.some((item) => item.kind === "workspace-list");
+  const hasCheckItems =
+    hasWorkspaceList ||
+    items.some((item) => item.kind === "command" && bindings[item.commandId].checked != null);
 
   return (
     <div className={[css.popup, nested ? css.popupNested : ""].filter(Boolean).join(" ")} role="menu" data-select="chrome">
@@ -50,6 +56,51 @@ function MenuPopup({
 
         if (item.kind === "recent-files") {
           return null;
+        }
+
+        if (item.kind === "workspace-list") {
+          const workspaceEntries: Array<{ id: string; name: string; builtIn: boolean }> = [
+            ...BUILT_IN_WORKSPACES.map((b) => ({ id: b.id, name: b.name, builtIn: true })),
+          ];
+          if (userWorkspaces.length > 0) {
+            workspaceEntries.push({ id: "__sep__", name: "", builtIn: false });
+            for (const u of userWorkspaces) {
+              workspaceEntries.push({ id: u.id, name: u.name, builtIn: false });
+            }
+          }
+          return (
+            <div key={`${itemKey}-workspaces`}>
+              {workspaceEntries.map((entry, j) => {
+                if (entry.id === "__sep__") {
+                  return (
+                    <div
+                      key={`${itemKey}-wssep-${j}`}
+                      className={css.separator}
+                      role="separator"
+                    />
+                  );
+                }
+                const checked = entry.id === activeWorkspaceId;
+                return (
+                  <button
+                    key={`${itemKey}-ws-${entry.id}`}
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={checked}
+                    className={css.item}
+                    data-testid={`menu-workspace-${entry.id}`}
+                    onClick={() => {
+                      applyWorkspace(entry.id);
+                      onCommandRun();
+                    }}
+                  >
+                    <span className={css.check}>{checked ? "\u2713" : ""}</span>
+                    <span className={css.label}>{entry.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          );
         }
 
         if (item.kind === "submenu") {

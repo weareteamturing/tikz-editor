@@ -5,6 +5,7 @@ import type { IJsonModel } from "flexlayout-react";
 
 const WORKSPACE_STORAGE_KEY = "tikz-editor:workspace";
 const DOCK_LAYOUT_STORAGE_KEY = "tikz-editor:dock-layout";
+const USER_WORKSPACES_STORAGE_KEY = "tikz-editor:user-workspaces";
 
 type PersistedWorkspaceV1 = {
   workspaceVersion: number;
@@ -181,6 +182,54 @@ export function loadDockLayout(): IJsonModel | null {
 export function saveDockLayout(json: IJsonModel): void {
   try {
     getActiveEditorPlatform().persistence.save(DOCK_LAYOUT_STORAGE_KEY, JSON.stringify(json));
+  } catch {
+    // Ignore persistence failures.
+  }
+}
+
+// ── User workspaces persistence ───────────────────────────────────────────────
+
+export type UserWorkspace = {
+  id: string;
+  name: string;
+  json: IJsonModel;
+  createdAt: number;
+};
+
+type PersistedUserWorkspacesV1 = {
+  version: 1;
+  items: UserWorkspace[];
+};
+
+export function loadUserWorkspaces(): UserWorkspace[] {
+  try {
+    const raw = getActiveEditorPlatform().persistence.load(USER_WORKSPACES_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as Partial<PersistedUserWorkspacesV1>;
+    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.items)) return [];
+    return parsed.items
+      .filter((item): item is UserWorkspace =>
+        Boolean(
+          item &&
+            typeof item.id === "string" &&
+            typeof item.name === "string" &&
+            item.json &&
+            typeof item.json === "object" &&
+            typeof item.createdAt === "number"
+        )
+      );
+  } catch {
+    return [];
+  }
+}
+
+export function saveUserWorkspaces(items: readonly UserWorkspace[]): void {
+  const payload: PersistedUserWorkspacesV1 = {
+    version: 1,
+    items: [...items],
+  };
+  try {
+    getActiveEditorPlatform().persistence.save(USER_WORKSPACES_STORAGE_KEY, JSON.stringify(payload));
   } catch {
     // Ignore persistence failures.
   }

@@ -97,10 +97,8 @@ export const APP_MENU_COMMAND_IDS = {
   TOGGLE_ASSISTANT_PANEL: "view.toggle-assistant-panel",
   INTERRUPT_ASSISTANT_TURN: "view.interrupt-assistant-turn",
   TOGGLE_DEV_PANEL: "view.toggle-dev-panel",
-  RESET_LAYOUT: "view.reset-layout",
-  LAYOUT_PRESET_SOURCE_ON_TOP: "view.layout-preset-source-on-top",
-  LAYOUT_PRESET_CANVAS_ONLY: "view.layout-preset-canvas-only",
-  LAYOUT_PRESET_WIDE_INSPECTOR: "view.layout-preset-wide-inspector",
+  SAVE_WORKSPACE_AS: "view.save-workspace-as",
+  MANAGE_WORKSPACES: "view.manage-workspaces",
   OPEN_PGF_TIKZ_MANUAL: "help.open-pgf-tikz-manual",
   SHOW_COMPILED_PICTURE: "file.show-compiled-picture",
   OPEN_SETTINGS: "file.open-settings",
@@ -137,7 +135,16 @@ export type AppMenuRecentFilesItem = {
   label: string;
 } & AppMenuPlatformScoped;
 
-export type AppMenuItem = AppMenuSeparatorItem | AppMenuCommandItem | AppMenuSubmenuItem | AppMenuRecentFilesItem;
+export type AppMenuWorkspaceListItem = {
+  kind: "workspace-list";
+} & AppMenuPlatformScoped;
+
+export type AppMenuItem =
+  | AppMenuSeparatorItem
+  | AppMenuCommandItem
+  | AppMenuSubmenuItem
+  | AppMenuRecentFilesItem
+  | AppMenuWorkspaceListItem;
 
 export type AppMenuSectionId = "file" | "edit" | "path" | "insert" | "view" | "help";
 
