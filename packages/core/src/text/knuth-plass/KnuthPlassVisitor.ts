@@ -23,6 +23,11 @@ import { flattenParagraph } from './paragraph/tokenize.js';
 import type { AnyWrapper, GreedyLine, ParagraphRun } from './paragraph/types.js';
 import type { KnuthPlassLayoutMode, WrappedTextGap } from './install.js';
 
+// MathJax and TeX use different text metrics. A modest second-pass tolerance
+// keeps TeX-valid paragraph shapes from falling into overfull recovery solely
+// because a line measures slightly looser under MathJax.
+const METRIC_COMPATIBILITY_TOLERANCE = 1600;
+
 function widthOfRuns(runs: ParagraphRun[], runWidths: Map<number, number>): number {
   return runs.reduce((sum, run) => sum + (runWidths.get(run.runIndex) ?? 0), 0);
 }
@@ -931,9 +936,17 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
 
     const pass2Dp = breakWithDp(pass2Model, width, {
       ...commonDpOptions,
-      tolerance: resolved.tolerance,
-      allowInfeasible: resolved.alignment !== 'justified',
+      tolerance: Math.max(resolved.tolerance, METRIC_COMPATIBILITY_TOLERANCE),
     });
+
+    const overfullDp =
+      pass2Dp.canProceed && pass2Dp.lines.length
+        ? null
+        : breakWithDp(pass2Model, width, {
+            ...commonDpOptions,
+            tolerance: Math.max(resolved.tolerance, METRIC_COMPATIBILITY_TOLERANCE),
+            allowInfeasible: true,
+          });
 
     let chosenModel = pass1Model;
     let chosenDp = pass1Dp;
@@ -943,6 +956,12 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
       chosenModel = pass2Model;
       chosenDp = pass2Dp;
       passLabel = 'tolerance';
+    }
+
+    if ((!chosenDp.canProceed || !chosenDp.lines.length) && overfullDp) {
+      chosenModel = pass2Model;
+      chosenDp = overfullDp;
+      passLabel = 'overfull';
     }
 
     if (!chosenDp.canProceed || !chosenDp.lines.length) {

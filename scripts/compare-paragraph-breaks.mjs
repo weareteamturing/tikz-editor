@@ -270,21 +270,6 @@ function luaStringLiteral(value) {
   return `[=[${value.replaceAll("]=]", "]=] .. ']=]' .. [=[")}]=]`;
 }
 
-function alignmentActionTeX(align) {
-  switch (align) {
-    case "left":
-      return String.raw`\pgfutil@raggedright\rightskip0pt plus2em \spaceskip.3333em \xspaceskip.5em\relax`;
-    case "right":
-      return String.raw`\pgfutil@raggedleft\leftskip0pt plus2em \spaceskip.3333em \xspaceskip.5em\relax`;
-    case "center":
-      return String.raw`\leftskip0pt plus2em \rightskip0pt plus2em \spaceskip.3333em \xspaceskip.5em \parfillskip=0pt \let\\=\@centercr\relax`;
-    case "justify":
-      return String.raw`\leftskip0pt\rightskip0pt\relax`;
-    default:
-      throw new Error(`Unsupported alignment: ${align}`);
-  }
-}
-
 function buildLuaTeXOracleScript({ outputPath, align, widthPt }) {
   const luaOutputPath = luaStringLiteral(outputPath);
   const luaAlign = luaStringLiteral(align);
@@ -294,6 +279,8 @@ function buildLuaTeXOracleScript({ outputPath, align, widthPt }) {
   local glyph_id = node.id("glyph")
   local glue_id = node.id("glue")
   local hlist_id = node.id("hlist")
+  local vlist_id = node.id("vlist")
+  local disc_id = node.id("disc")
   local ligatures = {
     [0xFB00] = "ff",
     [0xFB01] = "fi",
@@ -322,32 +309,57 @@ function buildLuaTeXOracleScript({ outputPath, align, widthPt }) {
   end
   local function line_text(list)
     local parts = {}
+    local has_vlist = false
     local cur = list
     while cur do
       if cur.id == glyph_id then
         parts[#parts + 1] = glyph_text(cur)
       elseif cur.id == glue_id and (cur.width or 0) > 0 then
         parts[#parts + 1] = " "
+      elseif cur.id == hlist_id then
+        local nested, nested_has_vlist = line_text(cur.list)
+        if #nested > 0 then
+          parts[#parts + 1] = nested
+        end
+        has_vlist = has_vlist or nested_has_vlist
+      elseif cur.id == vlist_id then
+        has_vlist = true
+        local nested = line_text(cur.list)
+        if #nested > 0 then
+          parts[#parts + 1] = nested
+        end
+      elseif cur.id == disc_id then
+        -- Inactive discretionary nodes remain inside line boxes; selected
+        -- line-break hyphens are already materialized as glyphs.
       end
       cur = cur.next
     end
     local text = table.concat(parts)
-    return (text:gsub("%s+$", ""))
+    return (text:gsub("%s+$", "")), has_vlist
   end
   local lines = {}
-  local box = tex.box[0]
-  local cur = box.list
-  while cur do
-    if cur.id == hlist_id and cur.list then
-      local text = line_text(cur.list)
-      lines[#lines + 1] = {
-        text = text,
-        hyphenated = text:sub(-1) == "-",
-        widthPt = (cur.width or 0) / 65536,
-      }
+  local function collect_lines(list)
+    local cur = list
+    while cur do
+      if cur.id == hlist_id and cur.list then
+        local width_pt = (cur.width or 0) / 65536
+        local text, has_vlist = line_text(cur.list)
+        if not has_vlist and #text > 0 and math.abs(width_pt - ${widthPt}) < 0.05 then
+          lines[#lines + 1] = {
+            text = text,
+            hyphenated = text:sub(-1) == "-",
+            widthPt = width_pt,
+          }
+        end
+      end
+      if cur.list then
+        collect_lines(cur.list)
+      end
+      cur = cur.next
     end
-    cur = cur.next
   end
+  local box = tex.box[0]
+  collect_lines(box.list)
   local out = {}
   local quote = string.char(34)
   out[#out + 1] = "{"
@@ -375,8 +387,7 @@ function buildLuaTeXOracleScript({ outputPath, align, widthPt }) {
 }
 
 function buildLuaTeXOracleDocument({ text, align, widthPt }) {
-  const escapedText = escapePlainTextForTeX(text);
-  const action = alignmentActionTeX(align);
+  const snippet = buildTikzSnippet({ text, align, widthPt });
 
   return String.raw`\documentclass{standalone}
 \usepackage[T1]{fontenc}
@@ -391,12 +402,7 @@ function buildLuaTeXOracleDocument({ text, align, widthPt }) {
 \doublehyphendemerits=10000
 \finalhyphendemerits=5000
 \emergencystretch=0pt
-\setbox0=\vbox{%
-  \hsize=${widthPt}pt
-  \parindent=0pt
-  ${action}
-  \noindent ${escapedText}\par
-}
+\setbox0=\hbox{${snippet}}
 \directlua{dofile("oracle.lua")}
 \end{document}
 `;

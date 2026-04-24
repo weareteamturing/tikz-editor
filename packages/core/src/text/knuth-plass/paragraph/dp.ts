@@ -64,6 +64,7 @@ interface BreakCandidate {
   endTextOffset: number | null;
   naturalWidth: number;
   spaceCount: number;
+  spaceWidth: number;
   stretch: number;
   shrink: number;
   break: BreakDecision | null;
@@ -83,8 +84,6 @@ interface CandidateScore {
   xOffset: number;
   constraintViolation: boolean;
 }
-
-const CONSTRAINT_VIOLATION_DEMERITS = 1_000_000_000_000;
 
 interface ActiveChoice {
   candidate: BreakCandidate;
@@ -291,11 +290,13 @@ function generateCandidates(
 
   let naturalWidth = 0;
   let spaceCount = 0;
+  let spaceWidth = 0;
   let stretch = 0;
   let shrink = 0;
 
   let naturalWidthWithoutTrailingSpaces = 0;
   let spaceCountWithoutTrailingSpaces = 0;
+  let spaceWidthWithoutTrailingSpaces = 0;
   let stretchWithoutTrailingSpaces = 0;
   let shrinkWithoutTrailingSpaces = 0;
   let lastNonSpaceRun = -1;
@@ -319,6 +320,7 @@ function generateCandidates(
           endTextOffset: textPenalty.splitOffset,
           naturalWidth: naturalWidth + prefixWidth + textPenalty.width,
           spaceCount,
+          spaceWidth,
           stretch,
           shrink,
           break: {
@@ -343,6 +345,7 @@ function generateCandidates(
       naturalWidth += remaining;
       naturalWidthWithoutTrailingSpaces = naturalWidth;
       spaceCountWithoutTrailingSpaces = spaceCount;
+      spaceWidthWithoutTrailingSpaces = spaceWidth;
       stretchWithoutTrailingSpaces = stretch;
       shrinkWithoutTrailingSpaces = shrink;
       lastNonSpaceRun = runIndex;
@@ -359,6 +362,7 @@ function generateCandidates(
           endTextOffset: null,
           naturalWidth: isEmptyLine ? forcedWidth : naturalWidthWithoutTrailingSpaces,
           spaceCount: isEmptyLine ? 0 : spaceCountWithoutTrailingSpaces,
+          spaceWidth: isEmptyLine ? 0 : spaceWidthWithoutTrailingSpaces,
           stretch: isEmptyLine ? 0 : stretchWithoutTrailingSpaces,
           shrink: isEmptyLine ? 0 : shrinkWithoutTrailingSpaces,
           break: {
@@ -387,6 +391,7 @@ function generateCandidates(
           endTextOffset: null,
           naturalWidth,
           spaceCount,
+          spaceWidth,
           stretch,
           shrink,
           break: {
@@ -405,8 +410,10 @@ function generateCandidates(
         });
       }
 
-      naturalWidth += runWidth(model, runIndex);
+      const width = runWidth(model, runIndex);
+      naturalWidth += width;
       spaceCount += 1;
+      spaceWidth += width;
       const glue = glueMetrics.get(runIndex);
       stretch += glue?.stretch ?? 0;
       shrink += glue?.shrink ?? 0;
@@ -416,6 +423,7 @@ function generateCandidates(
     naturalWidth += runWidth(model, runIndex);
     naturalWidthWithoutTrailingSpaces = naturalWidth;
     spaceCountWithoutTrailingSpaces = spaceCount;
+    spaceWidthWithoutTrailingSpaces = spaceWidth;
     stretchWithoutTrailingSpaces = stretch;
     shrinkWithoutTrailingSpaces = shrink;
     lastNonSpaceRun = runIndex;
@@ -427,6 +435,7 @@ function generateCandidates(
       endTextOffset: null,
       naturalWidth: naturalWidthWithoutTrailingSpaces,
       spaceCount: spaceCountWithoutTrailingSpaces,
+      spaceWidth: spaceWidthWithoutTrailingSpaces,
       stretch: stretchWithoutTrailingSpaces,
       shrink: shrinkWithoutTrailingSpaces,
       break: null,
@@ -537,9 +546,17 @@ function scoreCandidate(
     }
     // In canonical overfull mode we still want TeX-like behavior for ragged
     // paragraph profiles: overflowing a line should be a last resort.
-    if (delta < 0 && options.preventOverflow) {
+    if (delta < 0 && (!feasible || options.preventOverflow)) {
       const overflow = -delta;
       badness += 20_000 + Math.floor((overflow / Math.max(width, 1)) * 10_000);
+    }
+    if (delta < 0 && candidate.spaceWidth > 0) {
+      const overflowAfterSpaceClamp = Math.max(0, -delta - candidate.spaceWidth);
+      if (overflowAfterSpaceClamp > 0) {
+        badness +=
+          20_000 +
+          Math.floor((overflowAfterSpaceClamp / Math.max(width, 1)) * 10_000);
+      }
     }
 
     if (!Number.isFinite(ratio)) {
@@ -576,10 +593,6 @@ function scoreCandidate(
     demerits += penalty * penalty;
   } else if (penalty > -10_000) {
     demerits -= penalty * penalty;
-  }
-
-  if (constraintViolation) {
-    demerits += CONSTRAINT_VIOLATION_DEMERITS;
   }
 
   let xOffset = options.leftskipWidth;

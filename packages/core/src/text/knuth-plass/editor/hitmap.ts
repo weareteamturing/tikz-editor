@@ -921,6 +921,13 @@ function alignSegmentsToSource(
       const hasStart = Number.isFinite(Number(segment.startOffset));
       const hasEnd = Number.isFinite(Number(segment.endOffset));
       if (!hasStart || !hasEnd) {
+        // Synthetic visual-only text segments (e.g., the '-' rendered for a
+        // visible-hyphen line break) carry prebuilt caretStops but no source
+        // offsets. They have no source mapping; visibleHyphenBreakOffsetByLine
+        // handles caret behavior at the break.
+        if (Array.isArray(segment.caretStops)) {
+          continue;
+        }
         return {
           aligned: [],
           error: `Text segment for runIndex=${segment.runIndex} is missing strict startOffset/endOffset metadata.`,
