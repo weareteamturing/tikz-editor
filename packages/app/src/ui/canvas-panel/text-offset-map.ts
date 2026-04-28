@@ -23,7 +23,7 @@ export function createSourceRenderOffsetMap(sourceText: string, renderText: stri
   const sourceLength = sourceText.length;
   const renderLength = renderText.length;
   const width = renderLength + 1;
-  const distance = new Array<number>((sourceLength + 1) * (renderLength + 1));
+  const distance = Array.from<number>({ length: (sourceLength + 1) * (renderLength + 1) }).fill(0);
 
   for (let sourceIndex = 0; sourceIndex <= sourceLength; sourceIndex += 1) {
     distance[sourceIndex * width] = sourceIndex;
@@ -74,8 +74,8 @@ export function createSourceRenderOffsetMap(sourceText: string, renderText: stri
   }
   operations.reverse();
 
-  const sourceToRenderMap = new Array<number>(sourceLength + 1).fill(0);
-  const renderToSourceMap = new Array<number>(renderLength + 1).fill(0);
+  const sourceToRenderMap = Array.from<number>({ length: sourceLength + 1 }).fill(0);
+  const renderToSourceMap = Array.from<number>({ length: renderLength + 1 }).fill(0);
   let sourceIndex = 0;
   let renderIndex = 0;
   sourceToRenderMap[0] = 0;

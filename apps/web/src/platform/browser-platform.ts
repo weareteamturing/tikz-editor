@@ -502,8 +502,8 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
       dispatchCommand: (commandId, origin = "platform") => {
         menuHandler?.(commandId, origin);
       },
-      syncNativeMenu: () => undefined,
-      showNativeContextMenu: () => undefined
+      syncNativeMenu: () => {},
+      showNativeContextMenu: () => {}
     },
     window: {
       setDocumentState: ({ title, dirty }) => {

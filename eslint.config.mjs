@@ -2,6 +2,7 @@ import js from "@eslint/js";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
+import unicorn from "eslint-plugin-unicorn";
 import vitest from "@vitest/eslint-plugin";
 import tseslint from "typescript-eslint";
 
@@ -45,7 +46,8 @@ export default tseslint.config(
     },
     plugins: {
       "react-hooks": reactHooks,
-      "react-refresh": reactRefresh
+      "react-refresh": reactRefresh,
+      unicorn
     },
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
@@ -101,7 +103,16 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-unary-minus": "error",
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/no-misused-promises": "error",
-      "@typescript-eslint/require-await": "error"
+      "@typescript-eslint/require-await": "error",
+      "unicorn/catch-error-name": "error",
+      "unicorn/no-new-array": "error",
+      "unicorn/no-useless-fallback-in-spread": "error",
+      "unicorn/no-useless-promise-resolve-reject": "error",
+      "unicorn/no-useless-spread": "error",
+      "unicorn/no-useless-undefined": "error",
+      "unicorn/prefer-dom-node-remove": "error",
+      "unicorn/prefer-includes": "error",
+      "unicorn/prefer-number-properties": "error"
     }
   },
   {

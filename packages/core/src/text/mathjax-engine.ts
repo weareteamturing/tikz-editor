@@ -1040,7 +1040,7 @@ async function measureNaturalWidthWithPromise(
   mode: "text" | "math"
 ): Promise<number> {
   if (typeof runtime.tex2svgPromise !== "function") {
-    return Promise.reject(new Error("MathJax promise renderer is unavailable."));
+    throw new Error("MathJax promise renderer is unavailable.");
   }
   const adaptor = runtime.startup?.adaptor ?? null;
   const naturalTex = buildWrappedTeX(sourceText, null, font, mode);
@@ -1149,7 +1149,7 @@ async function measureExactSingleLineWidthWithPromise(
   mode: "text" | "math"
 ): Promise<number> {
   if (typeof runtime.tex2svgPromise !== "function") {
-    return Promise.reject(new Error("MathJax promise renderer is unavailable."));
+    throw new Error("MathJax promise renderer is unavailable.");
   }
   const measuredWidthPt = await measureNaturalWidthWithPromise(runtime, sourceText, font, mode);
   if (!(Number.isFinite(measuredWidthPt) && measuredWidthPt > 0)) {

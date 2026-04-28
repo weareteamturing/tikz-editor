@@ -232,7 +232,7 @@ function readViewBoxWidth(node: unknown, adaptor: MathJaxAdaptor | null): number
       ? adaptor.getAttribute(node, 'width')
       : typeof rendered.getAttribute === 'function'
         ? rendered.getAttribute('width')
-        : NaN
+        : Number.NaN
   );
   if (Number.isFinite(widthAttr) && widthAttr > 0) {
     return widthAttr;
@@ -338,7 +338,7 @@ function toInlineMathMeasurementTeX(content: string): string {
 }
 
 export function seedPrefixWidthTable(length: number, totalWidth: number): number[] {
-  const table = new Array<number>(length + 1);
+  const table = Array.from<number>({ length: length + 1 }).fill(Number.NaN);
   table[0] = 0;
   table[length] = totalWidth;
   return table;
@@ -469,7 +469,7 @@ async function buildMeasuredPrefixWidths(
     return table.map((entry) => clamp(entry / total, 0, 1));
   }
 
-  const fallback = new Array<number>(content.length + 1);
+  const fallback = Array.from({ length: content.length + 1 }, () => 0);
   for (let i = 0; i <= content.length; i++) {
     fallback[i] = content.length > 0 ? i / content.length : 0;
   }

@@ -733,7 +733,7 @@ function findStatementOptions(items: PathItem[]) {
   }
 
   if (!seenNonComment) {
-    return undefined;
+    return;
   }
   return leadingOptions.length > 0 ? mergeOptionLists(leadingOptions) : undefined;
 }

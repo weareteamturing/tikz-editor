@@ -46,7 +46,7 @@ export class SvgDomPatcher {
     this.fingerprintByPartId.clear();
     this.partOrder = [];
     if (this.host.contains(this.rootSvg)) {
-      this.host.removeChild(this.rootSvg);
+      this.rootSvg.remove();
     }
   }
 
@@ -103,7 +103,7 @@ export class SvgDomPatcher {
   private removePart(partId: string): void {
     const element = this.elementByPartId.get(partId);
     if (element && element.parentNode) {
-      element.parentNode.removeChild(element);
+      element.remove();
     }
     this.elementByPartId.delete(partId);
     this.fingerprintByPartId.delete(partId);

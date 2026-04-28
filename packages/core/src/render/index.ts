@@ -84,7 +84,7 @@ export async function renderTikzToSvgAsync(source: string, opts: RenderTikzOptio
   }
 
   const parseOpts: ParseTikzOptions = {
-    ...(opts.parse ?? {}),
+    ...opts.parse,
     nodeTextValidator:
       opts.parse?.nodeTextValidator ??
       (useDefaultNodeTextValidator && textEngine && !hasUserMacros
@@ -98,12 +98,12 @@ export async function renderTikzToSvgAsync(source: string, opts: RenderTikzOptio
   };
 
   const evaluateOpts: EvaluateOptions = {
-    ...(opts.evaluate ?? {}),
+    ...opts.evaluate,
     textEngine: opts.evaluate?.textEngine ?? textEngine
   };
 
   const svgOpts: EmitSvgOptions = {
-    ...(opts.svg ?? {}),
+    ...opts.svg,
     textEngine: opts.svg?.textEngine ?? textEngine
   };
 

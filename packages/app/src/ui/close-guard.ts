@@ -20,10 +20,10 @@ export function collectDirtyDocumentIdsForIntent(
 }
 
 export function summarizeSaveStatuses(statuses: SaveStatus[]): SaveStatus {
-  if (statuses.some((status) => status === "failed")) {
+  if (statuses.includes("failed")) {
     return "failed";
   }
-  if (statuses.some((status) => status === "cancelled")) {
+  if (statuses.includes("cancelled")) {
     return "cancelled";
   }
   return "saved";

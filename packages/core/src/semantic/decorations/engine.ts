@@ -1311,7 +1311,7 @@ function getStartRadius(decoration: DecorationStyle): number {
 }
 
 function getShapeWidth(decoration: DecorationStyle): number {
-  const size = getLengthParam(decoration, "shape size", NaN);
+  const size = getLengthParam(decoration, "shape size", Number.NaN);
   if (Number.isFinite(size)) {
     return size;
   }
@@ -1319,7 +1319,7 @@ function getShapeWidth(decoration: DecorationStyle): number {
 }
 
 function getShapeHeight(decoration: DecorationStyle): number {
-  const size = getLengthParam(decoration, "shape size", NaN);
+  const size = getLengthParam(decoration, "shape size", Number.NaN);
   if (Number.isFinite(size)) {
     return size;
   }

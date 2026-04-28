@@ -241,7 +241,7 @@ export function App() {
   const [pngExportSvgResult, setPngExportSvgResult] = useState<EmitSvgResult | null>(null);
   const [pendingAutoFit, setPendingAutoFit] = useState(false);
   const [pendingClose, setPendingClose] = useState<{ intent: CloseIntent; dirtyDocumentIds: string[] } | null>(null);
-  const requestCloseIntentRef = useRef<(intent: CloseIntent) => void>(() => undefined);
+  const requestCloseIntentRef = useRef<(intent: CloseIntent) => void>(() => {});
   const computeSchedulerRef = useRef<ReturnType<typeof createSingleFlightScheduler<ComputeRequest, ComputeResponse>> | null>(null);
   const sourceRef = useRef(source);
   const snapshotRef = useRef(snapshot);

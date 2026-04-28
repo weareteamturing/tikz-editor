@@ -780,7 +780,7 @@ export function applyBreaks(
   }
 
   if (!canProceed) {
-    const wrappersToRestore = new Set<AnyWrapper>([...mutatedWrappers]);
+    const wrappersToRestore = new Set<AnyWrapper>(mutatedWrappers);
     for (const wrapper of plans.keys()) {
       wrappersToRestore.add(wrapper);
     }

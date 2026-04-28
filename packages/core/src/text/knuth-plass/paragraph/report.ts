@@ -136,7 +136,7 @@ export function getOrBuildTextSegmentCaretStops(
     return null;
   }
 
-  const stops = new Array<number>(segment.text.length + 1);
+  const stops = Array.from({ length: segment.text.length + 1 }, () => 0);
   stops[0] = segment.x;
   for (let i = 1; i <= segment.text.length; i++) {
     const width = Number(wrapper.textWidth(segment.text.slice(0, i))) || 0;

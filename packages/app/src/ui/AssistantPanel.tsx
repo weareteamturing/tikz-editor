@@ -265,8 +265,8 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
         } else {
           setInstallOutput(output?.trim() || "Install finished, but Codex was not detected. You may need to restart your terminal.");
         }
-      } catch (e) {
-        setInstallError(e instanceof Error ? e.message : String(e));
+      } catch (error) {
+        setInstallError(error instanceof Error ? error.message : String(error));
       } finally {
         setInstallingMethod(null);
       }

@@ -593,8 +593,8 @@ function renderValueEditor(
           value={toPropertyRawValue(declaration)}
           disabled={!writable}
           onCommit={(val) => {
-            const num = parseFloat(val);
-            if (!isNaN(num)) {
+            const num = Number.parseFloat(val);
+            if (!Number.isNaN(num)) {
               onPropertyChange(declaration, property, num);
             } else {
               // Raw text commit for non-numeric values like "thick"

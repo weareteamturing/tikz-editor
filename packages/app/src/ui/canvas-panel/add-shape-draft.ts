@@ -81,11 +81,11 @@ export function resolveAddShapeDraft(
   const safeRequestedHeight = Math.max(requestedHeightPt, DEFAULT_NODE_MINIMUM_DIMENSION_PT);
   const candidates = dedupeConstraintCandidates([
     buildConstraintCandidate(shape, safeRequestedWidth, safeRequestedHeight),
-    buildConstraintCandidate(shape, safeRequestedWidth, undefined),
+    buildConstraintCandidate(shape, safeRequestedWidth),
     buildConstraintCandidate(shape, undefined, safeRequestedHeight)
   ]);
 
-  let best = candidates[0] ?? buildConstraintCandidate(shape, undefined, undefined);
+  let best = candidates[0] ?? buildConstraintCandidate(shape);
   let bestScore = scoreConstraintCandidate(best, safeRequestedWidth, safeRequestedHeight);
 
   for (let index = 1; index < candidates.length; index += 1) {
@@ -135,8 +135,8 @@ function dedupeConstraintCandidates(candidates: readonly ShapeConstraintCandidat
 
 function buildConstraintCandidate(
   shape: NodeShape,
-  minimumWidthPt: number | undefined,
-  minimumHeightPt: number | undefined
+  minimumWidthPt?: number,
+  minimumHeightPt?: number
 ): ShapeConstraintCandidate {
   return {
     minimumWidthPt,
@@ -151,7 +151,7 @@ function buildPreviewGeometry(
   minimumWidthPt: number | undefined,
   minimumHeightPt: number | undefined
 ): AddShapeDraftPreviewGeometry {
-  const params = resolveNodeShapeGeometryParams(undefined);
+  const params = resolveNodeShapeGeometryParams();
   const sizing = {
     naturalWidth: 0,
     naturalHeight: 0,

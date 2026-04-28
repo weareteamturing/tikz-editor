@@ -1119,7 +1119,7 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       bindPrefersNonBlinkingTextInsertionIndicatorChange: async (handler) => {
         const bridge = getBridge();
         if (!bridge.bindPrefersNonBlinkingTextInsertionIndicatorChange) {
-          return () => undefined;
+          return () => {};
         }
         return await bridge.bindPrefersNonBlinkingTextInsertionIndicatorChange(handler);
       }

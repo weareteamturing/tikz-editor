@@ -68,7 +68,7 @@ export function createMeasurementService(): MeasurementService {
       return existing;
     }
 
-    const widths = new Array<number>(word.length + 1);
+    const widths = Array.from({ length: word.length + 1 }, () => 0);
     widths[0] = 0;
     for (let i = 1; i <= word.length; i++) {
       widths[i] = measureText(word.slice(0, i), mtextWrapper);

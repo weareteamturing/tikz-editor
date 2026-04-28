@@ -291,7 +291,7 @@ export async function serializeSvgForExport(svgResult: EmitSvgResult): Promise<s
 }
 
 export function preloadSvgOptimizer(): Promise<void> {
-  return loadSvgOptimizer().then(() => undefined);
+  return loadSvgOptimizer().then(() => {});
 }
 
 export async function transformSvgMarkup(

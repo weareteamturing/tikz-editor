@@ -142,18 +142,18 @@ export function fromCst(tree: Tree, source: string, opts: CstToAstOptions = {}):
 function recoverInlineTikzOptions(node: import("@lezer/common").SyntaxNode, source: string) {
   const commandNode = findFirstChildByName(node, "InlineTikzCmd");
   if (!commandNode) {
-    return undefined;
+    return;
   }
 
   const commandRaw = source.slice(commandNode.from, commandNode.to);
   if (!commandRaw.endsWith("[")) {
-    return undefined;
+    return;
   }
 
   const optionStart = commandNode.to - 1;
   const optionEnd = findMatchingInlineOptionBracket(source, optionStart);
   if (optionEnd < 0) {
-    return undefined;
+    return;
   }
 
   return parseOptionListRaw(source.slice(optionStart, optionEnd + 1), optionStart);

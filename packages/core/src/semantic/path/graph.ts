@@ -1452,7 +1452,7 @@ class GraphPlanner {
           scope.trieEnabled = true;
           consumed = true;
         } else if (key === "number nodes") {
-          scope = applyNumberNodes(scope, undefined);
+          scope = applyNumberNodes(scope);
           consumed = true;
         } else if (isEdgeKindFlag(key)) {
           scope.defaultOperatorEdgeKind = key as ConnectorOperator;
@@ -1713,7 +1713,7 @@ class GraphPlanner {
           continue;
         }
         if (key === "number nodes") {
-          scope = applyNumberNodes(scope, undefined);
+          scope = applyNumberNodes(scope);
           continue;
         }
         if (key === "put node text on incoming edges") {
@@ -2139,7 +2139,7 @@ class GraphPlanner {
   }
 }
 
-function applyNumberNodes(scope: GraphScopeState, valueRaw: string | undefined): GraphScopeState {
+function applyNumberNodes(scope: GraphScopeState, valueRaw?: string): GraphScopeState {
   if (valueRaw == null) {
     return {
       ...scope,

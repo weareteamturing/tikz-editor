@@ -235,7 +235,7 @@ function worldVector(x: number, y: number): WorldVector {
 }
 
 export function resolveNodeShapeGeometryParams(
-  options: OptionListAst | undefined,
+  options?: OptionListAst,
   randomSeedProvider: () => number = defaultRandomSeedProvider
 ): ShapeGeometryParams {
   let diamondAspect = DEFAULT_DIAMOND_ASPECT;

@@ -886,7 +886,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     const accessibility = platform.accessibility;
     if (!accessibility) {
       setPrefersNonBlinkingTextInsertionIndicator(false);
-      return () => undefined;
+      return () => {};
     }
 
     const prefersPromise = accessibility.prefersNonBlinkingTextInsertionIndicator?.();
@@ -897,7 +897,7 @@ export const CanvasPanel = memo(function CanvasPanel({
             setPrefersNonBlinkingTextInsertionIndicator(value);
           }
         })
-        .catch(() => undefined);
+        .catch(() => {});
     }
 
     const bindResult = accessibility.bindPrefersNonBlinkingTextInsertionIndicatorChange?.((value) => {
@@ -914,7 +914,7 @@ export const CanvasPanel = memo(function CanvasPanel({
             nextUnlisten?.();
           }
         })
-        .catch(() => undefined);
+        .catch(() => {});
     }
 
     return () => {
@@ -3645,10 +3645,10 @@ export const CanvasPanel = memo(function CanvasPanel({
 
   const svgDiffHints = useMemo<SvgDiffHints | undefined>(() => {
     if (!activeCanvasDragKind || dragPatchMode !== "partial") {
-      return undefined;
+      return;
     }
     if (!dragAffectedSourceIds || dragAffectedSourceIds.length === 0) {
-      return undefined;
+      return;
     }
     return {
       affectedSourceIds: dragAffectedSourceIds

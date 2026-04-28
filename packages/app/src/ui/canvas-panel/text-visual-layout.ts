@@ -142,7 +142,7 @@ export function buildRenderLinePrefixWidths(
   lineText: string,
   measureTextWidth: (text: string) => number
 ): number[] {
-  const prefix = new Array<number>(lineText.length + 1);
+  const prefix = Array.from({ length: lineText.length + 1 }, () => 0);
   prefix[0] = 0;
 
   let width = 0;

@@ -120,7 +120,7 @@ export function createIncrementalSemanticSession(
   ): IncrementalSemanticEvaluateResult => {
     const options: EvaluateOptions = {
       ...defaultOptions,
-      ...(input.options ?? {})
+      ...input.options
     };
     const run = createSemanticEvaluationRun(input.figure, input.source, options);
     const statementCount = run.expandedFigureBody.length;

@@ -27,24 +27,24 @@ export function loadSettings(): AppSettings {
     return {
       general: {
         ...DEFAULT_SETTINGS.general,
-        ...(parsed.general ?? {})
+        ...parsed.general
       },
       editor: {
         ...DEFAULT_SETTINGS.editor,
-        ...(parsed.editor ?? {}),
+        ...parsed.editor,
         formatterMaxLineLength: parsedFormatterMaxLineLength
       },
       canvas: {
         ...DEFAULT_SETTINGS.canvas,
-        ...(parsed.canvas ?? {})
+        ...parsed.canvas
       },
       colorPicker: {
         ...DEFAULT_SETTINGS.colorPicker,
-        ...(parsed.colorPicker ?? {})
+        ...parsed.colorPicker
       },
       rendering: {
         ...DEFAULT_SETTINGS.rendering,
-        ...(parsed.rendering ?? {})
+        ...parsed.rendering
       }
     };
   } catch {

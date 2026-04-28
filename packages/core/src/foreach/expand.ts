@@ -100,7 +100,7 @@ export function expandForeachFigure(
     templateLocalIdByExpandedId: new Map<string, string>()
   };
 
-  const expandedBody = expandStatements(figure.body, [], {}, context, undefined);
+  const expandedBody = expandStatements(figure.body, [], {}, context);
   reindexStatements(expandedBody, context.statementAttribution, context.templateLocalIdByExpandedId);
 
   return {
@@ -118,7 +118,7 @@ function expandStatements(
   stack: ForeachOriginFrame[],
   inheritedBindings: Record<string, string>,
   context: ExpandContext,
-  templateSource: TemplateSource | undefined
+  templateSource?: TemplateSource
 ): Statement[] {
   const expanded: Statement[] = [];
   for (const statement of statements) {

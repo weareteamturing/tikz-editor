@@ -69,7 +69,7 @@ function buildPatternTrie(patterns: readonly string[]): TrieNode {
       node.values = values;
     } else {
       const length = Math.max(node.values.length, values.length);
-      const merged = new Array<number>(length).fill(0);
+      const merged = Array.from<number>({ length }).fill(0);
       for (let i = 0; i < length; i++) {
         merged[i] = Math.max(node.values[i] ?? 0, values[i] ?? 0);
       }
@@ -185,7 +185,7 @@ export class EnglishHyphenator implements Hyphenator {
     }
 
     const wrapped = `.${lowerWord}.`;
-    const scores = new Array<number>(wrapped.length + 1).fill(0);
+    const scores = Array.from({ length: wrapped.length + 1 }, () => 0);
 
     for (let i = 0; i < wrapped.length; i++) {
       let node: TrieNode | undefined = this.trie;

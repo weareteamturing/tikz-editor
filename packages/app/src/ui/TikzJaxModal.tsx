@@ -150,12 +150,12 @@ export function TikzJaxModal({
         renderSvgIntoOutput(svg);
         setPhase("done");
       });
-    }).catch((err) => {
+    }).catch((error) => {
       if (cancelled) return;
       if (pollId != null) {
         window.clearInterval(pollId);
       }
-      const message = String(err);
+      const message = String(error);
       setNativeError(message);
       setNativeLog(message);
       setPhase("native-error");

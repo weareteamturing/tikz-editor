@@ -149,7 +149,7 @@ function buildDefaultLayout(): IJsonModel {
  *  and ensure the home tabsets survive being empty. */
 function sanitizeLayout(json: IJsonModel): IJsonModel {
   const normalizedGlobal = {
-    ...(json.global ?? {}),
+    ...json.global,
     tabSetEnableMaximize: false
   };
   const jsonWithNormalizedGlobal: IJsonModel = {
