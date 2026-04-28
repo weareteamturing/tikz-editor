@@ -3,8 +3,9 @@ import { clientPoint as makeClientPoint, px } from "tikz-editor/coords/index";
 import { resolveTransformInspectorMutationContext } from "tikz-editor/edit/inspector";
 import { buildSnapContext, type SnapGuideInput, type SnapLine, type SnapSettingsPatch } from "tikz-editor/edit/snapping";
 import type { ResizeRole } from "tikz-editor/edit/actions";
-import type { EditHandle, ScenePath } from "tikz-editor/semantic/types";
-import type { ClientPoint, WorldBounds, WorldPoint } from "../coords/types";
+import type { EditHandle, SceneElement, ScenePath } from "tikz-editor/semantic/types";
+import type { WorldBounds, WorldPoint } from "../coords/types";
+import type { NodeItem } from "tikz-editor/ast/types";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import type { CanvasTransform, ToolMode } from "../../store/types";
 import { clientToWorldPoint } from "./geometry";
@@ -282,11 +283,11 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       }
 
       const statements = snapshot.parseResult?.figure.body;
-      const sourceElements = snapshot.scene?.elements.filter((element: any) => element.sourceRef.sourceId === sourceId) ?? [];
-      const pathElement = sourceElements.find((element: any): element is ScenePath => element.kind === "Path");
+      const sourceElements = snapshot.scene?.elements.filter((element) => element.sourceRef.sourceId === sourceId) ?? [];
+      const pathElement = sourceElements.find((element): element is ScenePath => element.kind === "Path");
       const pathShapeHint = pathElement ? resolveScenePathShapeHint(pathElement, statements, sourceId) : undefined;
       const isCircleResizeSource =
-        pathShapeHint === "circle" || sourceElements.some((element: any) => element.kind === "Circle");
+        pathShapeHint === "circle" || sourceElements.some((element) => element.kind === "Circle");
       const initialScopeTransform = sourceId.startsWith("scope:")
         ? resolveTransformInspectorMutationContext(source, sourceId, parseOptions).values
         : null;
@@ -346,6 +347,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       snapshot.parseResult,
       snapshot.scene,
       snapshot.source,
+      parseOptions,
       source,
       svgResult,
       toolMode,
@@ -359,19 +361,19 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       if (statements) {
         const statement = findPathStatementById(statements, sourceId);
         if (statement?.command === "node") {
-          const inlineNode = statement.items.find((item: any) => item.kind === "Node");
-          if (inlineNode && inlineNode.kind === "Node") {
+          const inlineNode = statement.items.find((item): item is NodeItem => item.kind === "Node");
+          if (inlineNode) {
             return inlineNode.id;
           }
         }
       }
 
-      const sourceElements = snapshot.scene?.elements.filter((element: any) => element.sourceRef.sourceId === sourceId) ?? [];
-      const preferredElements = sourceElements.filter((element: any) => element.kind !== "Text");
+      const sourceElements: SceneElement[] = snapshot.scene?.elements.filter((element) => element.sourceRef.sourceId === sourceId) ?? [];
+      const preferredElements = sourceElements.filter((element) => element.kind !== "Text");
       const candidates = preferredElements.length > 0 ? preferredElements : sourceElements;
       let fallbackTargetId: string | null = null;
       for (const element of candidates) {
-        const commandEntry = [...element.styleChain].reverse().find((entry: any) => entry.kind === "command");
+        const commandEntry = [...element.styleChain].reverse().find((entry) => entry.kind === "command");
         const targetId = commandEntry?.sourceRef?.sourceId?.trim();
         if (!targetId) {
           continue;

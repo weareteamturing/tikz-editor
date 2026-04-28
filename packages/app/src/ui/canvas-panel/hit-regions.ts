@@ -2,7 +2,7 @@ import { applyMatrix } from "tikz-editor/semantic/transform";
 import type { SvgTransform, WorldBounds, WorldPoint, WorldTransform } from "tikz-editor/coords/index";
 import { mapWorldTransformToSvgTransform, worldPoint, worldToSvgTransform, pt } from "tikz-editor/coords/index";
 import type { SceneClipPath, SceneElement, ScenePathCommand, SceneText } from "tikz-editor/semantic/types";
-import type { SvgBounds, SvgPoint } from "../coords/types";
+import type { SvgPoint } from "../coords/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 import { worldToSvgPoint } from "./geometry";
 

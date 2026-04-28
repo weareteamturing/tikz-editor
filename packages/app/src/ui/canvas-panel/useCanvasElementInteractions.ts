@@ -3,7 +3,7 @@ import { clientPoint, px, pt, worldBounds, worldVector } from "tikz-editor/coord
 import { buildSnapContext, collectSelectionGeometryFromBounds, collectSourceWorldBounds, type SnapBounds, type SnapGuideInput, type SnapLine, type SnapSettingsPatch } from "tikz-editor/edit/snapping";
 import type { EditHandle, SceneElement } from "tikz-editor/semantic/types";
 import type { ClientPoint, WorldBounds, WorldPoint } from "../coords/types";
-import { resolveEligibleExplicitPath, type ExplicitPathAnalysis, type ExplicitPathSegment } from "tikz-editor/edit/path-editing";
+import { resolveEligibleExplicitPath, type ExplicitPathAnalysis } from "tikz-editor/edit/path-editing";
 import { closestPointOnLine, closestPointOnCubic } from "tikz-editor/edit/curve-math";
 import type { CanvasTransform, ToolMode } from "../../store/types";
 import { clientToWorldPoint } from "./geometry";
@@ -22,7 +22,6 @@ import type {
   CanvasSnapshot,
   DragState,
   EditableTextTarget,
-  NodeAnchorOverlayState,
   SnapDebugLogInput,
   StateSetter,
   ValueSetter
@@ -234,8 +233,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       directManipulationDisabledReasonBySourceId,
       draggableSourceIds,
       logSnapDebug,
-      scopeOverlay.ancestorScopeIdsBySourceId,
-      scopeOverlay.scopesById,
+      scopeOverlay,
       setDragState,
       setSnapLines,
       setWarning,
@@ -548,6 +546,8 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       focusedScopeId,
       interactionSvgRef,
       onBucketFillRegion,
+      expandedDensePathSourceId,
+      resolveEditableTextTarget,
       selectedElementIds,
       setExpandedDensePathSourceId,
       setSnapLines,
@@ -596,7 +596,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       });
       return true;
     },
-    [svgResult, snapshot, source, activeFigureId, interactionSvgRef, canvasTransform.scale, applyActionWithFeedback]
+    [svgResult, snapshot, source, parseOptions, activeFigureId, interactionSvgRef, canvasTransform.scale, applyActionWithFeedback]
   );
 
   const onElementDoubleClick = useCallback(
@@ -645,9 +645,9 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       closeTextEditingSession,
       toolMode,
       viewportRef,
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      source, snapshot, svgResult, interactionSvgRef, canvasTransform, applyActionWithFeedback, activeFigureId,
-      expandedDensePathSourceId, resolveEditableTextTarget
+      expandedDensePathSourceId,
+      resolveEditableTextTarget,
+      tryInsertPathWorldPoint
     ]
   );
 
@@ -704,9 +704,9 @@ function findClosestSegmentWorldPoint(
   let best: { segmentIndex: number; point: WorldPoint; distance: number } | null = null;
 
   for (let i = 0; i < analysis.segments.length; i++) {
-    const seg = analysis.segments[i]!;
-    const startW = resolveAnchorWorld(editHandles, sourceId, analysis.anchors[seg.startAnchorIndex]!);
-    const endW = resolveAnchorWorld(editHandles, sourceId, analysis.anchors[seg.endAnchorIndex]!);
+    const seg = analysis.segments[i];
+    const startW = resolveAnchorWorld(editHandles, sourceId, analysis.anchors[seg.startAnchorIndex]);
+    const endW = resolveAnchorWorld(editHandles, sourceId, analysis.anchors[seg.endAnchorIndex]);
     if (!startW || !endW) continue;
 
     let closest: { point: WorldPoint };

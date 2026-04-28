@@ -170,7 +170,7 @@ export function viewportToSvgPoint(
   transform: CanvasTransform,
   viewBox: SvgViewBox
 ): SvgPoint {
-  return typedViewportToSvg(point, transform, viewBox) as SvgPoint;
+  return typedViewportToSvg(point, transform, viewBox);
 }
 
 export function viewportToWorldPoint(
@@ -210,7 +210,7 @@ export function pickStepPt(scale: number, targetPixels: number): number {
     if (pt >= minStepPt) return pt;
   }
 
-  return cmSteps[cmSteps.length - 1]! * PT_PER_CM;
+  return cmSteps[cmSteps.length - 1] * PT_PER_CM;
 }
 
 export function resolveOverlayGridSteps(scale: number, minorTargetPx: number = GRID_MINOR_TARGET_PX): OverlayGridSteps {
@@ -251,7 +251,7 @@ export function fmt(value: number): string {
 }
 
 export function resizeCursorForVector(vector: WorldVector): string {
-  const screenVector = { x: vector.x, y: -vector.y };
+  const screenVector = { x: Number(vector.x), y: -Number(vector.y) };
   const angle = ((Math.atan2(screenVector.y, screenVector.x) * 180) / Math.PI + 180) % 180;
   const candidates: Array<{ angle: number; cursor: string }> = [
     { angle: 0, cursor: "ew-resize" },
@@ -260,7 +260,7 @@ export function resizeCursorForVector(vector: WorldVector): string {
     { angle: 135, cursor: "nesw-resize" }
   ];
 
-  let best = candidates[0]!;
+  let best = candidates[0];
   let bestDiff = Number.POSITIVE_INFINITY;
   for (const candidate of candidates) {
     const diff = Math.min(Math.abs(angle - candidate.angle), 180 - Math.abs(angle - candidate.angle));

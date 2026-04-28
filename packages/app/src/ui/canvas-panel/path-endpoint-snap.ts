@@ -1,7 +1,7 @@
 import type { EditHandle } from "tikz-editor/semantic/types";
 import type { WorldPoint } from "../coords/types";
-import { analyzeExplicitPathStatement, type ExplicitPathAnalysis } from "tikz-editor/edit/path-editing";
-import type { PathStatement } from "tikz-editor/ast/types";
+import { analyzeExplicitPathStatement } from "tikz-editor/edit/path-editing";
+import type { PathStatement, Statement } from "tikz-editor/ast/types";
 import { parseTikzForEdit, type EditParseOptions } from "tikz-editor/edit/parse-options";
 
 const ENDPOINT_SNAP_RADIUS_PX = 10;
@@ -84,7 +84,7 @@ export function resolvePathEndpointSnap(input: {
   return bestSnap;
 }
 
-function findPathStatementById(statements: readonly any[], elementId: string): PathStatement | null {
+function findPathStatementById(statements: readonly Statement[], elementId: string): PathStatement | null {
   for (const statement of statements) {
     if (statement.kind === "Path" && statement.id === elementId) {
       return statement;

@@ -37,9 +37,9 @@ export function createSourceRenderOffsetMap(sourceText: string, renderText: stri
       const sourceChar = sourceText[sourceIndex - 1] ?? "";
       const renderChar = renderText[renderIndex - 1] ?? "";
       const substitutionCost = equivalentChars(sourceChar, renderChar) ? 0 : 1;
-      const substitution = distance[(sourceIndex - 1) * width + (renderIndex - 1)]! + substitutionCost;
-      const deletion = distance[(sourceIndex - 1) * width + renderIndex]! + 1;
-      const insertion = distance[sourceIndex * width + (renderIndex - 1)]! + 1;
+      const substitution = distance[(sourceIndex - 1) * width + (renderIndex - 1)] + substitutionCost;
+      const deletion = distance[(sourceIndex - 1) * width + renderIndex] + 1;
+      const insertion = distance[sourceIndex * width + (renderIndex - 1)] + 1;
       distance[sourceIndex * width + renderIndex] = Math.min(substitution, deletion, insertion);
     }
   }
@@ -48,12 +48,12 @@ export function createSourceRenderOffsetMap(sourceText: string, renderText: stri
   let sourceCursor = sourceLength;
   let renderCursor = renderLength;
   while (sourceCursor > 0 || renderCursor > 0) {
-    const current = distance[sourceCursor * width + renderCursor]!;
+    const current = distance[sourceCursor * width + renderCursor];
     if (sourceCursor > 0 && renderCursor > 0) {
       const sourceChar = sourceText[sourceCursor - 1] ?? "";
       const renderChar = renderText[renderCursor - 1] ?? "";
       const substitutionCost = equivalentChars(sourceChar, renderChar) ? 0 : 1;
-      const diagonal = distance[(sourceCursor - 1) * width + (renderCursor - 1)]! + substitutionCost;
+      const diagonal = distance[(sourceCursor - 1) * width + (renderCursor - 1)] + substitutionCost;
       if (diagonal === current) {
         operations.push("match");
         sourceCursor -= 1;
@@ -62,7 +62,7 @@ export function createSourceRenderOffsetMap(sourceText: string, renderText: stri
       }
     }
     if (sourceCursor > 0) {
-      const deletion = distance[(sourceCursor - 1) * width + renderCursor]! + 1;
+      const deletion = distance[(sourceCursor - 1) * width + renderCursor] + 1;
       if (deletion === current) {
         operations.push("delete");
         sourceCursor -= 1;

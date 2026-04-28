@@ -2,7 +2,7 @@ import { useEffect, type RefObject } from "react";
 import { svgPoint, svgBounds, viewportBounds, pt, px } from "tikz-editor/coords/index";
 import { getActiveMathJaxOutputJax } from "tikz-editor/text/mathjax-engine";
 import { getKnuthPlassPointFromOffset, getKnuthPlassSelectionRects } from "tikz-editor/text/knuth-plass";
-import type { ClientPoint, SvgBounds, SvgPoint, ViewportPoint } from "../coords/types";
+import type { SvgBounds, SvgPoint, ViewportPoint } from "../coords/types";
 import type { CanvasTransform, ToolMode } from "../../store/types";
 import { clientToViewport, svgToViewport } from "../coords/convert";
 import { clientBoundsToViewport, svgBoundsToViewportBounds } from "../coords/text";
@@ -105,7 +105,7 @@ function resolveRegionSelectionOverlay(
   const start = Math.min(selectionStart, selectionEnd);
   const end = Math.max(selectionStart, selectionEnd);
   for (let index = 0; index < ranges.length; index += 1) {
-    const range = ranges[index]!;
+    const range = ranges[index];
     const localStart = Math.max(start, range.start);
     const localEnd = Math.min(end, range.end);
     if (localEnd <= localStart) {
@@ -168,7 +168,7 @@ async function estimateCaretHeight(
       endOffset
     });
     if (rects.ok && rects.rects.length > 0) {
-      const rect = rects.rects[0]!;
+      const rect = rects.rects[0];
       return Math.max(1, rect.bounds.maxY - rect.bounds.minY);
     }
   }
@@ -416,9 +416,7 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
     textEditingSession,
     textEditAsyncRequestRevision,
     viewportRef,
-    canvasTransform.scale,
-    canvasTransform.translateX,
-    canvasTransform.translateY,
+    canvasTransform,
     svgResult
   ]);
 

@@ -14,14 +14,6 @@ export type TextMeasureStyle = {
 
 type MathMode = "none" | "dollar" | "paren";
 
-type VisualLineLayout = {
-  sourceRanges: LogicalLineRange[];
-  renderRanges: LogicalLineRange[];
-  renderPrefixes: number[][];
-  sourceToRender: (sourceOffset: number) => number;
-  renderToSource: (renderOffset: number) => number;
-};
-
 const STRUCTURAL_MATH_COMMANDS = new Set([
   "left",
   "right",
@@ -268,7 +260,7 @@ function resolveLineIndexForOffset(ranges: LogicalLineRange[], textLength: numbe
   }
   const pivot = textLength === 0 ? 0 : Math.min(Math.max(0, offset), textLength - 1);
   for (let index = 0; index < ranges.length; index += 1) {
-    const range = ranges[index]!;
+    const range = ranges[index];
     if (pivot >= range.start && pivot < range.end) {
       return index;
     }

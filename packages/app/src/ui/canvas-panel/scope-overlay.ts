@@ -269,7 +269,7 @@ export function resolveFocusedScopeIdForSelection(
     return selectedScope.parentScopeId;
   }
   const ancestors = scopeOverlay.ancestorScopeIdsBySourceId.get(selectedSourceId) ?? [];
-  return ancestors.length > 0 ? ancestors[ancestors.length - 1]! : null;
+  return ancestors.length > 0 ? ancestors[ancestors.length - 1] : null;
 }
 
 export function isSourceWithinScope(

@@ -3,7 +3,7 @@ import { viewportPoint, clientPoint as makeClientPoint, worldPoint, pt, px } fro
 import { buildSnapContext, snapToolPointer, type SnapGuideInput, type SnapLine, type SnapSettingsPatch } from "tikz-editor/edit/snapping";
 import type { NodeShapePresetId } from "tikz-editor/edit/inspector";
 import type { NodeAnchorTarget } from "tikz-editor/semantic/types";
-import type { ClientPoint, ViewportPoint, WorldBounds, WorldPoint } from "../coords/types";
+import type { ClientPoint, WorldBounds, WorldPoint } from "../coords/types";
 import type { CanvasTransform, ToolMode } from "../../store/types";
 import { resolveEndpointAnchorSnap } from "./endpoint-anchor-snap";
 import { clientToWorldPoint, distanceSquared } from "./geometry";
@@ -182,7 +182,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
         pendingTouchViewportRef.current = null;
       }
     };
-  }, [finalizePendingTouchViewportTap, setDragState]);
+  }, [finalizePendingTouchViewportTap, pendingTouchViewportRef, setDragState]);
 
   const onViewportPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -629,6 +629,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       selectedAddMatrixColumns,
       snapshot.scene,
       snapshot.source,
+      snapshot.editHandles,
       source,
       svgResult,
       startMarqueeSelection,
@@ -640,6 +641,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       snapSettingsPatch,
       viewportWorldBounds,
       interactionSvgRef,
+      dragRef,
       pathDraftRef,
       setBezierBendDraft,
       setFreehandDraft,
@@ -653,6 +655,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       setToolCursorWorld,
       setToolDraft,
       setWarning,
+      parseOptions,
       viewportRef,
       pendingAddedSelectionRef,
       suppressNextBackgroundClickRef,
@@ -809,6 +812,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       matrixCellAnchorHints,
       snapshot.scene,
       snapshot.source,
+      snapshot.editHandles,
       source,
       setNodeAnchorOverlay,
       svgResult,
@@ -983,6 +987,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       matrixCellAnchorHints,
       snapshot.scene,
       snapshot.source,
+      snapshot.editHandles,
       source,
       setNodeAnchorOverlay,
       svgResult,
@@ -999,8 +1004,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       setSnapLines,
       setToolCursorWorld,
       parseOptions,
-      magnifierState,
-      toolMode
+      magnifierState
     ]
   );
 

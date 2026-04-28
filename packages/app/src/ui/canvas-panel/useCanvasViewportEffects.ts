@@ -192,7 +192,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
       | null = null;
 
     const clearPendingTouchViewport = () => {
-      const pending = pendingTouchViewportRef.current as PendingTouchViewport | null;
+      const pending = pendingTouchViewportRef.current;
       if (!pending) {
         return;
       }

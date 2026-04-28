@@ -814,7 +814,7 @@ export function reduceCanvasTextEdit(
       );
       let nextIntent:
         | { nextText: string; nextSelectionStart: number; nextSelectionEnd: number }
-        | null = null;
+        | null;
       let nextCompositionRange: CanvasTextLineRange | null = null;
       let shouldCreateUndoCheckpoint = true;
 

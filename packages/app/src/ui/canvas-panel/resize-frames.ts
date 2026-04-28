@@ -15,7 +15,7 @@ import {
   pt
 } from "tikz-editor/coords/index";
 import type { FrameLocalPoint, FrameTransform, WorldBounds, WorldTransform, WorldVector } from "tikz-editor/coords/index";
-import { applyMatrix, applyMatrixToVector } from "tikz-editor/semantic/transform";
+import { applyMatrix } from "tikz-editor/semantic/transform";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 import { svgPoint } from "tikz-editor/coords/index";
 import type { SvgBounds, SvgPoint, WorldPoint } from "../coords/types";

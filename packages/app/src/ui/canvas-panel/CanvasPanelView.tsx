@@ -36,7 +36,6 @@ import type {
   HandleDisplay,
   MagnifierState,
   NodeAnchorOverlayState,
-  SelectionBounds,
   SelectionBoxDisplay,
   TextEditingSession,
   TextSelectionOverlay,
@@ -762,8 +761,8 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                 <div
                   className={css.worldStage}
                   style={{
-                    width: svgResult!.viewBox.width * canvasTransform.scale,
-                    height: svgResult!.viewBox.height * canvasTransform.scale,
+                    width: svgResult.viewBox.width * canvasTransform.scale,
+                    height: svgResult.viewBox.height * canvasTransform.scale,
                     transform: `translate(${canvasTransform.translateX}px, ${canvasTransform.translateY}px)`
                   }}
                 >

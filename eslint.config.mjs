@@ -85,5 +85,21 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-argument": "off",
       "@typescript-eslint/no-unsafe-return": "off"
     }
+  },
+  {
+    files: ["packages/app/src/ui/canvas-panel/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-unsafe-assignment": "error",
+      "@typescript-eslint/no-unsafe-member-access": "error",
+      "@typescript-eslint/no-unsafe-call": "error",
+      "@typescript-eslint/no-unsafe-argument": "error",
+      "@typescript-eslint/no-unsafe-return": "error",
+      "@typescript-eslint/no-unnecessary-type-assertion": "error",
+      "@typescript-eslint/no-unused-vars": "error",
+      "@typescript-eslint/no-unsafe-unary-minus": "error",
+      "no-useless-assignment": "error",
+      "react-hooks/exhaustive-deps": "error"
+    }
   }
 );

@@ -370,7 +370,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       }
     }
     return sourceIds;
-  }, [fitNodeSourceIds, matrixCellSourceIds, matrixSourceIds, pathAttachedNodeSourceIds, selectedElementIds, selectedHandles, treeChildSourceIds]);
+  }, [fitNodeSourceIds, matrixCellSourceIds, matrixSourceIds, pathAttachedNodeSourceIds, selectedElementIds, selectedHandles]);
 
   const scopeResizeSourceIds = useMemo(() => {
     const sourceIds = new Set<string>();
@@ -479,9 +479,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
         frames.set(sourceId, frame);
         continue;
       }
-      const path = snapshot.scene.elements.find(
-        (element: any): element is ScenePath => element.sourceRef.sourceId === sourceId && element.kind === "Path"
-      );
+      const path = snapshot.scene.elements.find((element): element is ScenePath => element.sourceRef.sourceId === sourceId && element.kind === "Path");
       const pathShapeHint = path ? resolveScenePathShapeHint(path, statements, sourceId) : undefined;
       const frame = resolveResizeFrameForSource(
         snapshot.scene.elements,
@@ -815,7 +813,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     }
 
     return displays;
-  }, [ROTATE_HANDLE_OFFSET_PX, canvasTransform.scale, collapsedDensePathEndpointsBySource, collapsedDensePathSourceIds, dragCapability.draggableHandleIds, draggableSourceIds, fitNodeSourceIds, matrixCellSourceIds, matrixSourceIds, pathAttachedNodeSourceIds, resizablePathShapeSourceIds, resizeFrameSourceIds, resizeFramesBySource, scopeResizeSourceIds, selectedElementIds, selectedHandles, selectionBoundsBySource, snapshot.editHandles, snapshot.scene, svgResult, toolMode, treeChildSourceIds]);
+  }, [ROTATE_HANDLE_OFFSET_PX, canvasTransform.scale, collapsedDensePathEndpointsBySource, collapsedDensePathSourceIds, dragCapability.draggableHandleIds, draggableSourceIds, fitNodeSourceIds, matrixCellSourceIds, matrixSourceIds, resizablePathShapeSourceIds, resizeFrameSourceIds, resizeFramesBySource, scopeResizeSourceIds, selectedElementIds, selectedHandles, selectionBoundsBySource, snapshot.editHandles, snapshot.scene, svgResult, toolMode, treeChildSourceIds]);
 
   const hitRegions = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];

@@ -16,7 +16,7 @@ import {
 import type { SvgTransform, WorldTransform, WorldVector } from "tikz-editor/coords/index";
 import { intersectRayWithPolygon } from "tikz-editor/semantic/nodes/shape-geometry";
 import type { SvgViewBox } from "tikz-editor/svg/index";
-import { applyMatrix, applyMatrixToVector, inverseMatrix } from "tikz-editor/semantic/transform";
+import { applyMatrixToVector, inverseMatrix } from "tikz-editor/semantic/transform";
 import type { CanvasDragKind } from "../../store/types";
 import type { ClientPoint, SvgBounds, SvgPoint, TextRectLocalPoint, WorldBounds, WorldPoint } from "../coords/types";
 import {
@@ -36,7 +36,6 @@ import {
   clamp,
   distanceSquared,
   fmt,
-  rotatePointAroundCenter,
   resizeCursorForVector,
   vectorLengthSquared,
   worldToSvgPoint
@@ -1179,7 +1178,7 @@ export function selectNudgeAnchorHandle(handles: EditHandle[]): EditHandle | nul
   if (handles.length === 0) {
     return null;
   }
-  return handles.find((handle) => handle.kind === "node-position") ?? handles[0]!;
+  return handles.find((handle) => handle.kind === "node-position") ?? handles[0];
 }
 
 export function canvasDragKindFromDragState(drag: DragState | null): CanvasDragKind | null {

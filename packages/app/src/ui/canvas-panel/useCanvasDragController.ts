@@ -11,7 +11,6 @@ import {
   pt,
   px
 } from "tikz-editor/coords/index";
-import type { EditAction } from "tikz-editor/edit/actions";
 import { parseEditableTargetId } from "tikz-editor/edit/editable-targets";
 import { formatNumber } from "tikz-editor/edit/format";
 import { worldToLocal } from "tikz-editor/edit/coords";
@@ -19,13 +18,12 @@ import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import { parseLength } from "tikz-editor/semantic/coords/parse-length";
 import { intersectRayWithPolygon } from "tikz-editor/semantic/nodes/shape-geometry";
 import {
-  collectSelectionGeometryFromBounds,
   snapHandlePosition,
   snapSelectionTranslation,
   snapToolPointer,
   type SnapLine
 } from "tikz-editor/edit/snapping";
-import type { EditHandle, NodeAnchorTarget, SceneElement } from "tikz-editor/semantic/types";
+import type { SceneElement } from "tikz-editor/semantic/types";
 import type { WorldPoint, WorldVector } from "../coords/types";
 import { applyMatrix, applyMatrixToVector, inverseMatrix } from "tikz-editor/semantic/transform";
 import {
@@ -57,13 +55,13 @@ import {
   resolveToolCreateCurrentWorld
 } from "./interaction-helpers";
 import { resolveHandleDragAction, shouldCommitHandleAnchorOnPointerUp } from "./handle-drag-actions";
-import { resolveEndpointAnchorSnap, type MatrixCellAnchorHint } from "./endpoint-anchor-snap";
+import { resolveEndpointAnchorSnap } from "./endpoint-anchor-snap";
 import { clientToWorldPoint, distanceSquared, worldToSvgPoint } from "./geometry";
-import { PATH_TOOL_BEND_DRAG_THRESHOLD_PX, type PathToolGestureSegment } from "./path-tool";
+import { PATH_TOOL_BEND_DRAG_THRESHOLD_PX } from "./path-tool";
 import { resolveAddShapeOriginFromDrag } from "./add-shape-draft";
 import { angleDeg, normalizeSignedDeg, resolveDraggedRotateDeg } from "./rotate-handle";
 import type { ResizeFrame } from "./resize-frames";
-import { resolveScopeAwareMarqueeSelection, type ScopeOverlayIndex } from "./scope-overlay";
+import { resolveScopeAwareMarqueeSelection } from "./scope-overlay";
 import { toolCreateSnapKind } from "../tool-config";
 import type {
   DragState,
@@ -530,14 +528,13 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
         if (drag.elementIds.length === 1) {
           const rawWorld = world;
           const dragStartWorld = drag.startWorld;
-          const parsedTarget = parseEditableTargetId(drag.elementIds[0]!);
+          const parsedTarget = parseEditableTargetId(drag.elementIds[0]);
           if (parsedTarget.kind === "node-adornment") {
             let adornmentDrag = drag.adornmentDrag;
             if (!adornmentDrag) {
               const adornmentElements =
                 snapshotScene?.elements.filter((element) => element.adornment?.targetId === parsedTarget.id) ?? [];
               const adornmentElement = selectPrimaryAdornmentElement(adornmentElements);
-              const adornmentTextElement = adornmentElements.find((element): element is Extract<SceneElement, { kind: "Text" }> => element.kind === "Text");
               const ownerPoint = adornmentElement?.adornment?.ownerPoint;
               if (!ownerPoint) {
                 setSnapLines([]);
@@ -613,14 +610,14 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
                 candidate.kind === "node-position" &&
                 candidate.pathAttachmentContext
             );
-            const center = resolvePrimarySourceCenter(snapshotScene?.elements ?? [], drag.elementIds[0]!);
+            const center = resolvePrimarySourceCenter(snapshotScene?.elements ?? [], drag.elementIds[0]);
             if (handle?.pathAttachmentContext && center) {
               const initialAnchorPoint = pointAtPlacementSegment(
                 handle.pathAttachmentContext.segment,
                 handle.pathAttachmentContext.pos
               );
               pathAttachedNodeDrag = {
-                nodeId: drag.elementIds[0]!,
+                nodeId: drag.elementIds[0],
                 hostPathSourceId: handle.pathAttachmentContext.hostPathSourceId,
                 pointerOffsetFromCenter: makeWorldVector(dragStartWorld.x - center.x, dragStartWorld.y - center.y),
                 initialCenter: center,
@@ -628,7 +625,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
                 initialAnchorOffset: makeWorldVector(center.x - initialAnchorPoint.x, center.y - initialAnchorPoint.y),
                 initialDistancePt:
                   handle.pathAttachmentContext.regime.kind === "explicit-direction"
-                    ? resolvePathAttachedDirectionalDistancePt(source, drag.elementIds[0]!, handle.pathAttachmentContext.regime.direction)
+                    ? resolvePathAttachedDirectionalDistancePt(source, drag.elementIds[0], handle.pathAttachmentContext.regime.direction)
                     : 0,
                 initialDirectionalAnchorPt:
                   (() => {
@@ -641,7 +638,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
                       (center.y - initialAnchorPoint.y) * initialDirectionUnit.y;
                     const initialDistancePt = resolvePathAttachedDirectionalDistancePt(
                       source,
-                      drag.elementIds[0]!,
+                      drag.elementIds[0],
                       handle.pathAttachmentContext.regime.direction
                     );
                     return Math.max(0, initialDirectionalOffset - initialDistancePt);
@@ -1145,7 +1142,10 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
     };
   }, [
     applyActionWithFeedback,
+    creationFillColor,
+    creationStrokeColor,
     dispatch,
+    dispatchCanvasTransform,
     dragRef,
     interactionSvgRef,
     liveResizeFramesRef,
@@ -1173,6 +1173,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
     snapshotEditHandles,
     snapshotScene,
     snapshotSource,
+    suppressNextBackgroundClickRef,
     nodeAnchorTargets,
     matrixCellAnchorHints,
     scopeOverlay,
@@ -1271,7 +1272,7 @@ function parseAdornmentAngleDegrees(raw: string | undefined): { kind: "center" }
     "south east": 315
   };
   if (normalized in namedDegrees) {
-    return { kind: "angle", degrees: namedDegrees[normalized]! };
+    return { kind: "angle", degrees: namedDegrees[normalized] };
   }
   const numeric = Number(normalized);
   if (!Number.isFinite(numeric)) {
@@ -1457,7 +1458,7 @@ function derivePlacementGeometryForAngle(
     : makeWorldPoint(centerToBorder.x / centerToBorderLength, centerToBorder.y / centerToBorderLength);
   const anchor = centerToBorderLength <= ADORNMENT_OWNER_CENTER_EPSILON
     ? anchorFacingAway(normalizedAngle)
-    : autoAnchorFromVector(makeWorldPoint(shiftDirection.y, -shiftDirection.x));
+        : autoAnchorFromVector(makeWorldPoint(shiftDirection.y, -Number(shiftDirection.x)));
   return {
     ownerCenter,
     polarDirection,
@@ -1502,7 +1503,7 @@ function derivePlacementFromReferenceWorldPoint(
   );
   const anchor = simple
     ? anchorFacingAway(angleDeg)
-    : autoAnchorFromVector(makeWorldPoint(shiftDirection.y, -shiftDirection.x));
+    : autoAnchorFromVector(makeWorldPoint(shiftDirection.y, -Number(shiftDirection.x)));
   const resolvedReferenceWorldPoint = makeWorldPoint(
     borderWorldPoint.x + shiftDirection.x * distancePt,
     borderWorldPoint.y + shiftDirection.y * distancePt
@@ -1887,9 +1888,9 @@ function applyTransformToBounds(bounds: WorldBounds, transform: SceneElement["tr
     applyMatrix(transform, worldPoint(bounds.maxX, bounds.minY)),
     applyMatrix(transform, worldPoint(bounds.maxX, bounds.maxY))
   ];
-  let next = worldBounds(corners[0]!.x, corners[0]!.y, corners[0]!.x, corners[0]!.y);
+  let next = worldBounds(corners[0].x, corners[0].y, corners[0].x, corners[0].y);
   for (const corner of corners.slice(1)) {
-    next = mergeWorldBounds(next, worldBounds(corner!.x, corner!.y, corner!.x, corner!.y));
+    next = mergeWorldBounds(next, worldBounds(corner.x, corner.y, corner.x, corner.y));
   }
   return next;
 }

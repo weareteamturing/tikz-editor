@@ -304,7 +304,7 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
         selectedIds.length === 1
           ? {
               kind: "moveElement",
-              elementId: selectedIds[0]!,
+              elementId: selectedIds[0],
               delta
             }
           : {

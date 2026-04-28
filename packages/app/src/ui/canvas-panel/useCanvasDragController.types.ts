@@ -19,10 +19,11 @@ import type {
   SourceBoundsMap
 } from "./types";
 import type { WorldPoint } from "../coords/types";
+import type { EditorAction } from "../../store/types";
 
 export type UseCanvasDragControllerParams = {
   applyActionWithFeedback: (action: EditAction, mergeKey?: string) => ApplyActionFeedback;
-  dispatch: (action: any) => void;
+  dispatch: (action: EditorAction) => void;
   dispatchCanvasTransform: (transform: { translateX: number; translateY: number; scale: number }) => void;
   logSnapDebug: (input: SnapDebugLogInput) => void;
   queueSelectionForAddedElement: (preferredWorld: WorldPoint, preferredSourceId?: string) => void;

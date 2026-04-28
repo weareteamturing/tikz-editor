@@ -507,7 +507,7 @@ export function pickClosestSourceId(
   sourceIds: readonly string[],
   preferredWorld: WorldPoint
 ): string {
-  let bestId = sourceIds[0]!;
+  let bestId = sourceIds[0];
   let bestDistSq = Number.POSITIVE_INFINITY;
 
   for (const sourceId of sourceIds) {

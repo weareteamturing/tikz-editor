@@ -18,7 +18,7 @@ import {
   upsertGuideValue
 } from "./panel-helpers";
 import type { CanvasTransform } from "../../store/types";
-import type { ClientPoint, ViewportPoint } from "../coords/types";
+import type { ClientPoint } from "../coords/types";
 import type { GuideDragState, GuideOrientation, GuidePreview, GuidesState } from "./types";
 import type { SvgViewBox } from "tikz-editor/svg/index";
 
