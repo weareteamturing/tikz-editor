@@ -4,6 +4,10 @@
   border-left: 1px solid var(--border);
 }
 
+.content {
+  min-width: 0;
+}
+
 .hint {
   color: var(--text-dim);
   font-size: calc(var(--app-ui-scale, 1) * 11px);

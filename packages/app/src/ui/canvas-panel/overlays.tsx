@@ -1047,7 +1047,7 @@ export function NodeAnchorOverlay({
         return (
           <circle
             key={`${anchor.nodeName}:${anchor.anchor}`}
-            className={`${css.nodeAnchorWorldPoint} ${snapped ? css.nodeAnchorWorldPointSnapped : ""}`}
+            className={`${css.nodeAnchorPoint} ${snapped ? css.nodeAnchorPointSnapped : ""}`}
             cx={point.x}
             cy={point.y}
             r={snapped ? radius * 1.1 : radius * 0.85}

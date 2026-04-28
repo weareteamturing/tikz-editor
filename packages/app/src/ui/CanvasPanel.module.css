@@ -499,6 +499,10 @@
   stroke-width: 1px;
 }
 
+.selectionRectDashed {
+  stroke-dasharray: 5 3;
+}
+
 .adornmentSelectionRect {
   fill: rgba(13, 95, 182, 0.12);
   stroke: rgba(13, 95, 182, 0.95);

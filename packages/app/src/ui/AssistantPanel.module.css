@@ -406,6 +406,10 @@
   font-size: calc(var(--app-ui-scale, 1) * 11px);
 }
 
+.modelOptionSelected {
+  background: color-mix(in srgb, var(--accent-btn-bg) 68%, white);
+}
+
 .composer button[type="submit"] {
   border: 1px solid var(--border-light);
   border-radius: 3px;
