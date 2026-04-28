@@ -249,8 +249,8 @@ function applyToLikeOperation(
   if (start && path && alignPathToStart(path.commands, start)) {
     context.pathStartPoint = start;
   }
-  let segment: PlacementSegment | null = null;
-  let nextRoundedCorners = previousSegmentRoundedCorners;
+  let segment: PlacementSegment | null;
+  let nextRoundedCorners;
   if (start && curved) {
     segment = appendToCurve(path.commands, start, effectiveTargetPoint, curved);
     appendToLikeCurveEditHandles({

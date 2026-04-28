@@ -18,7 +18,7 @@ export function pickGridStepPt(scale: number, targetPixels: number): number {
     }
   }
 
-  return GRID_STEPS_CM[GRID_STEPS_CM.length - 1]! * PT_PER_CM;
+  return GRID_STEPS_CM[GRID_STEPS_CM.length - 1] * PT_PER_CM;
 }
 
 export function snapToNextMultiple(value: number, step: number, direction: -1 | 1): number {

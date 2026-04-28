@@ -126,12 +126,12 @@ export function getOrBuildTextSegmentCaretStops(
     return segment.caretStops;
   }
 
-  const cached = textSegmentCaretStopsCache.get(segment as object);
+  const cached = textSegmentCaretStopsCache.get(segment);
   if (cached) {
     return cached;
   }
 
-  const wrapper = textSegmentWrapperBySegment.get(segment as object);
+  const wrapper = textSegmentWrapperBySegment.get(segment);
   if (!wrapper || typeof wrapper.textWidth !== 'function' || typeof segment.text !== 'string') {
     return null;
   }
@@ -143,7 +143,7 @@ export function getOrBuildTextSegmentCaretStops(
     stops[i] = segment.x + width;
   }
   segment.caretStops = stops;
-  textSegmentCaretStopsCache.set(segment as object, stops);
+  textSegmentCaretStopsCache.set(segment, stops);
   return stops;
 }
 
@@ -217,7 +217,7 @@ export function buildParagraphLayoutReport({
           x,
           width: segmentWidth,
         };
-        textSegmentWrapperBySegment.set(segment as object, run.wrapper);
+        textSegmentWrapperBySegment.set(segment, run.wrapper);
         segments.push(segment);
         x += segmentWidth;
         continue;

@@ -44,7 +44,7 @@ export function resolveSizeAwareGraphNodePoints(
     return resolved;
   }
 
-  const baseHint = hintedNodes[0]!.placementHint;
+  const baseHint = hintedNodes[0].placementHint;
   if (baseHint.mode !== "cartesian" && baseHint.mode !== "grid") {
     return resolved;
   }
@@ -90,7 +90,7 @@ export function resolveSizeAwareGraphNodePoints(
   const columnOffset = buildAxisOffsets(columnKeys, columnExtent, chainSep, chainStep);
   const rowOffset = buildAxisOffsets(rowKeys, rowExtent, groupSep, groupStep);
 
-  const anchorNode = measured[0]!.node;
+  const anchorNode = measured[0].node;
   const anchorColOffset = columnOffset.get(anchorNode.placementHint.logicalWidth) ?? 0;
   const anchorRowOffset = rowOffset.get(anchorNode.placementHint.logicalDepth) ?? 0;
   const anchorComputed = {
@@ -183,10 +183,10 @@ function buildAxisOffsets(
     return offsets;
   }
 
-  offsets.set(keys[0]!, 0);
+  offsets.set(keys[0], 0);
   for (let index = 1; index < keys.length; index += 1) {
-    const previousKey = keys[index - 1]!;
-    const currentKey = keys[index]!;
+    const previousKey = keys[index - 1];
+    const currentKey = keys[index];
     const previousOffset = offsets.get(previousKey) ?? 0;
     const keyGap = Math.max(1, currentKey - previousKey);
 

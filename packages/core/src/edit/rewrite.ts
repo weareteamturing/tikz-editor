@@ -39,8 +39,10 @@ export function rewriteCoordinate(
     case "polar":
       return rewritePolar(newWorld, handle, source);
     case "xyz":
-      return null;
-    default:
+    case "calc":
+    case "explicit":
+    case "named":
+    case "unknown":
       return null;
   }
 }
@@ -354,7 +356,7 @@ function rewritePositioning(
       const shiftYcm = candidateShift.y * CM_PER_PT;
       const absShiftXcm = Math.abs(shiftXcm);
       const absShiftYcm = Math.abs(shiftYcm);
-      const expected = POSITIONING_DIRECTION_SIGNS[candidateDirection]!;
+      const expected = POSITIONING_DIRECTION_SIGNS[candidateDirection];
 
       if (expected.x === 0 || expected.y === 0) {
         const axial = Math.max(absShiftXcm, absShiftYcm);

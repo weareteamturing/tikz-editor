@@ -1,60 +1,28 @@
 import type {
   EditHandle,
-  EvaluateOptions,
-  SceneCircle,
-  SceneElement,
-  SceneEllipse,
-  ScenePath,
-  ScenePathShapeHint
+  EvaluateOptions
 } from "../semantic/types.js";
 import type { WorldPoint, WorldBounds } from "../coords/points.js";
-import type { CoordinateItem, NodeItem, PathItem, PathOptionItem, PathStatement, Statement, Span } from "../ast/types.js";
+import type { Statement, Span } from "../ast/types.js";
 import type { SourcePatch } from "./types.js";
 import { applyEditIntent } from "./apply.js";
-import { rewriteCoordinate } from "./rewrite.js";
 import { replaceSpan } from "./patch.js";
-import { CM_PER_PT, PT_PER_CM, formatNumber } from "./format.js";
+import { PT_PER_CM } from "./format.js";
 import {
   generateElementSource,
   insertElementIntoSource,
   type ElementTemplate
 } from "./element-templates.js";
-import type { OptionEntry } from "../options/types.js";
-import { resolvePropertyTarget, type PropertyTarget } from "./property-target.js";
-import { evaluateTikzFigure } from "../semantic/evaluate.js";
-import { parseCircleRadiusFromCoordinateRaw, parseEllipseRadiiFromCoordinateRaw } from "../semantic/path/parsers.js";
-import { parseLength } from "../semantic/coords/parse-length.js";
-import { applyMatrix } from "../semantic/transform.js";
+import { resolvePropertyTarget } from "./property-target.js";
 import { computeSourceFingerprint } from "../utils/source-fingerprint.js";
-import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "./arrange.js";
-import { collectSourceWorldBounds } from "./snapping/index.js";
-import { localToSourceUnits, worldToLocal } from "./coords.js";
-import {
-  applyOptionMutationsToTarget,
-  normalizeOptionKey,
-  rewriteOptionListMutations,
-  serializeOptionEntry,
-  type OptionMutation,
-  type OptionMutationApplyResult
-} from "./option-mutations.js";
+import { type AlignMode, type DistributeAxis } from "./arrange.js";
 import {
   applyTextReplacements,
-  lineIndentAtOffset,
-  parseStatementSnapshot,
-  resolveStatementRefs,
-  type StatementRef
+  parseStatementSnapshot
 } from "./statement-ops.js";
 import {
-  analyzeExplicitPathStatement,
-  buildPathBodyFromSegments,
-  buildStatementText,
-  resolveActivePathPointHandle,
-  resolveEligibleExplicitPath,
-  resolvePathControlHandle,
-  type ExplicitPathAnalysis,
   type PathPointKind
 } from "./path-editing.js";
-import { applyAdornmentSetProperty } from "./actions/adornment-set-property.js";
 import {
   applyMovePathAttachedNodeAction,
   type MovePathAttachedNodeAction
@@ -206,8 +174,6 @@ export type EditActionResult =
   | { kind: "error"; message: string };
 
 const DEFAULT_DUPLICATE_OFFSET_PT = 0.25 * PT_PER_CM;
-const ARRANGE_EPSILON = 1e-6;
-const RESIZE_EPSILON = 1e-3;
 
 type EditActionApplyOptions = {
   evaluateOptions?: EvaluateOptions;
@@ -562,18 +528,6 @@ function applyUngroupElements(
   return applyUngroupElementsAction(source, action.elementIds, parseOptions);
 }
 
-
-
-function detectPreferredNewline(source: string, aroundOffset: number): string {
-  const windowStart = Math.max(0, aroundOffset - 256);
-  const windowEnd = Math.min(source.length, aroundOffset + 256);
-  const window = source.slice(windowStart, windowEnd);
-  if (window.includes("\r\n")) {
-    return "\r\n";
-  }
-  return "\n";
-}
-
 function normalizeElementIds(elementIds: readonly string[]): string[] {
   const seen = new Set<string>();
   const normalized: string[] = [];
@@ -591,23 +545,6 @@ function normalizeElementIds(elementIds: readonly string[]): string[] {
   return normalized;
 }
 
-function findPathStatementById(
-  statements: readonly Statement[],
-  elementId: string
-): Extract<Statement, { kind: "Path" }> | null {
-  for (const statement of statements) {
-    if (statement.kind === "Path" && statement.id === elementId) {
-      return statement;
-    }
-    if (statement.kind === "Scope") {
-      const nested = findPathStatementById(statement.body, elementId);
-      if (nested) {
-        return nested;
-      }
-    }
-  }
-  return null;
-}
 
 function arraysEqual(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) {

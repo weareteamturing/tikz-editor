@@ -142,8 +142,8 @@ export function applyJoinPathsAction(
     return { kind: "unsupported", reason: "Join requires two path statements in the same scope." };
   }
 
-  const firstResolved = analyzeExplicitPathStatement(source, refs[0]!.statement as PathStatement);
-  const secondResolved = analyzeExplicitPathStatement(source, refs[1]!.statement as PathStatement);
+  const firstResolved = analyzeExplicitPathStatement(source, refs[0].statement as PathStatement);
+  const secondResolved = analyzeExplicitPathStatement(source, refs[1].statement as PathStatement);
   if (firstResolved.kind !== "eligible") {
     return { kind: "unsupported", reason: firstResolved.reason };
   }
@@ -303,7 +303,7 @@ export function applyDeletePathPointAction(
     return { kind: "unsupported", reason: "Deleting this point would require unsupported segment conversion." };
   }
 
-  const bodyParts = [analysis.anchors[0]!.raw];
+  const bodyParts = [analysis.anchors[0].raw];
   for (const segment of analysis.segments) {
     if (segment === previousSegment) {
       bodyParts.push(replacementSegment);
@@ -356,8 +356,8 @@ export function applySetPathPointKindAction(
     return { kind: "unsupported", reason: "The selected anchor is missing adjacent editable segments." };
   }
 
-  const beforeAnchor = resolveAnchorWorld(editHandles, action.elementId, analysis.anchors[anchorIndex - 1]!, source);
-  const afterAnchor = resolveAnchorWorld(editHandles, action.elementId, analysis.anchors[anchorIndex + 1]!, source);
+  const beforeAnchor = resolveAnchorWorld(editHandles, action.elementId, analysis.anchors[anchorIndex - 1], source);
+  const afterAnchor = resolveAnchorWorld(editHandles, action.elementId, analysis.anchors[anchorIndex + 1], source);
   if (!beforeAnchor || !afterAnchor) {
     return { kind: "unsupported", reason: "Neighboring anchors could not be resolved for point editing." };
   }
@@ -367,7 +367,7 @@ export function applySetPathPointKindAction(
     if (!replacementSegments) {
       return { kind: "unsupported", reason: "Could not rewrite this polyline corner into a Bezier bend." };
     }
-    const bodyParts = [analysis.anchors[0]!.raw];
+    const bodyParts = [analysis.anchors[0].raw];
     for (const segment of analysis.segments) {
       if (segment === previousSegment) {
         bodyParts.push(...replacementSegments);
@@ -471,11 +471,11 @@ function orderedOpenSegmentsFromClosedPath(analysis: ExplicitPathAnalysis, ancho
       (segment) => segment.startAnchorIndex === currentAnchor && !segment.closesPath
     );
     if (nextSegmentIndex >= 0) {
-      if (analysis.segments[nextSegmentIndex]!.endAnchorIndex === anchorIndex) {
+      if (analysis.segments[nextSegmentIndex].endAnchorIndex === anchorIndex) {
         break;
       }
       ordered.push(nextSegmentIndex);
-      currentAnchor = analysis.segments[nextSegmentIndex]!.endAnchorIndex;
+      currentAnchor = analysis.segments[nextSegmentIndex].endAnchorIndex;
       continue;
     }
     const closingIndex = analysis.segments.findIndex(
@@ -484,7 +484,7 @@ function orderedOpenSegmentsFromClosedPath(analysis: ExplicitPathAnalysis, ancho
     if (closingIndex < 0) {
       break;
     }
-    currentAnchor = analysis.segments[closingIndex]!.endAnchorIndex;
+    currentAnchor = analysis.segments[closingIndex].endAnchorIndex;
   }
   return ordered;
 }
@@ -498,7 +498,7 @@ function buildOpenedClosedPathBody(
   if (orderedSegments.length === 0) {
     return null;
   }
-  const parts = [analysis.anchors[anchorIndex]!.raw];
+  const parts = [analysis.anchors[anchorIndex].raw];
   for (const segmentIndex of orderedSegments) {
     const segment = analysis.segments[segmentIndex];
     if (!segment || segment.closesPath) {
@@ -507,7 +507,7 @@ function buildOpenedClosedPathBody(
     parts.push(segment.raw);
   }
   const closingSegment = analysis.segments.find(
-    (segment) => segment.closesPath && segment.startAnchorIndex === analysis.segments[orderedSegments[orderedSegments.length - 1]!]!.endAnchorIndex
+    (segment) => segment.closesPath && segment.startAnchorIndex === analysis.segments[orderedSegments[orderedSegments.length - 1]].endAnchorIndex
   );
   if (closingSegment) {
     parts.push(explicitSegmentText(source, analysis, closingSegment));
@@ -575,7 +575,7 @@ function buildDeletedWorldPointReplacement(
   nextSegment: ExplicitPathAnalysis["segments"][number]
 ): string | null {
   if (previousSegment.kind === "line" && nextSegment.kind === "line") {
-    return `-- ${analysis.anchors[nextSegment.endAnchorIndex]!.raw}`;
+    return `-- ${analysis.anchors[nextSegment.endAnchorIndex].raw}`;
   }
   if (
     previousSegment.kind === "cubic" &&
@@ -588,7 +588,7 @@ function buildDeletedWorldPointReplacement(
     if (!control1 || !control2 || control1.kind !== "Coordinate" || control2.kind !== "Coordinate") {
       return null;
     }
-    const target = analysis.anchors[nextSegment.endAnchorIndex]!.raw;
+    const target = analysis.anchors[nextSegment.endAnchorIndex].raw;
     const control1Raw = sourceSliceForItem(source, analysis, previousSegment.control1Index);
     const control2Raw = sourceSliceForItem(source, analysis, nextSegment.control2Index);
     if (!control1Raw || !control2Raw) {
@@ -693,13 +693,13 @@ function explicitSegmentText(source: string, analysis: ExplicitPathAnalysis, seg
   if (!segment.closesPath) {
     return segment.raw;
   }
-  const targetRaw = analysis.anchors[segment.endAnchorIndex]!.raw;
+  const targetRaw = analysis.anchors[segment.endAnchorIndex].raw;
   if (segment.kind === "line") {
     return `-- ${targetRaw}`;
   }
   const raw = source.slice(
-    analysis.statement.items[segment.operatorIndex]!.span.from,
-    analysis.statement.items[segment.targetIndex]!.span.to
+    analysis.statement.items[segment.operatorIndex].span.from,
+    analysis.statement.items[segment.targetIndex].span.to
   );
   return raw.replace(/\bcycle\b/u, targetRaw);
 }
@@ -823,8 +823,8 @@ export function applyInsertPathPointAction(
     return { kind: "unsupported", reason: "Invalid segment index." };
   }
 
-  const startWorld = resolveAnchorWorld(editHandles, action.elementId, analysis.anchors[segment.startAnchorIndex]!, source);
-  const endWorld = resolveAnchorWorld(editHandles, action.elementId, analysis.anchors[segment.endAnchorIndex]!, source);
+  const startWorld = resolveAnchorWorld(editHandles, action.elementId, analysis.anchors[segment.startAnchorIndex], source);
+  const endWorld = resolveAnchorWorld(editHandles, action.elementId, analysis.anchors[segment.endAnchorIndex], source);
   if (!startWorld || !endWorld) {
     return { kind: "unsupported", reason: "Could not resolve segment endpoint positions." };
   }
@@ -837,7 +837,7 @@ export function applyInsertPathPointAction(
   if (segment.kind === "line") {
     const closest = closestPointOnLine(action.point, startWorld, endWorld);
     const newPt = closest.point;
-    const endAnchorRaw = segment.closesPath ? "cycle" : analysis.anchors[segment.endAnchorIndex]!.raw;
+    const endAnchorRaw = segment.closesPath ? "cycle" : analysis.anchors[segment.endAnchorIndex].raw;
     replacementSegments = `-- ${formatPt(newPt)} -- ${endAnchorRaw}`;
   } else if (segment.kind === "cubic") {
     const control1Item = segment.control1Index != null ? analysis.statement.items[segment.control1Index] : null;
@@ -856,7 +856,7 @@ export function applyInsertPathPointAction(
     const closest = closestPointOnCubic(action.point, startWorld, control1World, control2World, endWorld);
     const { left, right } = subdivideCubicAt(closest.t, startWorld, control1World, control2World, endWorld);
 
-    const endAnchorRaw = segment.closesPath ? "cycle" : analysis.anchors[segment.endAnchorIndex]!.raw;
+    const endAnchorRaw = segment.closesPath ? "cycle" : analysis.anchors[segment.endAnchorIndex].raw;
     replacementSegments =
       `.. controls ${formatPt(left[1])} and ${formatPt(left[2])} .. ${formatPt(left[3])}` +
       ` .. controls ${formatPt(right[1])} and ${formatPt(right[2])} .. ${endAnchorRaw}`;
@@ -865,9 +865,9 @@ export function applyInsertPathPointAction(
   }
 
   // Rebuild the path body with the segment replaced
-  const bodyParts = [analysis.anchors[0]!.raw];
+  const bodyParts = [analysis.anchors[0].raw];
   for (let i = 0; i < analysis.segments.length; i++) {
-    const seg = analysis.segments[i]!;
+    const seg = analysis.segments[i];
     if (i === action.segmentIndex) {
       bodyParts.push(replacementSegments);
     } else if (!seg.closesPath) {

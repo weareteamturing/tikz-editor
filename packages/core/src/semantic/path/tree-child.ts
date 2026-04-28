@@ -30,7 +30,7 @@ export function splitChildBodyAndTrailingEdgeFromParent(
   trailingCoordinateOperations: Array<Extract<PathItem, { kind: "CoordinateOperation" }>>;
 } {
   const explicitEdges = items.filter((item): item is EdgeFromParentOperationItem => item.kind === "EdgeFromParentOperation");
-  const trailingEdge = explicitEdges.length > 0 ? explicitEdges[explicitEdges.length - 1]! : null;
+  const trailingEdge = explicitEdges.length > 0 ? explicitEdges[explicitEdges.length - 1] : null;
   if (!trailingEdge) {
     return {
       body: [...items],

@@ -433,11 +433,9 @@ function shiftVectorForDirection(direction: PositioningDirection, shift: NodeDis
   const horizontalComponent = shift.kind === "single" ? shift.value : shift.horizontal;
   const verticalComponent = shift.kind === "single" ? shift.value : shift.vertical;
 
-  let base = worldVector(0, 0);
-
   const horizontalVector = horizontalPositioningVector(horizontalComponent, transform);
   const verticalVector = verticalPositioningVector(verticalComponent, transform);
-  base = worldVector(horizontalVector.x + verticalVector.x, horizontalVector.y + verticalVector.y);
+  let base = worldVector(horizontalVector.x + verticalVector.x, horizontalVector.y + verticalVector.y);
 
   if (shift.kind === "single" && Math.abs(meta.singleFactor - 1) > 1e-9) {
     base = worldVector(base.x * meta.singleFactor, base.y * meta.singleFactor);

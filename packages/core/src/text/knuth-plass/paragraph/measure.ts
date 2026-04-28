@@ -49,11 +49,10 @@ export function createMeasurementService(): MeasurementService {
       return cached;
     }
 
-    let width = 0;
     if (!mtextWrapper || typeof mtextWrapper.textWidth !== 'function') {
       throw new Error('Missing textWidth() on mtext wrapper for strict measurement.');
     }
-    width = Number(mtextWrapper.textWidth(text)) || 0;
+    const width = Number(mtextWrapper.textWidth(text)) || 0;
 
     textWidthCache.set(key, width);
     return width;

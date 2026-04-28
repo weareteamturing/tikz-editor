@@ -22,7 +22,7 @@ import { evaluateTikzFigure } from "../../semantic/evaluate.js";
 import { parseCircleRadiusFromCoordinateRaw, parseEllipseRadiiFromCoordinateRaw } from "../../semantic/path/parsers.js";
 import { parseLength } from "../../semantic/coords/parse-length.js";
 import { resolveNodeShape } from "../../semantic/nodes/options.js";
-import { applyMatrix, inverseMatrix } from "../../semantic/transform.js";
+import { inverseMatrix } from "../../semantic/transform.js";
 import { collectSourceWorldBounds } from "../snapping/index.js";
 import { worldToLocal } from "../coords.js";
 import { replaceSpan } from "../patch.js";
@@ -1169,7 +1169,7 @@ function resolvePathShapeResizeContext(
   let requireSingleCenterHandle = false;
 
   if (explicitShapeElements.length === 1 && nonTextElements.length === 1) {
-    const explicitShape = explicitShapeElements[0]!;
+    const explicitShape = explicitShapeElements[0];
     shapeKind = explicitShape.kind === "Circle" ? "circle" : "ellipse";
     center = explicitShape.center;
   } else if (explicitShapeElements.length === 0 && nonTextElements.length === 1 && nonTextElements[0]?.kind === "Path") {
@@ -1200,7 +1200,7 @@ function resolvePathShapeResizeContext(
     return { kind: "unsupported", reason: "Resize requires circle/ellipse paths with explicit center coordinates." };
   }
 
-  let centerHandle = candidateHandles[0]!;
+  let centerHandle = candidateHandles[0];
   if (center) {
     let bestDistanceSq = Number.POSITIVE_INFINITY;
     for (const handle of candidateHandles) {
@@ -1231,7 +1231,7 @@ function resolvePathShapeResizeSyntax(items: readonly PathItem[]): PathShapeResi
   if (keywordItems.length !== 1) {
     return null;
   }
-  const keywordItem = keywordItems[0]!;
+  const keywordItem = keywordItems[0];
   const keywordIndex = items.findIndex((item) => item.id === keywordItem.id);
   if (keywordIndex < 0) {
     return null;
@@ -1942,7 +1942,7 @@ function resolveResizePropertyTarget(
     return defaultTarget;
   }
 
-  const nodeTarget = resolvePropertyTarget(source, nodeIds[0]!, parseOptions);
+  const nodeTarget = resolvePropertyTarget(source, nodeIds[0], parseOptions);
   if (nodeTarget.kind === "found") {
     return nodeTarget.target;
   }

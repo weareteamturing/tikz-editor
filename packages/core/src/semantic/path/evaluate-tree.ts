@@ -148,7 +148,7 @@ export function handleChildOperationCluster(params: {
   const clusterChildCount = cluster.children.length;
 
   for (let childIndex = 0; childIndex < cluster.children.length; childIndex += 1) {
-    const child = cluster.children[childIndex]!;
+    const child = cluster.children[childIndex];
     const childIndexOneBased = childIndex + 1;
     const defaultChildLevel = parentFrame.treeLevel + 1;
     const childSourceRef = {

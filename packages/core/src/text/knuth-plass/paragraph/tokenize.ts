@@ -313,7 +313,7 @@ function emitTextPieces(wrapper: AnyWrapper, context: FlattenContext) {
     }
 
     if (isKind(child, 'text')) {
-      const text = String(child.node.getText?.() ?? '');
+      const text = String(child.node?.getText?.() ?? '');
       const tokens = text.match(/\s+|[^\s]+/g) ?? [];
       let wordIndex = 0;
 

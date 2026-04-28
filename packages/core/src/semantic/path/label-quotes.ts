@@ -376,7 +376,7 @@ export function materializeNodeAdornment(params: {
     );
     anchor = isSimple
       ? anchorFacingAway(parsedAngle.degrees)
-      : autoAnchorFromVector(worldVector(shiftDirection.y, -shiftDirection.x));
+      : autoAnchorFromVector(worldVector(shiftDirection.y, pt(-1 * shiftDirection.x)));
   }
 
   const filteredBase = sanitizeAdornmentOptions(spec.options);
@@ -654,7 +654,7 @@ function parseQuoteToken(raw: string, absoluteFrom: number): ParsedQuoteToken | 
     return null;
   }
 
-  let text = trimmed.slice(1, cursor);
+  const text = trimmed.slice(1, cursor);
   let rest = trimmed.slice(cursor + 1).trim();
   let hasApostrophe = false;
   if (rest.startsWith("'")) {
@@ -1133,14 +1133,6 @@ function intersectNodeBorder(geometry: NamedNodeGeometry | null, direction: Worl
   }
 
   return geometry.center;
-}
-
-function resolveNamedBorderPointByAngle(mainNodeNameRaw: string, angleDegrees: number, context: SemanticContext): WorldPoint | null {
-  const normalized = normalizeDegrees(angleDegrees);
-  const octant = Math.round(normalized / 45) % 8;
-  const anchorByOctant = ["east", "north east", "north", "north west", "west", "south west", "south", "south east"];
-  const anchor = anchorByOctant[octant];
-  return resolveNamedPoint(`${mainNodeNameRaw}.${anchor}`, context);
 }
 
 function anchorFacingAway(degrees: number): string {

@@ -11,7 +11,8 @@ import {
   normalizePathPosition,
   resolvePathAttachedNodeRegime,
   resolvePathPositionPreset,
-  resolveDraggedPathAttachedNodeDirection as resolveDraggedDirectionFromRegime
+  resolveDraggedPathAttachedNodeDirection as resolveDraggedDirectionFromRegime,
+  type PathPositionPreset
 } from "../../semantic/path/path-attached.js";
 import type { WorldPoint } from "../../coords/points.js";
 import type { PathAttachedNodePlacementRegime } from "../../semantic/types.js";
@@ -57,6 +58,7 @@ const POSITION_OPTION_KEYS = [
   "very near end",
   "at end"
 ] as const;
+type PositionOptionKey = typeof POSITION_OPTION_KEYS[number];
 
 const CARDINAL_DIAGONAL_DIRECTIONS = [
   "above",
@@ -184,9 +186,9 @@ function applyPositionMutations(
   forcedPreset: string | null | undefined = undefined
 ): void {
   const position = normalizePathPosition(rawPosition);
-  const snapped = forcedPreset === undefined
+  const snapped: { preset: PathPositionPreset | "custom" | null; snappedT: number } = forcedPreset === undefined
     ? resolvePathPositionPreset(position, null)
-    : { preset: forcedPreset as any, snappedT: position };
+    : { preset: parseForcedPositionPreset(forcedPreset), snappedT: position };
   for (const key of POSITION_OPTION_KEYS) {
     mutations.set(key, { kind: "remove" });
   }
@@ -203,6 +205,17 @@ function applyPositionMutations(
     return;
   }
   mutations.set("pos", { kind: "set", value: formatNumber(position) });
+}
+
+function parseForcedPositionPreset(value: string | null): PathPositionPreset | "custom" | null {
+  if (value == null || value === "custom") {
+    return value;
+  }
+  return isPositionOptionKey(value) && value !== "pos" ? value : null;
+}
+
+function isPositionOptionKey(value: string): value is PositionOptionKey {
+  return (POSITION_OPTION_KEYS as readonly string[]).includes(value);
 }
 
 function applySideMutations(

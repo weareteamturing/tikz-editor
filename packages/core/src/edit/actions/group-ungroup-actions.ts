@@ -40,7 +40,7 @@ export function applyGroupElementsAction(
     return { kind: "unsupported", reason: "Group currently requires all selected statements to share the same parent scope." };
   }
 
-  const parentKey = selectedRefs[0]!.parentKey;
+  const parentKey = selectedRefs[0].parentKey;
   const parentRefs = (snapshot.byParentKey.get(parentKey) ?? []).slice().sort((left, right) => left.index - right.index);
   if (parentRefs.length === 0) {
     return { kind: "unsupported", reason: "Could not resolve the selected statements' parent scope." };
@@ -57,7 +57,7 @@ export function applyGroupElementsAction(
   const unselectedIds = siblingIds.filter((id) => !selectedIdSet.has(id));
   const oldIndexById = new Map<string, number>();
   for (let index = 0; index < siblingIds.length; index += 1) {
-    oldIndexById.set(siblingIds[index]!, index);
+    oldIndexById.set(siblingIds[index], index);
   }
 
   const candidates = buildGroupingCandidates(unselectedIds, selectedOrdered.map((ref) => ref.id));
@@ -85,7 +85,7 @@ export function applyGroupElementsAction(
     };
   }
 
-  const chosen = safeCandidates[0]!;
+  const chosen = safeCandidates[0];
   const replacement = buildGroupReplacement({
     source,
     parentRefs,
@@ -125,7 +125,7 @@ export function applyUngroupElementsAction(
     return { kind: "unsupported", reason: "Ungroup currently requires exactly one selected scope." };
   }
 
-  const scopeId = statementIds[0]!;
+  const scopeId = statementIds[0];
   const snapshot = parseStatementSnapshot(source, parseOptions);
   const ref = snapshot.byId.get(scopeId);
   if (!ref || ref.statement.kind !== "Scope") {
@@ -205,7 +205,7 @@ function buildGroupingCandidates(
       if (index === slot) {
         orderedItems.push("__group__");
       }
-      orderedItems.push(unselectedIds[index]!);
+      orderedItems.push(unselectedIds[index]);
     }
     if (slot === unselectedIds.length) {
       orderedItems.push("__group__");
@@ -246,7 +246,7 @@ function totalSiblingMovement(
 ): number {
   let movement = 0;
   for (let index = 0; index < expandedOrder.length; index += 1) {
-    const id = expandedOrder[index]!;
+    const id = expandedOrder[index];
     const oldIndex = oldIndexById.get(id);
     if (oldIndex == null) {
       continue;
@@ -265,7 +265,7 @@ function preservesDependencyOrder(
   }
   const indexById = new Map<string, number>();
   for (let index = 0; index < expandedOrder.length; index += 1) {
-    indexById.set(expandedOrder[index]!, index);
+    indexById.set(expandedOrder[index], index);
   }
   for (const constraint of constraints) {
     const beforeIndex = indexById.get(constraint.before);
@@ -379,8 +379,8 @@ function buildGroupReplacement(input: {
 }): GroupReplacement {
   const { source, parentRefs, selectedRefs, orderedItems, parseOptions } = input;
   const replacementSpan: Span = {
-    from: parentRefs[0]!.span.from,
-    to: parentRefs[parentRefs.length - 1]!.span.to
+    from: parentRefs[0].span.from,
+    to: parentRefs[parentRefs.length - 1].span.to
   };
   const newline = detectPreferredNewline(source, replacementSpan.from);
   const indent = lineIndentAtOffset(source, replacementSpan.from);
@@ -405,7 +405,7 @@ function buildGroupReplacement(input: {
     if (index > 0) {
       text += separator;
     }
-    const item = orderedItems[index]!;
+    const item = orderedItems[index];
     if (item === "__group__") {
       scopeLocalFrom = text.length;
       text += scopeText;
@@ -546,10 +546,10 @@ function detectPreferredNewline(source: string, aroundOffset: number): string {
 function reindentBlock(snippet: string, indent: string): string {
   const normalized = snippet.replace(/\r\n?/g, "\n");
   const lines = normalized.split("\n");
-  while (lines.length > 0 && lines[0]!.trim().length === 0) {
+  while (lines.length > 0 && lines[0].trim().length === 0) {
     lines.shift();
   }
-  while (lines.length > 0 && lines[lines.length - 1]!.trim().length === 0) {
+  while (lines.length > 0 && lines[lines.length - 1].trim().length === 0) {
     lines.pop();
   }
   if (lines.length === 0) {

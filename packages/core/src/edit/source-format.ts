@@ -386,7 +386,7 @@ function resolveLeadingCloserInfo(trimmedCode: string): {
   hasLeadingBraceClose: boolean;
   hasLeadingEnvClose: boolean;
 } {
-  const leadingClosers = trimmedCode.match(/^[\]\}]*/)?.[0] ?? "";
+  const leadingClosers = trimmedCode.match(/^[\]}]*/)?.[0] ?? "";
   const afterLeadingClosers = trimmedCode.slice(leadingClosers.length).trimStart();
   return {
     hasLeadingOptionClose: leadingClosers.includes("]"),

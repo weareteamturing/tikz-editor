@@ -7,12 +7,12 @@ export type ParsedLengthWithTransform = {
 };
 
 export function parseCoordinateOperation(raw: string): { name: string } | null {
-  const inlineWithAt = raw.match(/coordinate\s*\(([^\)]+)\)\s*at\s*(\([^\)]+\))/i);
+  const inlineWithAt = raw.match(/coordinate\s*\(([^)]+)\)\s*at\s*(\([^)]+\))/i);
   if (inlineWithAt) {
     return { name: inlineWithAt[1].trim() };
   }
 
-  const simple = raw.match(/coordinate\s*\(([^\)]+)\)/i);
+  const simple = raw.match(/coordinate\s*\(([^)]+)\)/i);
   if (!simple) {
     return null;
   }

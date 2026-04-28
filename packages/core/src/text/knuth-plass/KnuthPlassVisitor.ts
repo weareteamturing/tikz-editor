@@ -175,11 +175,11 @@ function mapLocalLinesToGlobal(
   const mapped = localLines.map((line, offset) => {
     const globalStartRun =
       line.startRun >= 0 && line.startRun < localRuns.length
-        ? localRuns[line.startRun]!.runIndex
+        ? localRuns[line.startRun].runIndex
         : localRuns[0]?.runIndex ?? 0;
     const globalEndRun =
       line.endRun >= 0 && line.endRun < localRuns.length
-        ? localRuns[line.endRun]!.runIndex
+        ? localRuns[line.endRun].runIndex
         : (localRuns[0]?.runIndex ?? 0) - 1;
     const naturalWidth = line.lineNaturalWidth ?? line.width;
 
@@ -198,7 +198,7 @@ function mapLocalLinesToGlobal(
 
   if (mapped.length > 0) {
     mapped[mapped.length - 1] = {
-      ...mapped[mapped.length - 1]!,
+      ...mapped[mapped.length - 1],
       break: forcedBreak,
     };
   }
@@ -333,7 +333,7 @@ function buildWrappedExplicitLines(params: {
     const forcedBreak =
       segment.forcedBreakRun == null
         ? null
-        : forcedBreakDecision(segment.forcedBreakRun, runs[segment.forcedBreakRun]!);
+        : forcedBreakDecision(segment.forcedBreakRun, runs[segment.forcedBreakRun]);
     const segmentRuns = runs.slice(segment.startRun, segment.endRun + 1);
     if (segmentRuns.length === 0) {
       lines.push({
@@ -562,7 +562,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
       return;
     }
 
-    const proto = MpaddedWrapperCtor.prototype as any;
+    const proto = MpaddedWrapperCtor.prototype;
     if (!proto || KnuthPlassVisitor.patchedWrapperPrototypes.has(proto)) {
       return;
     }
@@ -586,7 +586,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
         return;
       }
 
-      const linebreaks = this?.jax?.linebreaks as any;
+      const linebreaks = this?.jax?.linebreaks;
       if (!(linebreaks instanceof visitorClass)) {
         originalComputeBBox.call(this, bbox, recompute);
         return;
@@ -642,7 +642,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
       return;
     }
 
-    const proto = MrowWrapperCtor.prototype as any;
+    const proto = MrowWrapperCtor.prototype;
     if (!proto || KnuthPlassVisitor.patchedMrowPlaceLinePrototypes.has(proto)) {
       return;
     }

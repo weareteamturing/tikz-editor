@@ -320,8 +320,8 @@ function collectLineGeometryElements(
   }
 
   const lineBoxes =
-    typeof (containerElement as any).querySelectorAll === 'function'
-      ? Array.from((containerElement as any).querySelectorAll('[data-mjx-linebox="true"]'))
+    typeof (containerElement).querySelectorAll === 'function'
+      ? Array.from((containerElement).querySelectorAll('[data-mjx-linebox="true"]'))
       : [];
   if (lineBoxes.length === expectedCount) {
     return lineBoxes as Element[];
@@ -329,12 +329,12 @@ function collectLineGeometryElements(
 
   if (lineBoxes.length === 0 && expectedCount === 1) {
     const paragraphRoot =
-      typeof (containerElement as any).querySelector === 'function'
-        ? ((containerElement as any).querySelector('[data-paragraph-id]') ??
-          (containerElement as any).querySelector('[data-overflow="linebreak"]'))
+      typeof (containerElement).querySelector === 'function'
+        ? ((containerElement).querySelector('[data-paragraph-id]') ??
+          (containerElement).querySelector('[data-overflow="linebreak"]'))
         : null;
     if (paragraphRoot) {
-      return [paragraphRoot as Element];
+      return [paragraphRoot];
     }
   }
 
@@ -357,7 +357,7 @@ function readLineGeometry(
   }
 
   return sortedLines.map((line, index) => {
-    const element = geometryElements[index] as any;
+    const element = geometryElements[index];
     const rect = element?.getBoundingClientRect?.();
     if (!rect) {
       throw new Error(`Unable to read client rect for line ${line.lineIndex}.`);

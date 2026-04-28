@@ -13,7 +13,7 @@ export function splitTopLevel(
   let inQuote = false;
 
   for (let index = 0; index < raw.length; index += 1) {
-    const char = raw[index]!;
+    const char = raw[index];
     if (char === "\\" && index + 1 < raw.length) {
       index += 1;
       continue;
@@ -105,7 +105,7 @@ export function findNextConnector<T extends string>(
   let inQuote = false;
 
   for (let index = start; index < raw.length; index += 1) {
-    const char = raw[index]!;
+    const char = raw[index];
     if (char === "\\" && index + 1 < raw.length) {
       index += 1;
       continue;
@@ -178,7 +178,7 @@ export function readBalancedSegment(
   let depth = 0;
   let inQuote = false;
   for (let index = start; index < raw.length; index += 1) {
-    const char = raw[index]!;
+    const char = raw[index];
     if (char === "\\" && index + 1 < raw.length) {
       index += 1;
       continue;
@@ -224,7 +224,7 @@ export function findTopLevelChar(raw: string, needle: string): number {
   let inQuote = false;
 
   for (let index = 0; index < raw.length; index += 1) {
-    const char = raw[index]!;
+    const char = raw[index];
     if (char === "\\" && index + 1 < raw.length) {
       index += 1;
       continue;
@@ -288,8 +288,8 @@ export function mergeOptionLists(optionLists: OptionListAst[]): OptionListAst | 
     return optionLists[0];
   }
 
-  const first = optionLists[0]!;
-  const last = optionLists[optionLists.length - 1]!;
+  const first = optionLists[0];
+  const last = optionLists[optionLists.length - 1];
   return {
     span: {
       from: first.span.from,
@@ -326,7 +326,7 @@ export function stripOptionListBrackets(raw: string): string {
 
 export function trimRightIndex(raw: string): number {
   for (let index = raw.length - 1; index >= 0; index -= 1) {
-    if (!/\s/.test(raw[index]!)) {
+    if (!/\s/.test(raw[index])) {
       return index;
     }
   }
@@ -336,7 +336,7 @@ export function trimRightIndex(raw: string): number {
 export function skipWhitespace(raw: string, cursor: number): number {
   let index = cursor;
   while (index < raw.length) {
-    const char = raw[index]!;
+    const char = raw[index];
     if (/\s/.test(char)) {
       index += 1;
       continue;

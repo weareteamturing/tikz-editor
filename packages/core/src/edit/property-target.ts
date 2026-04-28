@@ -931,7 +931,7 @@ function remapPropertyTargetToOriginalSource(
     if (!value || typeof value !== "object" || !("from" in value) || !("to" in value)) {
       continue;
     }
-    const mapped = mapper.mapSpan(value as Span);
+    const mapped = mapper.mapSpan(value);
     if (!mapped) {
       return null;
     }

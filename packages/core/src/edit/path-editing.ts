@@ -123,7 +123,7 @@ export function buildPathBodyFromSegments(
   startAnchorIndex: number,
   segmentIndices: readonly number[]
 ): string {
-  const parts = [analysis.anchors[startAnchorIndex]!.raw];
+  const parts = [analysis.anchors[startAnchorIndex].raw];
   for (const segmentIndex of segmentIndices) {
     const segment = analysis.segments[segmentIndex];
     if (!segment || segment.closesPath) {
@@ -183,7 +183,6 @@ export function analyzeExplicitPathStatement(source: string, statement: PathStat
         });
         closed = true;
         closureKind = "line-cycle";
-        cursor = cursor + 2;
         break;
       }
       if (target.kind !== "Coordinate") {
@@ -209,7 +208,7 @@ export function analyzeExplicitPathStatement(source: string, statement: PathStat
       continue;
     }
     if (operator.keyword === "..") {
-      const parsedCurve = parseCurvePattern(statement.items, cursor + 1, source);
+      const parsedCurve = parseCurvePattern(statement.items, cursor + 1);
       if (!parsedCurve) {
         return { kind: "ineligible", reason: "Only explicit `.. controls ... ..` cubic segments are editable in v1." };
       }
@@ -231,7 +230,6 @@ export function analyzeExplicitPathStatement(source: string, statement: PathStat
         });
         closed = true;
         closureKind = "curve-cycle";
-        cursor = parsedCurve.targetIndex;
         break;
       }
       const anchorIndex = anchors.length;
@@ -277,7 +275,7 @@ export function analyzeExplicitPathStatement(source: string, statement: PathStat
   };
 }
 
-function parseCurvePattern(items: readonly PathItem[], startIndex: number, source: string): {
+function parseCurvePattern(items: readonly PathItem[], startIndex: number): {
   control1Index: number;
   control2Index: number;
   targetIndex: number;
@@ -353,8 +351,9 @@ function describePathItem(item: PathItem): string {
     case "DecorateOperation": return "decorate operations";
     case "CoordinateOperation": return "coordinate operations";
     case "PathForeach": return "foreach operations";
+    case "Coordinate": return "coordinates";
+    case "PathKeyword": return "path keywords";
     case "UnknownPathItem": return "unsupported syntax";
-    default: return item.kind;
   }
 }
 

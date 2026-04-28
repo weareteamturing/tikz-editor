@@ -663,8 +663,8 @@ class GraphPlanner {
 
     const pairCount = Math.min(chain.connectors.length, chain.nodes.length - 1);
     for (let index = 0; index < pairCount; index += 1) {
-      const connector = chain.connectors[index]!;
-      const nextNodeSpec = chain.nodes[index + 1]!;
+      const connector = chain.connectors[index];
+      const nextNodeSpec = chain.nodes[index + 1];
       const edgeLocalOptions =
         connector.optionsRaw && connector.optionsSpan
           ? parseOptionListRaw(connector.optionsRaw, connector.optionsSpan.from)
@@ -895,7 +895,7 @@ class GraphPlanner {
       return null;
     }
 
-    const macroRaw = match[1]!;
+    const macroRaw = match[1];
     const normalizedMacro = macroRaw.toLowerCase();
     const macro: ParsedSubgraphSpec["macro"] | null =
       normalizedMacro === "i_n"
@@ -1042,7 +1042,7 @@ class GraphPlanner {
     const localScope = shorePrefix.length > 0 ? appendScopedNamePrefix(scope, shorePrefix) : scope;
     const wrap = wrapAfter != null && wrapAfter > 0 ? Math.max(1, Math.floor(wrapAfter)) : null;
     for (let index = 0; index < labels.length; index += 1) {
-      const label = labels[index]!;
+      const label = labels[index];
       const col = wrap ? index % wrap : index;
       const row = wrap ? Math.floor(index / wrap) : 0;
       const nodeLayout: GraphLayoutContext = {
@@ -2678,7 +2678,7 @@ function parseDirectionalEdgeShortcut(rawToken: string, span: Span): GraphNodeAc
     return [];
   }
 
-  const direction = trimmed[0]!;
+  const direction = trimmed[0];
   const payload = trimmed.slice(1).trim();
   if (payload.length === 0) {
     return [];
@@ -2749,17 +2749,16 @@ function parseGraphEdgeNodeValue(valueRaw: string, span: Span, defaultAuto: bool
       }
     }
 
-    let text = "";
-    if (working.startsWith("{")) {
+    const text = (() => {
+      if (!working.startsWith("{")) {
+        return working;
+      }
       const textSegment = readBalancedSegment(working, 0, "{", "}");
       if (textSegment) {
-        text = textSegment.raw.slice(1, -1);
-      } else {
-        text = stripWrappingBraces(working);
+        return textSegment.raw.slice(1, -1);
       }
-    } else {
-      text = working;
-    }
+      return stripWrappingBraces(working);
+    })();
 
     const combinedOptions = stripOptionListBrackets(optionRaw);
     return makeGraphEdgeNode(text, combinedOptions, span, defaultAuto);
@@ -2883,7 +2882,7 @@ function stripTrailingGraphComment(raw: string): string {
   let depthParen = 0;
   let inQuote = false;
   for (let index = 0; index < raw.length; index += 1) {
-    const char = raw[index]!;
+    const char = raw[index];
     if (char === "\\" && index + 1 < raw.length) {
       index += 1;
       continue;
@@ -3031,7 +3030,7 @@ function readTrailingOptionList(raw: string): { raw: string; start: number } | n
   let depthParen = 0;
   let inQuote = false;
   for (let index = trimmedEnd; index >= 0; index -= 1) {
-    const char = raw[index]!;
+    const char = raw[index];
     if (char === '"' && raw[index - 1] !== "\\") {
       if (inQuote && raw[index - 1] === '"') {
         index -= 1;
@@ -3085,18 +3084,18 @@ function pairMatchingAndStar(left: string[], right: string[]): Array<{ from: str
   const pairs: Array<{ from: string; to: string }> = [];
   const min = Math.min(left.length, right.length);
   for (let index = 0; index < min; index += 1) {
-    pairs.push({ from: left[index]!, to: right[index]! });
+    pairs.push({ from: left[index], to: right[index] });
   }
 
   if (left.length > right.length) {
-    const lastRight = right[right.length - 1]!;
+    const lastRight = right[right.length - 1];
     for (let index = min; index < left.length; index += 1) {
-      pairs.push({ from: left[index]!, to: lastRight });
+      pairs.push({ from: left[index], to: lastRight });
     }
   } else if (right.length > left.length) {
-    const lastLeft = left[left.length - 1]!;
+    const lastLeft = left[left.length - 1];
     for (let index = min; index < right.length; index += 1) {
-      pairs.push({ from: lastLeft, to: right[index]! });
+      pairs.push({ from: lastLeft, to: right[index] });
     }
   }
 
@@ -3106,7 +3105,7 @@ function pairMatchingAndStar(left: string[], right: string[]): Array<{ from: str
 function buildPathPairs(nodes: string[]): Array<{ from: string; to: string }> {
   const pairs: Array<{ from: string; to: string }> = [];
   for (let index = 1; index < nodes.length; index += 1) {
-    pairs.push({ from: nodes[index - 1]!, to: nodes[index]! });
+    pairs.push({ from: nodes[index - 1], to: nodes[index] });
   }
   return pairs;
 }
@@ -3116,7 +3115,7 @@ function buildCyclePairs(nodes: string[]): Array<{ from: string; to: string }> {
     return [];
   }
   const pairs = buildPathPairs(nodes);
-  pairs.push({ from: nodes[nodes.length - 1]!, to: nodes[0]! });
+  pairs.push({ from: nodes[nodes.length - 1], to: nodes[0] });
   return pairs;
 }
 
@@ -3124,7 +3123,7 @@ function buildCliquePairs(nodes: string[]): Array<{ from: string; to: string }> 
   const pairs: Array<{ from: string; to: string }> = [];
   for (let left = 0; left < nodes.length; left += 1) {
     for (let right = left + 1; right < nodes.length; right += 1) {
-      pairs.push({ from: nodes[left]!, to: nodes[right]! });
+      pairs.push({ from: nodes[left], to: nodes[right] });
     }
   }
   return pairs;
@@ -3157,12 +3156,12 @@ function buildGridPairs(nodes: string[], wrapAfter: number | null): Array<{ from
 
     const rightIndex = index + 1;
     if (col + 1 < wrap && rightIndex < nodes.length && Math.floor(rightIndex / wrap) === row) {
-      pairs.push({ from: nodes[index]!, to: nodes[rightIndex]! });
+      pairs.push({ from: nodes[index], to: nodes[rightIndex] });
     }
 
     const downIndex = index + wrap;
     if (downIndex < nodes.length) {
-      pairs.push({ from: nodes[index]!, to: nodes[downIndex]! });
+      pairs.push({ from: nodes[index], to: nodes[downIndex] });
     }
   }
   return pairs;
@@ -3178,7 +3177,7 @@ function connectorToOptionList(operator: ConnectorOperator): OptionListAst | und
 function dedupeSimpleEdges(edges: GraphPlannedEdgeInternal[]): GraphPlannedEdgeInternal[] {
   const lastByPair = new Map<string, number>();
   for (let index = 0; index < edges.length; index += 1) {
-    const edge = edges[index]!;
+    const edge = edges[index];
     if (edge.passthroughSimple) {
       continue;
     }
@@ -3187,7 +3186,7 @@ function dedupeSimpleEdges(edges: GraphPlannedEdgeInternal[]): GraphPlannedEdgeI
 
   const deduped: GraphPlannedEdgeInternal[] = [];
   for (let index = 0; index < edges.length; index += 1) {
-    const edge = edges[index]!;
+    const edge = edges[index];
     if (edge.passthroughSimple) {
       deduped.push(edge);
       continue;
@@ -3227,11 +3226,11 @@ function readQuotedText(raw: string, start: number): { text: string; next: numbe
   let collected = "";
   let depthBrace = 0;
   for (let index = start + 1; index < raw.length; index += 1) {
-    const char = raw[index]!;
+    const char = raw[index];
 
     if (char === "\\" && index + 1 < raw.length) {
       collected += char;
-      collected += raw[index + 1]!;
+      collected += raw[index + 1];
       index += 1;
       continue;
     }
@@ -3351,7 +3350,7 @@ function parseColorOpFromEntry(entry: OptionEntry, declaredColorClasses: Set<str
       return undefined;
     }
 
-    const from = normalizeColorClassName(recolorMatch[1]!);
+    const from = normalizeColorClassName(recolorMatch[1]);
     const to = normalizeColorClassName(entry.valueRaw);
     if (from.length === 0 || to.length === 0) {
       return undefined;
@@ -3368,7 +3367,7 @@ function parseColorOpFromEntry(entry: OptionEntry, declaredColorClasses: Set<str
     const key = normalizeGraphOptionKey(entry.key);
     const removeByNotMatch = key.match(/^not\s+(.+)$/);
     if (removeByNotMatch) {
-      const color = normalizeColorClassName(removeByNotMatch[1]!);
+      const color = normalizeColorClassName(removeByNotMatch[1]);
       if (color.length > 0 && isKnownColorClass(color, declaredColorClasses)) {
         return { kind: "remove", color };
       }
@@ -3467,7 +3466,7 @@ function parseOperatorFromRaw(raw: string, scope: GraphScopeState, context: Grap
   if (parsed.length === 0) {
     return null;
   }
-  return parsed[0]!;
+  return parsed[0];
 }
 
 function parseOperatorsFromRaw(raw: string, scope: GraphScopeState, context: GraphOperatorContext): GraphOperatorInvocation[] {
@@ -3536,8 +3535,8 @@ function parseColorPair(raw: string, defaultFrom: string, defaultTo: string): { 
   }
 
   if (braces.length >= 2) {
-    const from = normalizeColorClassName(braces[0]!);
-    const to = normalizeColorClassName(braces[1]!);
+    const from = normalizeColorClassName(braces[0]);
+    const to = normalizeColorClassName(braces[1]);
     return {
       from: from.length > 0 ? from : defaultFrom,
       to: to.length > 0 ? to : defaultTo
@@ -3548,8 +3547,8 @@ function parseColorPair(raw: string, defaultFrom: string, defaultTo: string): { 
     .map((part) => part.raw.trim())
     .filter((part) => part.length > 0);
   if (commaParts.length >= 2) {
-    const from = normalizeColorClassName(commaParts[0]!);
-    const to = normalizeColorClassName(commaParts[1]!);
+    const from = normalizeColorClassName(commaParts[0]);
+    const to = normalizeColorClassName(commaParts[1]);
     return {
       from: from.length > 0 ? from : defaultFrom,
       to: to.length > 0 ? to : defaultTo
@@ -3583,7 +3582,7 @@ function buildOperatorPairs(operator: GraphOperatorInvocation, colors: GraphColo
     const pairs: Array<{ from: string; to: string }> = [];
     const min = Math.min(fromNodes.length, toNodes.length);
     for (let index = 0; index < min; index += 1) {
-      pairs.push({ from: fromNodes[index]!, to: toNodes[index]! });
+      pairs.push({ from: fromNodes[index], to: toNodes[index] });
     }
     return pairs;
   }
@@ -3696,7 +3695,7 @@ function parseVertexList(raw: string): string[] {
     .filter((segment) => segment.length > 0);
 
   if (parts.length === 3 && parts[1] === "...") {
-    const expanded = expandRange(parts[0]!, parts[2]!);
+    const expanded = expandRange(parts[0], parts[2]);
     if (expanded.length > 0) {
       return expanded;
     }

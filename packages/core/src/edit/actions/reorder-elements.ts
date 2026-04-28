@@ -138,11 +138,11 @@ export function buildParentReorderReplacement(
   const refsById = new Map(sortedRefs.map((ref) => [ref.id, ref] as const));
 
   const replacementSpan: Span = {
-    from: sortedRefs[0]!.span.from,
-    to: sortedRefs[sortedRefs.length - 1]!.span.to
+    from: sortedRefs[0].span.from,
+    to: sortedRefs[sortedRefs.length - 1].span.to
   };
 
-  const indent = lineIndentAtOffset(source, sortedRefs[0]!.span.from);
+  const indent = lineIndentAtOffset(source, sortedRefs[0].span.from);
   const separator = resolveReorderStatementSeparator(source, sortedRefs, indent);
 
   let text = "";
@@ -233,19 +233,19 @@ function reorderStatementIds(
   const reordered = [...ids];
   if (direction === "sendBackward") {
     for (let index = 1; index < reordered.length; index += 1) {
-      if (!selected.has(reordered[index]!) || selected.has(reordered[index - 1]!)) {
+      if (!selected.has(reordered[index]) || selected.has(reordered[index - 1])) {
         continue;
       }
-      [reordered[index - 1], reordered[index]] = [reordered[index]!, reordered[index - 1]!];
+      [reordered[index - 1], reordered[index]] = [reordered[index], reordered[index - 1]];
     }
     return reordered;
   }
 
   for (let index = reordered.length - 2; index >= 0; index -= 1) {
-    if (!selected.has(reordered[index]!) || selected.has(reordered[index + 1]!)) {
+    if (!selected.has(reordered[index]) || selected.has(reordered[index + 1])) {
       continue;
     }
-    [reordered[index], reordered[index + 1]] = [reordered[index + 1]!, reordered[index]!];
+    [reordered[index], reordered[index + 1]] = [reordered[index + 1], reordered[index]];
   }
   return reordered;
 }

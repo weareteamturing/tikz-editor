@@ -1,11 +1,10 @@
 import { worldBounds, worldPoint } from "../../coords/points.js";
 import type { WorldPoint, WorldBounds } from "../../coords/points.js";
 import { pt } from "../../coords/scalars.js";
-import type { CoordinateForm, CoordinateItem, EdgeFromParentOperationItem, EdgeOperationItem, GraphOperationItem, NodeItem, PathItem, PathStatement, PlotOperationItem, Span, ToOperationItem } from "../../ast/types.js";
+import type { CoordinateItem, EdgeFromParentOperationItem, EdgeOperationItem, GraphOperationItem, NodeItem, PathItem, PathStatement, PlotOperationItem, Span, ToOperationItem } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
 import { parseTikz } from "../../parser/index.js";
 import { parseOptionListRaw } from "../../options/parse.js";
-import { expandForeachList } from "../../foreach/list.js";
 import {
   readNamedCoordinate,
   resolveContextColorAliasValue,
@@ -63,8 +62,7 @@ import { computeBounds, resolveFrameMeta } from "../evaluate.js";
 import {
   applyPlotOptionLists,
   applyPlotSettingsFromStyleChain,
-  createDefaultPlotSettings,
-  type PlotSettings
+  createDefaultPlotSettings
 } from "./plot.js";
 import { decoratePathElements } from "./decorate.js";
 import { makeTreeAutoName } from "./tree.js";
@@ -455,7 +453,7 @@ export function evaluatePathStatement(
         const runtimeGraphNodes: RuntimeGraphNode[] = [];
 
         for (let nodeIndex = 0; nodeIndex < plan.nodes.length; nodeIndex += 1) {
-          const node = plan.nodes[nodeIndex]!;
+          const node = plan.nodes[nodeIndex];
           const existingNodeCoordinate = withDependencySource(context, graphStatement.id, () => {
             const scoped = applyNameScope(node.name, context);
             const scopedMatch = readNamedCoordinate(context, scoped);
@@ -510,7 +508,7 @@ export function evaluatePathStatement(
 
         const edgeElements: SceneElement[] = [];
         for (let edgeIndex = 0; edgeIndex < plan.edges.length; edgeIndex += 1) {
-          const edge = plan.edges[edgeIndex]!;
+          const edge = plan.edges[edgeIndex];
           const startCoordinateRaw = `(${edge.from}${edge.fromAnchor ? `.${edge.fromAnchor}` : ""})`;
           const targetCoordinateRaw = `(${edge.to}${edge.toAnchor ? `.${edge.toAnchor}` : ""})`;
           const graphEdgeNodes: NodeItem[] | undefined =
@@ -807,9 +805,7 @@ export function evaluatePathStatement(
         });
         const declaredNodeName = pendingNodeNameForNodeCommand ?? item.name ?? null;
         const hasFollowingTreeChildren = hasFollowingChildOperation(statement.items, currentItemIndex + 1);
-        const existingTreeParent = treeParentCandidate as
-          | { nameRaw: string | null; point: WorldPoint; span: { from: number; to: number } }
-          | null;
+        const existingTreeParent = treeParentCandidate;
         const synthesizedTreeNodeName: string | null =
           hasFollowingTreeChildren && !declaredNodeName
             ? makeTreeAutoName(existingTreeParent?.nameRaw ?? null, statement.id, item.id, currentItemIndex + 1, frame.treeLevel)

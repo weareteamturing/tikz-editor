@@ -91,7 +91,7 @@ export function getRepeatSelectionEligibility(
     return { kind: "ineligible", reason: "Select at least one authored element to repeat." };
   }
   for (let index = 1; index < refs.length; index += 1) {
-    if (refs[index]!.index !== refs[index - 1]!.index + 1) {
+    if (refs[index].index !== refs[index - 1].index + 1) {
       return { kind: "ineligible", reason: "Repeat currently requires one contiguous authored block." };
     }
   }
@@ -153,7 +153,7 @@ export function applyRepeatElementsAction(
   const insertedRefs = nextSnapshot.all.filter(
     (ref) => ref.span.from >= replacementSpan.from && ref.span.to <= replacementSpan.to
   );
-  const outerRef = insertedRefs.find((ref) => ref.parentKey === eligibility.refs[0]!.parentKey) ?? insertedRefs[0];
+  const outerRef = insertedRefs.find((ref) => ref.parentKey === eligibility.refs[0].parentKey) ?? insertedRefs[0];
   const insertedStatementIds = insertedRefs.map((ref) => ref.id);
   const loopIds = insertedStatementIds.filter((id) => id.startsWith("foreach:"));
 
@@ -178,8 +178,8 @@ function buildRepeatReplacement(
   }
 ): { text: string } {
   const snippet = refs.length === 1
-    ? statementSnippet(source, refs[0]!)
-    : source.slice(refs[0]!.span.from, refs[refs.length - 1]!.span.to);
+    ? statementSnippet(source, refs[0])
+    : source.slice(refs[0].span.from, refs[refs.length - 1].span.to);
   const usedLoopVars = new Set<string>();
   const xLoop = options.columns > 1
     ? {
@@ -196,7 +196,7 @@ function buildRepeatReplacement(
       }
     : null;
   const body = refs.length === 1
-    ? translateSingleStatementSnippet(source, refs[0]!, xLoop, yLoop, options.parseOptions)
+    ? translateSingleStatementSnippet(source, refs[0], xLoop, yLoop, options.parseOptions)
     : wrapRepeatedBlockInScope(source, refs, xLoop, yLoop);
 
   return {
@@ -260,8 +260,8 @@ function wrapRepeatedBlockInScope(
   xLoop: RepeatLoop | null,
   yLoop: RepeatLoop | null
 ): string {
-  const first = refs[0]!;
-  const last = refs[refs.length - 1]!;
+  const first = refs[0];
+  const last = refs[refs.length - 1];
   const block = source.slice(first.span.from, last.span.to);
   const shiftTuple = buildShiftTuple(xLoop, yLoop);
   const scopeOptions = shiftTuple ? `[shift={${shiftTuple}}]` : "";
@@ -275,7 +275,7 @@ function buildForeachChain(headers: readonly string[], body: string): string {
 
   let output = body;
   for (let index = headers.length - 1; index >= 0; index -= 1) {
-    output = `${headers[index]!} {\n${indentEveryLine(output, "  ")}\n}`;
+    output = `${headers[index]} {\n${indentEveryLine(output, "  ")}\n}`;
   }
   return output;
 }
@@ -622,7 +622,8 @@ function detectPreferredNewline(source: string, aroundOffset: number): string {
 }
 
 function withoutActiveFigure(parseOptions: EditParseOptions): EditParseOptions {
-  const { activeFigureId: _activeFigureId, ...rest } = parseOptions;
+  const { activeFigureId, ...rest } = parseOptions;
+  void activeFigureId;
   return rest;
 }
 

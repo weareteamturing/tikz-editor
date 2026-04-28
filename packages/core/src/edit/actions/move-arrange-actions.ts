@@ -447,7 +447,7 @@ function rewriteSingleScopeTransform(
     return { kind: "unsupported", reason: `Scope ${elementId} was not found` };
   }
 
-  const inPlaceShiftRewrite = rewriteSingleScopeShiftInPlace(source, resolved.target, elementId, delta, parseOptions);
+  const inPlaceShiftRewrite = rewriteSingleScopeShiftInPlace(source, resolved.target, elementId, delta);
   if (inPlaceShiftRewrite) {
     return inPlaceShiftRewrite;
   }
@@ -487,8 +487,7 @@ function rewriteSingleScopeShiftInPlace(
   source: string,
   target: PropertyTarget,
   elementId: string,
-  delta: WorldPoint,
-  parseOptions: EditParseOptions
+  delta: WorldPoint
 ): ScopeTransformRewriteResult | null {
   if (!target.options) {
     return null;

@@ -9,7 +9,6 @@ import {
   FILL_SHADING_OPTIONS,
   LINE_CAP_OPTIONS,
   LINE_JOIN_OPTIONS,
-  LINE_WIDTH_PRESETS,
   NODE_INNER_SEP_DEFAULT,
   NODE_SHAPE_OPTIONS,
   TIKZPICTURE_GLOBAL_TARGET_ID,
@@ -151,7 +150,7 @@ export function buildStylesCascadeModel(
   const writeTargetCache = new Map<string, PropertyTargetResolution>();
 
   for (let index = 0; index < orderedEntries.length; index += 1) {
-    const entry = orderedEntries[index]!;
+    const entry = orderedEntries[index];
     const targetId = entry.sourceRef ? sourceTargetIdForEntry(entry, entry.sourceRef) : null;
     const sectionTarget =
       targetId != null
@@ -210,12 +209,12 @@ export function buildSharedStylesCascadeModel(models: StylesCascadeModel[]): Sty
   if (models.length === 0) {
     return null;
   }
-  const signature = models[0]!.comparableSignature;
+  const signature = models[0].comparableSignature;
   if (models.some((model) => model.comparableSignature !== signature)) {
     return null;
   }
 
-  const base = models[0]!;
+  const base = models[0];
   return {
     elementKind: base.elementKind,
     elementIds: models.flatMap((model) => model.elementIds),
@@ -1067,6 +1066,7 @@ function propertyIdForContribution(
     case "patternColor":
       return propertyMap.has("fill-pattern-color") ? "fill-pattern-color" : null;
     case "shadeEnabled":
+    case "shadingAngle":
       return propertyMap.has("fill-mode") ? "fill-mode" : null;
     case "shading":
       return propertyMap.has("fill-shading") ? "fill-shading" : propertyMap.has("fill-mode") ? "fill-mode" : null;
@@ -1084,6 +1084,44 @@ function propertyIdForContribution(
       return propertyMap.has("fill-ball-color") ? "fill-ball-color" : null;
     case "roundedCorners":
       return propertyMap.has("rounded-corners") ? "rounded-corners" : null;
+    case "arrowShorthandEnd":
+    case "arrowShorthandStart":
+    case "axisMiddleColor":
+    case "bilinearLowerLeft":
+    case "bilinearLowerRight":
+    case "bilinearUpperLeft":
+    case "bilinearUpperRight":
+    case "clip":
+    case "dashOffset":
+    case "decoration":
+    case "decorationPostActions":
+    case "decorationPreActions":
+    case "doubleDistance":
+    case "doubleStroke":
+    case "drawExplicit":
+    case "everyShadowStyles":
+    case "fillOpacity":
+    case "fillRule":
+    case "fontFamily":
+    case "fontSize":
+    case "fontStyle":
+    case "fontWeight":
+    case "markerEnd":
+    case "markerStart":
+    case "opacity":
+    case "radius":
+    case "shadowFade":
+    case "shadowLayers":
+    case "shadowScale":
+    case "shadowXShift":
+    case "shadowYShift":
+    case "strokeOpacity":
+    case "textAlign":
+    case "textOpacity":
+    case "tipsMode":
+    case "useAsBoundingBox":
+    case "xRadius":
+    case "yRadius":
     default:
       return null;
   }
@@ -1113,9 +1151,9 @@ function entryValueForProperty(entry: OptionEntry, property: InspectorProperty):
         : property.value;
     }
     case "lineCap":
-      return normalized as InspectorProperty extends { kind: "lineCap"; value: infer TValue } ? TValue : never;
+      return normalized;
     case "lineJoin":
-      return normalized as InspectorProperty extends { kind: "lineJoin"; value: infer TValue } ? TValue : never;
+      return normalized;
     case "fillMode": {
       const key = normalizeOptionKey(entry.key);
       if (key === "pattern") return normalized.toLowerCase() === "none" ? "solid" : "pattern";
@@ -1132,6 +1170,17 @@ function entryValueForProperty(entry: OptionEntry, property: InspectorProperty):
     }
     case "nodeShape":
       return normalized.toLowerCase();
+    case "arrowTip":
+    case "boolean":
+    case "enum":
+    case "fillPatternOption":
+    case "nodeFont":
+    case "nodeTextAlign":
+    case "optionalLength":
+    case "pathMorphingDecoration":
+    case "shadowPreset":
+    case "slider":
+    case "text":
     default:
       return property;
   }
@@ -1199,17 +1248,17 @@ function overrideInspectorPropertyValue(
     case "lineWidth":
       return { ...property, value: typeof nextValue === "number" ? nextValue : property.value, presetLabel: lineWidthPresetLabel(typeof nextValue === "number" ? nextValue : property.value), write: { ...writeTarget, key: property.write.key } };
     case "dashStyle":
-      return { ...property, value: typeof nextValue === "string" ? nextValue as typeof property.value : property.value, write: { ...writeTarget, key: property.write.key } };
+      return { ...property, value: coerceInspectorStringValue(nextValue, property.value), write: { ...writeTarget, key: property.write.key } };
     case "lineCap":
-      return { ...property, value: typeof nextValue === "string" ? nextValue as typeof property.value : property.value, write: { ...writeTarget, key: property.write.key } };
+      return { ...property, value: coerceInspectorStringValue(nextValue, property.value), write: { ...writeTarget, key: property.write.key } };
     case "lineJoin":
-      return { ...property, value: typeof nextValue === "string" ? nextValue as typeof property.value : property.value, write: { ...writeTarget, key: property.write.key } };
+      return { ...property, value: coerceInspectorStringValue(nextValue, property.value), write: { ...writeTarget, key: property.write.key } };
     case "fillMode":
-      return { ...property, value: typeof nextValue === "string" ? nextValue as typeof property.value : property.value, write: { ...writeTarget, key: property.write.key } };
+      return { ...property, value: coerceInspectorStringValue(nextValue, property.value), write: { ...writeTarget, key: property.write.key } };
     case "fillShading":
-      return { ...property, value: typeof nextValue === "string" ? nextValue as typeof property.value : property.value, write: { ...writeTarget, key: property.write.key } };
+      return { ...property, value: coerceInspectorStringValue(nextValue, property.value), write: { ...writeTarget, key: property.write.key } };
     case "fillPattern":
-      return { ...property, value: typeof nextValue === "string" ? nextValue as typeof property.value : property.value, write: { ...writeTarget, key: property.write.key } };
+      return { ...property, value: coerceInspectorStringValue(nextValue, property.value), write: { ...writeTarget, key: property.write.key } };
     case "roundedCorners": {
       const next = (nextValue && typeof nextValue === "object") ? nextValue as { enabled?: boolean; radius?: number } : null;
       return {
@@ -1220,10 +1269,25 @@ function overrideInspectorPropertyValue(
       };
     }
     case "nodeShape":
-      return { ...property, value: typeof nextValue === "string" ? nextValue as typeof property.value : property.value, write: { ...writeTarget, key: property.write.key } };
+      return { ...property, value: coerceInspectorStringValue(nextValue, property.value), write: { ...writeTarget, key: property.write.key } };
+    case "arrowTip":
+    case "boolean":
+    case "enum":
+    case "fillPatternOption":
+    case "nodeFont":
+    case "nodeTextAlign":
+    case "optionalLength":
+    case "pathMorphingDecoration":
+    case "shadowPreset":
+    case "slider":
+    case "text":
     default:
       return property;
   }
+}
+
+function coerceInspectorStringValue<T extends string>(nextValue: unknown, fallback: T): T {
+  return typeof nextValue === "string" ? nextValue as T : fallback;
 }
 
 function formatCssValue(property: InspectorProperty | null): string {
@@ -1249,6 +1313,17 @@ function formatCssValue(property: InspectorProperty | null): string {
       return String(property.value);
     case "roundedCorners":
       return property.enabled ? `${formatNumber(property.radius)}pt` : "false";
+    case "arrowTip":
+    case "boolean":
+    case "enum":
+    case "fillPatternOption":
+    case "nodeFont":
+    case "nodeTextAlign":
+    case "optionalLength":
+    case "pathMorphingDecoration":
+    case "shadowPreset":
+    case "slider":
+    case "text":
     default:
       return property.label;
   }

@@ -1,4 +1,49 @@
-export type AnyWrapper = any;
+export interface MathJaxAttributes {
+  get(name: string): unknown;
+  set(name: string, value: unknown): void;
+}
+
+export interface MathJaxNode {
+  kind?: string;
+  attributes?: MathJaxAttributes;
+  getText?(): string;
+  isKind?(kind: string): boolean;
+  setText?(text: string): void;
+}
+
+export interface MathJaxBBox {
+  L?: number;
+  R?: number;
+  w?: number;
+  h?: number;
+  d?: number;
+  dh?: number;
+  lineLeading?: number;
+}
+
+export interface AnyWrapper {
+  node?: MathJaxNode;
+  childNodes?: AnyWrapper[];
+  parent?: AnyWrapper;
+  jax?: { linebreaks?: unknown; knuthPlassOptions?: unknown };
+  lineBBox?: MathJaxBBox[];
+  containerWidth?: number;
+  breakToWidth?(width: number): void;
+  clearBreakPoints?(): void;
+  computeBBox?(bbox: MathJaxBBox, recompute?: boolean): void;
+  getBBox?(): MathJaxBBox;
+  getOuterBBox?(): MathJaxBBox;
+  invalidateBBox?(): void;
+  place?(x: number, y: number, parent: unknown): void;
+  placeLines?(parents: unknown[]): void;
+  set?(x: number, y: number): void;
+  setBBoxDimens?(bbox: MathJaxBBox): void;
+  setBreakAt?(index: number, kind?: string): void;
+  setBreakStyle?(style: string): void;
+  setChildPWidths?(recompute: boolean, width: number): void;
+  textWidth?(text: string): number;
+  [key: string]: unknown;
+}
 
 export type BreakRef =
   | {

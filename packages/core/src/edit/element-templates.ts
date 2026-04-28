@@ -235,8 +235,8 @@ export function reverseComplexPathSegments(
   // segFromPoints: [from, seg0.to, seg1.to, ...]
   // reversed[i] corresponds to segments[n-1-i]
   for (let i = segments.length - 1; i >= 0; i--) {
-    const seg = segments[i]!;
-    const segStart = segFromPoints[i]!;
+    const seg = segments[i];
+    const segStart = segFromPoints[i];
     const segStartAnchor = segFromAnchors[i];
     if (seg.kind === "line") {
       reversed.push({ kind: "line", to: segStart, toAnchor: segStartAnchor });
@@ -251,7 +251,7 @@ export function reverseComplexPathSegments(
       });
     }
   }
-  const newStart = segFromPoints[segFromPoints.length - 1]!;
+  const newStart = segFromPoints[segFromPoints.length - 1];
   const newStartAnchor = segFromAnchors[segFromAnchors.length - 1];
   return { startWorld: newStart, startAnchor: newStartAnchor, segments: reversed };
 }
@@ -275,7 +275,7 @@ export function generateComplexPathPrependSource(
 
   // All segments except the last: include full operator + target
   for (let i = 0; i < segments.length - 1; i++) {
-    const seg = segments[i]!;
+    const seg = segments[i];
     if (seg.kind === "line") {
       parts.push(`-- ${formatPathEndpoint(seg.toAnchor, seg.to)}`);
     } else {
@@ -284,7 +284,7 @@ export function generateComplexPathPrependSource(
   }
 
   // Last segment: operator only, no target (existing body provides it)
-  const last = segments[segments.length - 1]!;
+  const last = segments[segments.length - 1];
   if (last.kind === "line") {
     parts.push("--");
   } else {

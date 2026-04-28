@@ -48,7 +48,7 @@ export function applySetPropertyAction(
   }
 
   if (resolved.target.kind === "node-adornment") {
-    return applyAdornmentSetProperty(source, resolved.target, action as any);
+    return applyAdornmentSetProperty(source, resolved.target, action);
   }
 
   const pathAttachedNodeResult = applyPathAttachedNodeInspectorAction(source, action, parseOptions);
@@ -458,10 +458,10 @@ function serializeCommentToggleItems(
     .map((item, index) => ({ item, index }))
     .filter((entry) => entry.item.kind === "entry" || entry.item.kind === "disabled-entry")
     .map((entry) => entry.index);
-  const lastEntryIndex = entryIndexes.length > 0 ? entryIndexes[entryIndexes.length - 1]! : -1;
+  const lastEntryIndex = entryIndexes.length > 0 ? entryIndexes[entryIndexes.length - 1] : -1;
 
   for (let index = 0; index < items.length; index += 1) {
-    const item = items[index]!;
+    const item = items[index];
     if (item.kind === "comment") {
       lines.push(withIndent(normalizeCommentLine(item.text)));
       continue;
@@ -574,8 +574,6 @@ function applyMatrixCellSetProperty(
     return { kind: "error", message: "Cannot set an empty option key" };
   }
 
-  const normalizedValue = action.value.trim();
-  const removePrimaryKey = normalizedValue.length === 0;
   const mutations = createOptionMutationsFromSetProperty(action, key);
 
   const cellSpan = target.cellSpan;

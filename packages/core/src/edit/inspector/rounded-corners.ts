@@ -528,7 +528,7 @@ function computeArcEndpointTangents(
 
   const x1p2 = x1p * x1p;
   const y1p2 = y1p * y1p;
-  let lambda = x1p2 / (rx * rx) + y1p2 / (ry * ry);
+  const lambda = x1p2 / (rx * rx) + y1p2 / (ry * ry);
   if (!Number.isFinite(lambda)) {
     return null;
   }

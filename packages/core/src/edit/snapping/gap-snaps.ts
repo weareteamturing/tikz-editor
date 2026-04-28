@@ -28,13 +28,13 @@ export function buildVisibleGaps(
   let pairs = 0;
 
   horizontalLoop: for (let i = 0; i < sortedX.length; i += 1) {
-    const start = sortedX[i]!;
+    const start = sortedX[i];
     for (let j = i + 1; j < sortedX.length; j += 1) {
       if (++pairs > maxPairsPerAxis) {
         break horizontalLoop;
       }
 
-      const end = sortedX[j]!;
+      const end = sortedX[j];
       if (start.maxX >= end.minX) {
         continue;
       }
@@ -65,13 +65,13 @@ export function buildVisibleGaps(
   pairs = 0;
 
   verticalLoop: for (let i = 0; i < sortedY.length; i += 1) {
-    const start = sortedY[i]!;
+    const start = sortedY[i];
     for (let j = i + 1; j < sortedY.length; j += 1) {
       if (++pairs > maxPairsPerAxis) {
         break verticalLoop;
       }
 
-      const end = sortedY[j]!;
+      const end = sortedY[j];
       if (start.maxY >= end.minY) {
         continue;
       }

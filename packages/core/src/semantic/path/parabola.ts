@@ -73,7 +73,7 @@ export function parseParabolaFromItems(
   bendPos = clamp(bendPos, 0, 1);
   const savedPoint = interpolate(start, endPoint, bendPos);
 
-  let bendPoint: WorldPoint | null = null;
+  let bendPoint: WorldPoint | null;
   if (bendSpec.kind === "saved") {
     bendPoint = savedPoint;
   } else if (bendSpec.kind === "height") {

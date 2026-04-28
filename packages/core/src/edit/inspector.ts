@@ -59,10 +59,8 @@ import {
   LINE_WIDTH_PRESETS,
   META_FILL_PATTERN_PRESET_BY_KIND,
   META_FILL_PATTERN_PRESET_BY_LOWER,
-  META_FILL_PATTERN_PRESETS,
   NODE_FONT_CUSTOM_NOTE,
   NODE_FONT_FAMILY_COMMAND,
-  NODE_FONT_KEYS,
   NODE_FONT_PRESET_BY_ID,
   NODE_FONT_SIZE_EPSILON,
   NODE_FONT_SIZE_PRESETS,
@@ -130,7 +128,6 @@ import type {
   NodeShapePresetOption,
   PathMorphingDecorationPresetId,
   PathMorphingDecorationPresetOption,
-  PathMorphingDecorationSuboptionKey,
   PathMorphingDecorationSuboptionSpec,
   ShadowPresetId,
   ShadowPresetOption
@@ -2022,7 +2019,7 @@ export function buildTreeInspectorDescriptor(
           ...element.sourceRef,
           sourceId: rootNode.id
         }
-      } as SceneElement)
+      })
     : null;
   const rootNodeDescriptor = rootNodeElement
     ? getInspectorDescriptor(rootNodeElement, {
@@ -3536,6 +3533,7 @@ function inspectorPropertyCandidateKeys(property: InspectorProperty): string[] {
     }
     case "length":
     case "optionalLength":
+    case "slider":
     case "boolean":
       return uniqueStrings([property.write.key, ...("clearKeys" in property && property.clearKeys ? property.clearKeys : [])]);
     case "text":
@@ -5275,7 +5273,7 @@ function resolvePinEdgeInspectorState(pinEdgeRaw: string | null): {
         normalized === "densely dotted" ||
         normalized === "loosely dotted"
       ) {
-        dashStyle = normalized as DashStylePresetId;
+        dashStyle = normalized;
       } else if (isLikelyColorValue(entry.key)) {
         draw = entry.key.trim();
       }
@@ -5302,7 +5300,7 @@ function resolvePinEdgeInspectorState(pinEdgeRaw: string | null): {
       key === "densely dotted" ||
       key === "loosely dotted"
     ) {
-      dashStyle = key as DashStylePresetId;
+      dashStyle = key;
     }
   }
 

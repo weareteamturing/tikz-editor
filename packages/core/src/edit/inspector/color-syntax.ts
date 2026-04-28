@@ -306,7 +306,7 @@ export function normalizeInspectorDeclaredColorName(raw: string): string | null 
 
 export function skipInspectorWhitespace(source: string, startIndex: number): number {
   let cursor = startIndex;
-  while (cursor < source.length && /\s/u.test(source[cursor]!)) {
+  while (cursor < source.length && /\s/u.test(source[cursor])) {
     cursor += 1;
   }
   return cursor;

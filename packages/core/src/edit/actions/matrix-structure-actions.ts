@@ -53,7 +53,7 @@ export function applyAddMatrixRowAction(
   if (!Number.isInteger(action.rowIndex) || action.rowIndex < 1 || action.rowIndex > rowCount + 1) {
     return { kind: "unsupported", reason: `addMatrixRow rowIndex must be in 1..${rowCount + 1}.` };
   }
-  rows.splice(action.rowIndex - 1, 0, new Array(colCount).fill(""));
+  rows.splice(action.rowIndex - 1, 0, Array.from<string>({ length: colCount }).fill(""));
   return rewriteMatrixText(source, target.value.matrixTextSpan, serializeMatrixRows(rows, target.value.cellSeparator));
 }
 
@@ -196,7 +196,7 @@ function parseMatrixGrid(target: MatrixStructureTarget): { rows: string[][]; row
     return values;
   });
   while (rows.length < rowCount) {
-    rows.push(new Array(colCount).fill(""));
+    rows.push(Array.from<string>({ length: colCount }).fill(""));
   }
   return { rows, rowCount, colCount };
 }
