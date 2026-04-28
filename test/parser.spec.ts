@@ -3,6 +3,37 @@ import { describe, expect, it } from "vitest";
 import { parseTikz } from "../packages/core/src/parser/index.js";
 import { loadFixture } from "./helpers.js";
 
+function collectCstText(source: string, result: ReturnType<typeof parseTikz>, typeName: string): string[] {
+  const ranges: string[] = [];
+  const cursor = result.tree.cursor();
+  do {
+    if (cursor.type.name === typeName) {
+      ranges.push(source.slice(cursor.from, cursor.to));
+    }
+  } while (cursor.next());
+  return ranges;
+}
+
+function collectAstNodeTexts(value: unknown, texts: string[] = []): string[] {
+  if (!value || typeof value !== "object") {
+    return texts;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectAstNodeTexts(item, texts);
+    }
+    return texts;
+  }
+  const record = value as Record<string, unknown>;
+  if (record.kind === "Node" && typeof record.text === "string") {
+    texts.push(record.text);
+  }
+  for (const child of Object.values(record)) {
+    collectAstNodeTexts(child, texts);
+  }
+  return texts;
+}
+
 describe("parseTikz", () => {
   it("parses minimal tikzpicture into a non-empty IR", () => {
     const source = loadFixture("minimal.tex");
@@ -99,6 +130,87 @@ describe("parseTikz", () => {
         expect(node.text).toBe("$\\{a,b,c\\}$");
       }
     }
+  });
+
+  it("parses node bodies through dedicated node text CST nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] (test) at (0, 1.5) {this is a node with text and it is a rectangle including $x=\int_0^1 y dx$ style math};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    const nodeNames: string[] = [];
+    const nodeTextRanges: string[] = [];
+    const cursor = result.tree.cursor();
+    do {
+      nodeNames.push(cursor.type.name);
+      if (cursor.type.name === "NodeTextGroup" || cursor.type.name === "NodeTextDollarMath") {
+        nodeTextRanges.push(source.slice(cursor.from, cursor.to));
+      }
+    } while (cursor.next());
+
+    expect(nodeNames).toContain("NodePathStatement");
+    expect(nodeTextRanges).toContain(
+      String.raw`{this is a node with text and it is a rectangle including $x=\int_0^1 y dx$ style math}`
+    );
+    expect(nodeTextRanges).toContain(String.raw`$x=\int_0^1 y dx$`);
+    expect(result.figure.body[0]?.kind).toBe("Path");
+    if (result.figure.body[0]?.kind === "Path") {
+      expect(result.figure.body[0].command).toBe("node");
+      const node = result.figure.body[0].items.find((item) => item.kind === "Node");
+      expect(node?.kind).toBe("Node");
+      if (node?.kind === "Node") {
+        expect(node.text).toBe(
+          String.raw`this is a node with text and it is a rectangle including $x=\int_0^1 y dx$ style math`
+        );
+      }
+    }
+  });
+
+  it("parses difficult node text across standalone and path-attached nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] (standalone) at (0,0) {outer {inner $x_{1}$} text \nodepart{lower} tail};
+  \draw (0,0) -- (1,0)
+    node[midway,above] {edge {nested \textbf{bold}} and $a_b$}
+    to node[pos=.7,below] {to node with $$\sum_i x_i$$ and {braces}} (2,0);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    const nodeTextGroups = collectCstText(source, result, "NodeTextGroup");
+    const dollarMath = collectCstText(source, result, "NodeTextDollarMath");
+
+    expect(collectCstText(source, result, "NodePathStatement")).toHaveLength(1);
+    expect(nodeTextGroups).toContain(String.raw`{outer {inner $x_{1}$} text \nodepart{lower} tail}`);
+    expect(nodeTextGroups).toContain(String.raw`{edge {nested \textbf{bold}} and $a_b$}`);
+    expect(nodeTextGroups).toContain(String.raw`{to node with $$\sum_i x_i$$ and {braces}}`);
+    expect(dollarMath).toEqual(expect.arrayContaining([String.raw`$x_{1}$`, String.raw`$a_b$`, String.raw`$$\sum_i x_i$$`]));
+
+    const astTexts = collectAstNodeTexts(result.figure);
+    expect(astTexts).toEqual(
+      expect.arrayContaining([
+        String.raw`outer {inner $x_{1}$} text \nodepart{lower} tail`,
+        String.raw`edge {nested \textbf{bold}} and $a_b$`,
+        String.raw`to node with $$\sum_i x_i$$ and {braces}`
+      ])
+    );
+  });
+
+  it("keeps nodepart commands and escaped delimiters inside node text", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,circle split] {Top\nodepart{lower}{Bottom $x$ and \$5 with 100\%}};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "missing-semicolon")).toBe(false);
+
+    const nodeTextGroups = collectCstText(source, result, "NodeTextGroup");
+    expect(nodeTextGroups).toContain(String.raw`{Top\nodepart{lower}{Bottom $x$ and \$5 with 100\%}}`);
+    expect(nodeTextGroups).toContain(String.raw`{lower}`);
+    expect(nodeTextGroups).toContain(String.raw`{Bottom $x$ and \$5 with 100\%}`);
+    expect(collectCstText(source, result, "NodeTextDollarMath")).toEqual([String.raw`$x$`]);
+    expect(collectAstNodeTexts(result.figure)).toContain(String.raw`Top\nodepart{lower}{Bottom $x$ and \$5 with 100\%}`);
   });
 
   it("keeps comments reachable in CST", () => {

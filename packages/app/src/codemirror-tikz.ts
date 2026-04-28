@@ -44,9 +44,11 @@ const tikzHighlighting = styleTags({
   "StylePayloadPart/IdentifierLike/Identifier": t.labelName,
   "StylePayloadPart/OptionPunct": t.punctuation,
 
-  // Node text content — string color (#a11)
-  // NodeItem/Group covers inline `node {text}`, PathItem/Group covers `\node ... {text}`
-  "NodeItem/Group/... PathItem/Group/...": t.string,
+  // Node text uses a dedicated grammar branch so prose is not highlighted as TikZ syntax.
+  "NodeTextGroup/NodeTextPart/NodeTextChunk NodeTextGroup/NodeTextPart/NodeTextPunct": t.string,
+  "NodeTextDollarMath/NodeTextMathPart/NodeTextChunk NodeTextDollarMath/NodeTextMathPart/NodeTextPunct NodeTextDollarMath/NodeTextMathPart/CommandName":
+    t.special(t.string),
+  "NodeTextDollarMath/Dollar NodeTextDollarMath/DoubleDollar": t.regexp,
 
   // General identifiers (fallback) — className (#167, dark teal)
   Identifier: t.className,

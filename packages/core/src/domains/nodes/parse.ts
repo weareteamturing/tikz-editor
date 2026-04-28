@@ -12,7 +12,7 @@ export function mapNodeItem(node: SyntaxNode, source: string, statementIndex: nu
   const raw = source.slice(node.from, node.to);
   const foreachClauses = mapNodeForeachClauses(node, source, statementIndex, itemIndex);
   const templateRaw = buildNodeTemplateRaw(node, source, foreachClauses);
-  const groupNode = findFirstChildByName(node, "Group");
+  const groupNode = findFirstChildByName(node, "NodeTextGroup") ?? findFirstChildByName(node, "Group");
   const options = mergeNodeOptionLists(findNodeOptionLists(node), source);
   const placement = extractPlacementFromNode(node, source) ?? extractPlacementFromOptions(options.options);
   const mappedText = mapNodeText(groupNode, source, node.to, options.options);

@@ -137,7 +137,7 @@ export function collectStructuralDiagnostics(envNode: SyntaxNode, source: string
       });
     }
 
-    if (node.type.name === "Group" && source[node.to - 1] !== "}") {
+    if ((node.type.name === "Group" || node.type.name === "NodeTextGroup") && source[node.to - 1] !== "}") {
       diagnostics.push({
         severity: "warning",
         message: "Unclosed group.",
@@ -164,7 +164,7 @@ export function collectStructuralDiagnostics(envNode: SyntaxNode, source: string
     // next statement into the current one.
     // Detect path-starting commands embedded as UnknownPathItem inside a PathStatement.
     // Tree structure: PathStatement > PathItem > UnknownPathItem > KnownCommand > NodeCmd/DrawCmd/etc.
-    if (node.type.name === "UnknownPathItem" && node.parent?.parent?.type.name === "PathStatement") {
+    if (node.type.name === "UnknownPathItem" && hasAncestor(node, "PathStatement")) {
       const knownCmd = node.firstChild;
       const actualCmd = knownCmd?.type.name === "KnownCommand" ? knownCmd.firstChild : knownCmd;
       if (actualCmd && PATH_COMMANDS.has(actualCmd.type.name)) {
@@ -180,6 +180,17 @@ export function collectStructuralDiagnostics(envNode: SyntaxNode, source: string
   });
 
   collectCoordinateDiagnostics(envNode, source, diagnostics);
+}
+
+function hasAncestor(node: SyntaxNode, name: string): boolean {
+  let current: SyntaxNode | null = node.parent;
+  while (current) {
+    if (current.type.name === name) {
+      return true;
+    }
+    current = current.parent;
+  }
+  return false;
 }
 
 function collectForeachRangeEllipsisDiagnostics(node: SyntaxNode, source: string, diagnostics: Diagnostic[]): void {

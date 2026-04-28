@@ -80,7 +80,12 @@ ForeachList {
 }
 
 PathStatement {
+  NodePathStatement |
   PathCommand PathItem* ";"
+}
+
+NodePathStatement {
+  NodeCmd NodeCommandItem* ";"
 }
 
 PathCommand {
@@ -95,8 +100,28 @@ PathCommand {
   ShadeDrawCmd |
   UseAsBoundingBoxCmd |
   MatrixCmd |
-  NodeCmd |
   CoordinateCmd
+}
+
+NodeCommandItem {
+  PathForeachOperation |
+  ToOperation |
+  EdgeOperation |
+  ChildOperation |
+  EdgeFromParentOperation |
+  SvgOperation |
+  LetOperation |
+  CoordinateOperation |
+  DecorateOperation |
+  NodeItem |
+  Comment |
+  OptionList |
+  RelativeCoordinate |
+  Coordinate |
+  PathKeyword |
+  NodeTextGroup |
+  PathOperator |
+  UnknownPathItem
 }
 
 PathItem {
@@ -129,7 +154,7 @@ PathOperator {
 }
 
 NodeItem {
-  NodeKw NodeForeachClause* NodeQualifier* Group
+  NodeKw NodeForeachClause* NodeQualifier* NodeTextGroup
 }
 
 NodeForeachClause {
@@ -442,6 +467,56 @@ Group {
   "{" GroupPart* "}"
 }
 
+NodeTextGroup {
+  "{" NodeTextPart* "}"
+}
+
+NodeTextPart {
+  Comment |
+  NodeTextGroup |
+  NodeTextDollarMath |
+  MatrixRowSepCmd |
+  EscapedAmpersandCmd |
+  EscapedPercentCmd |
+  EscapedDollarCmd |
+  EscapedBraceOpenCmd |
+  EscapedBraceCloseCmd |
+  EscapedSpaceCmd |
+  EscapedParenOpenCmd |
+  EscapedParenCloseCmd |
+  EscapedBracketOpenCmd |
+  EscapedBracketCloseCmd |
+  KnownCommand |
+  ControlSymbolCmd |
+  CommandName |
+  NodeTextChunk |
+  NodeTextPunct
+}
+
+NodeTextDollarMath {
+  DoubleDollar NodeTextMathPart* DoubleDollar |
+  Dollar NodeTextMathPart* Dollar
+}
+
+NodeTextMathPart {
+  Comment |
+  NodeTextGroup |
+  MatrixRowSepCmd |
+  EscapedAmpersandCmd |
+  EscapedPercentCmd |
+  EscapedDollarCmd |
+  EscapedBraceOpenCmd |
+  EscapedBraceCloseCmd |
+  EscapedSpaceCmd |
+  EscapedParenOpenCmd |
+  EscapedParenCloseCmd |
+  KnownCommand |
+  ControlSymbolCmd |
+  CommandName |
+  NodeTextChunk |
+  NodeTextPunct
+}
+
 StylePayload {
   "{" StylePayloadPart* "}"
 }
@@ -665,6 +740,7 @@ StrayToken {
 @tokens {
   @precedence {
     BeginTikz,
+    DoubleDollar,
     TikzSetCmd,
     TikzStyleCmd,
     DefineColorCmd,
@@ -703,6 +779,8 @@ StrayToken {
     EscapedSpaceCmd,
     EscapedParenOpenCmd,
     EscapedParenCloseCmd,
+    EscapedBracketOpenCmd,
+    EscapedBracketCloseCmd,
     ControlSymbolCmd,
     AtKw,
     BendKw,
@@ -732,6 +810,7 @@ StrayToken {
     NodeKw,
     FontSizeCmd,
     CommandName,
+    Dollar,
     Number,
     Identifier,
     Comment,
@@ -782,6 +861,8 @@ StrayToken {
   EscapedSpaceCmd { "\\ " }
   EscapedParenOpenCmd { "\\(" }
   EscapedParenCloseCmd { "\\)" }
+  EscapedBracketOpenCmd { "\\[" }
+  EscapedBracketCloseCmd { "\\]" }
   ControlSymbolCmd {
     "\\," |
     "\\!" |
@@ -847,9 +928,17 @@ StrayToken {
 
   CommandName { "\\" $[A-Za-z@]+ }
 
+  DoubleDollar { "$$" }
+
+  Dollar { "$" }
+
   Number { $[0-9]+ ("." $[0-9]+)? }
 
   Identifier { $[A-Za-z] $[-A-Za-z0-9_:@]* }
+
+  NodeTextChunk { ![\\{}$%&^_~#\[\](),.;:!?'"`=+\-*/|<>\n\r \t]+ }
+
+  NodeTextPunct { $[&^_~#\[\](),.;:!?'"`=+\-*/|<>] }
 
   QuotedSvg { "\"" !["\n\r]* "\"" }
 }

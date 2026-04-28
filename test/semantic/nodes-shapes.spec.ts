@@ -218,6 +218,44 @@ describe("semantic evaluator / nodes and shapes", () => {
       expect(matrixTexts).toEqual(["1", "2", "3", "4"]);
     });
 
+    it("preserves difficult matrix-of-nodes cell text", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \matrix[matrix of nodes,nodes={draw}] {
+      plain {nested} $x_1$ & price \$1 and 100\% \\
+      \node {explicit {node} $z$}; & final \& marker \\
+    };
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
+      const matrixTexts = result.scene.elements
+        .filter((element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> => element.kind === "Text")
+        .filter((element) => element.id.includes("matrix-cell:"));
+
+      expect(matrixTexts.map((element) => element.text).sort()).toEqual([
+        String.raw`explicit {node} $z$`,
+        String.raw`final \& marker`,
+        String.raw`plain {nested} $x_1$`,
+        String.raw`price \$1 and 100\%`
+      ]);
+      expect(matrixTexts.every((element) => element.matrixCell?.textMode === "text")).toBe(true);
+    });
+
+    it("preserves difficult matrix-of-math-nodes cell text in math mode", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \matrix[matrix of math nodes] {
+      \frac{1}{1+x} & \{a,b\}_{i=1}^{n} \\
+    };
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const matrixTexts = result.scene.elements
+        .filter((element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> => element.kind === "Text")
+        .filter((element) => element.id.includes("matrix-cell:"));
+      expect(matrixTexts.map((element) => element.text).sort()).toEqual([String.raw`\frac{1}{1+x}`, String.raw`\{a,b\}_{i=1}^{n}`]);
+      expect(matrixTexts.every((element) => element.matrixCell?.textMode === "math")).toBe(true);
+    });
+
     it("stores per-cell editable text spans for matrix text elements", () => {
       const source = String.raw`\begin{tikzpicture}
     \matrix[matrix of nodes] {

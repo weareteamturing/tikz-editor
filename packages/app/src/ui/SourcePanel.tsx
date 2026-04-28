@@ -90,6 +90,8 @@ const darkHighlightStyle = HighlightStyle.define([
   { tag: t.lineComment,    color: "#6a9955", fontStyle: "italic" },
   { tag: t.blockComment,   color: "#6a9955", fontStyle: "italic" },
   { tag: t.string,         color: "#ce9178" },
+  { tag: t.special(t.string), color: "#dcdcaa" },
+  { tag: t.regexp,         color: "#c586c0", fontWeight: "600" },
   { tag: t.number,         color: "#b5cea8" },
   { tag: t.variableName,   color: "#9cdcfe" },
   { tag: t.attributeName,  color: "#9cdcfe" },

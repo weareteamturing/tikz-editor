@@ -34,7 +34,10 @@ type PathItemContext = {
 };
 
 export function mapPathStatement(node: SyntaxNode, source: string, statementIndex: number): PathStatement {
-  const commandNode = findFirstChildByName(node, "PathCommand");
+  const nodePathStatement = findFirstChildByName(node, "NodePathStatement");
+  const commandNode = nodePathStatement
+    ? findFirstChildByName(nodePathStatement, "NodeCmd")
+    : findFirstChildByName(node, "PathCommand");
   const commandText = commandNode ? source.slice(commandNode.from, commandNode.to) : "\\path";
   const syntheticNodeImplicitFlags = isMatrixCommand(commandText) ? ["matrix"] : [];
   const command = normalizePathCommand(commandText);
@@ -349,6 +352,15 @@ function mapPathItem(
     return synthetic;
   }
 
+  if (actual.type.name === "NodeTextGroup" && context.command === "node" && !context.syntheticNodeEmitted) {
+    const synthetic = mapSyntheticNodeItem(actual, context.pendingNodeOptions, source, statementIndex, itemIndex, {
+      implicitFlags: context.syntheticNodeImplicitFlags
+    });
+    context.syntheticNodeEmitted = true;
+    context.pendingNodeOptions = [];
+    return synthetic;
+  }
+
   const keywordItem = maybeMapPathKeywordItem(actual, source, statementIndex, itemIndex);
   if (keywordItem) {
     return keywordItem;
@@ -403,6 +415,7 @@ function isDirectPathItemNode(name: string): boolean {
     name === "OptionList" ||
     name === "PathOperator" ||
     name === "Group" ||
+    name === "NodeTextGroup" ||
     name === "Identifier" ||
     name === "CommandName" ||
     name === "Number"
@@ -426,6 +439,18 @@ function mapPathCommentItem(
 function collectPathItemNodes(node: SyntaxNode): SyntaxNode[] {
   const nodes: SyntaxNode[] = [];
   forEachChild(node, (child) => {
+    if (child.type.name === "NodePathStatement") {
+      forEachChild(child, (nodeChild) => {
+        if (nodeChild.type.name === "NodeCommandItem") {
+          nodes.push(firstNamedChild(nodeChild) ?? nodeChild);
+          return;
+        }
+        if (isDirectPathItemNode(nodeChild.type.name)) {
+          nodes.push(nodeChild);
+        }
+      });
+      return;
+    }
     if (child.type.name === "PathItem") {
       nodes.push(firstNamedChild(child) ?? child);
       return;
