@@ -21,7 +21,7 @@ function findSingleOccurrence(
 ) {
   const found = occurrences.filter(predicate);
   expect(found).toHaveLength(1);
-  return found[0]!;
+  return found[0];
 }
 
 describe("source color detection", () => {

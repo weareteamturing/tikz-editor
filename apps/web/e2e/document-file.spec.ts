@@ -52,7 +52,7 @@ test("keeps sources isolated per tab and restores workspace on reload", async ({
 test("new/open/save/close keyboard shortcuts smoke", async ({ page }) => {
   await injectNoFsApiFallback(page);
   await page.addInitScript(() => {
-    const originalClick = HTMLInputElement.prototype.click;
+    const originalClick = Function.prototype.call.bind(HTMLInputElement.prototype.click) as (input: HTMLInputElement) => void;
     HTMLInputElement.prototype.click = function clickPatched(this: HTMLInputElement) {
       if (this.type === "file") {
         const file = new File(["\\\\draw (7,7)--(8,8); % keyboard-open"], "keyboard-open.tex", { type: "text/plain" });
@@ -65,7 +65,7 @@ test("new/open/save/close keyboard shortcuts smoke", async ({ page }) => {
         this.dispatchEvent(new Event("change"));
         return;
       }
-      originalClick.call(this);
+      originalClick(this);
     };
   });
 
@@ -146,7 +146,7 @@ test("fallback save path triggers browser download", async ({ page }) => {
 test("fallback open path uses file input and loads content", async ({ page }) => {
   await injectNoFsApiFallback(page);
   await page.addInitScript(() => {
-    const originalClick = HTMLInputElement.prototype.click;
+    const originalClick = Function.prototype.call.bind(HTMLInputElement.prototype.click) as (input: HTMLInputElement) => void;
     HTMLInputElement.prototype.click = function clickPatched(this: HTMLInputElement) {
       if (this.type === "file") {
         const file = new File(["\\\\draw (7,7)--(8,8); % fallback-open"], "fallback-open.tex", { type: "text/plain" });
@@ -159,7 +159,7 @@ test("fallback open path uses file input and loads content", async ({ page }) =>
         this.dispatchEvent(new Event("change"));
         return;
       }
-      originalClick.call(this);
+      originalClick(this);
     };
   });
 
@@ -171,10 +171,10 @@ test("fallback open path uses file input and loads content", async ({ page }) =>
 test("fallback open path imports svg as a new tikz document", async ({ page }) => {
   await injectNoFsApiFallback(page);
   await page.addInitScript(() => {
-    const originalClick = HTMLInputElement.prototype.click;
+    const originalClick = Function.prototype.call.bind(HTMLInputElement.prototype.click) as (input: HTMLInputElement) => void;
     HTMLInputElement.prototype.click = function clickPatched(this: HTMLInputElement) {
       if (this.type === "file") {
-        const svg = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 20 20\"><circle cx=\"10\" cy=\"10\" r=\"8\" fill=\"red\"/></svg>`;
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="red"/></svg>`;
         const file = new File([svg], "fallback-open.svg", { type: "image/svg+xml" });
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(file);
@@ -185,7 +185,7 @@ test("fallback open path imports svg as a new tikz document", async ({ page }) =
         this.dispatchEvent(new Event("change"));
         return;
       }
-      originalClick.call(this);
+      originalClick(this);
     };
   });
 
@@ -197,10 +197,10 @@ test("fallback open path imports svg as a new tikz document", async ({ page }) =
 test("file import svg command imports svg as a new tikz document", async ({ page }) => {
   await injectNoFsApiFallback(page);
   await page.addInitScript(() => {
-    const originalClick = HTMLInputElement.prototype.click;
+    const originalClick = Function.prototype.call.bind(HTMLInputElement.prototype.click) as (input: HTMLInputElement) => void;
     HTMLInputElement.prototype.click = function clickPatched(this: HTMLInputElement) {
       if (this.type === "file") {
-        const svg = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 20 20\"><rect x=\"2\" y=\"2\" width=\"16\" height=\"16\" fill=\"blue\"/></svg>`;
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" fill="blue"/></svg>`;
         const file = new File([svg], "menu-import.svg", { type: "image/svg+xml" });
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(file);
@@ -211,7 +211,7 @@ test("file import svg command imports svg as a new tikz document", async ({ page
         this.dispatchEvent(new Event("change"));
         return;
       }
-      originalClick.call(this);
+      originalClick(this);
     };
   });
 
@@ -223,7 +223,7 @@ test("file import svg command imports svg as a new tikz document", async ({ page
 test("file import powerpoint command shows an error for invalid pptx data", async ({ page }) => {
   await injectNoFsApiFallback(page);
   await page.addInitScript(() => {
-    const originalClick = HTMLInputElement.prototype.click;
+    const originalClick = Function.prototype.call.bind(HTMLInputElement.prototype.click) as (input: HTMLInputElement) => void;
     HTMLInputElement.prototype.click = function clickPatched(this: HTMLInputElement) {
       if (this.type === "file") {
         const invalid = new Uint8Array([1, 2, 3, 4, 5, 6]);
@@ -241,7 +241,7 @@ test("file import powerpoint command shows an error for invalid pptx data", asyn
         this.dispatchEvent(new Event("change"));
         return;
       }
-      originalClick.call(this);
+      originalClick(this);
     };
   });
 
@@ -279,7 +279,7 @@ test("fs-api save/open flows with rebinding and permission fallback", async ({ p
       })
     });
 
-    let allowWrite = { value: true };
+    const allowWrite = { value: true };
     const saveHandle = createHandle("bound.tex", allowWrite);
     const memoryStore = new Map<string, unknown>();
 
@@ -421,7 +421,7 @@ test("help command opens PGF/TikZ manual via external url hook", async ({ page }
     window.open = ((url: string | URL | undefined) => {
       calls.push(String(url ?? ""));
       return null;
-    }) as typeof window.open;
+    });
     (globalThis as unknown as { __PW_WINDOW_OPEN_CALLS__?: string[] }).__PW_WINDOW_OPEN_CALLS__ = calls;
     (globalThis as unknown as { __PW_WINDOW_OPEN_RESTORE__?: () => void }).__PW_WINDOW_OPEN_RESTORE__ = () => {
       window.open = originalOpen;

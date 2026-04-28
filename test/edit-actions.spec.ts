@@ -343,7 +343,7 @@ describe("applyEditAction – moveElement", () => {
       sourceSpan: { from: 15, to: 20 },
       id: "handle-15-20",
       sourceId: "elem-1"
-    } as Parameters<typeof makeHandle>[1]);
+    });
 
     const result = applyEditAction(source, [h1, h2], {
       kind: "moveElement",
@@ -369,7 +369,7 @@ describe("applyEditAction – moveElement", () => {
       sourceSpan: { from: 34, to: 39 },
       id: "handle-34-39",
       sourceId: "path:1"
-    } as Parameters<typeof makeHandle>[1]);
+    });
 
     const result = applyEditAction(source, [h1, h2], {
       kind: "moveElements",
@@ -440,7 +440,7 @@ describe("applyEditAction – moveElement", () => {
       sourceSpan: { from: 34, to: 39 },
       id: "handle-34-39",
       sourceId: "multi"
-    } as Parameters<typeof makeHandle>[1]);
+    });
 
     const result = applyEditAction(source, [h1, h2], {
       kind: "moveElement",
@@ -2537,8 +2537,8 @@ describe("applyEditAction – resizeElement", () => {
     }
 
     for (let index = 1; index < rewrittenTargetYValues.length; index += 1) {
-      const prev = rewrittenTargetYValues[index - 1]!;
-      const next = rewrittenTargetYValues[index]!;
+      const prev = rewrittenTargetYValues[index - 1];
+      const next = rewrittenTargetYValues[index];
       expect(Math.abs(next - prev)).toBeLessThan(2);
     }
   });

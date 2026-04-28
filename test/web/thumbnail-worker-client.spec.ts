@@ -38,7 +38,7 @@ describe("thumbnail-worker-client", () => {
     FakeWorker.instances = [];
     vi.resetModules();
     vi.unstubAllGlobals();
-    vi.stubGlobal("Worker", FakeWorker as unknown as typeof Worker);
+    vi.stubGlobal("Worker", FakeWorker);
   });
 
   afterEach(() => {
@@ -65,7 +65,7 @@ describe("thumbnail-worker-client", () => {
 
     const pending = client.requestThumbnail(request);
     expect(FakeWorker.instances).toHaveLength(1);
-    const worker = FakeWorker.instances[0]!;
+    const worker = FakeWorker.instances[0];
     expect(worker.posted).toHaveLength(1);
     expect(worker.posted[0]).toMatchObject({
       type: "render",
@@ -117,7 +117,7 @@ describe("thumbnail-worker-client", () => {
     const pendingB = client.requestThumbnail(requestB);
 
     expect(FakeWorker.instances).toHaveLength(1);
-    const worker = FakeWorker.instances[0]!;
+    const worker = FakeWorker.instances[0];
 
     client.cancelGroup("grp-z");
     const cancelMessages = worker.posted.filter((entry) =>

@@ -38,7 +38,7 @@ describe("collectSnapExcludedSourceIds", () => {
           ]),
           boundsByScopeId: new Map()
         },
-        [] as any
+        []
       )
     );
 

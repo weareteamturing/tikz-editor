@@ -54,8 +54,8 @@ describe("text visual layout", () => {
     const ranges = collectLogicalLineRanges(text);
 
     expect(ranges).toHaveLength(2);
-    expect(text.slice(ranges[0]!.start, ranges[0]!.end)).toBe("First");
-    expect(text.slice(ranges[1]!.start, ranges[1]!.end)).toBe(" Second");
+    expect(text.slice(ranges[0].start, ranges[0].end)).toBe("First");
+    expect(text.slice(ranges[1].start, ranges[1].end)).toBe(" Second");
   });
 
   it("treats control words as opaque visual steps instead of per-character advance", () => {

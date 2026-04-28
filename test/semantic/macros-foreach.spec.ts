@@ -5,7 +5,6 @@ import {
   firstElementOfKind,
   elementsOfKind
 } from "./helpers.js";
-import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../../packages/core/src/semantic/types.js";
 
 describe("semantic evaluator / macros and foreach", () => {
     it("expands foreach statements and attaches provenance metadata", () => {

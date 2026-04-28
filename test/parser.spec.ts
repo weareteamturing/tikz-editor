@@ -784,7 +784,7 @@ describe("parseTikz", () => {
       const result = parseTikz(source);
       const warnings = result.diagnostics.filter((d) => d.code === "missing-semicolon");
       expect(warnings.length).toBe(1);
-      expect(warnings[0]!.message).toContain("semicolon");
+      expect(warnings[0].message).toContain("semicolon");
     });
 
     it("warns about missing semicolon when parser merges two statements", () => {

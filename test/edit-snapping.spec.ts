@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SceneCircle, SceneElement, ScenePath, ScenePathCommand } from "../packages/core/src/semantic/types.js";
 import {
-  boundsFromPoints,
   buildSnapContext,
   pickGridStepPt,
   selectionSnapPointsFromBounds,

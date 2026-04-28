@@ -56,10 +56,10 @@ describe("semantic dependencies / dom diff hints", () => {
     expect(fromPlain.reachedOpaque).toBe(false);
 
     const fromOpaque = collectGeometryInvalidation(graph, {
-      changedSourceIds: [opaqueSources[0]!]
+      changedSourceIds: [opaqueSources[0]]
     });
     expect(fromOpaque.reachedOpaque).toBe(true);
-    expect(fromOpaque.opaqueSourceIds).toContain(opaqueSources[0]!);
+    expect(fromOpaque.opaqueSourceIds).toContain(opaqueSources[0]);
   });
 
   it("keeps directly changed sources affected even when they have no dependency node", () => {

@@ -269,8 +269,8 @@ async function resolveDenseAndShortTargetIds(page: import("@playwright/test").Pa
   }
 
   return {
-    denseTargetId: firstIsDense ? firstSelected[0]! : secondSelected[0]!,
-    shortTargetId: firstIsDense ? secondSelected[0]! : firstSelected[0]!
+    denseTargetId: firstIsDense ? firstSelected[0] : secondSelected[0],
+    shortTargetId: firstIsDense ? secondSelected[0] : firstSelected[0]
   };
 }
 

@@ -153,8 +153,8 @@ describe("statement-level macro expansion", () => {
       const textElements = result.semantic.scene.elements.filter(e => e.kind === "Text");
       expect(textElements).toHaveLength(1);
       // Macro-expanded elements should have macroStack in origin
-      expect(textElements[0]!.origin?.macroStack).toBeDefined();
-      expect(textElements[0]!.origin!.macroStack!.length).toBeGreaterThan(0);
+      expect(textElements[0].origin?.macroStack).toBeDefined();
+      expect(textElements[0].origin!.macroStack!.length).toBeGreaterThan(0);
     });
   });
 });

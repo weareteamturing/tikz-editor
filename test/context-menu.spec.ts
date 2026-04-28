@@ -61,8 +61,8 @@ describe("canvas context menu definition", () => {
 
     expect(reorder).toBeDefined();
     expect(path).toBeDefined();
-    expect(items.some((item) => item.kind === "submenu" && (item.label as string) === "Align")).toBe(false);
-    expect(items.some((item) => item.kind === "submenu" && (item.label as string) === "Distribute")).toBe(false);
+    expect(items.some((item) => item.kind === "submenu" && (item.label) === "Align")).toBe(false);
+    expect(items.some((item) => item.kind === "submenu" && (item.label) === "Distribute")).toBe(false);
     if (!path || path.kind !== "submenu") {
       throw new Error("Expected Path submenu on single selection context menu.");
     }

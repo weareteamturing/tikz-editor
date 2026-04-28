@@ -247,7 +247,7 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain("<radialGradient");
     expect(emitted.svg).toContain('id="tikz-shading-radial-');
     expect(emitted.svg).toContain('id="tikz-shading-ball-');
-    expect(emitted.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unsupported-shading:"))).toBe(false);
+    expect(emitted.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unsupported-shading:"))).toBe(false);
   });
 
   it("emits SVG pattern defs and url() fills for pattern styles", () => {
@@ -404,7 +404,7 @@ describe("svg emitter", () => {
     const semantic = evaluateTikzFigure(parsed.figure, source);
     const emitted = emitSvg(semantic.scene);
 
-    const secondPath = emitted.svg.match(/data-source-id="path:1" d="M ([0-9.\-]+) [0-9.\-]+ L ([0-9.\-]+) [0-9.\-]+"/);
+    const secondPath = emitted.svg.match(/data-source-id="path:1" d="M ([0-9.-]+) [0-9.-]+ L ([0-9.-]+) [0-9.-]+"/);
     expect(secondPath).not.toBeNull();
     if (!secondPath) {
       return;
@@ -470,7 +470,7 @@ describe("svg emitter", () => {
     const semantic = evaluateTikzFigure(parsed.figure, source);
     const emitted = emitSvg(semantic.scene);
 
-    const linePath = emitted.svg.match(/data-source-id="path:0" d="M ([0-9.\-]+) [0-9.\-]+ L ([0-9.\-]+) [0-9.\-]+"/);
+    const linePath = emitted.svg.match(/data-source-id="path:0" d="M ([0-9.-]+) [0-9.-]+ L ([0-9.-]+) [0-9.-]+"/);
     expect(linePath).not.toBeNull();
     if (!linePath) {
       return;

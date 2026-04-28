@@ -77,7 +77,7 @@ async function installProbe(page: import("@playwright/test").Page, sourceId: str
     const overlayCenter = (): { x: number; y: number } | null => {
       const box = document.querySelector(
         `[data-selection-overlay-box-source-id="${trackedSourceId}"]`
-      ) as SVGGraphicsElement | null;
+      );
       if (!box) {
         return null;
       }

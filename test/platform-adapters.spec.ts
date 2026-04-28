@@ -92,8 +92,15 @@ describe("platform adapter contracts", () => {
   );
 
   it("web adapter clipboard read/write uses provided environment", async () => {
+    const storageMap = new Map<string, string>();
     let clipboardText = "";
     const platform = createBrowserPlatformAdapter({
+      storage: {
+        getItem: (key) => storageMap.get(key) ?? null,
+        setItem: (key, value) => {
+          storageMap.set(key, value);
+        }
+      },
       clipboard: {
         readText: async () => clipboardText,
         writeText: async (text) => {
@@ -307,7 +314,7 @@ describe("platform adapter contracts", () => {
         setItem: () => undefined
       },
       fsApi: {
-        showSaveFilePicker: async () => fakeFsHandle as never
+        showSaveFilePicker: async () => fakeFsHandle
       },
       fsHandleStore: {
         load: async (handleId) => handleStore.get(handleId) ?? null,

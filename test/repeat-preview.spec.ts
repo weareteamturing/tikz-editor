@@ -28,7 +28,7 @@ describe("repeat preview", () => {
 
     const parsed = parseTikz(result.newSource, { recover: true });
     const evaluated = evaluateTikzFigure(parsed.figure, result.newSource);
-    const previewScene = buildRepeatPreviewScene(evaluated.scene, result.patches[0]!.newSpan);
+    const previewScene = buildRepeatPreviewScene(evaluated.scene, result.patches[0].newSpan);
 
     expect(previewScene).not.toBeNull();
     if (!previewScene) return;
@@ -61,7 +61,7 @@ describe("repeat preview", () => {
 
     const parsed = parseTikz(result.newSource, { recover: true });
     const evaluated = evaluateTikzFigure(parsed.figure, result.newSource);
-    const previewScene = buildRepeatPreviewScene(evaluated.scene, result.patches[0]!.newSpan);
+    const previewScene = buildRepeatPreviewScene(evaluated.scene, result.patches[0].newSpan);
 
     expect(previewScene).not.toBeNull();
     if (!previewScene) return;

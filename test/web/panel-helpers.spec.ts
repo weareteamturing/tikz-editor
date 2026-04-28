@@ -575,7 +575,7 @@ describe("resolveGridResizeSnapForHandleDrag", () => {
       (handle) => handle.kind === "path-point"
     );
     expect(pathHandles).toHaveLength(2);
-    const dragHandle = pathHandles[1]!;
+    const dragHandle = pathHandles[1];
 
     const result = resolveGridResizeSnapForHandleDrag(dragHandle, semantic.editHandles, parsed.figure.body);
     expect(result).toBeDefined();
@@ -585,7 +585,7 @@ describe("resolveGridResizeSnapForHandleDrag", () => {
 
     expect(result.stepX).toBeCloseTo(parseLength("0.5cm", "cm")!, 6);
     expect(result.stepY).toBeCloseTo(parseLength("2pt", "cm")!, 6);
-    expect(result.anchorWorld).toEqual(pathHandles[0]!.world);
+    expect(result.anchorWorld).toEqual(pathHandles[0].world);
   });
 
   it("returns null for non-grid paths", () => {

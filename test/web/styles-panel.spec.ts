@@ -10,11 +10,22 @@ import type {
   StylesCascadeSection
 } from "../../packages/core/src/edit/styles-cascade";
 
-const mocks = vi.hoisted(() => ({
-  dispatch: vi.fn(),
-  buildStylesCascadeModel: vi.fn(),
-  areStylesCascadeModelsIdentical: vi.fn((_models: unknown) => true),
-  storeState: {
+type MockStoreState = {
+  selectedElementIds: Set<string>;
+  activeDocumentId: string;
+  activeFigureId: string | null;
+  snapshot: {
+    source: string;
+    editHandles: unknown[];
+    scene: { elements: Array<{ sourceRef: { sourceId: string } }> };
+  };
+  source: string;
+  sourceRevision: number;
+  dispatch: unknown;
+};
+
+const mocks = vi.hoisted(() => {
+  const storeState: MockStoreState = {
     selectedElementIds: new Set(["el-1"]),
     activeDocumentId: "doc-1",
     activeFigureId: null,
@@ -28,20 +39,14 @@ const mocks = vi.hoisted(() => ({
     source: "\\draw[dashed] (0,0) -- (1,0);",
     sourceRevision: 1,
     dispatch: undefined
-  } as {
-    selectedElementIds: Set<string>;
-    activeDocumentId: string;
-    activeFigureId: string | null;
-    snapshot: {
-      source: string;
-      editHandles: unknown[];
-      scene: { elements: Array<{ sourceRef: { sourceId: string } }> };
-    };
-    source: string;
-    sourceRevision: number;
-    dispatch: unknown;
-  }
-}));
+  };
+  return {
+    dispatch: vi.fn(),
+    buildStylesCascadeModel: vi.fn(),
+    areStylesCascadeModelsIdentical: vi.fn((_models: unknown) => true),
+    storeState
+  };
+});
 
 vi.mock("../../packages/app/src/store/store", () => ({
   useEditorStore: (selector: (state: typeof mocks.storeState) => unknown) => selector({
@@ -161,7 +166,7 @@ describe("StylesPanel", () => {
 
     expect(container.querySelector('input[aria-label="Property name"]')).toBeNull();
     expect(container.querySelector('button[aria-label="Delete draw"]')).toBeNull();
-    const valueButton = container.querySelector("button") as HTMLButtonElement | null;
+    const valueButton = container.querySelector<HTMLButtonElement>("button");
     expect(valueButton).not.toBeNull();
     expect(valueButton?.disabled).toBe(true);
   });
@@ -227,18 +232,18 @@ describe("StylesPanel", () => {
       status: "disabled"
     });
     const model = makeModel(activeDecl, true);
-    model.sections[0]!.declarations = [activeDecl, disabledDecl];
+    model.sections[0].declarations = [activeDecl, disabledDecl];
     mocks.buildStylesCascadeModel.mockReturnValue(model);
 
     await act(async () => {
       root.render(React.createElement(StylesPanel));
     });
 
-    const activeToggle = container.querySelector('input[aria-label="Toggle draw"]') as HTMLInputElement | null;
+    const activeToggle = container.querySelector<HTMLInputElement>('input[aria-label="Toggle draw"]');
     expect(activeToggle).not.toBeNull();
     expect(activeToggle?.checked).toBe(true);
 
-    const disabledToggle = container.querySelector('input[aria-label="Toggle fill"]') as HTMLInputElement | null;
+    const disabledToggle = container.querySelector<HTMLInputElement>('input[aria-label="Toggle fill"]');
     expect(disabledToggle).not.toBeNull();
     expect(disabledToggle?.checked).toBe(false);
   });
@@ -252,7 +257,7 @@ describe("StylesPanel", () => {
       root.render(React.createElement(StylesPanel));
     });
 
-    const toggle = container.querySelector('input[aria-label="Toggle draw"]') as HTMLInputElement | null;
+    const toggle = container.querySelector<HTMLInputElement>('input[aria-label="Toggle draw"]');
     expect(toggle).not.toBeNull();
 
     await act(async () => {
@@ -281,11 +286,11 @@ describe("StylesPanel", () => {
 
     expect(container.querySelector('input[aria-label="Property name"]')).toBeNull();
     expect(container.querySelector('button[aria-label="Delete draw"]')).toBeNull();
-    const valueButton = container.querySelector("button") as HTMLButtonElement | null;
+    const valueButton = container.querySelector<HTMLButtonElement>("button");
     expect(valueButton).not.toBeNull();
     expect(valueButton?.disabled).toBe(true);
 
-    const toggle = container.querySelector('input[aria-label="Toggle draw"]') as HTMLInputElement | null;
+    const toggle = container.querySelector<HTMLInputElement>('input[aria-label="Toggle draw"]');
     expect(toggle).not.toBeNull();
     expect(toggle?.disabled).toBe(false);
   });
@@ -302,7 +307,7 @@ describe("StylesPanel", () => {
     const before = container.querySelector("button");
     expect(before?.textContent).toContain("red");
 
-    model.sections[0]!.declarations[0] = makeDeclaration({
+    model.sections[0].declarations[0] = makeDeclaration({
       id: "decl",
       sourceText: "draw=blue",
       cssValue: "blue",

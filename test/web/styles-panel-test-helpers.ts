@@ -28,7 +28,7 @@ export function seedStylesPanelState(source: string, selectedSourceIds: string[]
   const base = makeInitialState();
   const dispatch = useEditorStore.getState().dispatch;
   const activeDocumentId = base.activeDocumentId;
-  const doc = base.documents[activeDocumentId]!;
+  const doc = base.documents[activeDocumentId];
   const selected = new Set(selectedSourceIds);
 
   useEditorStore.setState({

@@ -116,7 +116,7 @@ describe("edit handles", () => {
 
     const controlHandles = result.editHandles.filter((h) => h.kind === "path-control");
     expect(controlHandles).toHaveLength(1);
-    expect(source.slice(controlHandles[0]!.sourceRef.sourceSpan.from, controlHandles[0]!.sourceRef.sourceSpan.to)).toBe("(1,1)");
+    expect(source.slice(controlHandles[0].sourceRef.sourceSpan.from, controlHandles[0].sourceRef.sourceSpan.to)).toBe("(1,1)");
   });
 
   it("named control-point handles resolve rewrite targets", () => {
@@ -319,7 +319,7 @@ describe("edit handles", () => {
     const result = evaluate(source);
     const nodeHandles = result.editHandles.filter((handle) => handle.kind === "node-position");
     expect(nodeHandles).toHaveLength(1);
-    expect(source.slice(nodeHandles[0]!.sourceRef.sourceSpan.from, nodeHandles[0]!.sourceRef.sourceSpan.to)).toBe("(0,0)");
+    expect(source.slice(nodeHandles[0].sourceRef.sourceSpan.from, nodeHandles[0].sourceRef.sourceSpan.to)).toBe("(0,0)");
   });
 
   it("polar: handle with polar coordinateForm and direct rewrite", () => {

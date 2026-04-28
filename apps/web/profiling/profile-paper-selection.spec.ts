@@ -9,7 +9,7 @@ import {
   waitForActiveFigure,
   type PaperTarget
 } from "./helpers";
-import { captureProfileVariant, writeScenarioReport } from "./framework";
+import { captureProfileVariant, writeScenarioReport, type FrameStats } from "./framework";
 import { getProfilingScenarioById } from "./scenario-registry";
 
 const VERBOSE_PROFILE_LOGS = process.env.TIKZ_PROFILE_VERBOSE === "1";

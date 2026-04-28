@@ -120,17 +120,10 @@ async function dispatchTextRegionPointerDrag(
       startRatioY,
       endRatioX,
       endRatioY
-    } = raw as {
-      targetId: string;
-      clickCount: number;
-      startRatioX: number;
-      startRatioY: number;
-      endRatioX: number;
-      endRatioY: number;
-    };
+    } = raw;
     const region = document.querySelector(
       `[data-hit-region-target-id="${targetId}"][data-hit-region-interaction-mode="text"]`
-    ) as SVGGraphicsElement | null;
+    );
     if (!region) {
       throw new Error(`Text hit region not found for ${targetId}.`);
     }
@@ -191,14 +184,10 @@ async function readMathJaxLocalClientPoint(
   options: { sourceId: string; localRatioX: number; localRatioY: number }
 ): Promise<{ x: number; y: number }> {
   return await page.evaluate((raw) => {
-    const { sourceId, localRatioX, localRatioY } = raw as {
-      sourceId: string;
-      localRatioX: number;
-      localRatioY: number;
-    };
+    const { sourceId, localRatioX, localRatioY } = raw;
     const rendered = document.querySelector(
       `svg[data-text-renderer="mathjax"][data-source-id="${sourceId}"]`
-    ) as SVGSVGElement | null;
+    );
     if (!rendered) {
       throw new Error(`Rendered MathJax SVG not found for ${sourceId}.`);
     }
@@ -701,7 +690,7 @@ test("wrapped text-width nodes stay wrapped in the popup when field-sizing is un
         return false;
       }
       return originalSupports(...args);
-    }) as typeof CSS.supports;
+    });
   });
 
   await gotoApp(page);
@@ -715,7 +704,7 @@ test("wrapped text-width nodes stay wrapped in the popup when field-sizing is un
   await expect(textarea).toBeVisible();
   const metrics = await textarea.evaluate((element) => {
     const textareaElement = element as HTMLTextAreaElement;
-    const popup = textareaElement.closest('[data-testid="canvas-text-edit-popup"]') as HTMLElement | null;
+    const popup = textareaElement.closest('[data-testid="canvas-text-edit-popup"]');
     const computed = getComputedStyle(textareaElement);
     return {
       clientWidth: textareaElement.clientWidth,

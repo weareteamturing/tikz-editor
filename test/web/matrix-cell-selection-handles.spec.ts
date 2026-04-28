@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import React, { createElement, useEffect } from "react";
+import { createElement, useEffect } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -39,7 +39,7 @@ function Harness(props: {
   useEffect(() => {
     props.onUpdate({
       resizeFrameSourceIds: derived.resizeFrameSourceIds,
-      handleDisplays: derived.handleDisplays as Array<{ kind: string; elementId?: string; cursor?: string }>
+      handleDisplays: derived.handleDisplays
     });
   }, [derived.handleDisplays, derived.resizeFrameSourceIds, props]);
 

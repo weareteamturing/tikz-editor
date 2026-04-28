@@ -152,11 +152,11 @@ describe("semantic dependencies / integration", () => {
     expect(coordinateConsumers).toHaveLength(1);
 
     const invalidation = collectGeometryInvalidation(graph, {
-      changedSourceIds: [coordinateProducers[0]!]
+      changedSourceIds: [coordinateProducers[0]]
     });
     expect(invalidation.reachedOpaque).toBe(false);
-    expect(invalidation.affectedSourceIds).toContain(coordinateProducers[0]!);
-    expect(invalidation.affectedSourceIds).toContain(coordinateConsumers[0]!);
+    expect(invalidation.affectedSourceIds).toContain(coordinateProducers[0]);
+    expect(invalidation.affectedSourceIds).toContain(coordinateConsumers[0]);
   });
 
   it("records named-node-geometry consumers for numeric anchors", () => {
@@ -174,9 +174,9 @@ describe("semantic dependencies / integration", () => {
     expect(geometryConsumers.length).toBeGreaterThan(0);
 
     const invalidation = collectGeometryInvalidation(graph, {
-      changedSourceIds: [geometryProducers[0]!]
+      changedSourceIds: [geometryProducers[0]]
     });
-    expect(invalidation.affectedSourceIds).toContain(geometryProducers[0]!);
+    expect(invalidation.affectedSourceIds).toContain(geometryProducers[0]);
     for (const consumer of geometryConsumers) {
       expect(invalidation.affectedSourceIds).toContain(consumer);
     }
@@ -203,9 +203,9 @@ describe("semantic dependencies / integration", () => {
     expect(pointPConsumers.length).toBeGreaterThan(0);
 
     const invalidation = collectGeometryInvalidation(graph, {
-      changedSourceIds: [pathAProducers[0]!]
+      changedSourceIds: [pathAProducers[0]]
     });
-    expect(invalidation.affectedSourceIds).toContain(pathAProducers[0]!);
+    expect(invalidation.affectedSourceIds).toContain(pathAProducers[0]);
     for (const sourceId of pathAConsumers) {
       expect(invalidation.affectedSourceIds).toContain(sourceId);
     }
@@ -245,10 +245,10 @@ describe("semantic dependencies / integration", () => {
     expect(opaqueSources.length).toBeGreaterThan(0);
 
     const opaqueInvalidation = collectGeometryInvalidation(graph, {
-      changedSourceIds: [opaqueSources[0]!]
+      changedSourceIds: [opaqueSources[0]]
     });
     expect(opaqueInvalidation.reachedOpaque).toBe(true);
-    expect(opaqueInvalidation.opaqueSourceIds).toContain(opaqueSources[0]!);
+    expect(opaqueInvalidation.opaqueSourceIds).toContain(opaqueSources[0]);
     for (const consumer of plainConsumers) {
       expect(opaqueInvalidation.affectedSourceIds).not.toContain(consumer);
     }

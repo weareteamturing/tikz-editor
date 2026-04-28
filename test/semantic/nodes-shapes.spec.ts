@@ -5,7 +5,6 @@ import {
   firstElementOfKind,
   elementsOfKind
 } from "./helpers.js";
-import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../../packages/core/src/semantic/types.js";
 
 function expectLinearTransform(
   transform: { a: number; b: number; c: number; d: number } | undefined,

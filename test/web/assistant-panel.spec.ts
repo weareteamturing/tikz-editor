@@ -64,7 +64,7 @@ describe("AssistantPanel image paste", () => {
 
     const state = useEditorStore.getState();
     const docId = state.activeDocumentId;
-    const doc = state.documents[docId]!;
+    const doc = state.documents[docId];
     useEditorStore.setState({
       ...state,
       documents: {
@@ -132,7 +132,7 @@ describe("AssistantPanel image paste", () => {
   it("shows attached image thumbnails in user message history", async () => {
     const state = useEditorStore.getState();
     const docId = state.activeDocumentId;
-    const doc = state.documents[docId]!;
+    const doc = state.documents[docId];
     await act(async () => {
       useEditorStore.setState({
         ...state,
@@ -159,7 +159,7 @@ describe("AssistantPanel image paste", () => {
       );
     });
 
-    const thumb = container.querySelector('img[alt="Attachment 1"]') as HTMLImageElement | null;
+    const thumb = container.querySelector<HTMLImageElement>('img[alt="Attachment 1"]');
     expect(thumb).not.toBeNull();
     expect(thumb?.src).toContain("data:image/png;base64,Zm9v");
   });
@@ -199,7 +199,7 @@ describe("AssistantPanel image paste", () => {
   it("renders fileChange items as edited code with diff stats and diff text", async () => {
     const state = useEditorStore.getState();
     const docId = state.activeDocumentId;
-    const doc = state.documents[docId]!;
+    const doc = state.documents[docId];
     await act(async () => {
       useEditorStore.setState({
         ...state,
@@ -236,7 +236,7 @@ describe("AssistantPanel image paste", () => {
   it("renames figure.tex read command execution to 'Read the code'", async () => {
     const state = useEditorStore.getState();
     const docId = state.activeDocumentId;
-    const doc = state.documents[docId]!;
+    const doc = state.documents[docId];
     await act(async () => {
       useEditorStore.setState({
         ...state,

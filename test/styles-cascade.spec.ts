@@ -117,7 +117,7 @@ describe("styles cascade model", () => {
 
     const result = applyEditAction(source, [], {
       kind: "setProperty",
-      elementId: declaration!.writeTargets[0]!.elementId,
+      elementId: declaration!.writeTargets[0].elementId,
       level: "named-style",
       key: "draw",
       value: "blue"
@@ -462,7 +462,7 @@ describe("styles cascade integration edits", () => {
       expect(index).toBeGreaterThanOrEqual(0);
     }
     for (let index = 1; index < indexes.length; index += 1) {
-      expect(indexes[index]!).toBeGreaterThan(indexes[index - 1]!);
+      expect(indexes[index]).toBeGreaterThan(indexes[index - 1]);
     }
 
     const { rendered: disabledRendered, element: disabledElement } = firstPath(disabledSource);

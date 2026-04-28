@@ -77,7 +77,7 @@ describe("StylesPanel integration", () => {
 
       const { container, root } = await mountStylesPanel();
     try {
-      const keyInputs = Array.from(container.querySelectorAll('input[aria-label="Property name"]')) as HTMLInputElement[];
+      const keyInputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[aria-label="Property name"]'));
       const flagInput = keyInputs.find((entry) => entry.value === "fooflag");
       expect(flagInput).toBeDefined();
 
@@ -100,7 +100,7 @@ describe("StylesPanel integration", () => {
 
     const { container, root } = await mountStylesPanel();
     try {
-      const deleteButton = container.querySelector('button[aria-label="Delete draw"]') as HTMLButtonElement | null;
+      const deleteButton = container.querySelector<HTMLButtonElement>('button[aria-label="Delete draw"]');
       expect(deleteButton).not.toBeNull();
 
       await clickButton(deleteButton!);
@@ -122,7 +122,7 @@ describe("StylesPanel integration", () => {
 
     const { container, root } = await mountStylesPanel();
     try {
-      const toggle = container.querySelector('input[aria-label="Toggle draw"]') as HTMLInputElement | null;
+      const toggle = container.querySelector<HTMLInputElement>('input[aria-label="Toggle draw"]');
       expect(toggle).not.toBeNull();
       expect(toggle?.checked).toBe(true);
 
@@ -150,7 +150,7 @@ describe("StylesPanel integration", () => {
 
     const { container, root } = await mountStylesPanel();
     try {
-      const toggle = container.querySelector('input[aria-label="Toggle draw"]') as HTMLInputElement | null;
+      const toggle = container.querySelector<HTMLInputElement>('input[aria-label="Toggle draw"]');
       expect(toggle).not.toBeNull();
       expect(toggle?.checked).toBe(false);
 
@@ -176,7 +176,7 @@ describe("StylesPanel integration", () => {
 
     const { container, root } = await mountStylesPanel();
     try {
-      const toggle = container.querySelector('input[aria-label="Toggle draw"]') as HTMLInputElement | null;
+      const toggle = container.querySelector<HTMLInputElement>('input[aria-label="Toggle draw"]');
       expect(toggle).not.toBeNull();
 
       await act(async () => {
@@ -200,7 +200,7 @@ describe("StylesPanel integration", () => {
 
     const { container, root } = await mountStylesPanel();
     try {
-      const fillToggles = Array.from(container.querySelectorAll('input[aria-label="Toggle fill"]')) as HTMLInputElement[];
+      const fillToggles = Array.from(container.querySelectorAll<HTMLInputElement>('input[aria-label="Toggle fill"]'));
       expect(fillToggles.length).toBeGreaterThan(0);
       const activeFillToggle = fillToggles.find((entry) => entry.checked) ?? null;
       expect(activeFillToggle).not.toBeNull();
@@ -228,7 +228,7 @@ describe("StylesPanel integration", () => {
 
     const { container, root } = await mountStylesPanel();
     try {
-      const fillTogglesBefore = Array.from(container.querySelectorAll('input[aria-label="Toggle fill"]')) as HTMLInputElement[];
+      const fillTogglesBefore = Array.from(container.querySelectorAll<HTMLInputElement>('input[aria-label="Toggle fill"]'));
       const activeFillToggle = fillTogglesBefore.find((entry) => entry.checked) ?? null;
       expect(activeFillToggle).not.toBeNull();
 
@@ -243,7 +243,7 @@ describe("StylesPanel integration", () => {
         seedStylesPanelState(toggledOffSource, [textId]);
       });
 
-      const fillTogglesAfter = Array.from(container.querySelectorAll('input[aria-label="Toggle fill"]')) as HTMLInputElement[];
+      const fillTogglesAfter = Array.from(container.querySelectorAll<HTMLInputElement>('input[aria-label="Toggle fill"]'));
       const disabledFillToggle = fillTogglesAfter.find((entry) => !entry.checked) ?? null;
       expect(disabledFillToggle).not.toBeNull();
 
@@ -280,7 +280,7 @@ describe("StylesPanel integration", () => {
 
     const { container, root } = await mountStylesPanel();
     try {
-      const fillToggles = Array.from(container.querySelectorAll('input[aria-label="Toggle fill"]')) as HTMLInputElement[];
+      const fillToggles = Array.from(container.querySelectorAll<HTMLInputElement>('input[aria-label="Toggle fill"]'));
       const activeFillToggle = fillToggles.find((entry) => entry.checked) ?? null;
       expect(activeFillToggle).not.toBeNull();
 
@@ -312,7 +312,7 @@ describe("StylesPanel integration", () => {
       expect(roundedIndex).toBeGreaterThan(drawIndex);
       expect(lineWidthIndex).toBeGreaterThan(roundedIndex);
 
-      const toggle = container.querySelector('input[aria-label="Toggle rounded corners"]') as HTMLInputElement | null;
+      const toggle = container.querySelector<HTMLInputElement>('input[aria-label="Toggle rounded corners"]');
       expect(toggle).not.toBeNull();
       await act(async () => {
         toggle!.click();
@@ -339,7 +339,7 @@ describe("StylesPanel integration", () => {
 
     const { container, root } = await mountStylesPanel();
     try {
-      const toggle = container.querySelector('input[aria-label="Toggle draw"]') as HTMLInputElement | null;
+      const toggle = container.querySelector<HTMLInputElement>('input[aria-label="Toggle draw"]');
       expect(toggle).not.toBeNull();
       await act(async () => {
         toggle!.click();
@@ -363,7 +363,7 @@ describe("StylesPanel integration", () => {
 
     const { container, root } = await mountStylesPanel();
     try {
-      const toggle = container.querySelector('input[aria-label="Toggle rounded corners"]') as HTMLInputElement | null;
+      const toggle = container.querySelector<HTMLInputElement>('input[aria-label="Toggle rounded corners"]');
       expect(toggle).not.toBeNull();
       await act(async () => {
         toggle!.click();
@@ -387,7 +387,7 @@ describe("StylesPanel integration", () => {
 
     const { container, root } = await mountStylesPanel();
     try {
-      const toggleBefore = container.querySelector('input[aria-label="Toggle draw"]') as HTMLInputElement | null;
+      const toggleBefore = container.querySelector<HTMLInputElement>('input[aria-label="Toggle draw"]');
       expect(toggleBefore).not.toBeNull();
       expect(toggleBefore?.checked).toBe(true);
 
@@ -401,7 +401,7 @@ describe("StylesPanel integration", () => {
         seedStylesPanelState(toggledOffSource, [textId]);
       });
 
-      const drawTogglesAfter = Array.from(container.querySelectorAll('input[aria-label="Toggle draw"]')) as HTMLInputElement[];
+      const drawTogglesAfter = Array.from(container.querySelectorAll<HTMLInputElement>('input[aria-label="Toggle draw"]'));
       expect(drawTogglesAfter.length).toBeGreaterThan(0);
       const disabledToggle = drawTogglesAfter.find((entry) => !entry.checked) ?? null;
       expect(disabledToggle).not.toBeNull();
@@ -428,7 +428,7 @@ describe("StylesPanel integration", () => {
     const { container, root } = await mountStylesPanel();
     try {
       const valueButton = Array.from(container.querySelectorAll("button"))
-        .find((entry) => entry.textContent?.trim() === "bar") as HTMLButtonElement | undefined;
+        .find((entry) => entry.textContent?.trim() === "bar");
       expect(valueButton).toBeDefined();
 
       await clickAndTypeRawValue(valueButton!, "bar", "baz");
@@ -449,11 +449,11 @@ describe("StylesPanel integration", () => {
     const { container, root } = await mountStylesPanel();
     try {
       const addButton = Array.from(container.querySelectorAll("button"))
-        .find((entry) => entry.textContent?.trim() === "+") as HTMLButtonElement | undefined;
+        .find((entry) => entry.textContent?.trim() === "+");
       expect(addButton).toBeDefined();
       await clickButton(addButton!);
 
-      const newPropInput = container.querySelector('input[aria-label="New property name"]') as HTMLInputElement | null;
+      const newPropInput = container.querySelector<HTMLInputElement>('input[aria-label="New property name"]');
       expect(newPropInput).not.toBeNull();
       await commitEditableInput(newPropInput!, "line width");
 
@@ -474,11 +474,11 @@ describe("StylesPanel integration", () => {
     const { container, root } = await mountStylesPanel();
     try {
       const addButton = Array.from(container.querySelectorAll("button"))
-        .find((entry) => entry.textContent?.trim() === "+") as HTMLButtonElement | undefined;
+        .find((entry) => entry.textContent?.trim() === "+");
       expect(addButton).toBeDefined();
       await clickButton(addButton!);
 
-      const newPropInput = container.querySelector('input[aria-label="New property name"]') as HTMLInputElement | null;
+      const newPropInput = container.querySelector<HTMLInputElement>('input[aria-label="New property name"]');
       expect(newPropInput).not.toBeNull();
       await commitEditableInput(newPropInput!, "foobarflag");
 
@@ -528,7 +528,7 @@ describe("StylesPanel integration", () => {
 
     const { container, root } = await mountStylesPanel();
     try {
-      const keyInputs = Array.from(container.querySelectorAll('input[aria-label="Property name"]')) as HTMLInputElement[];
+      const keyInputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[aria-label="Property name"]'));
       const flagInput = keyInputs.find((entry) => entry.value === "fooflag");
       expect(flagInput).toBeDefined();
 

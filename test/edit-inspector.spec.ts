@@ -2635,9 +2635,9 @@ describe("getInspectorDescriptor", () => {
       throw new Error("Expected three text elements");
     }
 
-    const trapezium = getInspectorDescriptor(texts[0]!, { source, editHandles: rendered.semantic.editHandles });
-    const tape = getInspectorDescriptor(texts[1]!, { source, editHandles: rendered.semantic.editHandles });
-    const signal = getInspectorDescriptor(texts[2]!, { source, editHandles: rendered.semantic.editHandles });
+    const trapezium = getInspectorDescriptor(texts[0], { source, editHandles: rendered.semantic.editHandles });
+    const tape = getInspectorDescriptor(texts[1], { source, editHandles: rendered.semantic.editHandles });
+    const signal = getInspectorDescriptor(texts[2], { source, editHandles: rendered.semantic.editHandles });
 
     const leftAngle = getNodePropertyById(trapezium, "node-shape-trapezium-left-angle");
     if (!leftAngle || leftAngle.kind !== "number") {
@@ -2662,7 +2662,7 @@ describe("getInspectorDescriptor", () => {
 
     const applyProperty = (
       currentSource: string,
-      property: typeof leftAngle | typeof stretches | typeof bendTop | typeof bendHeight | typeof signalTo,
+      property: typeof leftAngle | typeof stretches | typeof bendTop | typeof bendHeight  ,
       value: string
     ) => {
       if (!("write" in property) || !property.write) {
@@ -2985,9 +2985,9 @@ describe("getInspectorDescriptor", () => {
       kind: "setProperty",
       elementId: sharedMinimumWidth.write.elementId,
       level: sharedMinimumWidth.write.level,
-      key: mutationSet[0]!.key,
-      value: mutationSet[0]!.value,
-      clearKeys: mutationSet[0]!.clearKeys
+      key: mutationSet[0].key,
+      value: mutationSet[0].value,
+      clearKeys: mutationSet[0].clearKeys
     });
     expect(update.kind).toBe("success");
     if (update.kind !== "success") {
@@ -2997,9 +2997,9 @@ describe("getInspectorDescriptor", () => {
       kind: "setProperty",
       elementId: sharedMinimumWidth.write.elementId,
       level: sharedMinimumWidth.write.level,
-      key: mutationSet[1]!.key,
-      value: mutationSet[1]!.value,
-      clearKeys: mutationSet[1]!.clearKeys
+      key: mutationSet[1].key,
+      value: mutationSet[1].value,
+      clearKeys: mutationSet[1].clearKeys
     });
     expect(update2.kind).toBe("success");
     if (update2.kind !== "success") {

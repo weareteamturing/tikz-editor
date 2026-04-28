@@ -379,7 +379,7 @@ function normalizeInlineTikz(source: string): string | null {
     cursor = skipWhitespaceAndComments(trimmed, parsedOptions.end);
   }
 
-  let body = "";
+  let body: string;
   if (trimmed[cursor] === "{") {
     const parsedBody = readBalancedSegment(trimmed, cursor, "{", "}");
     if (!parsedBody) {
@@ -425,7 +425,7 @@ function normalizeInlineTikzBestEffort(source: string): string | null {
     }
   }
 
-  let body = "";
+  let body: string;
   if (trimmed[cursor] === "{") {
     const parsedBody = readBalancedSegment(trimmed, cursor, "{", "}");
     if (parsedBody) {

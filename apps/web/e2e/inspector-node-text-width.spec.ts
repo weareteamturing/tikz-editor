@@ -61,7 +61,6 @@ test("node text width visual resize remains consistent with source mutation", as
 
   await clickTextHitRegionByTargetId(page, "path:0");
   const input = await nodeTextWidthInput(page);
-  const sourceBefore = await readSource(page);
   const widthBefore = await textHitRegionWidthPx(page, "path:0");
 
   await input.click();

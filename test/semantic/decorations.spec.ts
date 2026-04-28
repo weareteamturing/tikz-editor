@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   evaluateSemantic,
-  firstElementOfKind,
-  elementsOfKind
+  firstElementOfKind
 } from "./helpers.js";
-import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../../packages/core/src/semantic/types.js";
 
 describe("semantic evaluator / decorations", () => {
     it("supports decorate option and decoration key without generic unsupported diagnostics", () => {

@@ -98,7 +98,7 @@ describe("adornment drag placement", () => {
       anchorHalfHeight: 6,
       anchorRadius: 0
     };
-    const adornment: SceneAdornment = {
+    const _adornment: SceneAdornment = {
       targetId: "node-adornment:path:0:pin:0",
       kind: "pin",
       ownerSourceId: "path:0",

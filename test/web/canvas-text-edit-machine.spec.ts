@@ -6,8 +6,7 @@ import {
   reduceCanvasTextEdit,
   type CanvasTextEditAction,
   type CanvasTextEditEffect,
-  type CanvasTextEditState,
-  type CanvasTextInputIntentType
+  type CanvasTextEditState
 } from "../../packages/app/src/ui/canvas-panel/canvas-text-edit-machine";
 import type { EditableTextTarget } from "../../packages/app/src/ui/canvas-panel/types";
 
@@ -76,7 +75,7 @@ function reduceMany(state: CanvasTextEditState, actions: CanvasTextEditAction[])
 
 function reduceInputIntent(
   state: CanvasTextEditState,
-  inputType: CanvasTextInputIntentType | string,
+  inputType: string,
   selectionStart: number,
   selectionEnd: number,
   data: string | null = null
@@ -471,9 +470,7 @@ describe("canvas text edit machine", () => {
       for (let step = 0; step < 120; step += 1) {
         const roll = rng();
         const previous = state;
-        let reduced:
-          | { state: CanvasTextEditState; effects: CanvasTextEditEffect[] }
-          | null = null;
+        let reduced: { state: CanvasTextEditState; effects: CanvasTextEditEffect[] };
 
         if (!state.session || roll < 0.08) {
           reduced = reduceCanvasTextEdit(state, {
@@ -487,7 +484,7 @@ describe("canvas text edit machine", () => {
         } else if (roll < 0.18) {
           const text = state.session.text;
           const insertAt = randomInt(rng, 0, text.length);
-          const token = ["}", "$", "x", " "][randomInt(rng, 0, 3)]!;
+          const token = ["}", "$", "x", " "][randomInt(rng, 0, 3)];
           reduced = reduceInputIntent(state, "insertText", insertAt, insertAt, token);
         } else if (roll < 0.24) {
           const text = state.session.text;
@@ -498,10 +495,10 @@ describe("canvas text edit machine", () => {
             "insertFromDrop",
             "insertParagraph",
             "insertLineBreak"
-          ] as const)[randomInt(rng, 0, 3)]!;
+          ] as const)[randomInt(rng, 0, 3)];
           const data = inputType === "insertParagraph" || inputType === "insertLineBreak"
             ? null
-            : ["R", "DROP", "z"][randomInt(rng, 0, 2)]!;
+            : ["R", "DROP", "z"][randomInt(rng, 0, 2)];
           reduced = reduceInputIntent(state, inputType, a, b, data);
         } else if (roll < 0.36) {
           const text = state.session.text;
@@ -514,7 +511,7 @@ describe("canvas text edit machine", () => {
             "deleteWordForward",
             "deleteSoftLineBackward",
             "deleteSoftLineForward"
-          ] as const)[randomInt(rng, 0, 5)]!;
+          ] as const)[randomInt(rng, 0, 5)];
           reduced = reduceInputIntent(state, inputType, a, b);
         } else if (roll < 0.48) {
           reduced = reduceCanvasTextEdit(state, {
@@ -756,7 +753,6 @@ describe("canvas text edit machine", () => {
         const current = state.session?.text ?? testCase.initialText;
         const caret = state.session?.selectionStart ?? Math.max(0, current.length - 1);
         const nextText = `${current.slice(0, caret)}${ch}${current.slice(caret)}`;
-        const nextCaret = caret + ch.length;
         state = reduceInputIntent(state, "insertText", caret, caret, ch).state;
         sourceRevision += 1;
         state = reduceCanvasTextEdit(state, {

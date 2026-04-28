@@ -401,7 +401,7 @@ test("canvas supports two-finger pinch zoom on touch devices", async ({ page }) 
 
   const readStageMetrics = async () => {
     return await page.evaluate(() => {
-      const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+      const viewport = document.querySelector("[data-canvas-viewport='true']");
       if (!viewport) {
         return null;
       }
@@ -431,7 +431,7 @@ test("canvas supports two-finger pinch zoom on touch devices", async ({ page }) 
   expect(before).not.toBeNull();
 
   await page.evaluate(() => {
-    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    const viewport = document.querySelector("[data-canvas-viewport='true']");
     if (!viewport) {
       throw new Error("Canvas viewport not found.");
     }
@@ -836,7 +836,7 @@ test("selected scope drag tracks cursor displacement without runaway shifts", as
     const selected = await readSelectedSourceIds(page);
     return selected.length === 1 && selected[0]?.startsWith("scope:") ? selected[0] : null;
   }).not.toBeNull();
-  const scopeId = (await readSelectedSourceIds(page))[0] as string;
+  const scopeId = (await readSelectedSourceIds(page))[0];
   await expect.poll(async () => readSelectionOverlayBoxSourceIds(page)).toEqual([scopeId]);
 
   const beforeBox = await page.locator(`[data-selection-overlay-box-source-id='${scopeId}']`).boundingBox();
@@ -1046,7 +1046,7 @@ test("scope resize keeps the opposite edge visually anchored during drag", async
       if (!active) {
         return;
       }
-      const box = document.querySelector("[data-selection-overlay-box-source-id='scope:1']") as SVGGraphicsElement | null;
+      const box = document.querySelector("[data-selection-overlay-box-source-id='scope:1']");
       if (box) {
         const rect = box.getBoundingClientRect();
         samples.push({ left: rect.left, bottom: rect.bottom });
@@ -1293,8 +1293,8 @@ test("child-hit-only scope targeting does not select scope on empty interior cli
   await expect.poll(async () => page.locator("[data-hit-region-target-id='path:2']").count()).toBeGreaterThan(0);
 
   const clickPoint = await page.evaluate(() => {
-    const left = document.querySelector("[data-hit-region-target-id='path:1']") as SVGGraphicsElement | null;
-    const right = document.querySelector("[data-hit-region-target-id='path:2']") as SVGGraphicsElement | null;
+    const left = document.querySelector("[data-hit-region-target-id='path:1']");
+    const right = document.querySelector("[data-hit-region-target-id='path:2']");
     if (!left || !right) {
       throw new Error("Expected node hit regions for grouped children.");
     }
@@ -1361,11 +1361,11 @@ test("canvas drop svg inserts a scope-wrapped import", async ({ page }) => {
 \end{tikzpicture}`);
 
   await page.evaluate(() => {
-    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    const viewport = document.querySelector("[data-canvas-viewport='true']");
     if (!viewport) {
       throw new Error("Canvas viewport not found.");
     }
-    const svg = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 12 12\"><path d=\"M1 1 L11 11\" stroke=\"black\"/></svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12"><path d="M1 1 L11 11" stroke="black"/></svg>`;
     const dataTransfer = new DataTransfer();
     dataTransfer.items.add(new File([svg], "drop.svg", { type: "image/svg+xml" }));
     viewport.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer }));
@@ -1404,7 +1404,7 @@ test("canvas paste custom svg fallback shows warning for invalid svg data", asyn
 \end{tikzpicture}`);
 
   await page.evaluate(() => {
-    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    const viewport = document.querySelector("[data-canvas-viewport='true']");
     if (!viewport) {
       throw new Error("Canvas viewport not found.");
     }
@@ -1454,7 +1454,7 @@ test("canvas paste custom keynote fallback inserts a scope-wrapped import", asyn
 \end{tikzpicture}`);
 
   await page.evaluate(() => {
-    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    const viewport = document.querySelector("[data-canvas-viewport='true']");
     if (!viewport) {
       throw new Error("Canvas viewport not found.");
     }
@@ -1496,7 +1496,7 @@ test("canvas paste custom powerpoint gvml fallback inserts a scope-wrapped impor
 \end{tikzpicture}`);
 
   await page.evaluate(() => {
-    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    const viewport = document.querySelector("[data-canvas-viewport='true']");
     if (!viewport) {
       throw new Error("Canvas viewport not found.");
     }
@@ -1538,7 +1538,7 @@ test("canvas paste custom powerpoint gvml fallback shows warning for invalid gvm
 \end{tikzpicture}`);
 
   await page.evaluate(() => {
-    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    const viewport = document.querySelector("[data-canvas-viewport='true']");
     if (!viewport) {
       throw new Error("Canvas viewport not found.");
     }
@@ -1586,7 +1586,7 @@ test("canvas paste prefers custom desktop tikz payload over plain text fallback"
 \end{tikzpicture}`);
 
   await page.evaluate(() => {
-    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    const viewport = document.querySelector("[data-canvas-viewport='true']");
     if (!viewport) {
       throw new Error("Canvas viewport not found.");
     }

@@ -26,7 +26,7 @@ function normalizeSourceWhitespace(source: string): string {
 
 async function readRightmostResizeHandleCenter(page: import("@playwright/test").Page): Promise<{ x: number; y: number }> {
   const center = await page.evaluate(() => {
-    const handles = Array.from(document.querySelectorAll('[data-handle-kind="resize-element"]')) as HTMLElement[];
+    const handles = Array.from(document.querySelectorAll('[data-handle-kind="resize-element"]'));
     if (handles.length === 0) {
       return null;
     }
@@ -52,7 +52,7 @@ async function readCursorDistanceToRightmostResizeHandle(
   cursor: { x: number; y: number }
 ): Promise<number> {
   return await page.evaluate((target) => {
-    const handles = Array.from(document.querySelectorAll('[data-handle-kind="resize-element"]')) as HTMLElement[];
+    const handles = Array.from(document.querySelectorAll('[data-handle-kind="resize-element"]'));
     if (handles.length === 0) {
       return Number.POSITIVE_INFINITY;
     }
@@ -74,7 +74,7 @@ async function readCursorDistanceToRightmostResizeHandle(
 
 async function readResizeHandleSpanPt(page: import("@playwright/test").Page): Promise<{ widthPt: number; heightPt: number } | null> {
   return await page.evaluate(() => {
-    const resizeHandles = Array.from(document.querySelectorAll('[data-handle-kind="resize-element"]')) as HTMLElement[];
+    const resizeHandles = Array.from(document.querySelectorAll('[data-handle-kind="resize-element"]'));
     if (resizeHandles.length === 0) {
       return null;
     }
@@ -91,7 +91,7 @@ async function readResizeHandleSpanPt(page: import("@playwright/test").Page): Pr
       minY = Math.min(minY, centerY);
       maxY = Math.max(maxY, centerY);
     }
-    const svgs = Array.from(document.querySelectorAll("[data-canvas-viewport='true'] svg")) as SVGSVGElement[];
+    const svgs = Array.from(document.querySelectorAll("[data-canvas-viewport='true'] svg"));
     const svg = svgs[svgs.length - 1];
     if (!svg) {
       return null;
@@ -116,19 +116,6 @@ async function readResizeRoles(page: import("@playwright/test").Page): Promise<s
       .map((element) => element.getAttribute("data-resize-role") ?? "")
       .filter((value) => value.length > 0)
   );
-}
-
-async function doubleClickHitRegion(
-  page: import("@playwright/test").Page,
-  index: number
-): Promise<void> {
-  const region = page.locator("[data-hit-region-target-id]").nth(index);
-  await expect(region).toBeVisible();
-  const target = await region.evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-  });
-  await page.mouse.dblclick(target.x, target.y);
 }
 
 async function doubleClickHitRegionByTargetId(
@@ -505,7 +492,7 @@ test("diamond east-handle drag does not collapse to tiny size", async ({ page })
     let bestIndex = 0;
     let bestX = Number.NEGATIVE_INFINITY;
     for (let index = 0; index < elements.length; index += 1) {
-      const rect = elements[index]!.getBoundingClientRect();
+      const rect = elements[index].getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       if (centerX > bestX) {
         bestX = centerX;
@@ -518,7 +505,7 @@ test("diamond east-handle drag does not collapse to tiny size", async ({ page })
   await expect(eastHandle).toBeVisible();
 
   const baseline = await page.evaluate(() => {
-    const resizeHandles = Array.from(document.querySelectorAll('[data-handle-kind="resize-element"]')) as HTMLElement[];
+    const resizeHandles = Array.from(document.querySelectorAll('[data-handle-kind="resize-element"]'));
     if (resizeHandles.length < 4) {
       return null;
     }
@@ -535,7 +522,7 @@ test("diamond east-handle drag does not collapse to tiny size", async ({ page })
       minY = Math.min(minY, centerY);
       maxY = Math.max(maxY, centerY);
     }
-    const svgs = Array.from(document.querySelectorAll("[data-canvas-viewport='true'] svg")) as SVGSVGElement[];
+    const svgs = Array.from(document.querySelectorAll("[data-canvas-viewport='true'] svg"));
     const svg = svgs[svgs.length - 1];
     if (!svg) {
       return null;
@@ -696,7 +683,7 @@ test("horizontal resize on text-width nodes updates text width, not minimum widt
     let bestIndex = 0;
     let bestX = Number.NEGATIVE_INFINITY;
     for (let index = 0; index < elements.length; index += 1) {
-      const rect = elements[index]!.getBoundingClientRect();
+      const rect = elements[index].getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       if (centerX > bestX) {
         bestX = centerX;
@@ -1004,8 +991,8 @@ test("dense paths require double click before showing interior edit handles", as
     throw new Error("Expected exactly one dense path selection hint.");
   }
 
-  const denseTargetId = firstIsDense ? firstSelected[0]! : secondSelected[0]!;
-  const shortTargetId = firstIsDense ? secondSelected[0]! : firstSelected[0]!;
+  const denseTargetId = firstIsDense ? firstSelected[0] : secondSelected[0];
+  const shortTargetId = firstIsDense ? secondSelected[0] : firstSelected[0];
 
   await clickHitRegionByTargetId(page, denseTargetId);
   await expect(page.locator(`[data-handle-kind="move-handle"][data-source-id="${denseTargetId}"]`)).toHaveCount(0);

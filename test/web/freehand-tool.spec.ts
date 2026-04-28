@@ -70,9 +70,9 @@ describe("freehand-tool", () => {
       wp(cm(1.35), cm(0.03)),
       wp(cm(1.8), cm(0.01))
     ];
-    let draft = createFreehandToolDraft(points[0]!, 1);
+    let draft = createFreehandToolDraft(points[0], 1);
     for (let i = 1; i < points.length; i += 1) {
-      draft = appendFreehandToolPoint(draft, points[i]!);
+      draft = appendFreehandToolPoint(draft, points[i]);
     }
 
     const lowSmoothing = generateFreehandToolSource(draft, 1, 4);
@@ -92,9 +92,9 @@ describe("freehand-tool", () => {
       wp(cm(1.35), cm(0.02)),
       wp(cm(1.8), cm(0))
     ];
-    let draft = createFreehandToolDraft(points[0]!, 1);
+    let draft = createFreehandToolDraft(points[0], 1);
     for (let i = 1; i < points.length; i += 1) {
-      draft = appendFreehandToolPoint(draft, points[i]!);
+      draft = appendFreehandToolPoint(draft, points[i]);
     }
 
     const lowSmoothing = resolveFreehandPreviewSegments(draft, 4, 1);

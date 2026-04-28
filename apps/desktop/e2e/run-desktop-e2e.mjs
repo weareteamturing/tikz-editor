@@ -52,13 +52,14 @@ try {
   const runStartedAt = Date.now();
   let passed = 0;
   for (const [name, scenario] of scenarios) {
+    const scenarioName = String(name);
     const scenarioStartedAt = Date.now();
     try {
       await scenario(browser);
       passed += 1;
-      console.log(`[desktop-e2e] PASS ${name} (${Date.now() - scenarioStartedAt}ms)`);
+      console.log(`[desktop-e2e] PASS ${scenarioName} (${Date.now() - scenarioStartedAt}ms)`);
     } catch (error) {
-      console.error(`[desktop-e2e] FAIL ${name} (${Date.now() - scenarioStartedAt}ms)`);
+      console.error(`[desktop-e2e] FAIL ${scenarioName} (${Date.now() - scenarioStartedAt}ms)`);
       throw error;
     }
   }

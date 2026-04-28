@@ -59,7 +59,14 @@ export default tseslint.config(
       "@typescript-eslint/no-floating-promises": "warn",
       "@typescript-eslint/no-misused-promises": "warn",
       "@typescript-eslint/no-unnecessary-type-assertion": "warn",
-      "@typescript-eslint/no-unused-vars": "warn",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          varsIgnorePattern: "^_"
+        }
+      ],
       "@typescript-eslint/await-thenable": "warn",
       "@typescript-eslint/no-base-to-string": "warn",
       "@typescript-eslint/no-duplicate-type-constituents": "warn",
@@ -81,14 +88,18 @@ export default tseslint.config(
     }
   },
   {
-    files: ["test/**", "apps/web/e2e/**", "apps/web/profiling/**"],
+    files: ["test/**", "apps/web/e2e/**", "apps/web/profiling/**", "apps/desktop/e2e/**"],
     rules: {
+      "@typescript-eslint/require-await": "off",
+      "@typescript-eslint/await-thenable": "off",
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unsafe-assignment": "off",
       "@typescript-eslint/no-unsafe-member-access": "off",
       "@typescript-eslint/no-unsafe-call": "off",
       "@typescript-eslint/no-unsafe-argument": "off",
-      "@typescript-eslint/no-unsafe-return": "off"
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/no-unsafe-unary-minus": "off",
+      "@typescript-eslint/unbound-method": "off"
     }
   },
   {
@@ -109,7 +120,14 @@ export default tseslint.config(
       "@typescript-eslint/no-duplicate-type-constituents": "error",
       "@typescript-eslint/no-redundant-type-constituents": "error",
       "@typescript-eslint/no-unnecessary-type-assertion": "error",
-      "@typescript-eslint/no-unused-vars": "error",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          varsIgnorePattern: "^_"
+        }
+      ],
       "@typescript-eslint/unbound-method": "error",
       "unicorn/catch-error-name": "error",
       "unicorn/no-new-array": "error",
@@ -149,7 +167,14 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-argument": "error",
       "@typescript-eslint/no-unsafe-return": "error",
       "@typescript-eslint/no-unnecessary-type-assertion": "error",
-      "@typescript-eslint/no-unused-vars": "error",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          varsIgnorePattern: "^_"
+        }
+      ],
       "@typescript-eslint/no-unsafe-unary-minus": "error",
       "no-useless-assignment": "error",
       "react-hooks/exhaustive-deps": "error"
