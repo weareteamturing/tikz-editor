@@ -11,14 +11,21 @@ type OpenExampleModalProps = {
 
 export function OpenExampleModal({ examples, onClose, onSelectExample }: OpenExampleModalProps) {
   return (
-    <Modal onClose={onClose} className={css.dialog} labelledBy="open-example-title" dataTestId="open-example-modal">
-        <div className={css.header}>
-          <h2 id="open-example-title" className={css.title}>Open Example</h2>
-          <button type="button" className={css.closeBtn} onClick={onClose}>
-            Close
-          </button>
-        </div>
-
+    <Modal
+      onClose={onClose}
+      size="xl"
+      labelledBy="open-example-title"
+      dataTestId="open-example-modal"
+      className={css.dialog}
+    >
+      <Modal.Header
+        title="Open Example"
+        titleId="open-example-title"
+        showCloseButton
+        onClose={onClose}
+        closeAriaLabel="Close open example dialog"
+      />
+      <Modal.Body padding="none">
         <div className={css.grid}>
           {examples.map((example) => {
             const preview = GENERATED_OPEN_EXAMPLE_PREVIEWS[example.id] ?? null;
@@ -64,6 +71,7 @@ export function OpenExampleModal({ examples, onClose, onSelectExample }: OpenExa
             );
           })}
         </div>
+      </Modal.Body>
     </Modal>
   );
 }

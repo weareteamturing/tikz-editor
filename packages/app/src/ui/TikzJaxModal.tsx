@@ -252,80 +252,87 @@ export function TikzJaxModal({
     phase === "rendering" ? "Compiling…" :
     null;
 
-  return (
-    <Modal onClose={onClose} className={css.dialog} labelledBy="tikzjax-title">
-        <div className={css.header}>
-          <h2 id="tikzjax-title" className={css.title}>Compiled Picture</h2>
-          <div className={css.headerActions}>
-            <button
-              type="button"
-              className={css.closeBtn}
-              disabled={phase !== "done"}
-              onClick={() => {
-                const svg = outputRef.current?.querySelector("svg");
-                if (!svg) return;
-                const blob = new Blob([svg.outerHTML], { type: "image/svg+xml" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = "tikz.svg";
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-            >
-              Download SVG
-            </button>
-            {showOpenInNewTab ? (
-              <button
-                type="button"
-                className={css.closeBtn}
-                disabled={phase !== "done"}
-                onClick={() => {
-                  const svg = outputRef.current?.querySelector("svg");
-                  if (!svg) return;
-                  const html = `<!DOCTYPE html>
+  const downloadSvg = () => {
+    const svg = outputRef.current?.querySelector("svg");
+    if (!svg) return;
+    const blob = new Blob([svg.outerHTML], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "tikz.svg";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const openInNewTab = () => {
+    const svg = outputRef.current?.querySelector("svg");
+    if (!svg) return;
+    const html = `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
 <style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff}svg{width:auto;height:auto;max-width:90vw;max-height:90vh}</style>
 </head><body>${svg.outerHTML}</body></html>`;
-                  const blob = new Blob([html], { type: "text/html" });
-                  const url = URL.createObjectURL(blob);
-                  window.open(url, "_blank");
-                }}
-              >
-                Open in New Tab
-              </button>
-            ) : null}
-            {showLogToggle && phase === "done" && nativeLog.trim().length > 0 ? (
-              <button
-                type="button"
-                className={css.closeBtn}
-                onClick={() => setShowLogView((prev) => !prev)}
-              >
-                {showLogView ? "Show Image" : "Show Log"}
-              </button>
-            ) : null}
-            <button type="button" className={css.closeBtn} onClick={onClose}>Close</button>
-          </div>
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+  };
+
+  return (
+    <Modal
+      variant="panel"
+      onClose={onClose}
+      labelledBy="tikzjax-title"
+      draggable
+      resizable
+      closeOnBackdrop
+      initialWidth={760}
+      initialHeight={560}
+      className={css.dialog}
+    >
+      <Modal.Header
+        title="Compiled Picture"
+        titleId="tikzjax-title"
+        draggable
+        showCloseButton
+        onClose={onClose}
+        closeAriaLabel="Close compiled picture"
+      />
+
+      {statusText ? (
+        <div className={css.statusBar} data-select="text">{statusText}</div>
+      ) : null}
+
+      {phase === "native-error" ? (
+        <div className={css.fallbackRow}>
+          <Modal.SecondaryButton onClick={() => setPhase("loading-lib")}>
+            Continue with TikZJax Fallback
+          </Modal.SecondaryButton>
         </div>
+      ) : null}
 
-        {statusText ? <div className={css.status} data-select="text">{statusText}</div> : null}
-
-        {phase === "native-error" ? (
-          <div className={css.nativeError}>
-            <button
-              type="button"
-              className={css.closeBtn}
-              onClick={() => {
-                setPhase("loading-lib");
-              }}
-            >
-              Continue with TikZJax Fallback
-            </button>
-          </div>
-        ) : null}
-
+      <Modal.Body padding="none">
         <div className={css.output} ref={outputRef} />
+      </Modal.Body>
+
+      <Modal.Footer align="between">
+        <div className={css.footerLeft}>
+          {showLogToggle && phase === "done" && nativeLog.trim().length > 0 ? (
+            <Modal.GhostButton onClick={() => setShowLogView((prev) => !prev)}>
+              {showLogView ? "Show Image" : "Show Log"}
+            </Modal.GhostButton>
+          ) : null}
+        </div>
+        <div className={css.footerRight}>
+          {showOpenInNewTab ? (
+            <Modal.SecondaryButton disabled={phase !== "done"} onClick={openInNewTab}>
+              Open in New Tab
+            </Modal.SecondaryButton>
+          ) : null}
+          <Modal.PrimaryButton disabled={phase !== "done"} onClick={downloadSvg}>
+            Download SVG
+          </Modal.PrimaryButton>
+        </div>
+      </Modal.Footer>
     </Modal>
   );
 }

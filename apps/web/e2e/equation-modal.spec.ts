@@ -53,7 +53,7 @@ test("insert equation draft persists after closing and reopening modal", async (
     field.dispatchEvent(new Event("input", { bubbles: true }));
   });
 
-  await page.mouse.click(10, 10);
+  await page.keyboard.press("Escape");
   await expect(page.getByTestId("equation-modal")).toHaveCount(0);
 
   await page.keyboard.press("ControlOrMeta+Shift+E");

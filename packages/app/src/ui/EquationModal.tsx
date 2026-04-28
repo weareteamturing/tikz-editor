@@ -144,34 +144,46 @@ export function EquationModal({ mode, initialLatex = "", onClose, onConfirm, onV
   const canConfirm = useMemo(() => value.trim().length > 0 && phase === "ready", [phase, value]);
 
   return (
-    <Modal onClose={onClose} className={css.dialog} labelledBy="equation-title" dataTestId="equation-modal">
-      <div className={css.header}>
-        <div>
-          <h2 id="equation-title" className={css.title}>{title}</h2>
-          <p className={css.subtitle} data-select="text">
-            {mode === "insert" ? "Type a LaTeX equation, then insert it as a node." : "Update the selected node equation."}
-          </p>
-        </div>
-        <div className={css.actions}>
-          <button type="button" className={css.secondaryButton} onClick={onClose}>Cancel</button>
-          <button
-            type="button"
-            className={css.primaryButton}
-            disabled={!canConfirm}
-            onClick={() => {
-              if (!canConfirm) {
-                return;
-              }
-              onConfirm(value);
-            }}
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-      {phase === "loading" ? <div className={css.status} data-select="text">Loading equation editor…</div> : null}
-      {phase === "error" ? <div className={css.statusError} data-select="text">Failed to load equation editor.</div> : null}
-      <div className={css.editorHost} ref={hostRef} />
+    <Modal
+      variant="panel"
+      onClose={onClose}
+      labelledBy="equation-title"
+      dataTestId="equation-modal"
+      draggable
+      resizable
+      closeOnBackdrop
+      initialWidth={720}
+      className={css.dialog}
+    >
+      <Modal.Header
+        title={title}
+        titleId="equation-title"
+        draggable
+        showCloseButton
+        onClose={onClose}
+        closeAriaLabel="Close equation editor"
+      />
+
+      <Modal.Body>
+        {phase === "loading" ? <div className={css.status} data-select="text">Loading equation editor…</div> : null}
+        {phase === "error" ? <div className={css.statusError} data-select="text">Failed to load equation editor.</div> : null}
+        <div className={css.editorHost} ref={hostRef} />
+      </Modal.Body>
+
+      <Modal.Footer>
+        <Modal.SecondaryButton onClick={onClose}>Cancel</Modal.SecondaryButton>
+        <Modal.PrimaryButton
+          disabled={!canConfirm}
+          onClick={() => {
+            if (!canConfirm) {
+              return;
+            }
+            onConfirm(value);
+          }}
+        >
+          {confirmLabel}
+        </Modal.PrimaryButton>
+      </Modal.Footer>
     </Modal>
   );
 }

@@ -163,49 +163,25 @@ export function SvgExportModal({ svgResult, onClose }: SvgExportModalProps) {
   return (
     <Modal
       onClose={onClose}
-      className={css.dialog}
+      size="xl"
       labelledBy="svg-export-title"
       dataTestId="svg-export-modal"
+      className={css.dialog}
     >
-        <div className={css.header}>
-          <div>
-            <h2 id="svg-export-title" className={css.title}>Export SVG</h2>
-            <p className={css.subtitle} data-select="text">Review the generated SVG, make edits, then beautify, compress, copy, or download it.</p>
-          </div>
-          <div className={css.actions}>
-            <button type="button" className={css.secondaryButton} data-testid="svg-export-cancel" onClick={onClose}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className={css.secondaryButton}
-              data-testid="svg-export-copy"
-              disabled={isBusy || !canExportMarkup}
-              onClick={() => {
-                void handleCopy();
-              }}
-            >
-              {copyPending ? "Copying..." : "Copy SVG"}
-            </button>
-            <button
-              type="button"
-              className={css.primaryButton}
-              data-testid="svg-export-download"
-              disabled={isBusy || !canExportMarkup}
-              onClick={() => {
-                void handleDownload();
-              }}
-            >
-              {downloadPending ? "Exporting..." : "Download SVG"}
-            </button>
-          </div>
-        </div>
+      <Modal.Header
+        title="Export SVG"
+        titleId="svg-export-title"
+        showCloseButton
+        onClose={onClose}
+        closeAriaLabel="Close SVG export"
+      />
 
+      <Modal.Body padding="none" scroll={false}>
         <div className={css.body}>
           <div className={css.previewColumn}>
             <div className={css.previewFrame}>
               {loadingMarkup ? (
-                <div className={css.previewStatus} data-select="text">Preparing SVG export...</div>
+                <div className={css.previewStatus} data-select="text">Preparing SVG export…</div>
               ) : loadError ? (
                 <div className={css.previewStatus} data-select="text">{loadError}</div>
               ) : !validation.valid ? (
@@ -218,7 +194,7 @@ export function SvgExportModal({ svgResult, onClose }: SvgExportModalProps) {
             </div>
 
             <div className={css.metaRow} data-select="text">
-              <span>{svgResult.viewBox.width.toFixed(1)} x {svgResult.viewBox.height.toFixed(1)}pt</span>
+              <span>{svgResult.viewBox.width.toFixed(1)} × {svgResult.viewBox.height.toFixed(1)}pt</span>
               <span>{markup.length.toLocaleString()} chars</span>
               <span>{lineCount.toLocaleString()} lines</span>
               <span>{hasEdits ? "Edited" : "Generated from render"}</span>
@@ -240,29 +216,23 @@ export function SvgExportModal({ svgResult, onClose }: SvgExportModalProps) {
               <div className={css.field}>
                 <span className={css.label}>SVGO tools</span>
                 <div className={css.transformRow}>
-                  <button
-                    type="button"
-                    className={css.secondaryButton}
+                  <Modal.SecondaryButton
                     disabled={loadingMarkup || loadError != null || optimizerState.status !== "ready" || activeTransform != null}
                     onClick={() => {
                       void handleTransform("beautify");
                     }}
                   >
-                    {activeTransform === "beautify" ? "Beautifying..." : "Beautify"}
-                  </button>
-                  <button
-                    type="button"
-                    className={css.secondaryButton}
+                    {activeTransform === "beautify" ? "Beautifying…" : "Beautify"}
+                  </Modal.SecondaryButton>
+                  <Modal.SecondaryButton
                     disabled={loadingMarkup || loadError != null || optimizerState.status !== "ready" || activeTransform != null}
                     onClick={() => {
                       void handleTransform("compress");
                     }}
                   >
-                    {activeTransform === "compress" ? "Compressing..." : "Compress"}
-                  </button>
-                  <button
-                    type="button"
-                    className={css.ghostButton}
+                    {activeTransform === "compress" ? "Compressing…" : "Compress"}
+                  </Modal.SecondaryButton>
+                  <Modal.GhostButton
                     disabled={loadingMarkup || !hasEdits}
                     onClick={() => {
                       setMarkup(baselineMarkup);
@@ -270,7 +240,7 @@ export function SvgExportModal({ svgResult, onClose }: SvgExportModalProps) {
                     }}
                   >
                     Reset
-                  </button>
+                  </Modal.GhostButton>
                 </div>
                 {optimizerState.status === "error" ? (
                   <span className={css.help} data-select="text">SVGO unavailable: {optimizerState.message}</span>
@@ -303,6 +273,31 @@ export function SvgExportModal({ svgResult, onClose }: SvgExportModalProps) {
             </label>
           </div>
         </div>
+      </Modal.Body>
+
+      <Modal.Footer>
+        <Modal.SecondaryButton data-testid="svg-export-cancel" onClick={onClose}>
+          Cancel
+        </Modal.SecondaryButton>
+        <Modal.SecondaryButton
+          data-testid="svg-export-copy"
+          disabled={isBusy || !canExportMarkup}
+          onClick={() => {
+            void handleCopy();
+          }}
+        >
+          {copyPending ? "Copying…" : "Copy SVG"}
+        </Modal.SecondaryButton>
+        <Modal.PrimaryButton
+          data-testid="svg-export-download"
+          disabled={isBusy || !canExportMarkup}
+          onClick={() => {
+            void handleDownload();
+          }}
+        >
+          {downloadPending ? "Exporting…" : "Download SVG"}
+        </Modal.PrimaryButton>
+      </Modal.Footer>
     </Modal>
   );
 }

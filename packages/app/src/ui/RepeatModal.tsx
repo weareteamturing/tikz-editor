@@ -38,27 +38,25 @@ export function RepeatModal({
 
   return (
     <Modal
+      variant="panel"
       onClose={onClose}
       labelledBy="repeat-modal-title"
       dataTestId="repeat-modal"
-      className={css.modal}
       draggable
-      dimBackdrop={false}
+      closeOnBackdrop
+      initialWidth={344}
+      className={css.modal}
     >
-      <div className={css.header} data-modal-drag-handle="true">
-        <h2 id="repeat-modal-title" className={css.title}>Repeat</h2>
-        <button
-          type="button"
-          className={css.iconButton}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={onClose}
-          aria-label="Close repeat dialog"
-        >
-          ×
-        </button>
-      </div>
+      <Modal.Header
+        title="Repeat"
+        titleId="repeat-modal-title"
+        draggable
+        showCloseButton
+        onClose={onClose}
+        closeAriaLabel="Close repeat dialog"
+      />
 
-      <div className={css.body}>
+      <Modal.Body padding="compact">
         <div className={css.grid}>
           <label className={css.field}>
             <span>Columns</span>
@@ -118,20 +116,18 @@ export function RepeatModal({
             </strong>
           </div>
         </div>
-      </div>
+      </Modal.Body>
 
-      <div className={css.footer}>
-        <button type="button" className={css.secondaryButton} onClick={onClose}>Cancel</button>
-        <button
-          type="button"
-          className={css.primaryButton}
+      <Modal.Footer>
+        <Modal.SecondaryButton onClick={onClose}>Cancel</Modal.SecondaryButton>
+        <Modal.PrimaryButton
           onClick={onConfirm}
           disabled={confirmDisabled}
           data-testid="repeat-confirm-button"
         >
           Apply
-        </button>
-      </div>
+        </Modal.PrimaryButton>
+      </Modal.Footer>
     </Modal>
   );
 }

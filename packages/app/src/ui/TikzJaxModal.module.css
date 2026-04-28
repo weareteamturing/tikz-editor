@@ -1,100 +1,48 @@
 .dialog {
-  width: min(960px, calc(100vw - 40px));
-  height: clamp(400px, 70vh, 700px);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px;
+  min-width: 480px;
+  min-height: 360px;
 }
 
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.title {
-  margin: 0;
-  font-size: calc(var(--app-ui-scale, 1) * 15px);
-  color: var(--text);
-}
-
-.headerActions {
-  display: flex;
-  gap: 6px;
+.statusBar {
   flex-shrink: 0;
-}
-
-.closeBtn {
-  height: 24px;
-  padding: 0 10px;
-  border: 1px solid var(--border-light);
-  border-radius: 2px;
-  background: var(--bg-app);
-  color: var(--text);
-  font-family: inherit;
+  padding: 6px 14px;
   font-size: calc(var(--app-ui-scale, 1) * 11px);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.closeBtn:hover {
-  background: var(--btn-hover-bg);
-  border-color: var(--border);
-}
-
-.status {
-  font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text-muted);
-  padding: 2px 0;
+  background: color-mix(in srgb, var(--bg-pane) 92%, var(--bg-app));
+  border-bottom: 1px solid var(--border-lighter);
   -webkit-user-select: text;
   user-select: text;
+}
+
+.fallbackRow {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--bg-pane) 92%, var(--bg-app));
+  border-bottom: 1px solid var(--border-lighter);
 }
 
 .output {
   flex: 1;
   min-height: 0;
-  border: 1px solid var(--border-light);
-  background: var(--bg-pane);
+  background: #ffffff;
   overflow: auto;
-  padding: 20px;
+  padding: 18px;
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* tikzjax inserts SVG inside the container div we create */
+[data-color-scheme="dark"] .output {
+  background: #ffffff;
+}
+
 .output :global(> div) {
   width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.nativeError {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px 0;
-}
-
-.errorLog {
-  margin: 0;
-  padding: 8px;
-  font-size: calc(var(--app-ui-scale, 1) * 11px);
-  font-family: monospace;
-  background: var(--bg-pane);
-  border: 1px solid var(--border-light);
-  color: var(--text);
-  overflow: auto;
-  max-height: 200px;
-  white-space: pre-wrap;
-  word-break: break-all;
-  -webkit-user-select: text;
-  user-select: text;
 }
 
 .output :global(svg) {
@@ -112,7 +60,7 @@
   height: 100%;
   padding: 8px;
   font-size: calc(var(--app-ui-scale, 1) * 11px);
-  font-family: monospace;
+  font-family: var(--font-mono);
   background: var(--bg-pane);
   color: var(--text);
   overflow: auto;
@@ -120,4 +68,16 @@
   word-break: break-word;
   -webkit-user-select: text;
   user-select: text;
+}
+
+.footerLeft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footerRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }

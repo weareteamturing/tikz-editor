@@ -1,41 +1,8 @@
-.panel {
-  width: min(400px, calc(100vw - 40px));
-}
-
-.dialog {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: 10px;
-}
-
-.titleBar {
-  display: flex;
-  align-items: center;
-  padding: 10px 14px;
-  background: var(--bg-header);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.title {
-  font-size: calc(var(--app-ui-scale, 1) * 13px);
-  font-weight: 600;
-  color: var(--text);
-  margin: 0;
-}
-
-.body {
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
 .message {
   margin: 0;
   font-size: calc(var(--app-ui-scale, 1) * 12px);
-  color: var(--text-muted);
+  line-height: 1.4;
+  color: var(--text);
 }
 
 .list {
@@ -45,43 +12,4 @@
   overflow: auto;
   font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text-muted);
-}
-
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  padding-top: 4px;
-}
-
-.primary,
-.secondary {
-  appearance: none;
-  height: 24px;
-  padding: 0 12px;
-  border: 1px solid var(--border-light);
-  border-radius: 5px;
-  background: var(--bg-app);
-  color: var(--text);
-  font-family: inherit;
-  font-size: calc(var(--app-ui-scale, 1) * 11px);
-  cursor: pointer;
-}
-
-.primary:hover,
-.secondary:hover {
-  background: var(--btn-hover-bg);
-  border-color: var(--border);
-}
-
-.primary {
-  background: var(--accent-dark);
-  color: white;
-  border-color: transparent;
-}
-
-.primary:hover {
-  background: var(--accent-dark);
-  filter: brightness(1.1);
-  border-color: transparent;
 }

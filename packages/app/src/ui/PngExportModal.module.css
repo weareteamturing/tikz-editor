@@ -1,98 +1,32 @@
 .dialog {
-  width: min(960px, calc(100vw - 40px));
-  height: min(720px, calc(100vh - 40px));
-  max-height: calc(100vh - 40px);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 16px;
-  overflow: hidden;
-}
-
-.header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.title {
-  margin: 0;
-  font-size: calc(var(--app-ui-scale, 1) * 15px);
-  color: var(--text);
-}
-
-.subtitle {
-  margin: 4px 0 0;
-  font-size: calc(var(--app-ui-scale, 1) * 11px);
-  color: var(--text-muted);
-  max-width: 460px;
-  line-height: 1.4;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.secondaryButton,
-.primaryButton {
-  height: 28px;
-  padding: 0 12px;
-  border: 1px solid var(--border-light);
-  border-radius: 3px;
-  font-family: inherit;
-  font-size: calc(var(--app-ui-scale, 1) * 11px);
-  cursor: pointer;
-}
-
-.secondaryButton {
-  background: var(--bg-app);
-  color: var(--text);
-}
-
-.secondaryButton:hover {
-  background: var(--btn-hover-bg);
-  border-color: var(--border);
-}
-
-.primaryButton {
-  background: var(--accent);
-  border-color: var(--accent-btn-border);
-  color: var(--accent-btn-text);
-}
-
-.primaryButton:hover {
-  filter: brightness(0.98);
-}
-
-.primaryButton:disabled,
-.secondaryButton:disabled {
-  cursor: default;
-  opacity: 0.6;
+  height: min(640px, calc(100vh - 80px));
 }
 
 .body {
+  flex: 1;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(260px, 320px);
-  gap: 16px;
+  gap: 14px;
+  padding: 12px 14px;
+  overflow: hidden;
 }
 
 .previewColumn {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  overflow: hidden;
 }
 
 .previewFrame {
   flex: 1;
-  min-height: 360px;
+  min-height: 280px;
   border: 1px solid var(--border-light);
+  border-radius: 6px;
   overflow: auto;
-  padding: 20px;
+  padding: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -134,8 +68,9 @@
 .previewOverlay {
   position: absolute;
   inset: auto 12px 12px auto;
-  padding: 6px 9px;
-  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  padding: 5px 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 4px;
   background: color-mix(in srgb, var(--bg-pane) 88%, white);
   color: var(--text);
   font-size: calc(var(--app-ui-scale, 1) * 11px);
@@ -159,31 +94,41 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   border: 1px solid var(--border-light);
-  background: var(--bg-app);
-  padding: 14px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-pane) 92%, var(--bg-app));
+  padding: 12px;
+  overflow: auto;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .label {
   font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text);
+  font-weight: 500;
 }
 
 .input {
-  height: 32px;
-  padding: 0 10px;
+  height: 26px;
+  padding: 0 8px;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--bg-pane);
   color: var(--text);
   font: inherit;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
+}
+
+.input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: -1px;
+  border-color: var(--accent);
 }
 
 .help {
@@ -195,19 +140,20 @@
 .checkboxRow {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 8px;
   font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text);
 }
 
 .checkboxRow input {
   margin-top: 2px;
+  accent-color: var(--accent);
 }
 
 .checkboxText {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .helpBlock {
@@ -220,9 +166,9 @@
 .summary {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  border-top: 1px solid var(--border-light);
-  padding-top: 12px;
+  gap: 6px;
+  border-top: 1px solid var(--border-lighter);
+  padding-top: 10px;
 }
 
 .summaryRow {
@@ -234,27 +180,11 @@
 }
 
 @media (max-width: 840px) {
-  .dialog {
-    width: calc(100vw - 20px);
-    height: min(720px, calc(100vh - 20px));
-    max-height: calc(100vh - 20px);
-    padding: 12px;
-  }
-
-  .header {
-    flex-direction: column;
-  }
-
-  .actions {
-    width: 100%;
-    justify-content: flex-end;
-  }
-
   .body {
     grid-template-columns: 1fr;
   }
 
   .previewFrame {
-    min-height: 240px;
+    min-height: 220px;
   }
 }

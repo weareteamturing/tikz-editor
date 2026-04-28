@@ -86,23 +86,18 @@ export function ManageWorkspacesModal({ onClose }: ManageWorkspacesModalProps) {
   return (
     <Modal
       onClose={onClose}
+      size="sm"
       labelledBy="manage-workspaces-modal-title"
       dataTestId="manage-workspaces-modal"
-      className={css.modal}
     >
-      <div className={css.header}>
-        <h2 id="manage-workspaces-modal-title" className={css.title}>Manage Workspaces</h2>
-        <button
-          type="button"
-          className={css.iconButton}
-          onClick={onClose}
-          aria-label="Close manage workspaces dialog"
-        >
-          ×
-        </button>
-      </div>
-
-      <div className={css.body}>
+      <Modal.Header
+        title="Manage Workspaces"
+        titleId="manage-workspaces-modal-title"
+        showCloseButton
+        onClose={onClose}
+        closeAriaLabel="Close manage workspaces dialog"
+      />
+      <Modal.Body>
         {userWorkspaces.length === 0 ? (
           <p className={css.empty}>
             No custom workspaces yet. Use <em>View → Save Workspace As…</em> to save the current layout.
@@ -146,11 +141,11 @@ export function ManageWorkspacesModal({ onClose }: ManageWorkspacesModalProps) {
                   ) : (
                     <span className={css.name}>{ws.name}</span>
                   )}
-                  <div className={css.actions}>
+                  <div className={css.itemActions}>
                     {isEditing ? null : (
                       <button
                         type="button"
-                        className={css.actionButton}
+                        className={css.itemActionButton}
                         onClick={() => startRename(ws.id, ws.name)}
                         data-testid={`manage-workspaces-rename-${ws.id}`}
                       >
@@ -159,7 +154,7 @@ export function ManageWorkspacesModal({ onClose }: ManageWorkspacesModalProps) {
                     )}
                     <button
                       type="button"
-                      className={css.dangerButton}
+                      className={`${css.itemActionButton} ${css.itemActionDanger}`}
                       onClick={() => onDelete(ws.id, ws.name)}
                       data-testid={`manage-workspaces-delete-${ws.id}`}
                     >
@@ -172,11 +167,7 @@ export function ManageWorkspacesModal({ onClose }: ManageWorkspacesModalProps) {
           </ul>
         )}
         {renameError ? <p className={css.warning}>{renameError}</p> : null}
-      </div>
-
-      <div className={css.footer}>
-        <button type="button" className={css.primaryButton} onClick={onClose}>Done</button>
-      </div>
+      </Modal.Body>
     </Modal>
   );
 }

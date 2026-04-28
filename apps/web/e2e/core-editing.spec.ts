@@ -655,7 +655,7 @@ test("group honors editor indent size and supports pointer-up drill-down behavio
   await openMenuCommand(page, "file", "file.open-settings");
   await page.getByTestId("settings-category-editor").click();
   await page.selectOption("#setting-indent-size", "4");
-  await page.getByTestId("settings-modal").getByRole("button", { name: "Close" }).click();
+  await page.getByTestId("settings-modal").getByRole("button", { name: "Close settings" }).click();
 
   await setSource(page, String.raw`\begin{tikzpicture}[every node/.style={fill=blue!10}]
   \node[draw] (A) at (-1, -1) {A};

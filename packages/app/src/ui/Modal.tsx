@@ -1,56 +1,159 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import {
+  type ButtonHTMLAttributes,
+  type CSSProperties,
+  type ReactNode,
+  type PointerEvent as ReactPointerEvent,
+  forwardRef,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import css from "./Modal.module.css";
 
-type ModalProps = {
+type SheetSize = "sm" | "md" | "lg" | "xl" | "auto";
+type ModalVariant = "sheet" | "panel";
+
+type CommonModalProps = {
   onClose: () => void;
   labelledBy?: string;
+  describedBy?: string;
   className?: string;
   dataTestId?: string;
   closeOnEscape?: boolean;
-  closeOnBackdrop?: boolean;
-  dimBackdrop?: boolean;
-  draggable?: boolean;
   children: ReactNode;
 };
 
-export function Modal({
+type SheetProps = CommonModalProps & {
+  variant?: "sheet";
+  size?: SheetSize;
+  closeOnBackdrop?: boolean;
+};
+
+type PanelProps = CommonModalProps & {
+  variant: "panel";
+  draggable?: boolean;
+  resizable?: boolean;
+  closeOnBackdrop?: boolean;
+  initialWidth?: number;
+  initialHeight?: number;
+};
+
+type ModalProps = SheetProps | PanelProps;
+
+const SHEET_SIZE_CLASS: Record<SheetSize, string> = {
+  sm: css.sizeSm,
+  md: css.sizeMd,
+  lg: css.sizeLg,
+  xl: css.sizeXl,
+  auto: css.sizeAuto
+};
+
+export function Modal(props: ModalProps) {
+  if (props.variant === "panel") {
+    return <ModalPanel {...props} />;
+  }
+  return <ModalSheet {...props} />;
+}
+
+function ModalSheet({
   onClose,
+  size = "md",
   labelledBy,
+  describedBy,
   className,
   dataTestId,
   closeOnEscape = true,
   closeOnBackdrop = true,
-  dimBackdrop = true,
-  draggable = false,
   children
-}: ModalProps) {
+}: SheetProps) {
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) {
+      return;
+    }
+    if (!dialog.open) {
+      dialog.showModal();
+    }
+    return () => {
+      if (dialog.open) {
+        dialog.close();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) {
+      return;
+    }
+    function onCancel(event: Event): void {
+      event.preventDefault();
+      if (closeOnEscape) {
+        onClose();
+      }
+    }
+    dialog.addEventListener("cancel", onCancel);
+    return () => dialog.removeEventListener("cancel", onCancel);
+  }, [closeOnEscape, onClose]);
+
+  function onDialogPointerDown(event: ReactPointerEvent<HTMLDialogElement>): void {
+    if (!closeOnBackdrop) {
+      return;
+    }
+    if (event.target === dialogRef.current) {
+      onClose();
+    }
+  }
+
+  const classes = [css.sheet, SHEET_SIZE_CLASS[size], className].filter(Boolean).join(" ");
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className={classes}
+      aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
+      data-testid={dataTestId}
+      onPointerDown={onDialogPointerDown}
+    >
+      {children}
+    </dialog>
+  );
+}
+
+function ModalPanel({
+  onClose,
+  labelledBy,
+  describedBy,
+  className,
+  dataTestId,
+  closeOnEscape = true,
+  closeOnBackdrop = false,
+  draggable = false,
+  resizable = false,
+  initialWidth,
+  initialHeight,
+  children
+}: PanelProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const dragStateRef = useRef<{ pointerId: number; startX: number; startY: number } | null>(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const dragStateRef = useRef<{ pointerId: number; startX: number; startY: number } | null>(null);
 
   useEffect(() => {
     if (!closeOnEscape) {
       return;
     }
-
     function onKeyDown(event: KeyboardEvent): void {
       if (event.key === "Escape") {
         onClose();
       }
     }
-
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [closeOnEscape, onClose]);
-
-  const panelClassName = className ? `${css.panel} ${className}` : css.panel;
-  const backdropClassName = dimBackdrop ? css.backdrop : `${css.backdrop} ${css.backdropClear}`;
-  const panelStyle = useMemo<CSSProperties>(
-    () => draggable
-      ? { transform: `translate(${offset.x}px, ${offset.y}px)` }
-      : {},
-    [draggable, offset.x, offset.y]
-  );
 
   useEffect(() => {
     if (!draggable) {
@@ -89,12 +192,24 @@ export function Modal({
     };
   }, [draggable]);
 
+  function onPanelLayerPointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
+    if (!closeOnBackdrop) {
+      return;
+    }
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
+  }
+
   function onPanelPointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
     if (!draggable) {
       return;
     }
     const target = event.target as HTMLElement | null;
     if (!target?.closest?.("[data-modal-drag-handle='true']")) {
+      return;
+    }
+    if (target.closest("button, input, textarea, [contenteditable='true']")) {
       return;
     }
     dragStateRef.current = {
@@ -105,28 +220,179 @@ export function Modal({
     panelRef.current?.setPointerCapture?.(event.pointerId);
   }
 
+  const style = useMemo<CSSProperties>(() => {
+    const out: CSSProperties = {
+      transform: `translate(${offset.x}px, ${offset.y}px)`
+    };
+    if (initialWidth) {
+      out.width = initialWidth;
+    }
+    if (initialHeight) {
+      out.height = initialHeight;
+    }
+    return out;
+  }, [offset.x, offset.y, initialWidth, initialHeight]);
+
+  const classes = [
+    css.panelWrap,
+    resizable ? css.panelResizable : "",
+    draggable ? css.panelDraggable : "",
+    className
+  ].filter(Boolean).join(" ");
+
   return (
-    <div
-      className={backdropClassName}
-      onMouseDown={() => {
-        if (closeOnBackdrop) {
-          onClose();
-        }
-      }}
-    >
+    <div className={css.panelLayer} onPointerDown={onPanelLayerPointerDown}>
       <div
         ref={panelRef}
-        className={panelClassName}
-        style={panelStyle}
+        className={classes}
         role="dialog"
-        aria-modal="true"
+        aria-modal="false"
         aria-labelledby={labelledBy}
+        aria-describedby={describedBy}
         data-testid={dataTestId}
-        onMouseDown={(event) => event.stopPropagation()}
+        style={style}
         onPointerDown={onPanelPointerDown}
+        tabIndex={-1}
       >
         {children}
       </div>
     </div>
   );
 }
+
+// ── Header ──────────────────────────────────────────────────────────────────
+
+type ModalHeaderProps = {
+  title: ReactNode;
+  titleId?: string;
+  trailing?: ReactNode;
+  showCloseButton?: boolean;
+  onClose?: () => void;
+  closeAriaLabel?: string;
+  draggable?: boolean;
+  className?: string;
+};
+
+function ModalHeader({
+  title,
+  titleId,
+  trailing,
+  showCloseButton = false,
+  onClose,
+  closeAriaLabel = "Close",
+  draggable = false,
+  className
+}: ModalHeaderProps) {
+  const classes = [css.header, draggable ? css.headerDraggable : "", className].filter(Boolean).join(" ");
+  return (
+    <header
+      className={classes}
+      data-modal-drag-handle={draggable ? "true" : undefined}
+    >
+      <div className={css.headerText}>
+        <h2 id={titleId} className={css.title}>{title}</h2>
+      </div>
+      {(trailing || showCloseButton) ? (
+        <div className={css.headerTrailing}>
+          {trailing}
+          {showCloseButton && onClose ? (
+            <button
+              type="button"
+              className={css.closeIconButton}
+              aria-label={closeAriaLabel}
+              onClick={onClose}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M1 1 L9 9 M9 1 L1 9" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+              </svg>
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </header>
+  );
+}
+
+// ── Body ────────────────────────────────────────────────────────────────────
+
+type ModalBodyProps = {
+  children: ReactNode;
+  padding?: "default" | "compact" | "none";
+  className?: string;
+  scroll?: boolean;
+};
+
+function ModalBody({ children, padding = "default", className, scroll = true }: ModalBodyProps) {
+  const paddingClass =
+    padding === "none" ? css.bodyPadNone :
+    padding === "compact" ? css.bodyPadCompact :
+    css.bodyPadDefault;
+  const classes = [css.body, paddingClass, scroll ? css.bodyScroll : "", className].filter(Boolean).join(" ");
+  return <div className={classes}>{children}</div>;
+}
+
+// ── Footer ──────────────────────────────────────────────────────────────────
+
+type ModalFooterProps = {
+  children: ReactNode;
+  className?: string;
+  align?: "end" | "between" | "start";
+};
+
+function ModalFooter({ children, className, align = "end" }: ModalFooterProps) {
+  const alignClass =
+    align === "between" ? css.footerBetween :
+    align === "start" ? css.footerStart :
+    css.footerEnd;
+  const classes = [css.footer, alignClass, className].filter(Boolean).join(" ");
+  return <footer className={classes}>{children}</footer>;
+}
+
+// ── Buttons ─────────────────────────────────────────────────────────────────
+
+type ModalButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  className?: string;
+};
+
+const PrimaryButton = forwardRef<HTMLButtonElement, ModalButtonProps>(function PrimaryButton(
+  { className, type = "button", ...rest },
+  ref
+) {
+  const classes = [css.btn, css.btnPrimary, className].filter(Boolean).join(" ");
+  return <button ref={ref} type={type} className={classes} {...rest} />;
+});
+
+const SecondaryButton = forwardRef<HTMLButtonElement, ModalButtonProps>(function SecondaryButton(
+  { className, type = "button", ...rest },
+  ref
+) {
+  const classes = [css.btn, css.btnSecondary, className].filter(Boolean).join(" ");
+  return <button ref={ref} type={type} className={classes} {...rest} />;
+});
+
+const DangerButton = forwardRef<HTMLButtonElement, ModalButtonProps>(function DangerButton(
+  { className, type = "button", ...rest },
+  ref
+) {
+  const classes = [css.btn, css.btnDanger, className].filter(Boolean).join(" ");
+  return <button ref={ref} type={type} className={classes} {...rest} />;
+});
+
+const GhostButton = forwardRef<HTMLButtonElement, ModalButtonProps>(function GhostButton(
+  { className, type = "button", ...rest },
+  ref
+) {
+  const classes = [css.btn, css.btnGhost, className].filter(Boolean).join(" ");
+  return <button ref={ref} type={type} className={classes} {...rest} />;
+});
+
+// ── Attach ──────────────────────────────────────────────────────────────────
+
+Modal.Header = ModalHeader;
+Modal.Body = ModalBody;
+Modal.Footer = ModalFooter;
+Modal.PrimaryButton = PrimaryButton;
+Modal.SecondaryButton = SecondaryButton;
+Modal.DangerButton = DangerButton;
+Modal.GhostButton = GhostButton;

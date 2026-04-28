@@ -77,15 +77,23 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   };
 
   return (
-    <Modal onClose={onClose} className={css.dialog} labelledBy="settings-title" dataTestId="settings-modal">
-        <div className={css.titleBar}>
-          <span id="settings-title" className={css.title}>Settings</span>
-          <button type="button" className={css.closeBtn} onClick={onClose}>
-            Close
-          </button>
-        </div>
+    <Modal
+      onClose={onClose}
+      size="lg"
+      labelledBy="settings-title"
+      dataTestId="settings-modal"
+      className={css.dialog}
+    >
+      <Modal.Header
+        title="Settings"
+        titleId="settings-title"
+        showCloseButton
+        onClose={onClose}
+        closeAriaLabel="Close settings"
+      />
 
-        <div className={css.body}>
+      <Modal.Body padding="none" scroll={false}>
+        <div className={css.bodyLayout}>
           <nav className={css.sidebar}>
             {CATEGORIES.map((cat) => (
               <button
@@ -407,6 +415,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             )}
           </div>
         </div>
+      </Modal.Body>
     </Modal>
   );
 }

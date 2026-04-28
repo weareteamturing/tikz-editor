@@ -20,7 +20,7 @@ test("settings modal opens and category navigation works", async ({ page }) => {
   await page.getByTestId("settings-category-canvas").click();
   await expect(page.locator("#setting-grid-size")).toBeVisible();
 
-  await page.getByTestId("settings-modal").getByRole("button", { name: "Close" }).click();
+  await page.getByTestId("settings-modal").getByRole("button", { name: "Close settings" }).click();
   await expect(page.getByTestId("settings-modal")).toHaveCount(0);
 });
 
@@ -42,7 +42,7 @@ test("settings persist across reload and formatter line length is clamped", asyn
   await page.selectOption("#setting-grid-size", "coarse");
   await page.selectOption("#setting-handle-size", "11");
 
-  await page.getByTestId("settings-modal").getByRole("button", { name: "Close" }).click();
+  await page.getByTestId("settings-modal").getByRole("button", { name: "Close settings" }).click();
   await page.reload();
 
   await openMenuCommand(page, "file", "file.open-settings");

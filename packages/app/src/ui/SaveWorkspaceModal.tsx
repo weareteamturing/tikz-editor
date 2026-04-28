@@ -60,31 +60,33 @@ export function SaveWorkspaceModal({ onClose }: SaveWorkspaceModalProps) {
     return (
       <Modal
         onClose={onClose}
+        size="sm"
         labelledBy="save-workspace-modal-title"
         dataTestId="save-workspace-overwrite-modal"
-        className={css.modal}
       >
-        <div className={css.header}>
-          <h2 id="save-workspace-modal-title" className={css.title}>Overwrite workspace?</h2>
-        </div>
-        <div className={css.body}>
+        <Modal.Header
+          title="Overwrite workspace?"
+          titleId="save-workspace-modal-title"
+          showCloseButton
+          onClose={onClose}
+          closeAriaLabel="Close save workspace dialog"
+        />
+        <Modal.Body>
           <p className={css.message}>
-            A workspace named “{trimmed}” already exists. Overwrite it with the current layout?
+            A workspace named &ldquo;{trimmed}&rdquo; already exists. Overwrite it with the current layout?
           </p>
-        </div>
-        <div className={css.footer}>
-          <button type="button" className={css.secondaryButton} onClick={() => setPendingOverwriteId(null)}>
+        </Modal.Body>
+        <Modal.Footer>
+          <Modal.SecondaryButton onClick={() => setPendingOverwriteId(null)}>
             Back
-          </button>
-          <button
-            type="button"
-            className={css.primaryButton}
+          </Modal.SecondaryButton>
+          <Modal.PrimaryButton
             onClick={confirmOverwrite}
             data-testid="save-workspace-overwrite-confirm"
           >
             Overwrite
-          </button>
-        </div>
+          </Modal.PrimaryButton>
+        </Modal.Footer>
       </Modal>
     );
   }
@@ -92,30 +94,26 @@ export function SaveWorkspaceModal({ onClose }: SaveWorkspaceModalProps) {
   return (
     <Modal
       onClose={onClose}
+      size="sm"
       labelledBy="save-workspace-modal-title"
       dataTestId="save-workspace-modal"
-      className={css.modal}
     >
-      <form onSubmit={onSubmit}>
-        <div className={css.header}>
-          <h2 id="save-workspace-modal-title" className={css.title}>Save Workspace As…</h2>
-          <button
-            type="button"
-            className={css.iconButton}
-            onClick={onClose}
-            aria-label="Close save workspace dialog"
-          >
-            ×
-          </button>
-        </div>
-
-        <div className={css.body}>
+      <form onSubmit={onSubmit} className={css.form}>
+        <Modal.Header
+          title="Save Workspace As…"
+          titleId="save-workspace-modal-title"
+          showCloseButton
+          onClose={onClose}
+          closeAriaLabel="Close save workspace dialog"
+        />
+        <Modal.Body>
           <label className={css.field}>
-            <span>Name</span>
+            <span className={css.fieldLabel}>Name</span>
             <input
               data-testid="save-workspace-name-input"
               autoFocus
               type="text"
+              className={css.input}
               value={name}
               placeholder="My workspace"
               onChange={(event) => setName(event.target.value)}
@@ -124,21 +122,19 @@ export function SaveWorkspaceModal({ onClose }: SaveWorkspaceModalProps) {
           {reserved ? (
             <p className={css.warning}>This name is reserved for a built-in workspace.</p>
           ) : existingMatch ? (
-            <p className={css.hint}>Saving will prompt to overwrite “{existingMatch.name}”.</p>
+            <p className={css.hint}>Saving will prompt to overwrite &ldquo;{existingMatch.name}&rdquo;.</p>
           ) : null}
-        </div>
-
-        <div className={css.footer}>
-          <button type="button" className={css.secondaryButton} onClick={onClose}>Cancel</button>
-          <button
+        </Modal.Body>
+        <Modal.Footer>
+          <Modal.SecondaryButton onClick={onClose}>Cancel</Modal.SecondaryButton>
+          <Modal.PrimaryButton
             type="submit"
-            className={css.primaryButton}
             disabled={!canSubmit}
             data-testid="save-workspace-confirm"
           >
             Save
-          </button>
-        </div>
+          </Modal.PrimaryButton>
+        </Modal.Footer>
       </form>
     </Modal>
   );

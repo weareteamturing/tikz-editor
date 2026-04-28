@@ -1,94 +1,49 @@
-.modal {
-  width: min(360px, calc(100vw - 24px));
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 9px 11px 8px;
-  border-bottom: 1px solid var(--border);
-}
-
-.title {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1;
-}
-
-.iconButton,
-.secondaryButton,
-.primaryButton {
-  border: 1px solid var(--border);
-  background: var(--bg-pane);
-  color: var(--text);
-  padding: 6px 9px;
-  font: inherit;
-}
-
-.iconButton {
-  min-width: 28px;
-  padding: 3px 0;
-  line-height: 1;
-}
-
-.primaryButton {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-contrast, #fff);
-}
-
-.primaryButton:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.body {
-  padding: 10px 11px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.form {
+  display: contents;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  font-size: 11px;
+  gap: 5px;
 }
 
-.field input {
-  width: 100%;
+.fieldLabel {
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
+  color: var(--text-muted);
+}
+
+.input {
+  height: 26px;
+  padding: 0 8px;
   border: 1px solid var(--border);
+  border-radius: 4px;
   background: var(--bg-pane);
   color: var(--text);
-  padding: 5px 7px;
   font: inherit;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
+}
+
+.input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: -1px;
+  border-color: var(--accent);
 }
 
 .warning {
   margin: 0;
-  font-size: 11px;
-  color: var(--danger, #c33);
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
+  color: var(--color-error);
 }
 
 .hint {
   margin: 0;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   color: var(--text-muted);
 }
 
 .message {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  padding: 8px 11px 10px;
-  border-top: 1px solid var(--border);
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
+  line-height: 1.4;
 }

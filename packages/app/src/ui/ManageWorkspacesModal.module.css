@@ -1,66 +1,10 @@
-.modal {
-  width: min(440px, calc(100vw - 24px));
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 9px 11px 8px;
-  border-bottom: 1px solid var(--border);
-}
-
-.title {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1;
-}
-
-.iconButton,
-.primaryButton,
-.actionButton,
-.dangerButton {
-  border: 1px solid var(--border);
-  background: var(--bg-pane);
-  color: var(--text);
-  padding: 4px 8px;
-  font: inherit;
-  font-size: 11px;
-}
-
-.iconButton {
-  min-width: 28px;
-  padding: 3px 0;
-  line-height: 1;
-}
-
-.primaryButton {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-contrast, #fff);
-  padding: 6px 9px;
-}
-
-.dangerButton {
-  color: var(--danger, #c33);
-}
-
-.body {
-  padding: 10px 11px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 60vh;
-  overflow: auto;
-}
-
 .empty {
   margin: 0;
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text-muted);
   text-align: center;
-  padding: 16px 0;
+  padding: 12px 0;
+  line-height: 1.4;
 }
 
 .list {
@@ -69,16 +13,17 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .item {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
-  padding: 5px 6px;
-  border: 1px solid var(--border);
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: 5px;
   background: var(--bg-pane);
 }
 
@@ -87,43 +32,73 @@
 }
 
 .dragHandle {
-  color: var(--text-muted);
+  color: var(--text-faint);
   user-select: none;
   line-height: 1;
   font-size: 13px;
 }
 
 .name {
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .renameInput {
+  height: 22px;
+  padding: 0 6px;
   border: 1px solid var(--border);
-  background: var(--bg);
+  border-radius: 4px;
+  background: var(--bg-pane);
   color: var(--text);
-  padding: 3px 6px;
   font: inherit;
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
 }
 
-.actions {
+.renameInput:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+
+.itemActions {
   display: flex;
   gap: 4px;
 }
 
-.warning {
-  margin: 0;
-  font-size: 11px;
-  color: var(--danger, #c33);
+.itemActionButton {
+  appearance: none;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  background: var(--bg-pane);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
+  cursor: pointer;
 }
 
-.footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  padding: 8px 11px 10px;
-  border-top: 1px solid var(--border);
+.itemActionButton:hover {
+  background: var(--btn-hover-bg);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.itemActionDanger {
+  color: var(--color-error);
+  border-color: color-mix(in srgb, var(--color-error) 35%, var(--border-light));
+}
+
+.itemActionDanger:hover {
+  background: color-mix(in srgb, var(--color-error) 8%, var(--bg-pane));
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.warning {
+  margin: 0;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
+  color: var(--color-error);
 }

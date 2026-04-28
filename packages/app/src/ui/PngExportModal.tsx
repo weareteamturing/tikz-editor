@@ -174,36 +174,25 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
           }
         : null;
 
+  const canExport = !downloadPending && previewDisplay != null;
+
   return (
     <Modal
       onClose={onClose}
-      className={css.dialog}
+      size="lg"
       labelledBy="png-export-title"
       dataTestId="png-export-modal"
+      className={css.dialog}
     >
-        <div className={css.header}>
-          <div>
-            <h2 id="png-export-title" className={css.title}>Export PNG</h2>
-            <p className={css.subtitle} data-select="text">Adjust the raster resolution before saving the current SVG render as a PNG.</p>
-          </div>
-          <div className={css.actions}>
-            <button type="button" className={css.secondaryButton} data-testid="png-export-cancel" onClick={onClose}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className={css.primaryButton}
-              data-testid="png-export-download"
-              disabled={downloadPending || previewDisplay == null}
-              onClick={() => {
-                void handleExport();
-              }}
-            >
-              {downloadPending ? "Exporting..." : "Export PNG"}
-            </button>
-          </div>
-        </div>
+      <Modal.Header
+        title="Export PNG"
+        titleId="png-export-title"
+        showCloseButton
+        onClose={onClose}
+        closeAriaLabel="Close PNG export"
+      />
 
+      <Modal.Body padding="none" scroll={false}>
         <div className={css.body}>
           <div className={css.previewColumn}>
             <div
@@ -223,13 +212,13 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
                     alt="PNG export preview"
                   />
                   {previewDisplay.isRefreshing && showRefreshOverlay ? (
-                    <div className={css.previewOverlay} data-select="text">Rendering preview...</div>
+                    <div className={css.previewOverlay} data-select="text">Rendering preview…</div>
                   ) : null}
                 </div>
               ) : (
                 <div className={css.previewStatus} data-select="text">
                   {preview.status === "loading"
-                    ? "Rendering preview..."
+                    ? "Rendering preview…"
                     : preview.status === "error"
                       ? preview.message
                       : "Preview unavailable."}
@@ -239,7 +228,7 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
             <div className={css.previewMeta} data-select="text">
               {previewDisplay ? (
                 <>
-                  <span>{previewDisplay.pixelWidth} x {previewDisplay.pixelHeight}px</span>
+                  <span>{previewDisplay.pixelWidth} × {previewDisplay.pixelHeight}px</span>
                   <span>{previewDisplay.dpi} DPI</span>
                   <span>{transparentBackground ? "Transparent background" : "White background"}</span>
                 </>
@@ -253,7 +242,7 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
             className={css.controls}
             onSubmit={(event) => {
               event.preventDefault();
-              if (!downloadPending && previewDisplay != null) {
+              if (canExport) {
                 void handleExport();
               }
             }}
@@ -289,14 +278,14 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
               <div className={css.summaryRow}>
                 <span>Canvas size</span>
                 <span>
-                  {(previewDisplay?.pixelWidth ?? Math.max(1, Math.ceil(svgResult.viewBox.width * (effectiveDpi / 72))))} x{" "}
+                  {(previewDisplay?.pixelWidth ?? Math.max(1, Math.ceil(svgResult.viewBox.width * (effectiveDpi / 72))))} ×{" "}
                   {(previewDisplay?.pixelHeight ?? Math.max(1, Math.ceil(svgResult.viewBox.height * (effectiveDpi / 72))))}px
                 </span>
               </div>
               <div className={css.summaryRow}>
                 <span>Source bounds</span>
                 <span>
-                  {svgResult.viewBox.width.toFixed(1)} x {svgResult.viewBox.height.toFixed(1)}pt
+                  {svgResult.viewBox.width.toFixed(1)} × {svgResult.viewBox.height.toFixed(1)}pt
                 </span>
               </div>
               <div className={css.summaryRow}>
@@ -306,6 +295,22 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
             </div>
           </form>
         </div>
+      </Modal.Body>
+
+      <Modal.Footer>
+        <Modal.SecondaryButton data-testid="png-export-cancel" onClick={onClose}>
+          Cancel
+        </Modal.SecondaryButton>
+        <Modal.PrimaryButton
+          data-testid="png-export-download"
+          disabled={!canExport}
+          onClick={() => {
+            void handleExport();
+          }}
+        >
+          {downloadPending ? "Exporting…" : "Export PNG"}
+        </Modal.PrimaryButton>
+      </Modal.Footer>
     </Modal>
   );
 }
