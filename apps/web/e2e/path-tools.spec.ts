@@ -168,6 +168,36 @@ async function doubleClickHitRegionByTargetId(
   await page.mouse.dblclick(target.x, target.y);
 }
 
+async function hitRegionSamplePoint(
+  page: import("@playwright/test").Page,
+  index: number
+): Promise<{ x: number; y: number }> {
+  await waitForHitRegions(page, index + 1);
+  return await page.locator("[data-hit-region-target-id]").nth(index).evaluate((element) => {
+    const fallback = () => {
+      const rect = element.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    };
+
+    if (element instanceof SVGGeometryElement && typeof element.getTotalLength === "function") {
+      const length = element.getTotalLength();
+      const sample = element.getPointAtLength(Math.min(Math.max(length * 0.25, 1), Math.max(length - 1, 1)));
+      const svg = element.ownerSVGElement;
+      const ctm = element.getScreenCTM();
+      if (!svg || !ctm) {
+        return fallback();
+      }
+      const point = svg.createSVGPoint();
+      point.x = sample.x;
+      point.y = sample.y;
+      const screen = point.matrixTransform(ctm);
+      return { x: screen.x, y: screen.y };
+    }
+
+    return fallback();
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   await resetStorageBeforeNavigation(page);
 });
@@ -989,6 +1019,25 @@ test("dense paths require double click before showing interior edit handles", as
   await clickHitRegionByTargetId(page, shortTargetId, { shift: true });
   await expect.poll(async () => (await readSelectedSourceIds(page)).length).toBe(2);
   await expect(page.getByTestId("canvas-selection-hint")).toHaveCount(0);
+});
+
+test("straight path selection hint matches double click point insertion", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \draw (-1.9,1) -- (1.9,1);
+\end{tikzpicture}`);
+  await page.getByRole("button", { name: "Select" }).click();
+  await waitForHitRegions(page, 1);
+
+  const target = await hitRegionSamplePoint(page, 0);
+  await page.mouse.click(target.x, target.y);
+  await expect(page.getByTestId("canvas-selection-hint")).toContainText("Double-click path to add a point.");
+
+  await page.mouse.dblclick(target.x, target.y);
+  await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0, { timeout: 10_000 });
+  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toMatch(
+    /\\draw\(-1\.9,1\)--\(-?\d+(?:\.\d+)?,1\)--\(1\.9,1\);/
+  );
 });
 
 test("complex node shapes do not show dense path edit hint", async ({ page }) => {

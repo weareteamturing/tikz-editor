@@ -35,10 +35,10 @@ export type SplitPathAction = { elementId: string; handleId: string };
 export type JoinPathsAction = { elementIds: [string, string] };
 export type ReversePathAction = { elementId: string };
 export type ToggleClosedPathAction = { elementId: string; closed: boolean };
-export type DeletePathWorldPointAction = { elementId: string; handleId: string };
+export type DeletePathPointAction = { elementId: string; handleId: string };
 export type SetPathPointKindAction = { elementId: string; handleId: string; pointKind: PathPointKind };
 export type AppendToPathAction = { elementId: string; end: "start" | "end"; segmentSource: string };
-export type InsertPathWorldPointAction = { elementId: string; segmentIndex: number; point: WorldPoint };
+export type InsertPathPointAction = { elementId: string; segmentIndex: number; point: WorldPoint };
 
 type PathEditingDeps = {
   normalizeElementIds: (elementIds: readonly string[]) => string[];
@@ -276,7 +276,7 @@ export function applyToggleClosedPathAction(
 export function applyDeletePathPointAction(
   source: string,
   editHandles: EditHandle[],
-  action: DeletePathWorldPointAction,
+  action: DeletePathPointAction,
   parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
   const resolved = resolveEligibleExplicitPath(source, action.elementId, parseOptions);
@@ -810,7 +810,7 @@ export function applyAppendToPathAction(
 export function applyInsertPathPointAction(
   source: string,
   editHandles: EditHandle[],
-  action: InsertPathWorldPointAction,
+  action: InsertPathPointAction,
   parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
   const resolved = resolveEligibleExplicitPath(source, action.elementId, parseOptions);

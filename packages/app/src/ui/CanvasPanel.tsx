@@ -44,7 +44,7 @@ import {
 import type { NodeTextEngine, NodeTextLayoutKind } from "tikz-editor/text/types";
 import type { Statement } from "tikz-editor/ast/types";
 import { PT_PER_CM } from "tikz-editor/edit/format";
-import { resolveEligibleExplicitPath } from "tikz-editor/edit/path-editing";
+import { resolveEligibleExplicitPath, type ExplicitPathAnalysis } from "tikz-editor/edit/path-editing";
 import {
   makeForeachTemplateTargetId,
   resolvePropertyTarget,
@@ -403,6 +403,41 @@ const DESKTOP_TIKZ_CLIPBOARD_FORMATS = [
 const DENSE_PATH_SEGMENT_THRESHOLD = 7;
 const DOCUMENT_BOUNDS_OFF_MIN_PADDING_WORLD = 200;
 const TEXT_CARET_OVERLAY_EPSILON_PX = 0.25;
+
+function hasInsertablePathSegment(
+  editHandles: readonly EditHandle[],
+  sourceId: string,
+  analysis: ExplicitPathAnalysis
+): boolean {
+  const hasAnchorHandle = (anchorIndex: number) => {
+    const anchor = analysis.anchors[anchorIndex];
+    return Boolean(anchor && editHandles.some((handle) =>
+      handle.sourceRef.sourceId === sourceId &&
+      handle.kind === "path-point" &&
+      handle.sourceRef.sourceSpan.from === anchor.item.span.from &&
+      handle.sourceRef.sourceSpan.to === anchor.item.span.to
+    ));
+  };
+  const hasControlHandle = (itemIndex: number | undefined) => {
+    const item = itemIndex == null ? null : analysis.statement.items[itemIndex];
+    return Boolean(item && item.kind === "Coordinate" && editHandles.some((handle) =>
+      handle.sourceRef.sourceId === sourceId &&
+      handle.kind === "path-control" &&
+      handle.sourceRef.sourceSpan.from === item.span.from &&
+      handle.sourceRef.sourceSpan.to === item.span.to
+    ));
+  };
+
+  return analysis.segments.some((segment) => {
+    if (!hasAnchorHandle(segment.startAnchorIndex) || !hasAnchorHandle(segment.endAnchorIndex)) {
+      return false;
+    }
+    if (segment.kind === "line") {
+      return true;
+    }
+    return hasControlHandle(segment.control1Index) && (!segment.usedAnd || hasControlHandle(segment.control2Index));
+  });
+}
 
 type FigureViewportState = {
   transform: CanvasTransform;
@@ -1709,6 +1744,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     if (resolved.kind !== "eligible") return null;
     if (resolved.analysis.segments.length === 0) return null;
     if (collapsedDensePathSourceIds.has(sourceId)) return "Double-click path to edit points.";
+    if (!hasInsertablePathSegment(snapshot.editHandles, sourceId, resolved.analysis)) return null;
     // dense paths that are expanded are also eligible for add-point hint
     return "Double-click path to add a point.";
   }, [warning, toolMode, collapsedDensePathSourceIds, selectedElementIds, densePathSourceIds, snapshot.editHandles, snapshot.scene, editParseOptions, source]);

@@ -317,7 +317,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
           clientY: event.clientY,
           pointerId: event.pointerId,
           currentTarget: {
-            setWorldPointerCapture() {
+            setPointerCapture() {
               // No-op for deferred text activation outside the original React event.
             }
           }
@@ -547,7 +547,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       if (result.distance > thresholdWorld) return false;
 
       applyActionWithFeedback({
-        kind: "insertPathWorldPoint",
+        kind: "insertPathPoint",
         elementId: sourceId,
         segmentIndex: result.segmentIndex,
         point: result.point
