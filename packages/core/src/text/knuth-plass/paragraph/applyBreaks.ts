@@ -2,8 +2,10 @@ import type {
   BreakDecision,
   GreedyLine,
   ParagraphRun,
+  SpaceRun,
 } from './types.js';
 import type { ParagraphAlignment } from '../alignment.js';
+import type { WrappedTextGap } from '../install.js';
 
 export interface AppliedBreak extends BreakDecision {
   lineIndex: number;
@@ -16,6 +18,7 @@ export interface ApplyBreaksOptions {
   targetWidth?: number;
   spaceWidth?: number;
   paragraphId?: string;
+  wrappedTextGaps?: WrappedTextGap[];
 }
 
 export interface ApplyBreaksResult {
@@ -53,6 +56,7 @@ interface MtextBreakAction {
 
 const MTEXT_INDENT_PATCHED = Symbol('kp-mtext-indent-patched');
 const MTEXT_INDENT_PATCH_ORIGINAL = Symbol('kp-mtext-indent-original');
+const DEFAULT_INTERWORD_SPACE_EM = 0.3333;
 
 function alignmentToHorizontalAlign(alignment: ParagraphAlignment): 'left' | 'right' | 'center' {
   if (alignment === 'ragged-left') {
@@ -164,6 +168,49 @@ function setMspaceWidth(wrapper: any, width: number): void {
   }
   attrs.set('width', formatEmLength(Math.max(0, width)));
   safeInvalidate(wrapper);
+}
+
+function formatGapWidthEm(widthEm: number): string {
+  return `${Number(widthEm.toFixed(6))}em`;
+}
+
+function applyWrappedTextGapWidths(
+  runs: ParagraphRun[],
+  wrappedTextGaps: WrappedTextGap[] | undefined
+): void {
+  const gapWidthBySourceStart = new Map<number, number>();
+  for (const gap of wrappedTextGaps ?? []) {
+    if (Number.isFinite(gap.widthEm) && gap.widthEm >= 0) {
+      gapWidthBySourceStart.set(gap.sourceStart, gap.widthEm);
+    }
+  }
+
+  for (const run of runs) {
+    if (!isAdjustableMspaceRun(run)) {
+      continue;
+    }
+    const widthEm = gapWidthBySourceStart.get(run.sourceStart) ?? DEFAULT_INTERWORD_SPACE_EM;
+    const attrs = run.breakRef.wrapper?.node?.attributes;
+    if (!attrs || typeof attrs.set !== 'function') {
+      continue;
+    }
+    attrs.set('width', formatGapWidthEm(widthEm));
+    if (typeof run.breakRef.wrapper?.setBreakStyle === 'function') {
+      run.breakRef.wrapper.setBreakStyle('');
+    }
+    safeInvalidate(run.breakRef.wrapper);
+  }
+}
+
+function isAdjustableMspaceRun(run: ParagraphRun | undefined): run is SpaceRun & {
+  breakRef: Extract<SpaceRun['breakRef'], { kind: 'mspace' }>;
+} {
+  return (
+    !!run &&
+    run.kind === 'space' &&
+    run.breakRef.kind === 'mspace' &&
+    !run.breakRef.isForcedLineBreak
+  );
 }
 
 function ensureWrapperPlan(
@@ -508,6 +555,7 @@ export function applyBreaks(
     touchedMspaceWrappers,
     options.originalMspaceWidthByWrapper
   );
+  applyWrappedTextGapWidths(runs, options.wrappedTextGaps);
 
   for (const wrapper of touchedMtextWrappers) {
     patchMtextIndentBehavior(wrapper);

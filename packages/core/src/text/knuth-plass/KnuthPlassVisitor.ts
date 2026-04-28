@@ -439,23 +439,17 @@ function formatGapWidthEm(widthEm: number): string {
   return `${Number(widthEm.toFixed(6))}em`;
 }
 
+const DEFAULT_INTERWORD_SPACE_EM = 0.3333;
+
 function applyWrappedTextGapWidths(
   runs: ParagraphRun[],
   wrappedTextGaps: WrappedTextGap[] | undefined
 ): void {
-  if (!wrappedTextGaps?.length) {
-    return;
-  }
-
   const gapWidthBySourceStart = new Map<number, number>();
-  for (const gap of wrappedTextGaps) {
+  for (const gap of wrappedTextGaps ?? []) {
     if (Number.isFinite(gap.widthEm) && gap.widthEm >= 0) {
       gapWidthBySourceStart.set(gap.sourceStart, gap.widthEm);
     }
-  }
-
-  if (gapWidthBySourceStart.size === 0) {
-    return;
   }
 
   for (const run of runs) {
@@ -465,10 +459,7 @@ function applyWrappedTextGapWidths(
     if (run.breakRef.isForcedLineBreak) {
       continue;
     }
-    const widthEm = gapWidthBySourceStart.get(run.sourceStart);
-    if (widthEm === undefined) {
-      continue;
-    }
+    const widthEm = gapWidthBySourceStart.get(run.sourceStart) ?? DEFAULT_INTERWORD_SPACE_EM;
     const attrs = run.breakRef.wrapper?.node?.attributes;
     if (!attrs || typeof attrs.set !== 'function') {
       continue;
@@ -809,6 +800,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
         targetWidth,
         spaceWidth,
         paragraphId,
+        wrappedTextGaps: options.wrappedTextGaps,
       });
       if (!applyResult.canProceed) {
         throw new Error(
@@ -869,6 +861,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
         targetWidth: width,
         spaceWidth,
         paragraphId,
+        wrappedTextGaps: options.wrappedTextGaps,
       });
       if (!applyResult.canProceed) {
         const diagnostics = [
@@ -988,6 +981,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
       targetWidth: width,
       spaceWidth,
       paragraphId,
+      wrappedTextGaps: options.wrappedTextGaps,
     });
     if (!applyResult.canProceed) {
       throw new Error(

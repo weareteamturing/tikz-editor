@@ -436,6 +436,32 @@ describe("render pipeline", () => {
       }
       expect(multiWordText.textBlockHeight ?? 0).toBeLessThan((singleWordText.textBlockHeight ?? 0) * 1.5);
     }
+    expect(renderedMspaceAdvances(multiWord.svg.svg).every((advance) => advance > 0)).toBe(true);
+  });
+
+  it("preserves visible spaces in plain single-line MathJax node text", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] (test) at (0, 1.5) {this is a node with text};
+\end{tikzpicture}`;
+
+    const result = await renderTikzToSvgAsync(source);
+    const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    const advances = renderedMspaceAdvances(result.svg.svg);
+
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.text).toBe("this is a node with text");
+      const renderInfo = text.textRenderInfo;
+      expect(renderInfo?.mode).toBe("mathjax");
+      if (renderInfo?.mode === "mathjax") {
+        const report = reportForParagraphId(renderInfo.paragraphId);
+        const spaceRuns = report?.runs.filter((run) => run.kind === "space") ?? [];
+        expect(spaceRuns).toHaveLength(5);
+        expect(spaceRuns.every((run) => run.width > 0)).toBe(true);
+      }
+    }
+    expect(advances).toHaveLength(5);
+    expect(advances.every((advance) => advance > 0)).toBe(true);
   });
 
   it("keeps long plain node text single-line without align or text width", async () => {

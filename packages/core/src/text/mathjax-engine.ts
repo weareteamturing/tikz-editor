@@ -968,8 +968,7 @@ function buildMeasuredCacheEntry(params: {
   const adaptor = runtime.startup?.adaptor ?? null;
   const explicitMultiline = hasExplicitMultilineBreaks(sourceText);
   const layoutMode = resolveKnuthPlassLayoutMode(textWidthPt, explicitMultiline);
-  const wrappedTextGaps =
-    mode === "text" && textWidthPt != null ? collectWrappedTextGaps(sourceText) : [];
+  const wrappedTextGaps = mode === "text" ? collectWrappedTextGaps(sourceText) : [];
 
   const measuredWidth =
     textWidthPt ??
@@ -1203,10 +1202,7 @@ function renderMeasuredNodeWithPromise(
   }
   const explicitMultiline = hasExplicitMultilineBreaks(params.sourceText);
   const layoutMode = resolveKnuthPlassLayoutMode(params.textWidthPt, explicitMultiline);
-  const wrappedTextGaps =
-    params.mode === "text" && params.textWidthPt != null
-      ? collectWrappedTextGaps(params.sourceText)
-      : [];
+  const wrappedTextGaps = params.mode === "text" ? collectWrappedTextGaps(params.sourceText) : [];
 
   const runMeasuredRender = (resolvedWidthPt: number): Promise<unknown> => {
     const tex = buildWrappedTeX(params.sourceText, resolvedWidthPt, params.font, params.mode);
