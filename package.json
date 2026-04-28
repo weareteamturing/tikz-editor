@@ -12,7 +12,7 @@
     "codespaces:startup": "bash scripts/codespaces/startup.sh",
     "generate:grammar": "npm run -w @tikz-editor/core generate:grammar",
     "lint": "eslint .",
-    "lint:prod": "eslint . --ignore-pattern 'test/**' --ignore-pattern 'apps/desktop/e2e/**' --ignore-pattern 'apps/web/e2e/**' --ignore-pattern 'apps/web/profiling/**' --ignore-pattern 'scripts/**' --ignore-pattern 'apps/*/scripts/**' --ignore-pattern '**/*.config.*' --ignore-pattern '**/tmp-*'",
+    "lint:prod": "eslint . --max-warnings=0 --ignore-pattern 'test/**' --ignore-pattern 'apps/desktop/e2e/**' --ignore-pattern 'apps/web/e2e/**' --ignore-pattern 'apps/web/profiling/**' --ignore-pattern 'scripts/**' --ignore-pattern 'apps/*/scripts/**' --ignore-pattern '**/*.config.*' --ignore-pattern '**/tmp-*'",
     "lint:ci": "npm run lint:prod",
     "typecheck": "npx tsc -p tsconfig.json --noEmit && node scripts/check-coordinate-typing.mjs",
     "build": "npm run -w @tikz-editor/core build",
@@ -54,6 +54,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.13.0",
+    "@vitest/eslint-plugin": "^1.6.16",
     "eslint": "^10.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",

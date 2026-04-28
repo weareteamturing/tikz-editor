@@ -7,6 +7,17 @@ const WORKSPACE_STORAGE_KEY = "tikz-editor:workspace";
 const DOCK_LAYOUT_STORAGE_KEY = "tikz-editor:dock-layout";
 const USER_WORKSPACES_STORAGE_KEY = "tikz-editor:user-workspaces";
 
+function logStorageDebug(message: string, error?: unknown): void {
+  if (typeof console === "undefined" || typeof console.info !== "function") {
+    return;
+  }
+  if (error != null) {
+    console.info(`[tikz-editor] ${message}`, error);
+    return;
+  }
+  console.info(`[tikz-editor] ${message}`);
+}
+
 type PersistedWorkspaceV1 = {
   workspaceVersion: number;
   documents: Array<{
@@ -41,7 +52,8 @@ export function loadWorkspaceSeed(): WorkspaceSeed | null {
       return null;
     }
     return migrated;
-  } catch {
+  } catch (error) {
+    logStorageDebug("Failed to load persisted workspace; starting with a fresh workspace.", error);
     return null;
   }
 }
@@ -159,8 +171,8 @@ export function saveWorkspace(state: {
   };
   try {
     getActiveEditorPlatform().persistence.save(WORKSPACE_STORAGE_KEY, JSON.stringify(payload));
-  } catch {
-    // Ignore persistence failures.
+  } catch (error) {
+    logStorageDebug("Failed to save workspace state.", error);
   }
 }
 
@@ -174,7 +186,8 @@ export function loadDockLayout(): IJsonModel | null {
     // Basic sanity check
     if (!parsed || typeof parsed !== "object" || !parsed.layout) return null;
     return parsed;
-  } catch {
+  } catch (error) {
+    logStorageDebug("Failed to load persisted dock layout.", error);
     return null;
   }
 }
@@ -182,8 +195,8 @@ export function loadDockLayout(): IJsonModel | null {
 export function saveDockLayout(json: IJsonModel): void {
   try {
     getActiveEditorPlatform().persistence.save(DOCK_LAYOUT_STORAGE_KEY, JSON.stringify(json));
-  } catch {
-    // Ignore persistence failures.
+  } catch (error) {
+    logStorageDebug("Failed to save dock layout.", error);
   }
 }
 
@@ -218,7 +231,8 @@ export function loadUserWorkspaces(): UserWorkspace[] {
             typeof item.createdAt === "number"
         )
       );
-  } catch {
+  } catch (error) {
+    logStorageDebug("Failed to load user workspaces.", error);
     return [];
   }
 }
@@ -230,7 +244,7 @@ export function saveUserWorkspaces(items: readonly UserWorkspace[]): void {
   };
   try {
     getActiveEditorPlatform().persistence.save(USER_WORKSPACES_STORAGE_KEY, JSON.stringify(payload));
-  } catch {
-    // Ignore persistence failures.
+  } catch (error) {
+    logStorageDebug("Failed to save user workspaces.", error);
   }
 }

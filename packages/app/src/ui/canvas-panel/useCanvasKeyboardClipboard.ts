@@ -85,6 +85,13 @@ export type UseCanvasKeyboardClipboardArgs = {
   ) => number | null;
 };
 
+function logClipboardImportDebug(message: string, error: unknown): void {
+  if (typeof console === "undefined" || typeof console.info !== "function") {
+    return;
+  }
+  console.info(`[tikz-editor] ${message}`, error);
+}
+
 function decodeBase64Bytes(base64: string): Uint8Array {
   if (typeof Buffer !== "undefined") {
     return new Uint8Array(Buffer.from(base64, "base64"));
@@ -416,8 +423,9 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
                 }
               }
             }
-          } catch {
+          } catch (error) {
             // Fall through to existing dataTransfer/system fallback.
+            logClipboardImportDebug("Desktop custom TikZ clipboard read failed; falling back to standard paste data.", error);
           }
         }
 
@@ -456,8 +464,9 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
               }
               return;
             }
-          } catch {
+          } catch (error) {
             // Fall through to existing warning behavior.
+            logClipboardImportDebug("PowerPoint clipboard import failed before conversion completed.", error);
           }
         }
 
@@ -496,8 +505,9 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
               }
               return;
             }
-          } catch {
+          } catch (error) {
             // Fall through to existing warning behavior.
+            logClipboardImportDebug("SVG clipboard import failed before conversion completed.", error);
           }
         }
 
@@ -528,8 +538,9 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
               }
               return;
             }
-          } catch {
+          } catch (error) {
             // Fall through to existing warning behavior.
+            logClipboardImportDebug("Keynote clipboard import failed before conversion completed.", error);
           }
         }
         if (result.reason === "invalid") {

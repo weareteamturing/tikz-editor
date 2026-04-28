@@ -33,6 +33,17 @@ type FsHandleStore = {
   save: (handleId: string, handle: unknown) => Promise<void>;
 };
 
+function logBrowserPlatformDebug(message: string, error?: unknown): void {
+  if (typeof console === "undefined" || typeof console.info !== "function") {
+    return;
+  }
+  if (error != null) {
+    console.info(`[tikz-editor] ${message}`, error);
+    return;
+  }
+  console.info(`[tikz-editor] ${message}`);
+}
+
 export type BrowserPlatformEnvironment = {
   storage?: StorageLike;
   clipboard?: ClipboardLike;
@@ -140,7 +151,8 @@ function createIndexedDbHandleStore(): FsHandleStore {
       try {
         const result: unknown = await withStore("readonly", (store) => store.get(handleId));
         return result ?? null;
-      } catch {
+      } catch (error) {
+        logBrowserPlatformDebug("IndexedDB file handle load failed; falling back to Save As.", error);
         return null;
       }
     },
@@ -174,7 +186,8 @@ function loadKnownHandleIds(storage: StorageLike | null): string[] {
       return [];
     }
     return parsed.filter((entry): entry is string => typeof entry === "string");
-  } catch {
+  } catch (error) {
+    logBrowserPlatformDebug("Failed to load browser file handle index.", error);
     return [];
   }
 }
@@ -185,8 +198,8 @@ function saveKnownHandleIds(storage: StorageLike | null, ids: Set<string>): void
   }
   try {
     storage.setItem(HANDLE_INDEX_KEY, JSON.stringify([...ids]));
-  } catch {
-    // ignore
+  } catch (error) {
+    logBrowserPlatformDebug("Failed to save browser file handle index.", error);
   }
 }
 
@@ -202,22 +215,22 @@ function openTextFileWithInput(): Promise<{ source: string; fileRef: DocumentFil
     input.style.display = "none";
     input.addEventListener("change", () => {
       void (async () => {
-      const file = input.files?.[0];
-      if (!file) {
-        input.remove();
-        resolve(null);
-        return;
-      }
-      const text = await file.text();
-      input.remove();
-      resolve({
-        source: text,
-        fileRef: {
-          kind: "file",
-          name: file.name,
-          provider: DOWNLOAD_PROVIDER
+        const file = input.files?.[0];
+        if (!file) {
+          input.remove();
+          resolve(null);
+          return;
         }
-      });
+        const text = await file.text();
+        input.remove();
+        resolve({
+          source: text,
+          fileRef: {
+            kind: "file",
+            name: file.name,
+            provider: DOWNLOAD_PROVIDER
+          }
+        });
       })();
     }, { once: true });
     document.body.appendChild(input);
@@ -237,22 +250,22 @@ function openBinaryFileWithInput(): Promise<{ bytes: ArrayBuffer; fileRef: Docum
     input.style.display = "none";
     input.addEventListener("change", () => {
       void (async () => {
-      const file = input.files?.[0];
-      if (!file) {
-        input.remove();
-        resolve(null);
-        return;
-      }
-      const bytes = await file.arrayBuffer();
-      input.remove();
-      resolve({
-        bytes,
-        fileRef: {
-          kind: "file",
-          name: file.name,
-          provider: DOWNLOAD_PROVIDER
+        const file = input.files?.[0];
+        if (!file) {
+          input.remove();
+          resolve(null);
+          return;
         }
-      });
+        const bytes = await file.arrayBuffer();
+        input.remove();
+        resolve({
+          bytes,
+          fileRef: {
+            kind: "file",
+            name: file.name,
+            provider: DOWNLOAD_PROVIDER
+          }
+        });
       })();
     }, { once: true });
     document.body.appendChild(input);
@@ -302,7 +315,8 @@ async function requestHandlePermission(handle: unknown, mode: "read" | "readwrit
     }
     const requested = await maybeHandle.requestPermission({ mode });
     return requested === "granted";
-  } catch {
+  } catch (error) {
+    logBrowserPlatformDebug("Browser file handle permission request failed.", error);
     return false;
   }
 }
@@ -361,7 +375,8 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
           provider: BROWSER_FILE_PROVIDER
         }
       };
-    } catch {
+    } catch (error) {
+      logBrowserPlatformDebug("Browser file picker open failed or was cancelled.", error);
       return null;
     }
   }
@@ -389,7 +404,8 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
           provider: DOWNLOAD_PROVIDER
         }
       };
-    } catch {
+    } catch (error) {
+      logBrowserPlatformDebug("Browser binary file picker open failed or was cancelled.", error);
       return null;
     }
   }
@@ -408,7 +424,8 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
       await writable.write(text);
       await writable.close();
       return true;
-    } catch {
+    } catch (error) {
+      logBrowserPlatformDebug("Browser file handle save failed.", error);
       return false;
     }
   }
@@ -448,8 +465,10 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
         error instanceof DOMException &&
         (error.name === "AbortError" || error.name === "NotAllowedError")
       ) {
+        logBrowserPlatformDebug("Browser Save As was cancelled or denied.", error);
         return { status: "cancelled", fileRef: null };
       }
+      logBrowserPlatformDebug("Browser Save As failed.", error);
       return { status: "failed", fileRef: null };
     }
   }

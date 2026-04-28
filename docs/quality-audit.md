@@ -268,3 +268,21 @@ while `npm run lint:ci` fails only on hard errors. Once warnings are reduced per
 
 The highest return is the canvas arg typing. That is where user-facing editing behavior, stringly typed
 actions, synthetic events, and fallback behavior intersect.
+
+## Follow-up Status
+
+As of the later 2026-04-28 cleanup pass:
+
+- ESLint is installed and `npm run lint:prod` gates production app/core warnings with `--max-warnings=0`.
+- `npm run lint` remains the full-repo noisy audit, including test/tooling/harness debt.
+- The canvas hook arg bags listed above have explicit argument interfaces.
+- Production warnings have been cleaned in `packages/app/src/ui`, `packages/core/src/edit`, `packages/core/src/semantic`, and the Knuth-Plass text stack.
+- `@vitest/eslint-plugin` is installed for test-only safety rules. The older `eslint-plugin-vitest` package was not used because its peer dependency range rejected the repository's ESLint 10 install.
+- Clipboard/export/storage/assistant/browser-platform/desktop-platform recovery paths now avoid bare catches in the reviewed hotspots and log debug context when falling back intentionally.
+
+Remaining audit work:
+
+1. Clean the full-repo warning debt in tests, e2e/profiling harnesses, scripts, and config files.
+2. Ratchet more production lint rules from warnings to errors now that production code is warning-free.
+3. Add a small project-specific audit script for edit action discriminants, accidental `WorldPoint`-style DOM API replacements, and allowed recovery/fallback patterns.
+4. Continue reviewing fallback-heavy runtime logic for whether each fallback represents normal TikZ semantics or an invariant-protecting recovery that should be observable.

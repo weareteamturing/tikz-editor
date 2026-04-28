@@ -29,6 +29,17 @@ type AssistantPanelProps = {
 
 const AUTO_MODEL_VALUE = "__auto__";
 
+function logAssistantDebug(message: string, error?: unknown): void {
+  if (typeof console === "undefined" || typeof console.info !== "function") {
+    return;
+  }
+  if (error != null) {
+    console.info(`[tikz-editor] ${message}`, error);
+    return;
+  }
+  console.info(`[tikz-editor] ${message}`);
+}
+
 export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPanelProps) {
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
   const assistantApi = getActiveEditorPlatform().assistant;
@@ -185,8 +196,9 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
         const account = await assistantApi.readAccount?.();
         if (disposed) return;
         setAccountSnapshot((prev) => ({ ...prev, account, rateLimits: prev?.rateLimits ?? null }));
-      } catch {
+      } catch (error) {
         // Ignore warmup/account errors - will be handled when user interacts
+        logAssistantDebug("Assistant warmup/account preload failed.", error);
       }
     })();
     return () => { disposed = true; };

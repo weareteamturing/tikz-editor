@@ -180,6 +180,17 @@ function readInjectedTestEnvironment(): DesktopPlatformEnvironment {
   return ((globalThis as BrowserLikeGlobal).__TIKZ_EDITOR_DESKTOP_PLATFORM_ENV__) ?? {};
 }
 
+function logDesktopPlatformDebug(message: string, error?: unknown): void {
+  if (typeof console === "undefined" || typeof console.info !== "function") {
+    return;
+  }
+  if (error != null) {
+    console.info(`[tikz-editor] ${message}`, error);
+    return;
+  }
+  console.info(`[tikz-editor] ${message}`);
+}
+
 function resolveStorage(env: DesktopPlatformEnvironment): StorageLike {
   if (env.storage) {
     return env.storage;
@@ -553,7 +564,10 @@ function createNativeDesktopMenuManager(options: {
 
   async function rebuildMenu(payload: NativeMenuSyncPayload): Promise<void> {
     const menuApi = await import("@tauri-apps/api/menu");
-    const recentFiles = await getBridge().listRecentFiles().catch(() => [] as string[]);
+    const recentFiles = await getBridge().listRecentFiles().catch((error: unknown) => {
+      logDesktopPlatformDebug("Failed to read recent files for native menu rebuild.", error);
+      return [] as string[];
+    });
 
     commandRefs.clear();
     const topLevelItems: Submenu[] = [];
@@ -611,7 +625,9 @@ function createNativeDesktopMenuManager(options: {
   function enqueueSync(): void {
     syncQueue = syncQueue.then(async () => {
       await performSync();
-    }).catch(() => undefined);
+    }).catch((error: unknown) => {
+      logDesktopPlatformDebug("Native menu sync failed.", error);
+    });
   }
 
   function refreshRecents(): void {
@@ -932,8 +948,14 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
   function syncPendingOpenQueues(): void {
     pendingOpenSyncQueue = pendingOpenSyncQueue.then(async () => {
       const [pendingOpens, pendingFailures] = await Promise.all([
-        getBridge().takePendingOpenRequests().catch(() => [] as DesktopOpenTextResult[]),
-        getBridge().takePendingOpenFailures().catch(() => [] as DesktopOpenTextFailureResult[])
+        getBridge().takePendingOpenRequests().catch((error: unknown) => {
+          logDesktopPlatformDebug("Failed to read pending desktop open requests.", error);
+          return [] as DesktopOpenTextResult[];
+        }),
+        getBridge().takePendingOpenFailures().catch((error: unknown) => {
+          logDesktopPlatformDebug("Failed to read pending desktop open failures.", error);
+          return [] as DesktopOpenTextFailureResult[];
+        })
       ]);
 
       if (pendingOpens.length === 0 && pendingFailures.length === 0) {
@@ -950,24 +972,35 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
         pendingOpenFailureBuffer.push(...pendingFailures);
       }
       flushPendingOpenBuffers();
-    }).catch(() => undefined);
+    }).catch((error: unknown) => {
+      logDesktopPlatformDebug("Pending desktop open queue sync failed.", error);
+    });
   }
 
   function ensureNativeEventHooks(): void {
     if (!windowCloseUnlistenPromise) {
       windowCloseUnlistenPromise = getBridge().onWindowCloseRequest(() => {
         closeRequestHandler?.();
-      }).catch(() => null);
+      }).catch((error: unknown) => {
+        logDesktopPlatformDebug("Failed to register native window close hook.", error);
+        return null;
+      });
     }
     if (!contextMenuCommandUnlistenPromise) {
       contextMenuCommandUnlistenPromise = getBridge().onContextMenuCommand((payload) => {
         menuHandler?.(payload.commandId, "context-menu");
-      }).catch(() => null);
+      }).catch((error: unknown) => {
+        logDesktopPlatformDebug("Failed to register native context menu hook.", error);
+        return null;
+      });
     }
     if (!openRequestsChangedUnlistenPromise) {
       openRequestsChangedUnlistenPromise = getBridge().onPendingOpenRequestsChanged(() => {
         syncPendingOpenQueues();
-      }).catch(() => null);
+      }).catch((error: unknown) => {
+        logDesktopPlatformDebug("Failed to register native pending-open hook.", error);
+        return null;
+      });
       syncPendingOpenQueues();
     }
   }
@@ -1137,7 +1170,8 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
             path: currentRef?.provider === "desktop-fs" ? (currentRef.path ?? null) : null,
             forceSaveAs: mode === "save-as"
           });
-        } catch {
+        } catch (error) {
+          logDesktopPlatformDebug("Desktop save failed.", error);
           return { status: "failed", fileRef: currentRef };
         }
         if (!result.ok || !result.path || !result.name) {

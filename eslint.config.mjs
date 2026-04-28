@@ -2,6 +2,7 @@ import js from "@eslint/js";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
+import vitest from "@vitest/eslint-plugin";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
@@ -84,6 +85,19 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-call": "off",
       "@typescript-eslint/no-unsafe-argument": "off",
       "@typescript-eslint/no-unsafe-return": "off"
+    }
+  },
+  {
+    files: ["test/**/*.{ts,tsx}"],
+    plugins: {
+      vitest
+    },
+    rules: {
+      "vitest/no-focused-tests": "error",
+      "vitest/no-disabled-tests": "warn",
+      "vitest/no-identical-title": "warn",
+      "vitest/no-commented-out-tests": "warn",
+      "vitest/no-conditional-tests": "warn"
     }
   },
   {

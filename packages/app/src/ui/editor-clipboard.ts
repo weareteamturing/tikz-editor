@@ -86,6 +86,10 @@ export function createClipboardPayload(
   };
 }
 
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function parseClipboardPayloadJson(raw: string): TikzClipboardPayload | null {
   try {
     const parsed = JSON.parse(raw) as Partial<TikzClipboardPayload> | null;
@@ -113,7 +117,8 @@ export function parseClipboardPayloadJson(raw: string): TikzClipboardPayload | n
       pasteBehavior,
       pasteCount
     };
-  } catch {
+  } catch (error) {
+    logClipboardDebug("Clipboard payload JSON parse failed.", { error: describeError(error) });
     return null;
   }
 }
@@ -185,7 +190,8 @@ export async function readClipboardPayloadFromSystemClipboard(): Promise<
       }
 
       return { kind: "failure", reason: "empty" };
-    } catch {
+    } catch (error) {
+      logClipboardDebug("Clipboard read failed or was blocked.", { error: describeError(error) });
       return { kind: "failure", reason: "blocked" };
     }
   }
@@ -198,7 +204,8 @@ export async function readClipboardPayloadFromSystemClipboard(): Promise<
         return { kind: "success", payload };
       }
       return { kind: "failure", reason: "invalid" };
-    } catch {
+    } catch (error) {
+      logClipboardDebug("Clipboard readText failed or was blocked.", { error: describeError(error) });
       return { kind: "failure", reason: "blocked" };
     }
   }
@@ -221,7 +228,8 @@ export async function buildSelectionSvg(snippets: readonly string[]): Promise<st
       includeXmlns: true,
       pretty: true
     });
-  } catch {
+  } catch (error) {
+    logClipboardDebug("Failed to render selection SVG for clipboard payload.", { error: describeError(error) });
     return null;
   }
 }
@@ -238,7 +246,8 @@ export function buildSelectionSvgSync(snippets: readonly string[]): string | nul
   try {
     const rendered = renderTikzToSvg(source);
     return serializeSvgModel(rendered.svg.model, true);
-  } catch {
+  } catch (error) {
+    logClipboardDebug("Failed to render selection SVG synchronously for clipboard payload.", { error: describeError(error) });
     return null;
   }
 }
@@ -259,7 +268,8 @@ export function writePayloadToDataTransfer(
       dataTransfer.setData(SVG_CLIPBOARD_MIME, options.svgText);
     }
     return true;
-  } catch {
+  } catch (error) {
+    logClipboardDebug("Failed to write clipboard payload to DataTransfer.", { error: describeError(error) });
     return false;
   }
 }
@@ -302,9 +312,9 @@ export async function writeClipboardPayload(
             });
           }
           return didWrite;
-        } catch {
+        } catch (error) {
           // Some browsers reject image/svg+xml in ClipboardItem; retry without SVG.
-          logClipboardDebug("Clipboard write with SVG failed; retrying without SVG payload.");
+          logClipboardDebug("Clipboard write with SVG failed; retrying without SVG payload.", { error: describeError(error) });
           const didWriteWithoutSvg = await writeMultiFormat(false);
           if (didWriteWithoutSvg) {
             logClipboardDebug("Clipboard write succeeded after downgrading to custom+text payloads.", {
@@ -325,9 +335,9 @@ export async function writeClipboardPayload(
         });
       }
       return didWrite;
-    } catch {
+    } catch (error) {
       // Fall through to writeText fallback.
-      logClipboardDebug("ClipboardItem write failed; falling back to writeText.", { wantsSvg });
+      logClipboardDebug("ClipboardItem write failed; falling back to writeText.", { wantsSvg, error: describeError(error) });
     }
   }
 
@@ -339,8 +349,8 @@ export async function writeClipboardPayload(
         wantsSvg
       });
       return true;
-    } catch {
-      logClipboardDebug("Clipboard writeText fallback failed.");
+    } catch (error) {
+      logClipboardDebug("Clipboard writeText fallback failed.", { error: describeError(error) });
       return false;
     }
   }
