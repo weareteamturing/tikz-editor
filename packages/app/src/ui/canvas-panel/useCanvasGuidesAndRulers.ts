@@ -85,7 +85,7 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
     () => ({
       grid: {
         enabled: snapModes.grid,
-        minorTargetPx: gridMinorTargetPx
+        minorTargetPx: px(gridMinorTargetPx)
       },
       points: {
         enabled: snapModes.points

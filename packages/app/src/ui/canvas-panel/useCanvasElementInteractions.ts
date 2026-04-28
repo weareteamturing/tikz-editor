@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { clientPoint, px, pt, worldBounds, worldVector } from "tikz-editor/coords/index";
-import { buildSnapContext, collectSelectionGeometryFromBounds, collectSourceWorldBounds, type SnapBounds } from "tikz-editor/edit/snapping";
+import { buildSnapContext, collectSelectionGeometryFromBounds, collectSourceWorldBounds, type SnapBounds, type SnapGuideInput, type SnapLine, type SnapSettingsPatch } from "tikz-editor/edit/snapping";
 import type { EditHandle, SceneElement } from "tikz-editor/semantic/types";
 import type { ClientPoint, WorldBounds, WorldPoint } from "../coords/types";
 import { resolveEligibleExplicitPath, type ExplicitPathAnalysis, type ExplicitPathSegment } from "tikz-editor/edit/path-editing";
 import { closestPointOnLine, closestPointOnCubic } from "tikz-editor/edit/curve-math";
+import type { CanvasTransform, ToolMode } from "../../store/types";
 import { clientToWorldPoint } from "./geometry";
 import { makeMergeKey, selectionAnchorRatioFromPoint } from "./panel-helpers";
 import {
@@ -14,10 +15,51 @@ import {
   resolveScopeAwarePointerDownTarget,
   resolveScopeAwarePointerUpDrillTarget
 } from "./scope-overlay";
-import type { EditableTextTarget } from "./types";
+import type {
+  ApplyActionWithFeedbackFn,
+  CanvasDispatch,
+  CanvasEditParseOptions,
+  CanvasSnapshot,
+  DragState,
+  EditableTextTarget,
+  NodeAnchorOverlayState,
+  SnapDebugLogInput,
+  StateSetter,
+  ValueSetter
+} from "./types";
+import type { HitRegion } from "./hit-regions";
 
 export type UseCanvasElementInteractionsArgs = {
-  [key: string]: any;
+  svgResult: CanvasSnapshot["svg"];
+  toolMode: ToolMode;
+  selectedElementIds: ReadonlySet<string>;
+  viewportRef: RefObject<HTMLDivElement | null>;
+  beginCanvasTextInteraction: (event: ReactPointerEvent<SVGElement>, target: EditableTextTarget) => void;
+  closeTextEditingSession: () => void;
+  interactionSvgRef: RefObject<SVGSVGElement | null>;
+  dispatch: CanvasDispatch;
+  draggableSourceIds: ReadonlySet<string>;
+  directManipulationDisabledReasonBySourceId?: ReadonlyMap<string, string>;
+  snapshot: CanvasSnapshot;
+  source: string;
+  setWarning: StateSetter<string | null>;
+  onBucketFillRegion: (region: HitRegion | undefined) => void;
+  setSnapLines: StateSetter<SnapLine[]>;
+  logSnapDebug: (input: SnapDebugLogInput) => void;
+  snapGuideInput: SnapGuideInput;
+  snapSettingsPatch: SnapSettingsPatch;
+  canvasTransform: CanvasTransform;
+  viewportWorldBounds: WorldBounds | null;
+  setDragState: ValueSetter<DragState | null>;
+  resolveEditableTextTarget: (targetId: string, region?: HitRegion) => EditableTextTarget | null;
+  densePathSourceIds: ReadonlySet<string>;
+  expandedDensePathSourceId: string | null;
+  setExpandedDensePathSourceId: StateSetter<string | null>;
+  scopeOverlay: ScopeOverlayIndex;
+  focusedScopeId: string | null;
+  applyActionWithFeedback: ApplyActionWithFeedbackFn;
+  activeFigureId: string | null;
+  parseOptions: CanvasEditParseOptions;
 };
 
 function clientPointFromEvent(event: Pick<PointerEvent | ReactPointerEvent<SVGElement> | ReactMouseEvent<SVGElement>, "clientX" | "clientY">): ClientPoint {
@@ -343,7 +385,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
   }, [beginCanvasTextInteraction, closeTextEditingSession, dispatch, interactionSvgRef, scopeOverlay, selectedElementIds, setSnapLines, startElementDrag, svgResult]);
 
   const onElementPointerDown = useCallback(
-    (event: ReactPointerEvent<SVGElement>, targetId: string, region?: any) => {
+    (event: ReactPointerEvent<SVGElement>, targetId: string, region?: HitRegion) => {
       if (!svgResult) return;
       if (toolMode === "addBucket") {
         if (event.button !== 0) {
@@ -558,7 +600,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
   );
 
   const onElementDoubleClick = useCallback(
-    (event: ReactMouseEvent<SVGElement>, targetId: string, region?: any) => {
+    (event: ReactMouseEvent<SVGElement>, targetId: string, region?: HitRegion) => {
       if (toolMode !== "select") return;
 
       const sourceId = typeof region?.sourceId === "string" ? region.sourceId : targetId;

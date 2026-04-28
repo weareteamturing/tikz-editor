@@ -1,12 +1,18 @@
 import {
   useCallback,
+  type MutableRefObject,
   type ClipboardEvent as ReactClipboardEvent,
   type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent
 } from "react";
 import { pt, worldPoint } from "tikz-editor/coords/index";
-import { snapKeyboardNudge } from "tikz-editor/edit/snapping";
+import { snapKeyboardNudge, type SnapLine } from "tikz-editor/edit/snapping";
 import type { EditAction } from "tikz-editor/edit/actions";
+import type { SceneElement } from "tikz-editor/semantic/types";
+import type { SvgViewBox } from "tikz-editor/svg/types";
+import type { EditorPlatform } from "../../platform/types";
+import type { ToolMode } from "../../store/types";
+import type { WorldPoint } from "../coords/types";
 import {
   canPasteSelection,
   copySelection,
@@ -28,9 +34,55 @@ import {
   findSvgFileInDataTransfer
 } from "../svg-import";
 import { selectNudgeAnchorHandle } from "./panel-helpers";
+import type {
+  ApplyActionWithFeedbackFn,
+  CanvasContextMenuState,
+  CanvasDispatch,
+  CanvasSnapshot,
+  DragState,
+  FreehandToolDraft,
+  PendingBezier,
+  SnapDebugLogInput,
+  StateSetter,
+  TextEditingSession,
+  ValueSetter
+} from "./types";
 
 export type UseCanvasKeyboardClipboardArgs = {
-  [key: string]: any;
+  contextMenuState: CanvasContextMenuState | null;
+  setContextMenuState: StateSetter<CanvasContextMenuState | null>;
+  toolMode: ToolMode;
+  finalizePathDraft: (closed: boolean) => void;
+  setWarning: StateSetter<string | null>;
+  setFreehandDraft: StateSetter<FreehandToolDraft | null>;
+  dragRef: MutableRefObject<DragState | null>;
+  setDragState: ValueSetter<DragState | null>;
+  dispatch: CanvasDispatch;
+  setToolCursorWorld: StateSetter<WorldPoint | null>;
+  setSnapLines: StateSetter<SnapLine[]>;
+  setToolDraft: StateSetter<Extract<DragState, { kind: "tool-create" }> | null>;
+  setBezierBendDraft: StateSetter<Extract<DragState, { kind: "tool-bezier-bend" }> | null>;
+  setPendingBezier: StateSetter<PendingBezier | null>;
+  textEditingSession: TextEditingSession | null;
+  closeTextEditingSession: () => void;
+  setMarqueeDraft: StateSetter<Extract<DragState, { kind: "marquee" }> | null>;
+  selectedElementIds: ReadonlySet<string>;
+  applyActionWithFeedback: ApplyActionWithFeedbackFn;
+  snapshot: CanvasSnapshot;
+  source: string;
+  logSnapDebug: (input: SnapDebugLogInput) => void;
+  NUDGE_STEP_PT: number;
+  NUDGE_STEP_SHIFT_PT: number;
+  platform: EditorPlatform;
+  DESKTOP_TIKZ_CLIPBOARD_FORMATS: readonly string[];
+  DESKTOP_SVG_CLIPBOARD_FORMATS: readonly string[];
+  DESKTOP_KEYNOTE_CLIPBOARD_FORMATS: readonly string[];
+  DESKTOP_POWERPOINT_GVML_CLIPBOARD_FORMATS: readonly string[];
+  computeAutoScaleForImportedTikz: (
+    importedTikzSource: string,
+    currentScene: { elements: SceneElement[] } | null,
+    currentViewBox: SvgViewBox | null
+  ) => number | null;
 };
 
 function decodeBase64Bytes(base64: string): Uint8Array {
@@ -222,7 +274,7 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
           note: "blocked: snapshot/source mismatch",
           snapshotMatchesSource: false,
           dragKind: null,
-          rawDelta: axis === "x" ? { x: direction * step, y: 0 } : { x: 0, y: direction * step },
+          rawDelta: axis === "x" ? worldPoint(pt(direction * step), pt(0)) : worldPoint(pt(0), pt(direction * step)),
           lines: []
         });
         event.preventDefault();
@@ -235,7 +287,7 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
       }
 
       const selectedSet = new Set(selectedIds);
-      const elementHandles = snapshot.editHandles.filter((handle: any) => selectedSet.has(handle.sourceRef.sourceId));
+      const elementHandles = snapshot.editHandles.filter((handle) => selectedSet.has(handle.sourceRef.sourceId));
       const anchorHandle = selectNudgeAnchorHandle(elementHandles);
       const snapped = snapKeyboardNudge({
         anchor: anchorHandle?.world ?? null,
@@ -267,7 +319,7 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
         phase: "keyboard-nudge",
         snapshotMatchesSource: true,
         dragKind: null,
-        rawDelta: axis === "x" ? { x: direction * step, y: 0 } : { x: 0, y: direction * step },
+        rawDelta: axis === "x" ? worldPoint(pt(direction * step), pt(0)) : worldPoint(pt(0), pt(direction * step)),
         snappedDelta: delta,
         offset: snapped.offset,
         lines: snapped.lines

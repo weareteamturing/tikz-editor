@@ -1,11 +1,12 @@
-import { useCallback, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { clientPoint as makeClientPoint, px } from "tikz-editor/coords/index";
 import { resolveTransformInspectorMutationContext } from "tikz-editor/edit/inspector";
-import { buildSnapContext } from "tikz-editor/edit/snapping";
+import { buildSnapContext, type SnapGuideInput, type SnapLine, type SnapSettingsPatch } from "tikz-editor/edit/snapping";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import type { EditHandle, ScenePath } from "tikz-editor/semantic/types";
-import type { ClientPoint, WorldPoint } from "../coords/types";
+import type { ClientPoint, WorldBounds, WorldPoint } from "../coords/types";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
+import type { CanvasTransform, ToolMode } from "../../store/types";
 import { clientToWorldPoint } from "./geometry";
 import { resolveResizeFrameForSource, type ResizeFrame } from "./resize-frames";
 import { angleDeg } from "./rotate-handle";
@@ -19,9 +20,41 @@ import {
   resolveScenePathShapeHint,
   resizeCursorForRole
 } from "./panel-helpers";
+import type { DragCapability } from "./drag-capability";
+import type {
+  CanvasDispatch,
+  CanvasEditParseOptions,
+  CanvasSnapshot,
+  DragState,
+  NodeAnchorOverlayState,
+  SnapDebugLogInput,
+  StateSetter,
+  ValueSetter
+} from "./types";
 
 export type UseCanvasHandleInteractionsArgs = {
-  [key: string]: any;
+  svgResult: CanvasSnapshot["svg"];
+  toolMode: ToolMode;
+  viewportRef: RefObject<HTMLDivElement | null>;
+  dispatch: CanvasDispatch;
+  closeTextEditingSession: () => void;
+  setNodeAnchorOverlay: StateSetter<NodeAnchorOverlayState | null>;
+  selectedElementIds: ReadonlySet<string>;
+  dragCapability: DragCapability;
+  directManipulationDisabledReasonBySourceId?: ReadonlyMap<string, string>;
+  snapshot: CanvasSnapshot;
+  source: string;
+  setWarning: StateSetter<string | null>;
+  setSnapLines: StateSetter<SnapLine[]>;
+  logSnapDebug: (input: SnapDebugLogInput) => void;
+  snapGuideInput: SnapGuideInput;
+  snapSettingsPatch: SnapSettingsPatch;
+  canvasTransform: CanvasTransform;
+  viewportWorldBounds: WorldBounds | null;
+  resizeFramesBySource: ReadonlyMap<string, ResizeFrame | null>;
+  setDragState: ValueSetter<DragState | null>;
+  interactionSvgRef: RefObject<SVGSVGElement | null>;
+  parseOptions?: CanvasEditParseOptions;
 };
 
 function isCornerResizeRole(role: ResizeRole): role is Extract<ResizeRole, "top-left" | "top-right" | "bottom-left" | "bottom-right"> {

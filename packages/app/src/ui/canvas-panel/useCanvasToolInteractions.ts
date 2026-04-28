@@ -1,18 +1,84 @@
-import { useCallback, useEffect, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, type MouseEvent as ReactMouseEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { viewportPoint, clientPoint as makeClientPoint, worldPoint, pt, px } from "tikz-editor/coords/index";
-import { buildSnapContext, snapToolPointer, type SnapLine } from "tikz-editor/edit/snapping";
+import { buildSnapContext, snapToolPointer, type SnapGuideInput, type SnapLine, type SnapSettingsPatch } from "tikz-editor/edit/snapping";
+import type { NodeShapePresetId } from "tikz-editor/edit/inspector";
 import type { NodeAnchorTarget } from "tikz-editor/semantic/types";
-import type { ClientPoint, ViewportPoint, WorldPoint } from "../coords/types";
+import type { ClientPoint, ViewportPoint, WorldBounds, WorldPoint } from "../coords/types";
+import type { CanvasTransform, ToolMode } from "../../store/types";
 import { resolveEndpointAnchorSnap } from "./endpoint-anchor-snap";
 import { clientToWorldPoint, distanceSquared } from "./geometry";
 import { createPathToolDraft, pathToolCloseRadiusWorld, pathToolCurrentPoint, pathToolShouldClose } from "./path-tool";
 import { resolvePathEndpointSnap } from "./path-endpoint-snap";
 import { createFreehandToolDraft } from "./freehand-tool";
 import { isToolCreateMode } from "../tool-config";
-import type { DragState, PendingTouchViewport } from "./types";
+import type { MatrixCellAnchorHint } from "./endpoint-anchor-snap";
+import type {
+  ApplyActionWithFeedbackFn,
+  CanvasDispatch,
+  CanvasEditParseOptions,
+  CanvasSnapshot,
+  DragState,
+  FreehandToolDraft,
+  MagnifierState,
+  NodeAnchorOverlayState,
+  PathToolDraft,
+  PendingAddedSelection,
+  PendingBezier,
+  PendingTouchViewport,
+  SnapDebugLogInput,
+  StateSetter,
+  ValueSetter
+} from "./types";
 
 export type UseCanvasToolInteractionsArgs = {
-  [key: string]: any;
+  viewportRef: RefObject<HTMLDivElement | null>;
+  toolMode: ToolMode;
+  closeTextEditingSession: () => void;
+  startMarqueeSelection: (pointerId: number, clientPoint: ClientPoint, additiveSelection: boolean) => boolean;
+  pendingTouchViewportRef: MutableRefObject<PendingTouchViewport | null>;
+  suppressNextBackgroundClickRef: MutableRefObject<boolean>;
+  svgResult: CanvasSnapshot["svg"];
+  setDragState: ValueSetter<DragState | null>;
+  canvasTransform: CanvasTransform;
+  interactionSvgRef: RefObject<SVGSVGElement | null>;
+  pendingBezier: PendingBezier | null;
+  snapshot: CanvasSnapshot;
+  source: string;
+  setWarning: StateSetter<string | null>;
+  setSnapLines: StateSetter<SnapLine[]>;
+  logSnapDebug: (input: SnapDebugLogInput) => void;
+  snapGuideInput: SnapGuideInput;
+  snapSettingsPatch: SnapSettingsPatch;
+  viewportWorldBounds: WorldBounds | null;
+  nodeAnchorTargets: readonly NodeAnchorTarget[];
+  matrixCellAnchorHints: readonly MatrixCellAnchorHint[];
+  setToolCursorWorld: StateSetter<WorldPoint | null>;
+  setPathDraft: StateSetter<PathToolDraft | null>;
+  setPathSegmentDraft: StateSetter<Extract<DragState, { kind: "tool-path-segment" }> | null>;
+  setToolDraft: StateSetter<Extract<DragState, { kind: "tool-create" }> | null>;
+  setBezierBendDraft: StateSetter<Extract<DragState, { kind: "tool-bezier-bend" }> | null>;
+  setPendingBezier: StateSetter<PendingBezier | null>;
+  setNodeAnchorOverlay: StateSetter<NodeAnchorOverlayState | null>;
+  setFreehandDraft: StateSetter<FreehandToolDraft | null>;
+  setMagnifierState: StateSetter<MagnifierState | null>;
+  setDragCursorLock: StateSetter<string | null>;
+  magnifierState: MagnifierState | null;
+  pathDraftRef: MutableRefObject<PathToolDraft | null>;
+  finalizePathDraft: (closed: boolean) => void;
+  queueSelectionForAddedElement: (preferredWorld: WorldPoint, preferredSourceId?: string) => void;
+  applyActionWithFeedback: ApplyActionWithFeedbackFn;
+  pendingAddedSelectionRef: MutableRefObject<PendingAddedSelection | null>;
+  dispatch: CanvasDispatch;
+  selectedAddShape: Exclude<NodeShapePresetId, "custom">;
+  selectedAddMatrixRows: number;
+  selectedAddMatrixColumns: number;
+  pathDraft: PathToolDraft | null;
+  pathSegmentDraft: Extract<DragState, { kind: "tool-path-segment" }> | null;
+  dragRef: MutableRefObject<DragState | null>;
+  toolDraft: Extract<DragState, { kind: "tool-create" }> | null;
+  bezierBendDraft: Extract<DragState, { kind: "tool-bezier-bend" }> | null;
+  freehandDraft: FreehandToolDraft | null;
+  parseOptions: CanvasEditParseOptions;
 };
 
 export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
@@ -423,7 +489,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
           return;
         }
 
-        if (toolMode === "addNode" || toolMode === "addMatrix") {
+        if (toolMode === "addNode" || toolMode === "addMatrix" || toolMode === "addShape") {
           event.preventDefault();
           event.stopPropagation();
           const snapResult = toolSnapContext

@@ -1,13 +1,24 @@
-import { useCallback, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
 import { clientPoint as makeClientPoint, px } from "tikz-editor/coords/index";
 import type { EditHandle } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 import type { ClientPoint } from "../coords/types";
-import { resolveScopeAwareContextMenuTarget } from "./scope-overlay";
+import type { CanvasTransform } from "../../store/types";
+import { resolveScopeAwareContextMenuTarget, type ScopeOverlayIndex } from "./scope-overlay";
 import { clientToWorldPoint } from "./geometry";
+import type { CanvasSnapshot } from "./types";
+import type { HitRegion } from "./hit-regions";
 
 export type UseCanvasSelectionInteractionsArgs = {
-  [key: string]: any;
+  openCanvasContextMenuAt: (clientPoint: ClientPoint, clickedSourceId: string | null, clickedHandleId?: string | null) => void;
+  closeTextEditingSession: () => void;
+  selectedElementIds: ReadonlySet<string>;
+  scopeOverlay: ScopeOverlayIndex;
+  focusedScopeId: string | null;
+  snapshot: CanvasSnapshot;
+  svgResult: CanvasSnapshot["svg"];
+  interactionSvgRef: RefObject<SVGSVGElement | null>;
+  canvasTransform: CanvasTransform;
 };
 
 export function useCanvasSelectionInteractions(args: UseCanvasSelectionInteractionsArgs) {
@@ -24,7 +35,7 @@ export function useCanvasSelectionInteractions(args: UseCanvasSelectionInteracti
   } = args;
 
   const onElementContextMenu = useCallback(
-    (event: ReactMouseEvent<SVGElement>, sourceId: string, region?: any, handleId?: string | null) => {
+    (event: ReactMouseEvent<SVGElement>, sourceId: string, region?: HitRegion, handleId?: string | null) => {
       event.preventDefault();
       event.stopPropagation();
       const hitSourceId = typeof region?.sourceId === "string" ? region.sourceId : sourceId;

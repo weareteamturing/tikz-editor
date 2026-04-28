@@ -4,6 +4,8 @@ import { PT_PER_CM } from "tikz-editor/edit/format";
 import type { ScenePathCommand } from "tikz-editor/semantic/types";
 import type { WorldPoint } from "../coords/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
+import type { NodeShapePresetId } from "tikz-editor/edit/inspector";
+import type { CanvasTransform, ToolMode } from "../../store/types";
 import { distanceSquared, fmt, worldToSvgPoint, worldToSvgY } from "./geometry";
 import { resolveBezierControlsFromBend } from "./interaction-helpers";
 import { resolveAddShapeDraft, resolveAddShapeOriginFromDrag } from "./add-shape-draft";
@@ -14,6 +16,8 @@ import {
 } from "./path-tool";
 import { resolveFreehandPreviewSegments } from "./freehand-tool";
 import { buildAnchoredGridPreviewLines } from "./panel-helpers";
+import type { CanvasSnapshot, DragState, FreehandToolDraft, PathToolDraft, PendingBezier } from "./types";
+import type { ToolPreview } from "./overlays";
 
 const TOOL_PREVIEW_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
 const TOOL_PREVIEW_GRID_STEP_PT = PT_PER_CM;
@@ -23,37 +27,19 @@ function wp(x: number, y: number): WorldPoint {
   return worldPoint(pt(x), pt(y));
 }
 
-type ToolPreview =
-  | { kind: "cursor"; x: number; y: number }
-  | { kind: "node"; x: number; y: number }
-  | { kind: "line"; x1: number; y1: number; x2: number; y2: number; arrow: boolean }
-  | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
-  | {
-      kind: "complex-path";
-      startX: number;
-      startY: number;
-      closeCandidate: boolean;
-      canClose: boolean;
-      segments: Array<
-        | { kind: "line"; x1: number; y1: number; x2: number; y2: number }
-        | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
-      >;
-    }
-  | {
-      kind: "freehand";
-      segments: Array<
-        | { kind: "line"; x1: number; y1: number; x2: number; y2: number }
-        | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
-      >;
-    }
-  | { kind: "grid"; x: number; y: number; width: number; height: number; verticalLines: number[]; horizontalLines: number[] }
-  | { kind: "rect"; x: number; y: number; width: number; height: number }
-  | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number }
-  | { kind: "circle"; cx: number; cy: number; r: number }
-  | { kind: "path"; d: string };
-
 export type UseCanvasDerivedStateArgs = {
-  [key: string]: any;
+  svgResult: CanvasSnapshot["svg"];
+  toolMode: ToolMode;
+  toolDraft: Extract<DragState, { kind: "tool-create" }> | null;
+  toolCursorWorld: WorldPoint | null;
+  selectedAddShape: Exclude<NodeShapePresetId, "custom">;
+  freehandDraft: FreehandToolDraft | null;
+  freehandSmoothingPx: number;
+  pathDraft: PathToolDraft | null;
+  pathSegmentDraft: Extract<DragState, { kind: "tool-path-segment" }> | null;
+  pendingBezier: PendingBezier | null;
+  bezierBendDraft: Extract<DragState, { kind: "tool-bezier-bend" }> | null;
+  canvasTransform: CanvasTransform;
 };
 
 export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {

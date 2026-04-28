@@ -1,17 +1,39 @@
-import { useEffect } from "react";
+import { useEffect, type RefObject } from "react";
 import { svgPoint, svgBounds, viewportBounds, pt, px } from "tikz-editor/coords/index";
 import { getActiveMathJaxOutputJax } from "tikz-editor/text/mathjax-engine";
 import { getKnuthPlassPointFromOffset, getKnuthPlassSelectionRects } from "tikz-editor/text/knuth-plass";
 import type { ClientPoint, SvgBounds, SvgPoint, ViewportPoint } from "../coords/types";
+import type { CanvasTransform, ToolMode } from "../../store/types";
 import { clientToViewport, svgToViewport } from "../coords/convert";
 import { clientBoundsToViewport, svgBoundsToViewportBounds } from "../coords/text";
 import { clamp } from "./geometry";
 import { createSourceRenderOffsetMap } from "./text-offset-map";
 import { applyTextMeasureFont, createVisualTextLayout } from "./text-visual-layout";
-import type { TextSelectionOverlay, TextSelectionOverlayBox } from "./types";
+import type { CanvasSnapshot, EditableTextTarget, StateSetter, TextEditingSession, TextSelectionOverlay, TextSelectionOverlayBox } from "./types";
+import type { CanvasTextEditAction } from "./canvas-text-edit-machine";
 
 export type UseCanvasTextEditingEffectsArgs = {
-  [key: string]: any;
+  toolMode: ToolMode;
+  textEditingSession: TextEditingSession | null;
+  textEditAsyncRequestRevision: number;
+  dispatchCanvasTextEditAction: (action: CanvasTextEditAction) => void;
+  selectedElementIds: ReadonlySet<string>;
+  resolveEditableTextTargetById: (sourceId: string, sceneTextId?: string) => EditableTextTarget | null;
+  resolveRenderedMathTextElement: (target: EditableTextTarget) => SVGSVGElement | null;
+  viewportRef: RefObject<HTMLDivElement | null>;
+  pendingAdornmentTextEditTargetId: string | null;
+  snapshot: CanvasSnapshot;
+  source: string;
+  sourceRevision: number;
+  startTextEditingSession: (
+    target: EditableTextTarget,
+    selectionStart: number,
+    selectionEnd: number,
+    historyMergeKey?: string
+  ) => void;
+  setPendingAdornmentTextEditTargetId: StateSetter<string | null>;
+  canvasTransform: CanvasTransform;
+  svgResult: CanvasSnapshot["svg"];
 };
 
 type RegionSelectionOverlayBox = {
@@ -40,12 +62,12 @@ function getFallbackOverlayMeasureContext(): CanvasRenderingContext2D | null {
   return fallbackOverlayMeasureContext;
 }
 
-function applyFallbackOverlayFont(ctx: CanvasRenderingContext2D | null, target: any): void {
+function applyFallbackOverlayFont(ctx: CanvasRenderingContext2D | null, target: EditableTextTarget): void {
   applyTextMeasureFont(ctx, target?.style);
 }
 
 function resolveRegionSelectionOverlay(
-  target: any,
+  target: EditableTextTarget,
   selectionStart: number,
   selectionEnd: number
 ): {

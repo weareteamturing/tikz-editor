@@ -1,0 +1,38 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true
+  },
+  "include": [
+    "*.config.js",
+    "*.config.mjs",
+    "*.config.ts",
+    "apps/**/*.js",
+    "apps/**/*.mjs",
+    "apps/**/*.mts",
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "packages/**/*.ts",
+    "packages/**/*.tsx",
+    "scripts/**/*.js",
+    "scripts/**/*.mjs",
+    "scripts/**/*.ts",
+    "test/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/dist",
+    "apps/desktop/src-tauri/target",
+    "packages/app/public/docs",
+    "test/papers",
+    "apps/web/profiling/traces",
+    "examples",
+    "prototypes",
+    "tikz-dev",
+    "pgf-docs",
+    "pgf-src",
+    "tauri-docs"
+  ]
+}

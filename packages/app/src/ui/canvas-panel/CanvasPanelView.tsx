@@ -1,3 +1,20 @@
+import type {
+  ClipboardEvent as ReactClipboardEvent,
+  DragEvent as ReactDragEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+  RefObject,
+  SyntheticEvent as ReactSyntheticEvent
+} from "react";
+import type { AppMenuCommandId } from "../../app-menu";
+import type { CanvasContextMenuDefinition } from "../../context-menu";
+import type { EditorPlatform } from "../../platform/types";
+import type { CanvasTransform, ToolMode } from "../../store/types";
+import type { ResizeRole } from "tikz-editor/edit/actions";
+import type { EditHandle } from "tikz-editor/semantic/types";
+import type { SvgDiffHints, SvgRenderModel } from "tikz-editor/svg/index";
+import type { SnapLine } from "tikz-editor/edit/snapping";
 import { CanvasSVGLayer } from "./CanvasSVGLayer";
 import {
   CurveControlOverlay,
@@ -7,19 +24,153 @@ import {
   SelectionDragLayer,
   SelectionOverlay,
   SnapOverlay,
-  ToolPreviewOverlay
+  ToolPreviewOverlay,
+  type ToolPreview
 } from "./overlays";
-import type { TextSelectionOverlayBox } from "./types";
-import { fmt, worldToSvgY } from "./geometry";
+import type {
+  AdornmentConnectorDisplay,
+  AdornmentHighlightBox,
+  CanvasContextMenuState,
+  CanvasSnapshot,
+  DragTooltipState,
+  HandleDisplay,
+  MagnifierState,
+  NodeAnchorOverlayState,
+  SelectionBounds,
+  SelectionBoxDisplay,
+  TextEditingSession,
+  TextSelectionOverlay,
+  TextSelectionOverlayBox
+} from "./types";
+import type { SvgBounds, WorldPoint } from "../coords/types";
+import { fmt, worldToSvgY, type RulerTick, type VisibleRanges } from "./geometry";
 import { CanvasContextMenu } from "../CanvasContextMenu";
 import { RenderedTooltip } from "../RenderedTooltip";
+import type { CommandBindings, CommandOrigin } from "../editor-command-runtime";
+import type { GridLines } from "./useCanvasGuidesAndRulers";
+import type { GuideOrientation } from "./types";
+import type { HitRegion } from "./hit-regions";
+import type { CurveControlLine } from "./curve-controls";
 import css from "../CanvasPanel.module.css";
 
 const MAGNIFIER_DIAMETER_PX = 300;
 const MAGNIFIER_SCALE = 2.25;
 
 type CanvasPanelViewProps = {
-  [key: string]: any;
+  prefersNonBlinkingTextInsertionIndicator: boolean;
+  showRulers: boolean;
+  viewportSize: { width: number; height: number };
+  topRulerRef: RefObject<SVGSVGElement | null>;
+  leftRulerRef: RefObject<SVGSVGElement | null>;
+  onTopRulerPointerDown: (event: ReactPointerEvent<SVGSVGElement>) => void;
+  onLeftRulerPointerDown: (event: ReactPointerEvent<SVGSVGElement>) => void;
+  onCanvasContextMenu: (event: ReactMouseEvent<SVGElement | HTMLDivElement>) => void;
+  rulers: { topTicks: RulerTick[]; leftTicks: RulerTick[] };
+  LEFT_RULER_DRAG_SOURCE_WIDTH_PX: number;
+  toolMode: ToolMode;
+  viewportRef: RefObject<HTMLDivElement | null>;
+  onViewportKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
+  onViewportCopy: (event: ReactClipboardEvent<HTMLDivElement>) => void;
+  onViewportCut: (event: ReactClipboardEvent<HTMLDivElement>) => void;
+  onViewportPaste: (event: ReactClipboardEvent<HTMLDivElement>) => void;
+  onViewportDragOver: (event: ReactDragEvent<HTMLDivElement>) => void;
+  onViewportDrop: (event: ReactDragEvent<HTMLDivElement>) => void;
+  onBackgroundClick: (event: ReactMouseEvent<HTMLDivElement | SVGSVGElement>) => void;
+  onViewportPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onViewportPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  svgResult: CanvasSnapshot["svg"];
+  noActiveFigure: boolean;
+  assistantLockReason: string | null;
+  snapshot: CanvasSnapshot;
+  svgModel: SvgRenderModel | null;
+  svgLayerHostRef: RefObject<HTMLDivElement | null>;
+  canvasTransform: CanvasTransform;
+  showTransparencyGrid: boolean;
+  showDocumentBounds: boolean;
+  svgDiffHints: SvgDiffHints | undefined;
+  forceSvgReplaceAll: boolean;
+  onSvgPatchFallback: (reason: "replaceDefs" | "replaceAll" | "patch-failure") => void;
+  repeatPreviewModel: SvgRenderModel | null;
+  interactionSvgRef: RefObject<SVGSVGElement | null>;
+  onInteractionPointerDown: (event: ReactPointerEvent<SVGSVGElement>) => void;
+  onInteractionPointerUp: (event: ReactPointerEvent<SVGSVGElement>) => void;
+  onInteractionLostPointerCapture: (event: ReactPointerEvent<SVGSVGElement>) => void;
+  onInteractionPointerMove: (event: ReactPointerEvent<SVGSVGElement>) => void;
+  onInteractionPointerEnter: (event: ReactPointerEvent<SVGSVGElement>) => void;
+  onInteractionPointerLeave: (event: ReactPointerEvent<SVGSVGElement>) => void;
+  gridLines: GridLines | null;
+  gridMinorStrokeWidth: number;
+  gridMajorStrokeWidth: number;
+  visibleRanges: VisibleRanges | null;
+  showGuides: boolean;
+  renderedGuides: { vertical: number[]; horizontal: number[] };
+  guideStrokeWidth: number;
+  guideHitStrokeWidth: number;
+  onGuidePointerDown: (event: ReactPointerEvent<SVGLineElement>, orientation: GuideOrientation, value: number) => void;
+  snapLines: readonly SnapLine[];
+  snapStrokeWidth: number;
+  snapCrossSize: number;
+  toolPreview: ToolPreview | null;
+  handleStrokeWidth: number;
+  previewArrowPoints: (x1: number, y1: number, x2: number, y2: number, size: number) => string;
+  hitRegions: readonly HitRegion[];
+  hoveredElementId: string | null;
+  editableTextRegionKeys: ReadonlySet<string>;
+  draggableSourceIds: ReadonlySet<string>;
+  onElementPointerDown: (event: ReactPointerEvent<SVGElement>, targetId: string, region?: HitRegion) => void;
+  onElementContextMenu: (event: ReactMouseEvent<SVGElement>, sourceId: string, region?: HitRegion, handleId?: string | null) => void;
+  onElementDoubleClick: (event: ReactMouseEvent<SVGElement>, targetId: string, region?: HitRegion) => void;
+  onHoverChange: (id: string | null) => void;
+  marqueeBounds: SvgBounds | null;
+  selectionBoxes: readonly SelectionBoxDisplay[];
+  adornmentHighlightBoxes: readonly AdornmentHighlightBox[];
+  selectedAdornmentConnectors: readonly AdornmentConnectorDisplay[];
+  selectionStrokeWidth: number;
+  textSelectionOverlay: TextSelectionOverlay | null;
+  selectionDragStrokeWidth: number;
+  matrixSelectionSourceIds: ReadonlySet<string>;
+  curveControlLines: readonly CurveControlLine[];
+  curveControlStrokeWidth: number;
+  nodeAnchorOverlay: NodeAnchorOverlayState | null;
+  handleHalfSize: number;
+  handleDisplays: readonly HandleDisplay[];
+  onHandlePointerDown: (event: ReactPointerEvent<SVGElement>, handle: EditHandle) => void;
+  onResizeHandlePointerDown: (event: ReactPointerEvent<SVGElement>, sourceId: string, role: ResizeRole, cursor: string) => void;
+  onRotateHandlePointerDown: (event: ReactPointerEvent<SVGElement>, sourceId: string, centerWorld: WorldPoint, cursor: string) => void;
+  platform: EditorPlatform;
+  contextMenuState: CanvasContextMenuState | null;
+  commandRuntimeBindings: CommandBindings;
+  contextMenuDefinition: CanvasContextMenuDefinition;
+  onContextMenuClose: () => void;
+  onContextMenuCommandRun: (commandId: AppMenuCommandId, origin: CommandOrigin) => void;
+  dragTooltip: DragTooltipState | null;
+  dragTooltipBoundary: { left: number; top: number; right: number; bottom: number } | null;
+  warning: string | null;
+  copyWarningToClipboard: () => void;
+  onWarningBarKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
+  textEditingSession: TextEditingSession | null;
+  textEditPopup: { centerX: number; top: number; maxWidth: number; textareaWidth: number } | null;
+  textEditPopupHeight: number | null;
+  textEditPopupRef: RefObject<HTMLDivElement | null>;
+  textEditTextareaSizing: { rows: number } | null;
+  textEditTextareaRef: RefObject<HTMLTextAreaElement | null>;
+  textEditCaretOverlay: { left: number; top: number; height: number } | null;
+  hideNativeTextEditCaret: boolean;
+  onTextEditPopupPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onTextEditTextareaSelect: (event: ReactSyntheticEvent<HTMLTextAreaElement>) => void;
+  onTextEditTextareaCopy: (event: ReactClipboardEvent<HTMLTextAreaElement>) => void;
+  onTextEditTextareaCut: (event: ReactClipboardEvent<HTMLTextAreaElement>) => void;
+  onTextEditTextareaPaste: (event: ReactClipboardEvent<HTMLTextAreaElement>) => void;
+  onTextEditTextareaDrop: (event: ReactDragEvent<HTMLTextAreaElement>) => void;
+  onTextEditTextareaKeyDown: (event: ReactKeyboardEvent<HTMLTextAreaElement>) => void;
+  selectionHint: string | null;
+  showDevPanel: boolean;
+  snapDebugRect: { left: number; top: number; width: number; height: number };
+  onSnapDebugMovePointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  snapDebug: unknown;
+  onSnapDebugResizePointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  RULER_SIZE: number;
+  magnifierState: MagnifierState | null;
 };
 
 export function CanvasPanelView(props: CanvasPanelViewProps) {
@@ -169,7 +320,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
               onContextMenu={onCanvasContextMenu}
             >
               <line x1={0} y1={RULER_SIZE - 0.5} x2={viewportSize.width} y2={RULER_SIZE - 0.5} className={css.rulerAxis} />
-              {rulers.topTicks.map((tick: any, index: number) => (
+              {rulers.topTicks.map((tick, index) => (
                 <g key={`top-${index}`} transform={`translate(${tick.viewportPos},0)`}>
                   <line
                     x1={0}
@@ -201,7 +352,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
               onContextMenu={onCanvasContextMenu}
             >
               <line x1={RULER_SIZE - 0.5} y1={0} x2={RULER_SIZE - 0.5} y2={viewportSize.height} className={css.rulerAxis} />
-              {rulers.leftTicks.map((tick: any, index: number) => (
+              {rulers.leftTicks.map((tick, index) => (
                 <g key={`left-${index}`} transform={`translate(0,${tick.viewportPos})`}>
                   <line
                     x1={RULER_SIZE}
@@ -289,7 +440,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                   <defs dangerouslySetInnerHTML={{ __html: repeatPreviewModel.defs.join("") }} />
                   <g
                     className={css.repeatPreviewContent}
-                    dangerouslySetInnerHTML={{ __html: repeatPreviewModel.parts.map((part: any) => part.markup).join("") }}
+                    dangerouslySetInnerHTML={{ __html: repeatPreviewModel.parts.map((part) => part.markup).join("") }}
                   />
                 </svg>
               ) : null}
@@ -657,7 +808,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                   data-drag-tooltip-kind={dragTooltip.kind}
                   data-select="text"
                 >
-                  {dragTooltip.rows.map((row: any) => (
+                  {dragTooltip.rows.map((row) => (
                     <div
                       key={`${row.label}:${row.value}`}
                       className={css.dragTooltipRow}

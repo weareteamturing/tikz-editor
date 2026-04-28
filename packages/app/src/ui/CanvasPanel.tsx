@@ -81,6 +81,7 @@ import { useCanvasDragController } from "./canvas-panel/useCanvasDragController"
 import { applyTextMeasureFont, collectLogicalLineRanges, createVisualTextLayout } from "./canvas-panel/text-visual-layout";
 import type {
   ApplyActionFeedback,
+  CanvasContextMenuState,
   DragState,
   DragTooltipState,
   EditableTextTarget,
@@ -304,19 +305,6 @@ type BucketPreviewSession = {
   colorToken: string;
   baseSource: string;
   previewSource: string;
-};
-
-type CanvasContextMenuState = {
-  target: CanvasContextMenuTarget;
-  anchor: ViewportPoint;
-  handleIdOverride?: string | null;
-  includeEditEquationForSingleNode?: boolean;
-  includeMatrixMultiRemoveRow?: boolean;
-  includeMatrixMultiRemoveColumn?: boolean;
-  includeMatrixMultiInsertRowAbove?: boolean;
-  includeMatrixMultiInsertRowBelow?: boolean;
-  includeMatrixMultiInsertColumnLeft?: boolean;
-  includeMatrixMultiInsertColumnRight?: boolean;
 };
 
 type PendingNativeContextMenuRequest = {
@@ -3278,7 +3266,6 @@ export const CanvasPanel = memo(function CanvasPanel({
     applyActionWithFeedback,
     pendingAddedSelectionRef,
     dispatch,
-    dispatchCanvasTransform,
     selectedAddShape,
     selectedAddMatrixRows,
     selectedAddMatrixColumns,

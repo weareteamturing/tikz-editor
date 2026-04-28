@@ -8,6 +8,7 @@ import { resolveTransformInspectorMutationContextFromOptionEntries } from "tikz-
 import { collectSourceWorldBounds } from "tikz-editor/edit/snapping";
 import type { EditHandle, NodeAnchorTarget, SceneElement, ScenePath, SceneText } from "tikz-editor/semantic/types";
 import type { SvgBounds, SvgPoint, WorldBounds, WorldPoint } from "../coords/types";
+import type { CanvasTransform, ToolMode } from "../../store/types";
 import {
   computeVisibleRanges,
   resizeCursorForVector,
@@ -28,6 +29,8 @@ import type { MatrixCellAnchorHint } from "./endpoint-anchor-snap";
 import type {
   AdornmentConnectorDisplay,
   AdornmentHighlightBox,
+  CanvasSnapshot,
+  DragState,
   HandleDisplay,
   ScopeHitBounds,
   SelectionBounds,
@@ -48,7 +51,15 @@ import {
 } from "./panel-helpers";
 
 export type UseCanvasSelectionDerivedStateArgs = {
-  [key: string]: any;
+  snapshot: Pick<CanvasSnapshot, "source" | "editHandles" | "scene" | "parseResult" | "semanticResult">;
+  selectedElementIds: ReadonlySet<string>;
+  collapsedDensePathSourceIds: ReadonlySet<string>;
+  svgResult: CanvasSnapshot["svg"];
+  canvasTransform: CanvasTransform;
+  marqueeDraft: Extract<DragState, { kind: "marquee" }> | null;
+  toolMode: ToolMode;
+  viewportSize: { width: number; height: number };
+  ROTATE_HANDLE_OFFSET_PX: number;
 };
 
 const SIDE_RESIZE_HANDLE_MIN_DIMENSION_PX = 96;

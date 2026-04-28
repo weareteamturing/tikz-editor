@@ -1,12 +1,41 @@
-import { useEffect } from "react";
+import { useEffect, type MutableRefObject, type RefObject } from "react";
 import { viewportPoint as makeViewportPoint, clientPoint, px } from "tikz-editor/coords/index";
 import { clamp, distanceSquared, viewportToSvgPoint } from "./geometry";
 import { resolveToolCreateCurrentWorld } from "./interaction-helpers";
-import type { ClientPoint, SvgPoint, ViewportPoint } from "../coords/types";
-import type { PendingTouchViewport } from "./types";
+import type { ClientPoint, SvgPoint, ViewportPoint, WorldPoint } from "../coords/types";
+import type { CanvasDragKind, CanvasTransform } from "../../store/types";
+import type { CanvasSnapshot, DragState, PendingTouchViewport, SourceBoundsMap, StateSetter, ValueSetter } from "./types";
+import type { ResizeFrame } from "./resize-frames";
+import type { SvgViewBox } from "tikz-editor/svg/types";
 
 export type UseCanvasViewportEffectsArgs = {
-  [key: string]: any;
+  dragRef: MutableRefObject<DragState | null>;
+  pendingTouchViewportRef: MutableRefObject<PendingTouchViewport | null>;
+  setDragState: ValueSetter<DragState | null>;
+  setToolDraft: StateSetter<Extract<DragState, { kind: "tool-create" }> | null>;
+  setToolCursorWorld: StateSetter<WorldPoint | null>;
+  viewportRef: RefObject<HTMLDivElement | null>;
+  setViewportSize: StateSetter<{ width: number; height: number }>;
+  canvasTransform: CanvasTransform;
+  canvasTransformRef: MutableRefObject<CanvasTransform>;
+  selectedElementIds: ReadonlySet<string>;
+  selectedElementIdsRef: MutableRefObject<ReadonlySet<string>>;
+  svgResult: CanvasSnapshot["svg"];
+  svgResultRef: MutableRefObject<CanvasSnapshot["svg"]>;
+  fitToContentModeActive: boolean;
+  fitToContentModeActiveRef: MutableRefObject<boolean>;
+  sourceBoundsSvg: SourceBoundsMap;
+  sourceBoundsSvgRef: MutableRefObject<SourceBoundsMap>;
+  resizeFramesBySource: ReadonlyMap<string, ResizeFrame | null>;
+  liveResizeFramesRef: MutableRefObject<ReadonlyMap<string, ResizeFrame | null>>;
+  previousViewBoxRef: MutableRefObject<SvgViewBox | null>;
+  activeCanvasDragKind: CanvasDragKind | null;
+  setDragPatchMode: StateSetter<"partial" | "full">;
+  dispatchCanvasTransform: (transform: CanvasTransform) => void;
+  zoomSpeed: number;
+  MIN_SCALE: number;
+  MAX_SCALE: number;
+  setFitToContentModeActive: StateSetter<boolean>;
 };
 
 export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {

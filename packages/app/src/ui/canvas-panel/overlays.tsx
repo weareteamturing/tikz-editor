@@ -22,7 +22,7 @@ const TOOL_PREVIEW_NODE_RADIUS_PX = 12;
 const ROTATE_GLYPH_PATH_1 = "M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z";
 const ROTATE_GLYPH_PATH_2 = "M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466";
 
-type ToolPreview =
+export type ToolPreview =
   | { kind: "cursor"; x: number; y: number }
   | { kind: "node"; x: number; y: number }
   | { kind: "line"; x1: number; y1: number; x2: number; y2: number; arrow: boolean }

@@ -1,19 +1,55 @@
 import type { AdornmentOwnerGeometry, Span, Statement } from "tikz-editor/ast/types";
 import type { ComplexPathSegment } from "tikz-editor/edit/element-templates";
-import type { ResizeRole } from "tikz-editor/edit/actions";
+import type { EditAction, ResizeRole } from "tikz-editor/edit/actions";
+import type { EditParseOptions } from "tikz-editor/edit/parse-options";
 import type { SelectionGeometry, SnapContext, SnapLine } from "tikz-editor/edit/snapping";
 import type { EditHandle, NodeAnchorTarget, SceneElement, SceneText } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/index";
 import type { NodeTextLayoutKind } from "tikz-editor/text/types";
 import type { FrameTransform } from "tikz-editor/coords/index";
+import type { Dispatch, SetStateAction } from "react";
 
-import type { CanvasTransform } from "../../store/types";
+import type { SessionSnapshot } from "../../compute";
+import type { CanvasTransform, EditorAction } from "../../store/types";
+import type { CanvasContextMenuTarget } from "../../context-menu";
 import type { ToolCreateMode } from "../tool-config";
 import type { ClientPoint, SvgBounds, SvgPoint, ViewportBounds, ViewportPoint, WorldBounds, WorldPoint, WorldVector } from "../coords/types";
 import type { HitRegion } from "./hit-regions";
 import type { ResizeFrame } from "./resize-frames";
 
 export type GuideOrientation = "vertical" | "horizontal";
+
+export type CanvasDispatch = (action: EditorAction) => void;
+
+export type StateSetter<T> = Dispatch<SetStateAction<T>>;
+
+export type ValueSetter<T> = (value: T) => void;
+
+export type CanvasSnapshot = SessionSnapshot;
+
+export type CanvasSvgResult = SessionSnapshot["svg"];
+
+export type CanvasSvgRenderModel = SessionSnapshot["svgModel"];
+
+export type CanvasEditParseOptions = EditParseOptions;
+
+export type ApplyActionWithFeedbackFn = (
+  action: EditAction,
+  historyMergeKey?: string
+) => ApplyActionFeedback;
+
+export type CanvasContextMenuState = {
+  target: CanvasContextMenuTarget;
+  anchor: ViewportPoint;
+  handleIdOverride?: string | null;
+  includeEditEquationForSingleNode?: boolean;
+  includeMatrixMultiRemoveRow?: boolean;
+  includeMatrixMultiRemoveColumn?: boolean;
+  includeMatrixMultiInsertRowAbove?: boolean;
+  includeMatrixMultiInsertRowBelow?: boolean;
+  includeMatrixMultiInsertColumnLeft?: boolean;
+  includeMatrixMultiInsertColumnRight?: boolean;
+};
 
 export type GuidesState = {
   vertical: number[];
