@@ -152,21 +152,21 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
   const rowCount = Math.max(1, parsed.rows.length);
   const colCount = Math.max(1, parsed.rows.reduce((max, row) => Math.max(max, row.cells.length), 0));
 
-  const columnGapOverrides = new Array(Math.max(0, colCount - 1)).fill(0);
+  const columnGapOverrides = Array.from<number>({ length: Math.max(0, colCount - 1) }).fill(0);
   for (const row of parsed.rows) {
     for (let column = 0; column < Math.min(row.columnGapOverrides.length, columnGapOverrides.length); column += 1) {
       columnGapOverrides[column] = Math.max(columnGapOverrides[column], row.columnGapOverrides[column] ?? 0);
     }
   }
 
-  const rowGapOverrides = new Array(Math.max(0, rowCount - 1)).fill(0);
+  const rowGapOverrides = Array.from<number>({ length: Math.max(0, rowCount - 1) }).fill(0);
   for (let row = 0; row < Math.min(parsed.rowGapOverrides.length, rowGapOverrides.length); row += 1) {
     rowGapOverrides[row] = parsed.rowGapOverrides[row] ?? 0;
   }
 
   const cellGrid: Array<Array<ResolvedMatrixCell | null>> = Array.from({ length: rowCount }, () => Array.from({ length: colCount }, () => null));
-  const colWidths = new Array(colCount).fill(0);
-  const rowHeights = new Array(rowCount).fill(0);
+  const colWidths = Array.from<number>({ length: colCount }).fill(0);
+  const rowHeights = Array.from<number>({ length: rowCount }).fill(0);
   const matrixEveryNodeOptions = collectMatrixEveryNodeOptions(params.effectiveNodeOptions);
 
   for (let row = 0; row < rowCount; row += 1) {
@@ -230,10 +230,10 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
     }
   }
 
-  const columnGaps = new Array(Math.max(0, colCount - 1))
+  const columnGaps = Array.from<number>({ length: Math.max(0, colCount - 1) })
     .fill(params.matrixMode.columnSep.gap)
     .map((gap, index) => gap + (columnGapOverrides[index] ?? 0));
-  const rowGaps = new Array(Math.max(0, rowCount - 1))
+  const rowGaps = Array.from<number>({ length: Math.max(0, rowCount - 1) })
     .fill(params.matrixMode.rowSep.gap)
     .map((gap, index) => gap + (rowGapOverrides[index] ?? 0));
 
@@ -1617,7 +1617,7 @@ function computeAxisCenters(sizes: number[], gaps: number[], betweenOrigins: boo
     return [];
   }
 
-  const centers = new Array(sizes.length).fill(0);
+  const centers = Array.from<number>({ length: sizes.length }).fill(0);
   if (!betweenOrigins) {
     centers[0] = direction * (sizes[0] / 2);
   }

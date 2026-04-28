@@ -22,6 +22,7 @@ export function resolveNodeLayout(
   textEngine: NodeTextEngine | null = null,
   textMode: "text" | "math" = "text"
 ): NodeLayout {
+  void _transformScale;
   const fontSize = style.fontSize;
   const charWidth = fontSize * 0.7;
   const lineHeight = fontSize * 1.05;

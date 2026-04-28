@@ -122,7 +122,7 @@ function cloneResolvedStyleContributions(contributions: Partial<ResolvedStyle>):
   for (const key of Object.keys(contributions) as Array<keyof ResolvedStyle>) {
     const value = contributions[key];
     if (value !== undefined) {
-      clonedRecord[key] = value as ResolvedStyle[keyof ResolvedStyle];
+      clonedRecord[key] = value;
     }
   }
   return cloned;
@@ -139,7 +139,7 @@ export function diffResolvedStyle(before: ResolvedStyle, after: ResolvedStyle): 
   for (const key of Object.keys(after) as Array<keyof ResolvedStyle>) {
     const nextValue = after[key];
     if (nextValue !== undefined && !resolvedStyleValueEquals(before[key], nextValue)) {
-      diffRecord[key] = nextValue as ResolvedStyle[keyof ResolvedStyle];
+      diffRecord[key] = nextValue;
     }
   }
   return diff;
@@ -176,7 +176,7 @@ export function resolvedStyleValueEquals(left: unknown, right: unknown): boolean
       if (!(key in right)) {
         return false;
       }
-      if (!resolvedStyleValueEquals((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key])) {
+      if (!resolvedStyleValueEquals(left[key], right[key])) {
         return false;
       }
     }

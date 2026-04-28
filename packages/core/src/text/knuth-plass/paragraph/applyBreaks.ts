@@ -1,6 +1,7 @@
 import type {
   BreakDecision,
   GreedyLine,
+  AnyWrapper,
   ParagraphRun,
   SpaceRun,
 } from './types.js';
@@ -48,7 +49,7 @@ interface MtextBreakAction {
   runIndex: number;
   sourceOffset: number;
   visibleHyphen: boolean;
-  wrapper: any;
+  wrapper: AnyWrapper;
   childIndex: number;
   wordIndex: number;
   splitOffset?: number;
@@ -68,17 +69,17 @@ function alignmentToHorizontalAlign(alignment: ParagraphAlignment): 'left' | 'ri
   return 'left';
 }
 
-function safeInvalidate(wrapper: any) {
+function safeInvalidate(wrapper: AnyWrapper | undefined) {
   if (wrapper && typeof wrapper.invalidateBBox === 'function') {
     wrapper.invalidateBBox();
   }
 }
 
-function isTextChild(child: any): boolean {
+function isTextChild(child: AnyWrapper | undefined): boolean {
   return !!child?.node?.isKind?.('text');
 }
 
-function getTextChildren(wrapper: any): any[] {
+function getTextChildren(wrapper: AnyWrapper): AnyWrapper[] {
   return Array.isArray(wrapper?.childNodes) ? wrapper.childNodes : [];
 }
 
@@ -99,7 +100,7 @@ function normalizeSplitMutations(values: SplitMutation[]): SplitMutation[] {
 }
 
 function restoreMtextWrapper(
-  wrapper: any,
+  wrapper: AnyWrapper,
   originalMap?: WeakMap<object, string[]>
 ): void {
   if (!wrapper || typeof wrapper !== 'object') return;
@@ -131,7 +132,7 @@ function formatEmLength(value: number): string {
 }
 
 function restoreMspaceWrapper(
-  wrapper: any,
+  wrapper: AnyWrapper,
   originalMap?: WeakMap<object, string | undefined>
 ): void {
   if (!wrapper || typeof wrapper !== 'object') return;
@@ -146,7 +147,7 @@ function restoreMspaceWrapper(
   safeInvalidate(wrapper);
 }
 
-function readMspaceWidth(wrapper: any): number {
+function readMspaceWidth(wrapper: AnyWrapper): number {
   if (!wrapper || typeof wrapper !== 'object') {
     return 0;
   }
@@ -158,7 +159,7 @@ function readMspaceWidth(wrapper: any): number {
   return Number.isFinite(width) ? width : 0;
 }
 
-function setMspaceWidth(wrapper: any, width: number): void {
+function setMspaceWidth(wrapper: AnyWrapper, width: number): void {
   if (!wrapper || typeof wrapper !== 'object') {
     return;
   }
@@ -214,8 +215,8 @@ function isAdjustableMspaceRun(run: ParagraphRun | undefined): run is SpaceRun &
 }
 
 function ensureWrapperPlan(
-  plans: Map<any, WrapperMutationPlan>,
-  wrapper: any
+  plans: Map<AnyWrapper, WrapperMutationPlan>,
+  wrapper: AnyWrapper
 ): WrapperMutationPlan {
   let plan = plans.get(wrapper);
   if (!plan) {
@@ -229,8 +230,8 @@ function ensureWrapperPlan(
 }
 
 function pushSplit(
-  plans: Map<any, WrapperMutationPlan>,
-  wrapper: any,
+  plans: Map<AnyWrapper, WrapperMutationPlan>,
+  wrapper: AnyWrapper,
   childIndex: number,
   wordIndex: number,
   splitOffset: number,
@@ -248,8 +249,8 @@ function pushSplit(
 }
 
 function pushWordPrefixTrim(
-  plans: Map<any, WrapperMutationPlan>,
-  wrapper: any,
+  plans: Map<AnyWrapper, WrapperMutationPlan>,
+  wrapper: AnyWrapper,
   childIndex: number,
   wordIndex: number,
   consumed: number
@@ -269,7 +270,7 @@ function pushWordPrefixTrim(
   childMap.set(wordIndex, Math.max(prior, Math.floor(consumed)));
 }
 
-function normalizePlans(plans: Map<any, WrapperMutationPlan>): void {
+function normalizePlans(plans: Map<AnyWrapper, WrapperMutationPlan>): void {
   for (const plan of plans.values()) {
     for (const [childIndex, wordSplits] of plan.childWordSplits.entries()) {
       for (const [wordIndex, splits] of wordSplits.entries()) {
@@ -280,7 +281,7 @@ function normalizePlans(plans: Map<any, WrapperMutationPlan>): void {
   }
 }
 
-function patchMtextIndentBehavior(wrapper: any): void {
+function patchMtextIndentBehavior(wrapper: AnyWrapper): void {
   if (!wrapper || typeof wrapper !== 'object') {
     return;
   }
@@ -295,7 +296,7 @@ function patchMtextIndentBehavior(wrapper: any): void {
   (wrapper as Record<symbol, unknown>)[MTEXT_INDENT_PATCH_ORIGINAL] = original;
   (wrapper as Record<symbol, unknown>)[MTEXT_INDENT_PATCHED] = true;
 
-  wrapper.computeLineBBox = function patchedComputeLineBBox(i: number) {
+  wrapper.computeLineBBox = function patchedComputeLineBBox(this: AnyWrapper, i: number) {
     const bbox = original(i);
     if (
       bbox &&
@@ -308,7 +309,7 @@ function patchMtextIndentBehavior(wrapper: any): void {
   };
 }
 
-function applyMtextAlignment(wrapper: any, alignment: ParagraphAlignment): void {
+function applyMtextAlignment(wrapper: AnyWrapper, alignment: ParagraphAlignment): void {
   if (!wrapper?.node?.attributes || typeof wrapper.node.attributes.set !== 'function') {
     return;
   }
@@ -358,7 +359,7 @@ function normalizeWhitespaceToken(text: string): string {
 }
 
 function mutateWrapperText(
-  wrapper: any,
+  wrapper: AnyWrapper,
   plan: WrapperMutationPlan,
   errors: string[]
 ): boolean {
@@ -369,8 +370,8 @@ function mutateWrapperText(
   ]);
 
   for (const childIndex of allChildIndices) {
-    const wordSplits = plan.childWordSplits.get(childIndex) ?? new Map();
-    const wordPrefixTrim = plan.wordPrefixTrim.get(childIndex) ?? new Map();
+    const wordSplits = plan.childWordSplits.get(childIndex) ?? new Map<number, SplitMutation[]>();
+    const wordPrefixTrim = plan.wordPrefixTrim.get(childIndex) ?? new Map<number, number>();
     const child = children[childIndex];
     if (!child || !isTextChild(child)) {
       errors.push(
@@ -480,8 +481,8 @@ function mappedIndexForHyphen(
 
 function clearExistingBreakStyles(
   runs: ParagraphRun[],
-  touchedMtextWrappers: Set<any>,
-  touchedMspaceWrappers: Set<any>,
+  touchedMtextWrappers: Set<AnyWrapper>,
+  touchedMspaceWrappers: Set<AnyWrapper>,
   originalMspaceWidthByWrapper?: WeakMap<object, string | undefined>
 ): void {
   for (const run of runs) {
@@ -512,7 +513,7 @@ function clearExistingBreakStyles(
 }
 
 function applyParagraphAlignment(
-  paragraphWrapper: any,
+  paragraphWrapper: AnyWrapper,
   alignment: ParagraphAlignment,
   paragraphId?: string
 ): void {
@@ -536,7 +537,7 @@ function applyParagraphAlignment(
 }
 
 export function applyBreaks(
-  paragraphWrapper: any,
+  paragraphWrapper: AnyWrapper,
   runs: ParagraphRun[],
   lines: GreedyLine[],
   options: ApplyBreaksOptions = {}
@@ -547,8 +548,8 @@ export function applyBreaks(
 
   applyParagraphAlignment(paragraphWrapper, alignment, options.paragraphId);
 
-  const touchedMtextWrappers = new Set<any>();
-  const touchedMspaceWrappers = new Set<any>();
+  const touchedMtextWrappers = new Set<AnyWrapper>();
+  const touchedMspaceWrappers = new Set<AnyWrapper>();
   clearExistingBreakStyles(
     runs,
     touchedMtextWrappers,
@@ -562,7 +563,7 @@ export function applyBreaks(
     applyMtextAlignment(wrapper, alignment);
   }
 
-  const plans = new Map<any, WrapperMutationPlan>();
+  const plans = new Map<AnyWrapper, WrapperMutationPlan>();
   const mtextActionsInLineOrder: MtextBreakAction[] = [];
   const justifiedSpaceWidths = new Map<number, number>();
 
@@ -721,7 +722,7 @@ export function applyBreaks(
 
   normalizePlans(plans);
 
-  const mutatedWrappers = new Set<any>();
+  const mutatedWrappers = new Set<AnyWrapper>();
   let canProceed = errors.length === 0;
 
   if (canProceed) {
@@ -742,16 +743,13 @@ export function applyBreaks(
         plan?.childWordSplits.get(action.childIndex) ??
         new Map<number, SplitMutation[]>();
 
-      let mutatedWordIndex: number | null = null;
-      if (action.kind === 'space') {
-        mutatedWordIndex = mappedIndexForSpace(childSplits, action.wordIndex);
-      } else {
-        mutatedWordIndex = mappedIndexForHyphen(
+      const mutatedWordIndex = action.kind === 'space'
+        ? mappedIndexForSpace(childSplits, action.wordIndex)
+        : mappedIndexForHyphen(
           childSplits,
           action.wordIndex,
           action.splitOffset as number
         );
-      }
 
       if (mutatedWordIndex === null) {
         errors.push(
@@ -782,7 +780,7 @@ export function applyBreaks(
   }
 
   if (!canProceed) {
-    const wrappersToRestore = new Set<any>([...mutatedWrappers]);
+    const wrappersToRestore = new Set<AnyWrapper>([...mutatedWrappers]);
     for (const wrapper of plans.keys()) {
       wrappersToRestore.add(wrapper);
     }

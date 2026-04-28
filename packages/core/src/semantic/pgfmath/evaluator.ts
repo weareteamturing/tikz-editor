@@ -712,26 +712,22 @@ function tokenize(input: string): { ok: true; tokens: Token[] } | PgfMathEvalFai
 
     if (isDigit(char) || char === ".") {
       const numberStart = index;
-      let hasDigits = false;
-
       if (char === ".") {
         index += 1;
+        const digitsStart = index;
         while (index < input.length && isDigit(input[index])) {
-          hasDigits = true;
           index += 1;
         }
-        if (hasDigits === false) {
+        if (digitsStart === index) {
           return { ok: false, code: "token", message: "Invalid decimal number." };
         }
       } else {
         while (index < input.length && isDigit(input[index])) {
-          hasDigits = true;
           index += 1;
         }
         if (index < input.length && input[index] === ".") {
           index += 1;
           while (index < input.length && isDigit(input[index])) {
-            hasDigits = true;
             index += 1;
           }
         }

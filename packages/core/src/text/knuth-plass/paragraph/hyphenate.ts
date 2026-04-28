@@ -242,7 +242,7 @@ export function createEnglishHyphenator(
 }
 
 export class NoopHyphenator implements Hyphenator {
-  hyphenate(_word: string): number[] {
+  hyphenate(): number[] {
     return [];
   }
 }

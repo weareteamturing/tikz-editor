@@ -139,10 +139,9 @@ function materializeState<K, V>(state: PersistentMapState<K, V>): Map<K, V> {
     if (entry === DELETED) {
       materialized.delete(key);
     } else {
-      materialized.set(key, entry as V);
+      materialized.set(key, entry);
     }
   }
   state.materialized = materialized;
   return materialized;
 }
-

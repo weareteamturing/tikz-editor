@@ -513,8 +513,8 @@ function sampleTextAlongPathFrame(segments: PathSegment[], distance: number, rev
   }
   return {
     point: sampled.point,
-    tangent: worldVector(pt(-sampled.tangent.x), pt(-sampled.tangent.y)),
-    normal: worldVector(pt(-sampled.normal.x), pt(-sampled.normal.y))
+    tangent: worldVector(pt(-1 * sampled.tangent.x), pt(-1 * sampled.tangent.y)),
+    normal: worldVector(pt(-1 * sampled.normal.x), pt(-1 * sampled.normal.y))
   };
 }
 

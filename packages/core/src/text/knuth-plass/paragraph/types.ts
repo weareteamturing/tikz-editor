@@ -21,6 +21,17 @@ export interface MathJaxBBox {
   lineLeading?: number;
 }
 
+export type MathJaxWrapperConstructor = {
+  new (...args: never[]): AnyWrapper;
+  prototype: AnyWrapper;
+};
+
+export interface MathJaxWrapperFactoryLike {
+  nodeMap?: {
+    get(name: string): MathJaxWrapperConstructor | undefined;
+  };
+}
+
 export interface AnyWrapper {
   node?: MathJaxNode;
   childNodes?: AnyWrapper[];
@@ -31,6 +42,7 @@ export interface AnyWrapper {
   breakToWidth?(width: number): void;
   clearBreakPoints?(): void;
   computeBBox?(bbox: MathJaxBBox, recompute?: boolean): void;
+  computeLineBBox?(index: number): (MathJaxBBox & { getIndentData?(node: MathJaxNode): unknown }) | null;
   getBBox?(): MathJaxBBox;
   getOuterBBox?(): MathJaxBBox;
   invalidateBBox?(): void;
@@ -38,7 +50,7 @@ export interface AnyWrapper {
   placeLines?(parents: unknown[]): void;
   set?(x: number, y: number): void;
   setBBoxDimens?(bbox: MathJaxBBox): void;
-  setBreakAt?(index: number, kind?: string): void;
+  setBreakAt?(index: number | [number, number], kind?: string): void;
   setBreakStyle?(style: string): void;
   setChildPWidths?(recompute: boolean, width: number): void;
   textWidth?(text: string): number;

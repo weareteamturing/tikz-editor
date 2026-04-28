@@ -20,9 +20,26 @@ type MathJaxAdaptor = {
   getAttribute(node: unknown, name: string): string | null;
 };
 
+type RenderedMathNode = {
+  firstElementChild?: RenderedMathNode | null;
+  getAttribute?(name: string): string | null;
+  getBBox?(): { width?: number };
+  querySelector?(selector: string): RenderedMathNode | null;
+  viewBox?: { baseVal?: { width?: number } };
+};
+
+type MathJaxRuntime = {
+  tex2svg?: Tex2Svg;
+};
+
+type OutputJaxLike = MathJaxRuntime & {
+  mathjax?: MathJaxRuntime;
+  constructor?: { mathjax?: MathJaxRuntime };
+};
+
 export interface MathPrefixCache {
   getOrBuild(
-    outputJax: any,
+    outputJax: unknown,
     span: MathSourceSpan
   ): Promise<number[]>;
 }
@@ -180,16 +197,17 @@ export function stabilizePrefixForMeasurement(prefix: string): string {
   return stabilized;
 }
 
-function readViewBoxWidth(node: any, adaptor: MathJaxAdaptor | null): number {
+function readViewBoxWidth(node: unknown, adaptor: MathJaxAdaptor | null): number {
   if (!node) {
     return 0;
   }
+  const rendered = node as RenderedMathNode;
 
   const attr =
     adaptor
       ? adaptor.getAttribute(node, 'viewBox')
-      : typeof node.getAttribute === 'function'
-        ? node.getAttribute('viewBox')
+      : typeof rendered.getAttribute === 'function'
+        ? rendered.getAttribute('viewBox')
         : null;
   if (typeof attr === 'string' && attr.trim()) {
     const parts = attr
@@ -202,27 +220,28 @@ function readViewBoxWidth(node: any, adaptor: MathJaxAdaptor | null): number {
   }
 
   if (
-    node?.viewBox?.baseVal &&
-    Number.isFinite(node.viewBox.baseVal.width) &&
-    node.viewBox.baseVal.width > 0
+    rendered.viewBox?.baseVal &&
+    Number.isFinite(rendered.viewBox.baseVal.width) &&
+    (rendered.viewBox.baseVal.width ?? 0) > 0
   ) {
-    return Number(node.viewBox.baseVal.width);
+    return Number(rendered.viewBox.baseVal.width);
   }
 
   const widthAttr = Number(
     adaptor
       ? adaptor.getAttribute(node, 'width')
-      : typeof node.getAttribute === 'function'
-        ? node.getAttribute('width')
+      : typeof rendered.getAttribute === 'function'
+        ? rendered.getAttribute('width')
         : NaN
   );
   if (Number.isFinite(widthAttr) && widthAttr > 0) {
     return widthAttr;
   }
 
-  const bbox = typeof node.getBBox === 'function' ? node.getBBox() : null;
-  if (bbox && Number.isFinite(bbox.width) && bbox.width > 0) {
-    return Number(bbox.width);
+  const bbox = typeof rendered.getBBox === 'function' ? rendered.getBBox() : null;
+  const bboxWidth = Number(bbox?.width);
+  if (Number.isFinite(bboxWidth) && bboxWidth > 0) {
+    return bboxWidth;
   }
 
   return 0;
@@ -240,7 +259,7 @@ function getMathJaxAdaptor(): MathJaxAdaptor | null {
   return adaptor as MathJaxAdaptor;
 }
 
-function extractRenderedWidth(rendered: any, adaptor: MathJaxAdaptor | null): number {
+function extractRenderedWidth(rendered: RenderedMathNode | null | undefined, adaptor: MathJaxAdaptor | null): number {
   if (!rendered) {
     return 0;
   }
@@ -270,22 +289,24 @@ function extractRenderedWidth(rendered: any, adaptor: MathJaxAdaptor | null): nu
   return readViewBoxWidth(rendered, null);
 }
 
-type Tex2Svg = (tex: string, options?: { display?: boolean }) => any;
+type Tex2Svg = (tex: string, options?: { display?: boolean }) => RenderedMathNode | Promise<RenderedMathNode>;
 
-function getTex2Svg(outputJax: any): Tex2Svg | null {
+function getTex2Svg(outputJax: unknown): Tex2Svg | null {
+  const runtime = asOutputJaxLike(outputJax);
   const candidates = [
-    outputJax,
-    outputJax?.mathjax,
-    outputJax?.constructor?.mathjax,
-    (globalThis as any)?.MathJax,
+    runtime,
+    runtime?.mathjax,
+    runtime?.constructor?.mathjax,
+    (globalThis as { MathJax?: MathJaxRuntime }).MathJax,
   ];
 
   for (const candidate of candidates) {
     if (!candidate || typeof candidate !== 'object') {
       continue;
     }
-    if (typeof candidate.tex2svg === 'function') {
-      return candidate.tex2svg.bind(candidate);
+    const tex2svg = candidate.tex2svg;
+    if (typeof tex2svg === 'function') {
+      return tex2svg.bind(candidate);
     }
   }
 
@@ -409,7 +430,7 @@ export function normalizeMathSourceForCache(
 }
 
 async function buildMeasuredPrefixWidths(
-  outputJax: any,
+  outputJax: unknown,
   span: MathSourceSpan
 ): Promise<number[]> {
   const tex2svg = getTex2Svg(outputJax);
@@ -431,7 +452,7 @@ async function buildMeasuredPrefixWidths(
 
     const prefix = content.slice(0, extendedEnd);
     const stabilized = stabilizeMathContentForMeasurement(prefix);
-    let measured = Number.NaN;
+    let measured: number;
     try {
       measured = await measureTexWidth(tex2svg, toInlineMathMeasurementTeX(stabilized));
     } catch {
@@ -471,7 +492,7 @@ export function createMathPrefixCache(limit = DEFAULT_PREFIX_CACHE_LIMIT): MathP
   };
 
   return {
-    async getOrBuild(outputJax: any, span: MathSourceSpan): Promise<number[]> {
+    async getOrBuild(outputJax: unknown, span: MathSourceSpan): Promise<number[]> {
       const key = normalizeMathSourceForCache(span.delimiter, span.content);
       const cached = tableByKey.get(key);
       if (cached) {
@@ -492,4 +513,8 @@ export function createMathPrefixCache(limit = DEFAULT_PREFIX_CACHE_LIMIT): MathP
       return pending;
     },
   };
+}
+
+function asOutputJaxLike(value: unknown): OutputJaxLike | null {
+  return value && typeof value === 'object' ? value : null;
 }

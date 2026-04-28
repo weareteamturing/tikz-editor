@@ -1670,9 +1670,9 @@ export function makeSingleArrow(
   const beforeTipUnrotated = worldPoint(arrow.bodyHalfLength, arrow.headHalfHeight);
   const beforeHeadUnrotated = worldPoint(arrow.bodyHalfLength + arrow.headIndent, arrow.shaftHalfHeight);
   const afterTailUnrotated = worldPoint(-arrow.bodyHalfLength, arrow.shaftHalfHeight);
-  const beforeTailUnrotated = worldPoint(afterTailUnrotated.x, -afterTailUnrotated.y);
-  const afterHeadUnrotated = worldPoint(beforeHeadUnrotated.x, -beforeHeadUnrotated.y);
-  const afterTipUnrotated = worldPoint(beforeTipUnrotated.x, -beforeTipUnrotated.y);
+  const beforeTailUnrotated = worldPoint(afterTailUnrotated.x, pt(-1 * afterTailUnrotated.y));
+  const afterHeadUnrotated = worldPoint(beforeHeadUnrotated.x, pt(-1 * beforeHeadUnrotated.y));
+  const afterTipUnrotated = worldPoint(beforeTipUnrotated.x, pt(-1 * beforeTipUnrotated.y));
   const tailUnrotated = worldPoint(afterTailUnrotated.x, 0);
 
   const polygon = rotatePolygon(
@@ -1712,14 +1712,14 @@ export function makeDoubleArrow(
   const tip1Unrotated = worldPoint(arrow.bodyHalfLength + arrow.tipHalfLength, 0);
   const beforeTip1Unrotated = worldPoint(arrow.bodyHalfLength, arrow.headHalfHeight);
   const beforeHead1Unrotated = worldPoint(arrow.bodyHalfLength + arrow.headIndent, arrow.shaftHalfHeight);
-  const afterTip1Unrotated = worldPoint(beforeTip1Unrotated.x, -beforeTip1Unrotated.y);
-  const afterHead1Unrotated = worldPoint(beforeHead1Unrotated.x, -beforeHead1Unrotated.y);
+  const afterTip1Unrotated = worldPoint(beforeTip1Unrotated.x, pt(-1 * beforeTip1Unrotated.y));
+  const afterHead1Unrotated = worldPoint(beforeHead1Unrotated.x, pt(-1 * beforeHead1Unrotated.y));
 
-  const tip2Unrotated = worldPoint(-tip1Unrotated.x, 0);
-  const beforeTip2Unrotated = worldPoint(-beforeTip1Unrotated.x, -beforeTip1Unrotated.y);
-  const beforeHead2Unrotated = worldPoint(-beforeHead1Unrotated.x, -beforeHead1Unrotated.y);
-  const afterTip2Unrotated = worldPoint(-beforeTip1Unrotated.x, beforeTip1Unrotated.y);
-  const afterHead2Unrotated = worldPoint(-beforeHead1Unrotated.x, beforeHead1Unrotated.y);
+  const tip2Unrotated = worldPoint(pt(-1 * tip1Unrotated.x), 0);
+  const beforeTip2Unrotated = worldPoint(pt(-1 * beforeTip1Unrotated.x), pt(-1 * beforeTip1Unrotated.y));
+  const beforeHead2Unrotated = worldPoint(pt(-1 * beforeHead1Unrotated.x), pt(-1 * beforeHead1Unrotated.y));
+  const afterTip2Unrotated = worldPoint(pt(-1 * beforeTip1Unrotated.x), beforeTip1Unrotated.y);
+  const afterHead2Unrotated = worldPoint(pt(-1 * beforeHead1Unrotated.x), beforeHead1Unrotated.y);
 
   const polygon = rotatePolygon(
     [

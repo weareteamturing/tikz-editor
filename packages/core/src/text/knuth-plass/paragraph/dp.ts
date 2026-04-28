@@ -739,7 +739,7 @@ export function breakWithDp(
 
   const states = new Map<string, ActiveState>();
   const queue: string[] = [];
-  let stateCount = 0;
+  let stateCount = 1;
   const firstKey = cursorKey(firstCursor, null, false);
   states.set(firstKey, {
     key: firstKey,
@@ -751,8 +751,6 @@ export function breakWithDp(
     incomingChoice: null,
   });
   queue.push(firstKey);
-  stateCount = 1;
-
   let bestFinal:
     | {
         cost: number;

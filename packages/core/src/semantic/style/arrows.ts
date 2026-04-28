@@ -542,7 +542,7 @@ function buildLatexTip(nominalLength: number, nominalWidth: number | null, reque
 
   const slope = length / Math.max(EPSILON, width);
   const frontMiter = Math.sqrt(1 + 9 * slope * slope) * lineWidth;
-  const innerLength = length - 0.5 * frontMiter - 0.5 * lineWidth;
+  void frontMiter;
 
   // Back-tip miter approximation from pgflibraryarrows.meta.code.tex.
   // Note: the normalization uses the nominal length, not the inner length.

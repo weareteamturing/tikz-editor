@@ -212,7 +212,7 @@ export function resolveRectangleSplitIgnoreEmptyParts(options: OptionListAst | u
 }
 
 export function resolveRectangleSplitPartTexts(parts: NodePartText[], partCount: number): string[] {
-  const resolved = new Array(Math.max(1, partCount)).fill("");
+  const resolved = Array.from<string>({ length: Math.max(1, partCount) }).fill("");
   const first = parts.find((part) => part.name === "text");
   if (first) {
     resolved[0] = first.text;

@@ -10,7 +10,7 @@ import { englishDefaults } from './languages/en.js';
 import { applyBreaks, type AppliedBreak } from './paragraph/applyBreaks.js';
 import { breakWithDp } from './paragraph/dp.js';
 import { createEnglishHyphenator, type Hyphenator } from './paragraph/hyphenate.js';
-import { runsToItems, type ParagraphModel } from './paragraph/items.js';
+import { runsToItems } from './paragraph/items.js';
 import {
   createMeasurementService,
   type MeasurementService,
@@ -20,7 +20,7 @@ import {
   type ParagraphLayoutReport,
 } from './paragraph/report.js';
 import { flattenParagraph } from './paragraph/tokenize.js';
-import type { AnyWrapper, GreedyLine, ParagraphRun } from './paragraph/types.js';
+import type { AnyWrapper, GreedyLine, MathJaxBBox, MathJaxWrapperFactoryLike, ParagraphRun } from './paragraph/types.js';
 import type { KnuthPlassLayoutMode, WrappedTextGap } from './install.js';
 
 // MathJax and TeX use different text metrics. A modest second-pass tolerance
@@ -383,7 +383,7 @@ function buildWrappedExplicitLines(params: {
       allowInfeasible: alignment !== 'justified',
     });
 
-    let chosenLines: GreedyLine[] | null = null;
+    let chosenLines: GreedyLine[];
     if (pass1Dp.canProceed && pass1Dp.lines.length) {
       chosenLines = pass1Dp.lines;
       linebreakingMode = pass1Dp.mode;
@@ -506,17 +506,32 @@ interface ResolvedKnuthPlassOptions {
 }
 
 export class KnuthPlassVisitor extends LinebreakVisitor<
+  // MathJax's CJS LinebreakVisitor type requires its full mutually recursive
+  // wrapper generic family. This subclass is loaded dynamically by MathJax, so
+  // we keep the vendor boundary at `any` and type the wrapper surface below.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   any
 > {
   private static readonly patchedWrapperPrototypes = new WeakSet<object>();
@@ -545,17 +560,22 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
 
   public readonly reports: ParagraphLayoutReport[] = [];
 
+  // MathJax instantiates this class with its concrete wrapper factory type,
+  // whose CJS generic surface is not useful at our local boundary.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public constructor(factory: any) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     super(factory);
-    this.patchMpaddedWrapperComputeBBox(factory);
-    this.patchMrowWrapperPlaceLines(factory);
+    const wrapperFactory = factory as MathJaxWrapperFactoryLike;
+    this.patchMpaddedWrapperComputeBBox(wrapperFactory);
+    this.patchMrowWrapperPlaceLines(wrapperFactory);
   }
 
   public getReports(): ParagraphLayoutReport[] {
     return [...this.reports];
   }
 
-  private patchMpaddedWrapperComputeBBox(factory: any): void {
+  private patchMpaddedWrapperComputeBBox(factory: MathJaxWrapperFactoryLike): void {
     const nodeMap = factory?.nodeMap;
     const MpaddedWrapperCtor = nodeMap?.get?.('mpadded');
     if (typeof MpaddedWrapperCtor !== 'function') {
@@ -567,13 +587,14 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
       return;
     }
 
-    const originalComputeBBox = proto.computeBBox;
-    if (typeof originalComputeBBox !== 'function') {
+    if (typeof proto.computeBBox !== 'function') {
       return;
     }
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    const originalComputeBBox = proto.computeBBox;
 
     const visitorClass = KnuthPlassVisitor;
-    proto.computeBBox = function patchedComputeBBox(this: any, bbox: any, recompute = false): void {
+    proto.computeBBox = function patchedComputeBBox(this: AnyWrapper, bbox: MathJaxBBox, recompute = false): void {
       const overflow = this?.node?.attributes?.get?.('data-overflow');
       if (overflow !== 'linebreak') {
         originalComputeBBox.call(this, bbox, recompute);
@@ -635,7 +656,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     KnuthPlassVisitor.patchedWrapperPrototypes.add(proto);
   }
 
-  private patchMrowWrapperPlaceLines(factory: any): void {
+  private patchMrowWrapperPlaceLines(factory: MathJaxWrapperFactoryLike): void {
     const nodeMap = factory?.nodeMap;
     const MrowWrapperCtor = nodeMap?.get?.('mrow');
     if (typeof MrowWrapperCtor !== 'function') {
@@ -647,13 +668,14 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
       return;
     }
 
-    const originalPlaceLines = proto.placeLines;
-    if (typeof originalPlaceLines !== 'function') {
+    if (typeof proto.placeLines !== 'function') {
       return;
     }
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    const originalPlaceLines = proto.placeLines;
     const visitorClass = KnuthPlassVisitor;
 
-    proto.placeLines = function patchedPlaceLines(this: any, parents: any[]): void {
+    proto.placeLines = function patchedPlaceLines(this: AnyWrapper, parents: unknown[]): void {
       const paragraphId = this?.parent?.node?.attributes?.get?.('data-paragraph-id');
       if (!paragraphId) {
         originalPlaceLines.call(this, parents);
@@ -673,7 +695,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
           : null;
       const reportLines = Array.isArray(report?.lines) ? report.lines : null;
 
-      let y = this.dh;
+      let y = Number(this.dh) || 0;
       for (const k of parents.keys()) {
         const lbox = lines[k];
         if (!lbox) {
@@ -684,11 +706,11 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
           reportLine && Number.isFinite(reportLine.xStart)
             ? reportLine.xStart
             : lbox.L || 0;
-        this.place(lineX, y, parents[k]);
+        this.place?.(lineX, y, parents[k]);
         y -=
-          Math.max(0.25, lbox.d) +
-          (Number.isFinite(lbox.lineLeading) ? lbox.lineLeading : 0) +
-          Math.max(0.75, lines[k + 1]?.h || 0);
+          Math.max(0.25, lbox.d ?? 0) +
+          (Number.isFinite(lbox.lineLeading) ? lbox.lineLeading ?? 0 : 0) +
+          Math.max(0.75, lines[k + 1]?.h ?? 0);
       }
     };
 
@@ -1098,7 +1120,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
   }
 
   private captureOriginalMtextStateFromRuns(runs: ParagraphRun[]): void {
-    const wrappers = new Set<any>();
+    const wrappers = new Set<AnyWrapper>();
     for (const run of runs) {
       if (run.kind === 'text') {
         wrappers.add(run.wrapper);
@@ -1133,7 +1155,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     if (this.originalMtextTextByWrapper.has(wrapper)) return;
 
     const childNodes = Array.isArray(wrapper.childNodes) ? wrapper.childNodes : [];
-    const snapshot = childNodes.map((child: any) => {
+    const snapshot = childNodes.map((child) => {
       if (!child?.node?.isKind?.('text')) return '';
       return String(child.node.getText?.() ?? '');
     });

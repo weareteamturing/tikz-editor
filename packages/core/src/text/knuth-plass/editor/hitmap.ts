@@ -18,7 +18,37 @@ import type { ClientBounds, ClientPoint } from '../../../coords/points.js';
 
 // The core package builds without the DOM lib; keep the editor hit-testing
 // helpers structurally typed so they remain importable in Node-only builds.
-type Element = any;
+type ClientRectLike = {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  width: number;
+  height: number;
+};
+type ScreenMatrixLike = {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  e: number;
+  f: number;
+};
+type SvgOwnerLike = {
+  viewBox?: { baseVal?: { width?: number } };
+};
+type Element = {
+  getBoundingClientRect?(): ClientRectLike;
+  getScreenCTM?(): ScreenMatrixLike | null;
+  ownerSVGElement?: SvgOwnerLike | null;
+  querySelector?(selector: string): Element | null;
+  querySelectorAll?(selector: string): ArrayLike<Element>;
+};
+type OutputJaxLike = {
+  linebreaks?: {
+    getReports?(): ParagraphLayoutReport[];
+  };
+};
 type LineDirectionUnit = Readonly<{ x: number; y: number }>;
 
 function lineDirectionUnit(x: number, y: number): LineDirectionUnit {
@@ -290,20 +320,21 @@ function errorResult<T extends ResultBase>(
   } as T;
 }
 
-function readReportsFromOutputJax(outputJax: any): ParagraphLayoutReport[] {
+function readReportsFromOutputJax(outputJax: unknown): ParagraphLayoutReport[] {
   if (!outputJax || typeof outputJax !== 'object') {
     return [];
   }
 
-  const fromVisitor = outputJax.linebreaks?.getReports?.();
+  const target = outputJax as OutputJaxLike;
+  const fromVisitor = target.linebreaks?.getReports?.();
   if (Array.isArray(fromVisitor)) {
-    return fromVisitor as ParagraphLayoutReport[];
+    return fromVisitor;
   }
   return [];
 }
 
 function findReportByParagraphId(
-  outputJax: any,
+  outputJax: unknown,
   paragraphId: string
 ): { report: ParagraphLayoutReport | null; reports: ParagraphLayoutReport[] } {
   const reports = readReportsFromOutputJax(outputJax);
@@ -324,7 +355,7 @@ function collectLineGeometryElements(
       ? Array.from((containerElement).querySelectorAll('[data-mjx-linebox="true"]'))
       : [];
   if (lineBoxes.length === expectedCount) {
-    return lineBoxes as Element[];
+    return lineBoxes;
   }
 
   if (lineBoxes.length === 0 && expectedCount === 1) {
@@ -341,7 +372,7 @@ function collectLineGeometryElements(
   if (!lineBoxes.length || lineBoxes.length !== expectedCount) {
     return null;
   }
-  return lineBoxes as Element[];
+  return lineBoxes;
 }
 
 function readLineGeometry(
@@ -976,7 +1007,7 @@ function markLineEndpoints(stops: Stop[]): Stop[] {
 }
 
 async function buildStopsByLine(
-  outputJax: any,
+  outputJax: unknown,
   alignedSegments: AlignedSegment[]
 ): Promise<Map<number, Stop[]>> {
   const stopsByLine = new Map<number, Stop[]>();
@@ -991,7 +1022,6 @@ async function buildStopsByLine(
     const rawLength = Math.max(0, aligned.rawEnd - aligned.rawStart);
     const segLeft = Number(aligned.segment.x) || 0;
     const segWidth = Math.max(0, Number(aligned.segment.width) || 0);
-    const segRight = segLeft + segWidth;
 
     if (aligned.sourceKind === 'math') {
       const span = aligned.mathSpan;
@@ -1001,15 +1031,11 @@ async function buildStopsByLine(
       const table = await mathPrefixCache.getOrBuild(outputJax, span);
       for (let i = 0; i <= rawLength; i++) {
         const offset = aligned.rawStart + i;
-        let ratio = 0;
-        if (offset <= span.contentStart) {
-          ratio = 0;
-        } else if (offset >= span.contentEnd) {
-          ratio = 1;
-        } else {
-          const prefixIndex = clamp(offset - span.contentStart, 0, span.content.length);
-          ratio = readPrefixUnitsFromTable(prefixIndex, span.content.length, 1, table);
-        }
+        const ratio = offset <= span.contentStart
+          ? 0
+          : offset >= span.contentEnd
+            ? 1
+            : readPrefixUnitsFromTable(clamp(offset - span.contentStart, 0, span.content.length), span.content.length, 1, table);
         addStop(aligned.lineIndex, {
           offset,
           x: segLeft + ratio * segWidth,
@@ -1147,7 +1173,7 @@ function buildVisibleHyphenBreakOffsetByLine(
 }
 
 async function buildParagraphHitMap(
-  outputJax: any,
+  outputJax: unknown,
   report: ParagraphLayoutReport,
   sourceText: string,
   containerElement: Element
@@ -1177,7 +1203,7 @@ async function buildParagraphHitMap(
 }
 
 async function getParagraphHitMap(
-  outputJax: any,
+  outputJax: unknown,
   report: ParagraphLayoutReport,
   sourceText: string,
   containerElement: Element
@@ -1451,7 +1477,7 @@ function mapBuildFailureCode(message: string): CaretMappingErrorCode {
 }
 
 export async function getKnuthPlassCaretFromPoint(
-  outputJax: any,
+  outputJax: unknown,
   params: CaretFromPointParams
 ): Promise<CaretHitResult> {
   const paragraphId = String(params?.paragraphId ?? '');
@@ -1538,7 +1564,7 @@ export async function getKnuthPlassCaretFromPoint(
 }
 
 export async function getKnuthPlassPointFromOffset(
-  outputJax: any,
+  outputJax: unknown,
   params: PointFromOffsetParams
 ): Promise<CaretPointResult> {
   const paragraphId = String(params?.paragraphId ?? '');
@@ -1677,7 +1703,7 @@ export async function getKnuthPlassPointFromOffset(
 }
 
 export async function getKnuthPlassSelectionRects(
-  outputJax: any,
+  outputJax: unknown,
   params: SelectionRectsParams
 ): Promise<SelectionRectsResult> {
   const paragraphId = String(params?.paragraphId ?? '');
@@ -1832,7 +1858,7 @@ export async function getKnuthPlassSelectionRects(
 }
 
 export async function getKnuthPlassLineRangeFromPoint(
-  outputJax: any,
+  outputJax: unknown,
   params: CaretFromPointParams
 ): Promise<LineRangeFromPointResult> {
   const paragraphId = String(params?.paragraphId ?? '');
@@ -1905,7 +1931,7 @@ export async function getKnuthPlassLineRangeFromPoint(
   };
 }
 
-export function clearKnuthPlassCaretMappingCache(outputJax?: any): void {
+export function clearKnuthPlassCaretMappingCache(outputJax?: unknown): void {
   if (outputJax && typeof outputJax === 'object') {
     paragraphCacheByOutput.delete(outputJax);
     return;
@@ -1913,7 +1939,7 @@ export function clearKnuthPlassCaretMappingCache(outputJax?: any): void {
   paragraphCacheByOutput = new WeakMap<object, Map<string, CachedParagraphEntry>>();
 }
 
-export function __getKnuthPlassCaretMappingCacheSize(outputJax: any): number {
+export function __getKnuthPlassCaretMappingCacheSize(outputJax: unknown): number {
   if (!outputJax || typeof outputJax !== 'object') {
     return 0;
   }

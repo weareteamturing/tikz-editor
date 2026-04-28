@@ -57,6 +57,13 @@ export interface MathJaxConfigLike {
   [key: string]: unknown;
 }
 
+interface MathJaxOutputJaxLike {
+  knuthPlassOptions?: KnuthPlassConfig;
+  linebreaks?: {
+    getReports?(): ParagraphLayoutReport[];
+  };
+}
+
 export function installKnuthPlassVisitor(
   config: MathJaxConfigLike,
   outputs: OutputJaxName[] = ['svg']
@@ -71,7 +78,7 @@ export function installKnuthPlassVisitor(
 }
 
 export function setKnuthPlassOptionsOnOutputJax(
-  outputJax: any,
+  outputJax: unknown,
   options: KnuthPlassConfig
 ): void {
   if (!outputJax || typeof outputJax !== 'object') {
@@ -81,25 +88,27 @@ export function setKnuthPlassOptionsOnOutputJax(
     return;
   }
 
+  const target = outputJax as MathJaxOutputJaxLike;
   const existing =
-    outputJax.knuthPlassOptions && typeof outputJax.knuthPlassOptions === 'object'
-      ? outputJax.knuthPlassOptions
+    target.knuthPlassOptions && typeof target.knuthPlassOptions === 'object'
+      ? target.knuthPlassOptions
       : {};
 
-  outputJax.knuthPlassOptions = {
+  target.knuthPlassOptions = {
     ...existing,
     ...options,
   };
 }
 
 export function getKnuthPlassReportsFromOutputJax(
-  outputJax: any
+  outputJax: unknown
 ): ParagraphLayoutReport[] {
   if (!outputJax || typeof outputJax !== 'object') {
     return [];
   }
 
-  const fromVisitor = outputJax.linebreaks?.getReports?.();
+  const target = outputJax as MathJaxOutputJaxLike;
+  const fromVisitor = target.linebreaks?.getReports?.();
   if (Array.isArray(fromVisitor)) {
     return fromVisitor;
   }

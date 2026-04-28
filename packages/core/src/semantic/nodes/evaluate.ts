@@ -150,7 +150,6 @@ function computePositioningAnchorOffsetsByDirection(params: {
   const {
     targetNodeName,
     targetCenter,
-    currentCenter,
     context,
     legacyOf,
     nodeShape,
@@ -998,7 +997,7 @@ export function evaluateNodeItem(
       }));
       if (useCustomFill && partFills.length > 0) {
         for (let index = 0; index < segments.length; index += 1) {
-          const segment = segments[index]!;
+          const segment = segments[index];
           const fill = partFills[Math.min(index, partFills.length - 1)] ?? null;
           if (!fill || fill === "none") {
             continue;
@@ -1040,8 +1039,8 @@ export function evaluateNodeItem(
       if (parts > 1) {
         for (let index = 1; index < segments.length; index += 1) {
           if (drawSplits) {
-            const previous = segments[index - 1]!;
-            const current = segments[index]!;
+            const previous = segments[index - 1];
+            const current = segments[index];
             if (horizontal) {
               const x = (previous.maxX + current.minX) / 2;
               pushNodeElement(
@@ -1629,7 +1628,7 @@ export function evaluateNodeItem(
         const effectiveSplitWidth = splitLayout.width;
         const effectiveSplitHeight = splitLayout.height;
         for (let index = 0; index < splitLayout.parts.length; index += 1) {
-          const part = splitLayout.parts[index]!;
+          const part = splitLayout.parts[index];
           const partText = part.text;
           if (partText.length === 0) {
             continue;
@@ -2052,12 +2051,12 @@ function resolveAutoNodeAnchor(
       return null;
     }
 
-    let normal = wp(-tangent.y, tangent.x);
+    let normal = wp(pt(-1 * tangent.y), tangent.x);
     if (autoSide === "right") {
-      normal = wp(-normal.x, -normal.y);
+      normal = wp(pt(-1 * normal.x), pt(-1 * normal.y));
     }
     if (swap) {
-      normal = wp(-normal.x, -normal.y);
+      normal = wp(pt(-1 * normal.x), pt(-1 * normal.y));
     }
 
     const slopedRotation =
@@ -2074,15 +2073,15 @@ function resolveAutoNodeAnchor(
     return null;
   }
 
-  let normal = wp(-tangent.y, tangent.x);
-  if (autoSide === "right") {
-    normal = wp(-normal.x, -normal.y);
-  }
-  if (swap) {
-    normal = wp(-normal.x, -normal.y);
-  }
+    let normal = wp(pt(-1 * tangent.y), tangent.x);
+    if (autoSide === "right") {
+      normal = wp(pt(-1 * normal.x), pt(-1 * normal.y));
+    }
+    if (swap) {
+      normal = wp(pt(-1 * normal.x), pt(-1 * normal.y));
+    }
 
-  const anchorDirection = wp(-normal.x, -normal.y);
+  const anchorDirection = wp(pt(-1 * normal.x), pt(-1 * normal.y));
   return directionToAnchor(anchorDirection);
 }
 
@@ -2267,8 +2266,8 @@ function replaceColorCommandAliases(
 ): string {
   const escapedCommand = command.replace("\\", "\\\\");
   const pattern = new RegExp(`${escapedCommand}(\\s*\\[[^\\]]*\\])?\\s*\\{([^{}]+)\\}`, "g");
-  return text.replace(pattern, (fullMatch: string, modelPart = "", rawColorName = "") => {
-    const resolved = resolveContextColorAliasValue(context, rawColorName, consumerStatementId);
+  return text.replace(pattern, (fullMatch: string, modelPart = "", rawColorName: string = "") => {
+    const resolved = resolveContextColorAliasValue(context, String(rawColorName), consumerStatementId);
     if (!resolved) {
       return fullMatch;
     }
@@ -2672,7 +2671,7 @@ function extractTopLevelCoordinateTokens(raw: string): string[] {
   let depth = 0;
 
   for (let index = 0; index < raw.length; index += 1) {
-    const char = raw[index]!;
+    const char = raw[index];
     if (char === "\\" && index + 1 < raw.length) {
       index += 1;
       continue;
@@ -2776,7 +2775,7 @@ function computeFitWorldBounds(
   }
 
   const hasRotate = rotateFitDegrees != null && Number.isFinite(rotateFitDegrees);
-  const sampled = hasRotate ? points.map((point) => rotateWorldPoint(point, -rotateFitDegrees!)) : points;
+  const sampled = hasRotate ? points.map((point) => rotateWorldPoint(point, -rotateFitDegrees)) : points;
   const minX = Math.min(...sampled.map((point) => point.x));
   const maxX = Math.max(...sampled.map((point) => point.x));
   const minY = Math.min(...sampled.map((point) => point.y));
@@ -2787,7 +2786,7 @@ function computeFitWorldBounds(
   }
 
   const centerRotated = wp((minX + maxX) / 2, (minY + maxY) / 2);
-  const center = hasRotate ? rotateWorldPoint(centerRotated, rotateFitDegrees!) : centerRotated;
+  const center = hasRotate ? rotateWorldPoint(centerRotated, rotateFitDegrees) : centerRotated;
   return {
     center,
     width: Math.max(0, maxX - minX),
@@ -2851,7 +2850,7 @@ function splitTopLevelCommas(raw: string): string[] {
   let inQuote = false;
 
   for (let index = 0; index < raw.length; index += 1) {
-    const char = raw[index]!;
+    const char = raw[index];
     if (char === "\\" && index + 1 < raw.length) {
       index += 1;
       continue;
@@ -3007,7 +3006,7 @@ function resolveRectangleSplitPartAlignments(
 ): RectangleSplitPartAlign[] {
   const defaultAlign: RectangleSplitPartAlign = "center";
   if (!options || partCount <= 0) {
-    return new Array(Math.max(0, partCount)).fill(defaultAlign);
+    return Array.from<RectangleSplitPartAlign>({ length: Math.max(0, partCount) }).fill(defaultAlign);
   }
 
   let list: RectangleSplitPartAlign[] | null = null;
@@ -3031,7 +3030,7 @@ function resolveRectangleSplitPartAlignments(
   }
 
   if (!list || list.length === 0) {
-    return new Array(partCount).fill(defaultAlign);
+    return Array.from<RectangleSplitPartAlign>({ length: partCount }).fill(defaultAlign);
   }
 
   const alignments: RectangleSplitPartAlign[] = [];
@@ -3238,7 +3237,7 @@ function computeRectangleSplitSegments(params: {
   metrics: number[];
 }): RectangleSplitSegment[] {
   const count = Math.max(1, params.metrics.length);
-  const values = params.metrics.length === count ? params.metrics : new Array(count).fill(1);
+  const values = params.metrics.length === count ? params.metrics : Array.from<number>({ length: count }).fill(1);
   const metricSum = values.reduce((sum, value) => sum + Math.max(1e-3, value), 0);
   const safeSum = metricSum > 1e-6 ? metricSum : count;
   const segments: RectangleSplitSegment[] = [];

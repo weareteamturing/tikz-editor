@@ -228,41 +228,22 @@ function hsbToHex(hueRaw: number, saturationRaw: number, brightnessRaw: number):
   const q = brightness * (1 - saturation * fraction);
   const t = brightness * (1 - saturation * (1 - fraction));
 
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  switch (section % 6) {
-    case 0:
-      r = brightness;
-      g = t;
-      b = p;
-      break;
-    case 1:
-      r = q;
-      g = brightness;
-      b = p;
-      break;
-    case 2:
-      r = p;
-      g = brightness;
-      b = t;
-      break;
-    case 3:
-      r = p;
-      g = q;
-      b = brightness;
-      break;
-    case 4:
-      r = t;
-      g = p;
-      b = brightness;
-      break;
-    default:
-      r = brightness;
-      g = p;
-      b = q;
-      break;
-  }
+  const [r, g, b] = (() => {
+    switch (section % 6) {
+      case 0:
+        return [brightness, t, p];
+      case 1:
+        return [q, brightness, p];
+      case 2:
+        return [p, brightness, t];
+      case 3:
+        return [p, q, brightness];
+      case 4:
+        return [t, p, brightness];
+      default:
+        return [brightness, p, q];
+    }
+  })();
 
   return rgbToHex({
     r: r * 255,

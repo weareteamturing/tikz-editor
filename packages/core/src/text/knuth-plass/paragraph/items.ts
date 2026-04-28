@@ -259,7 +259,7 @@ export function runsToItems(
       continue;
     }
 
-    errors.push(`Unsupported run kind '${String((run as any).kind)}'.`);
+    errors.push('Unsupported run kind.');
   }
 
   return {

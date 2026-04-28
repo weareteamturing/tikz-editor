@@ -69,7 +69,7 @@ import { expandOptionListMacros } from "./style/macro-options.js";
 import { FONT_SIZE_COMMAND_FACTORS } from "./style/constants.js";
 import { resolveDefineColorModel } from "./style/colors.js";
 import { applyMatrix, identityMatrix } from "./transform.js";
-import { cloneResolvedStyle, cloneStyleChain, diffResolvedStyle, type StyleSourceRef, type StyleTraceLayerInput } from "./style-chain.js";
+import { cloneResolvedStyle, cloneStyleChain, diffResolvedStyle, type StyleSourceRef } from "./style-chain.js";
 import { inferRequiredTikzLibraries } from "./required-tikz-libraries.js";
 import { parseBooleanishNormalized } from "../utils/booleanish.js";
 import { stripWrappingBraces } from "../utils/braces.js";
@@ -81,7 +81,6 @@ import type {
   EditHandle,
   EvaluateOptions,
   FeatureUsage,
-  FeatureUsageState,
   NodeAnchorTarget,
   SceneElement,
   SceneFigure,
@@ -1530,7 +1529,6 @@ function applyMacroDefinitionStatement(
     return;
   }
 
-  const frame = currentFrame(context);
   writeContextMacroBinding(context, name, {
     kind: "text",
     value: statement.valueRaw,
@@ -1554,35 +1552,30 @@ function applyMacroAliasStatement(statement: MacroAliasStatement, context: Retur
   }
 
   const aliasOrigin = buildMacroOriginFrame(name, statement.id, statement.span, statement.commandRaw);
-  let binding: MacroBinding | null = null;
-  if (isControlSequenceToken(targetRaw)) {
+  const binding: MacroBinding = isControlSequenceToken(targetRaw) ? (() => {
     const targetBinding = readContextMacroBinding(context, targetRaw, statement.id);
     if (targetBinding) {
-      binding = cloneMacroBinding(targetBinding);
-      binding.provenance.push(aliasOrigin);
-    } else {
-      binding = {
-        kind: "text",
-        value: targetRaw,
-        provenance: [aliasOrigin]
-      };
+      const cloned = cloneMacroBinding(targetBinding);
+      cloned.provenance.push(aliasOrigin);
+      return cloned;
     }
-  } else {
-    binding = {
+    return {
+      kind: "text",
+      value: targetRaw,
+      provenance: [aliasOrigin]
+    };
+  })() : {
       kind: "text",
       value: expandMacroBindings(targetRaw, frame.macroBindings, {
         maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH
       }),
       provenance: [aliasOrigin]
     };
-  }
 
-  if (binding) {
-    writeContextMacroBinding(context, name, binding, {
-      statementId: statement.id,
-      span: statement.span
-    });
-  }
+  writeContextMacroBinding(context, name, binding, {
+    statementId: statement.id,
+    span: statement.span
+  });
 }
 
 function applyMacroCommandDefinitionStatement(
@@ -1595,7 +1588,6 @@ function applyMacroCommandDefinitionStatement(
     return;
   }
 
-  const frame = currentFrame(context);
   const parameterCount = clampMacroParameterCount(statement.arity, diagnostics, statement);
   const optionalFirstArgDefault = resolveOptionalFirstArgDefault(statement, parameterCount, diagnostics);
   const origin = buildMacroOriginFrame(name, statement.id, statement.span, statement.commandRaw);
@@ -2195,7 +2187,7 @@ function markFeature(featureUsage: FeatureUsage, featureId: FeatureId, status: "
     return;
   }
 
-  const current = featureUsage[featureId] as FeatureUsageState;
+  const current = featureUsage[featureId];
   if (status === "unsupported") {
     featureUsage[featureId] = "used-unsupported";
     return;
@@ -2361,8 +2353,8 @@ function applyForeachAttributionToElements(
           }
         : undefined;
 
-    const nextSourceId = shouldOverrideSource ? attribution!.sourceId : element.sourceRef.sourceId;
-    const nextSourceSpan = shouldOverrideSource ? attribution!.sourceSpan : element.sourceRef.sourceSpan;
+    const nextSourceId = shouldOverrideSource ? attribution.sourceId : element.sourceRef.sourceId;
+    const nextSourceSpan = shouldOverrideSource ? attribution.sourceSpan : element.sourceRef.sourceSpan;
     return {
       ...element,
       sourceRef: {
@@ -3187,7 +3179,7 @@ function updateTreeLevelStyleLayers(
   if (append) {
     next[index] = {
       level,
-      layers: [...next[index]!.layers, layer]
+      layers: [...next[index].layers, layer]
     };
   } else {
     next[index] = {

@@ -27,7 +27,6 @@ import type {
   EditHandle,
   EvaluateOptions,
   FeatureUsage,
-  NodeAnchorTarget,
   SceneElement,
   SceneFigure
 } from "./types.js";
@@ -206,7 +205,7 @@ export function createIncrementalSemanticSession(
           startFeatureUsage
         });
         return selective;
-      } catch (_error) {
+      } catch {
         // Fall through to the suffix replay path.
       }
     }
@@ -224,7 +223,7 @@ export function createIncrementalSemanticSession(
       });
       cached = suffix.cached;
       return suffix.output;
-    } catch (_error) {
+    } catch {
       const full = evaluateFullyAndCache(
         createSemanticEvaluationRun(input.figure, input.source, options),
         statementIds,

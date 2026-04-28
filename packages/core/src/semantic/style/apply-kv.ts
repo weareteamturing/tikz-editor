@@ -2,6 +2,7 @@ import type { OptionEntry } from "../../options/types.js";
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
 import { multiplyMatrix, rotationMatrix, scaleMatrix, translationMatrix } from "../transform.js";
 import type { WorldPoint } from "../../coords/points.js";
+import { pt } from "../../coords/scalars.js";
 import type { WorldTransform } from "../../coords/transforms.js";
 import {
   SHADOW_INHERIT_FILL,
@@ -760,7 +761,7 @@ export function applyKvEntry(
     const { angleDeg, pivot } = parsed;
     const aroundMatrix = multiplyMatrix(
       translationMatrix(pivot.x, pivot.y),
-      multiplyMatrix(rotationMatrix(angleDeg), translationMatrix(-pivot.x, -pivot.y))
+      multiplyMatrix(rotationMatrix(angleDeg), translationMatrix(pt(-1 * pivot.x), pt(-1 * pivot.y)))
     );
     return { style, transform: multiplyMatrix(transform, aroundMatrix), diagnostics: [] };
   }
@@ -882,7 +883,6 @@ function appendShadowLayers(
   } else if (nested) {
     const nestedResult = applyOptionListEntries(nested.entries, workingStyle, workingTransform, applyOptionEntry);
     workingStyle = nestedResult.style;
-    workingTransform = nestedResult.transform;
     diagnostics.push(...nestedResult.diagnostics);
   }
 

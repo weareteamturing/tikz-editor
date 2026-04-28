@@ -12,9 +12,9 @@ import {
 import { applyFrameTransform, applyFrameVector } from "../../coords/frame.js";
 import { frameLocalPoint, frameLocalVector, worldPoint, worldVector } from "../../coords/points.js";
 import type { FrameLocalPoint, WorldPoint, WorldVector } from "../../coords/points.js";
-import { frameTransform, worldTransform } from "../../coords/transforms.js";
+import { frameTransform } from "../../coords/transforms.js";
 import type { FrameTransform, WorldTransform } from "../../coords/transforms.js";
-import { applyMatrix, applyMatrixToVector, identityMatrix, inverseMatrix } from "../transform.js";
+import { applyMatrix, applyMatrixToVector, inverseMatrix } from "../transform.js";
 import { parseLength, parseQuantityExpression } from "./parse-length.js";
 import { intersectRayWithPolygon } from "../nodes/shape-geometry.js";
 
@@ -32,10 +32,6 @@ export type EvaluatedCoordinate = {
 
 function asFrameTransform(transform: { a: number; b: number; c: number; d: number; e: number; f: number }): FrameTransform {
   return frameTransform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f);
-}
-
-function asWorldTransform(transform: { a: number; b: number; c: number; d: number; e: number; f: number }): WorldTransform {
-  return worldTransform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f);
 }
 
 type ParsedExplicitCoordinate =
@@ -193,7 +189,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     return invalidCoordinate("unknown", diagnostics, item.relativePrefix === "++");
   }
 
-  let localPoint: FrameLocalPoint | null = null;
+  let localPoint: FrameLocalPoint;
 
   if (item.form === "polar") {
     const angleQuantity = parseQuantityExpression(expandCoordinateComponent(item.x.trim(), frame.macroBindings, traceCollector));
@@ -217,11 +213,6 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     }
 
     localPoint = frameLocalPoint(pt(x), pt(y));
-  }
-
-  if (!localPoint) {
-    const form: CoordinateForm = item.form === "polar" ? "polar" : "cartesian";
-    return invalidCoordinate(form, diagnostics, item.relativePrefix === "++");
   }
 
   if (item.relativePrefix) {

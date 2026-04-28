@@ -62,7 +62,7 @@ export function resolveContextDelta(
     }
 
     const afterStyle = cloneResolvedStyle(style);
-    const entry = makeStyleChainEntry(layer, beforeStyle, afterStyle, layerExpandedEntries);
+    const entry = makeStyleChainEntry(layer, beforeStyle, afterStyle);
     chain.push(entry);
     expandedEntries.push(...layerExpandedEntries);
   };
@@ -139,8 +139,7 @@ export function resolveContextDelta(
 function makeStyleChainEntry(
   layer: StyleTraceLayerInput,
   beforeStyle: ResolvedStyle,
-  afterStyle: ResolvedStyle,
-  _expandedEntries: OptionEntry[]
+  afterStyle: ResolvedStyle
 ): StyleChainEntry {
   const baseEntry = {
     kind: layer.kind,
