@@ -1,4 +1,4 @@
-export type SingleFlightScheduler<Input, Output> = {
+export type SingleFlightScheduler<Input> = {
   schedule: (input: Input) => void;
   dispose: () => void;
 };
@@ -12,7 +12,7 @@ export type SingleFlightSchedulerOptions<Input, Output> = {
 
 export function createSingleFlightScheduler<Input, Output>(
   options: SingleFlightSchedulerOptions<Input, Output>
-): SingleFlightScheduler<Input, Output> {
+): SingleFlightScheduler<Input> {
   let disposed = false;
   let inFlight = false;
   let pending: Input | null = null;

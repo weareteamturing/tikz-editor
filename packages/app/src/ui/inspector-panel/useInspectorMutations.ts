@@ -31,6 +31,7 @@ import {
   type PathMorphingDecorationPresetId,
   type SetPropertyWriteTarget
 } from "tikz-editor/edit/inspector";
+import type { EditorAction } from "../../store/types";
 
 export type ApplySetPropertyOptions = {
   key?: string;
@@ -38,7 +39,7 @@ export type ApplySetPropertyOptions = {
   recordInHistory?: boolean;
 };
 
-export function useInspectorMutations(dispatch: (action: any) => void) {
+export function useInspectorMutations(dispatch: (action: EditorAction) => void) {
   const applySetProperty = useCallback(
     (
       write: SetPropertyWriteTarget,

@@ -17,6 +17,7 @@ import { buildStylesCascadeModel } from "tikz-editor/edit/styles-cascade";
 import type { SceneElement } from "tikz-editor/semantic/types";
 import { getSharedEditAnalysisView, getSharedEditAnalysisSession } from "../../edit-analysis-manager";
 import { useProjectNamedColorSwatches } from "../../project-named-colors";
+import type { EditorAction } from "../../store/types";
 import { useEditorStore } from "../../store/store";
 import { actionAvailability } from "../editor-commands";
 import {
@@ -162,7 +163,7 @@ type FrozenPropertyProvenanceView = {
 
 export function useInspectorModel(args: {
   selectedIds: ReadonlySet<string>;
-  dispatch: (action: any) => void;
+  dispatch: (action: EditorAction) => void;
   getInspectorDescriptor: (element: SceneElement, context: InspectorSnapshot) => InspectorDescriptor;
 }) {
   const { selectedIds, dispatch, getInspectorDescriptor } = args;

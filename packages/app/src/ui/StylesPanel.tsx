@@ -242,6 +242,17 @@ export function StylesPanel() {
           applySimpleMutation(writeTargets, mutation.key, mutation.value, mutation.clearKeys);
           return;
         }
+        case "arrowTip":
+        case "boolean":
+        case "enum":
+        case "fillPatternOption":
+        case "nodeFont":
+        case "nodeTextAlign":
+        case "optionalLength":
+        case "pathMorphingDecoration":
+        case "shadowPreset":
+        case "slider":
+        case "text":
         default:
           return;
       }
@@ -329,6 +340,17 @@ export function StylesPanel() {
           case "roundedCorners":
             defaultValue = template.enabled ? `${template.radius}pt` : "4pt";
             break;
+          case "arrowTip":
+          case "boolean":
+          case "enum":
+          case "fillPatternOption":
+          case "nodeFont":
+          case "nodeTextAlign":
+          case "optionalLength":
+          case "pathMorphingDecoration":
+          case "shadowPreset":
+          case "slider":
+          case "text":
           default:
             defaultValue = "true";
             break;
@@ -340,7 +362,7 @@ export function StylesPanel() {
       }
       setAddingInSection(null);
     },
-    [applyPropertyChange, dispatchActions]
+    [dispatchActions]
   );
 
   const handleToggleProperty = useCallback(
@@ -614,6 +636,17 @@ function renderValueEditor(
           <span>{property.enabled ? `${property.radius.toFixed(1)}pt` : "off"}</span>
         </label>
       );
+    case "arrowTip":
+    case "boolean":
+    case "enum":
+    case "fillPatternOption":
+    case "nodeFont":
+    case "nodeTextAlign":
+    case "optionalLength":
+    case "pathMorphingDecoration":
+    case "shadowPreset":
+    case "slider":
+    case "text":
     default:
       return (
         <RawValueInput
@@ -718,7 +751,7 @@ function AddPropertyRow({
       className={css.addRow}
       onBlur={(e) => {
         // Cancel if focus leaves the add row entirely
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+        if (!e.currentTarget.contains(e.relatedTarget)) {
           onCancel();
         }
       }}
@@ -793,6 +826,17 @@ function toPropertyRawValue(declaration: StylesCascadeDeclaration): string {
         return String(p.value);
       case "roundedCorners":
         return p.enabled ? `${p.radius}pt` : "";
+      case "arrowTip":
+      case "boolean":
+      case "enum":
+      case "fillPatternOption":
+      case "nodeFont":
+      case "nodeTextAlign":
+      case "optionalLength":
+      case "pathMorphingDecoration":
+      case "shadowPreset":
+      case "slider":
+      case "text":
       default:
         break;
     }

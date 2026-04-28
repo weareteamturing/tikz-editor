@@ -87,7 +87,11 @@ export default tseslint.config(
     }
   },
   {
-    files: ["packages/app/src/ui/canvas-panel/**/*.{ts,tsx}"],
+    files: [
+      "packages/app/src/ui/CanvasPanel.tsx",
+      "packages/app/src/ui/canvas-panel/**/*.{ts,tsx}",
+      "packages/app/src/ui/inspector-panel/**/*.{ts,tsx}"
+    ],
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unsafe-assignment": "error",

@@ -1,171 +1,68 @@
-import { useCallback, useEffect, useMemo, useState, type JSX, type PointerEvent as ReactPointerEvent } from "react";
 import {
-  RiAlignCenter,
-  RiAlignJustify,
-  RiAlignLeft,
-  RiAlignRight,
-  RiBold,
-  RiFontMono,
-  RiFontSansSerif,
-  RiFontSerif,
-  RiItalic
+RiAlignCenter,
+RiAlignJustify,
+RiAlignLeft,
+RiAlignRight,
+RiBold,
+RiFontMono,
+RiFontSansSerif,
+RiFontSerif,
+RiItalic
 } from "@remixicon/react";
+import { useCallback,useEffect,useMemo,useState,type JSX } from "react";
 import { formatNumber } from "tikz-editor/edit/format";
 import {
-  buildArrowTipSetPropertyMutation,
-  buildDashStyleSetPropertyMutation,
-  buildFillModeSetPropertyMutations,
-  buildNodeFontSetPropertyMutation,
-  buildNodeInnerSepSetPropertyMutation,
-  buildNodeMinimumDimensionSetPropertyMutations,
-  buildNodeShapeSetPropertyMutation,
-  NODE_INNER_SEP_DEFAULT,
-  buildFillPatternOptionSetPropertyMutation,
-  buildFillPatternSetPropertyMutation,
-  buildFillShadingSetPropertyMutations,
-  buildLineCapSetPropertyMutation,
-  buildLineJoinSetPropertyMutation,
-  buildPathMorphingDecorationSetPropertyMutations,
-  buildRoundedCornersSetPropertyMutation,
-  buildShadowMutationContextForPreset,
-  buildShadowSetPropertyMutations,
-  buildTransformSetPropertyMutations,
-  getInspectorDescriptor,
-  resolveTransformInspectorValues,
-  TIKZPICTURE_GLOBAL_TARGET_ID,
-  type ArrowTipPresetId,
-  type ArrowTipSide,
-  type ArrowTipWriteTarget,
-  type DashStylePresetId,
-  type FillModePresetId,
-  type FillPatternPresetId,
-  type FillPatternMetaOptionKey,
-  type FillPatternOptionMutationContext,
-  type FillShadingPresetId,
-  type InspectorProperty,
-  type LineCapPresetId,
-  type LineJoinPresetId,
-  type NodeFontFamilyId,
-  type NodeFontMutationContext,
-  type NodeTextAlignInspectorValue,
-  type NodeFontSizePresetId,
-  type NodeMinimumDimensionKey,
-  type NodeShapePresetId,
-  type PathMorphingDecorationPresetId,
-  type SetPropertyWriteTarget,
-  type ShadowMutationContext,
-  type ShadowPresetId
+buildNodeMinimumDimensionSetPropertyMutations,
+buildShadowMutationContextForPreset,
+buildShadowSetPropertyMutations,
+buildTransformSetPropertyMutations,
+getInspectorDescriptor,
+NODE_INNER_SEP_DEFAULT,
+TIKZPICTURE_GLOBAL_TARGET_ID,
+type InspectorProperty,
+type NodeFontFamilyId,
+type NodeFontSizePresetId,
+type NodeMinimumDimensionKey,
+type NodeTextAlignInspectorValue,
+type SetPropertyWriteTarget,
+type ShadowMutationContext,
+type ShadowPresetId
 } from "tikz-editor/edit/inspector";
+import { BASIC_PICKER_COLORS } from "../color-palette";
+import { useProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
 import { getInspectorPropertyCapabilityStatus } from "./capabilities";
 import { ColorPickerField } from "./ColorPicker";
-import { CustomDropdown } from "./CustomDropdown";
-import { RenderedTooltip } from "./RenderedTooltip";
-import { MULTI_ARRANGE_ACTIONS, type MultiArrangeAction } from "./inspector-panel/arrange-actions";
+import { MULTI_ARRANGE_ACTIONS,type MultiArrangeAction } from "./inspector-panel/arrange-actions";
+import { InspectorMultiSection,InspectorSingleSection } from "./inspector-panel/InspectorSections";
 import {
-  ARROW_TIP_MIXED_OPTION_VALUE,
-  DASH_STYLE_MIXED_OPTION_VALUE,
-  FILL_MODE_MIXED_OPTION_VALUE,
-  FILL_PATTERN_MIXED_OPTION_VALUE,
-  FILL_SHADING_MIXED_OPTION_VALUE,
-  LINE_CAP_MIXED_OPTION_VALUE,
-  LINE_JOIN_MIXED_OPTION_VALUE,
-  LINE_WIDTH_ALL_OPTION_KEYS,
-  LINE_WIDTH_CUSTOM_OPTION_VALUE,
-  LINE_WIDTH_DROPDOWN_OPTIONS,
-  LINE_WIDTH_MIXED_OPTION_VALUE,
-  LINE_WIDTH_NUMERIC_KEY,
-  LINE_WIDTH_PRESET_BY_LABEL,
-  LINE_WIDTH_PRESET_KEYS,
-  NODE_FONT_SIZE_MIXED_OPTION_VALUE,
-  NODE_SHAPE_MIXED_OPTION_VALUE,
-  PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE,
-  ArrowTipPreview,
-  DashStylePreview,
-  FillPatternPreview,
-  LineCapPreview,
-  LineJoinPreview,
-  LineWidthPreview,
-  PathMorphingDecorationPreview,
-  arrowTipPreviewPreset,
-  arrowTipValueLabel,
-  clampNumber,
-  dashStylePreviewPreset,
-  dashStyleValueLabel,
-  fillModeValueLabel,
-  fillPatternPreviewPreset,
-  fillPatternValueLabel,
-  fillShadingValueLabel,
-  isPathMorphingSuboptionPropertyId,
-  isSelectableArrowTipValue,
-  isSelectableDashStyleValue,
-  isSelectableFillModeValue,
-  isSelectableFillPatternValue,
-  isSelectableFillShadingValue,
-  isSelectableLineCapValue,
-  isSelectableLineJoinValue,
-  isSelectableNodeFontSizeValue,
-  isSelectableNodeShapeValue,
-  isSelectablePathMorphingDecorationValue,
-  lineCapPreviewPreset,
-  lineCapValueLabel,
-  lineJoinPreviewPreset,
-  lineJoinValueLabel,
-  lineWidthPresetLabelFromValue,
-  lineWidthPreviewLineWidth,
-  lineWidthValueLabel,
-  nodeFontButtonClass,
-  nodeFontSizePresetPtLabel,
-  nodeFontSizeValueLabel,
-  nodeShapeValueLabel,
-  pathMorphingDecorationPreviewPreset,
-  pathMorphingDecorationValueLabel,
-  toArrowTipDropdownOptions,
-  toDashStyleDropdownOptions,
-  toFillModeDropdownOptions,
-  toFillPatternDropdownOptions,
-  toFillShadingDropdownOptions,
-  toLineCapDropdownOptions,
-  toLineJoinDropdownOptions,
-  toNodeFontSizeDropdownOptions,
-  toNodeShapeDropdownOptions,
-  toPathMorphingDecorationDropdownOptions,
-  type ArrowTipDropdownValue,
-  type DashStyleDropdownValue,
-  type FillModeDropdownValue,
-  type FillPatternDropdownValue,
-  type FillShadingDropdownValue,
-  type LineCapDropdownValue,
-  type LineJoinDropdownValue,
-  type LineWidthDropdownValue,
-  type InspectorPropertyProvenance,
-  type MultiInspectorProperty,
-  type NodeFontSizeDropdownValue,
-  type NodeShapeDropdownValue,
-  type PathMorphingDecorationDropdownValue
+clampNumber,
+NODE_FONT_SIZE_MIXED_OPTION_VALUE,
+nodeFontButtonClass,
+type InspectorPropertyProvenance,
+type MultiInspectorProperty,
+type NodeFontSizeDropdownValue
 } from "./inspector-panel/panel-helpers";
-import { InspectorMultiSection, InspectorSingleSection } from "./inspector-panel/InspectorSections";
 import {
-  renderMultiInspectorProperty,
-  renderSingleInspectorProperty
-} from "./inspector-panel/property-renderers";
-import {
-  renderNodeFontSizeDropdown,
+renderNodeFontSizeDropdown,
 } from "./inspector-panel/property-dropdowns";
+import {
+renderMultiInspectorProperty,
+renderSingleInspectorProperty
+} from "./inspector-panel/property-renderers";
 import { useInspectorModel } from "./inspector-panel/useInspectorModel";
+import { useInspectorMutations } from "./inspector-panel/useInspectorMutations";
 import { useInspectorPreviewScrub } from "./inspector-panel/useInspectorPreviewScrub";
-import { useInspectorMutations, type ApplySetPropertyOptions } from "./inspector-panel/useInspectorMutations";
+import css from "./InspectorPanel.module.css";
+import { RenderedTooltip } from "./RenderedTooltip";
 import { SidePanel } from "./SidePanel";
 import {
-  getToolLabel,
-  isCreationToolMode,
-  TOOL_HINTS,
-  toolSupportsFill,
-  toolSupportsStroke
+getToolLabel,
+isCreationToolMode,
+TOOL_HINTS,
+toolSupportsFill,
+toolSupportsStroke
 } from "./tool-config";
-import { BASIC_PICKER_COLORS } from "../color-palette";
-import { useProjectNamedColorSwatches } from "../project-named-colors";
-import css from "./InspectorPanel.module.css";
 
 type NumberChangeOptions = {
   recordInHistory?: boolean;
@@ -188,12 +85,9 @@ export function InspectorPanel() {
   const creationStrokeColor = useEditorStore((s) => s.creationStrokeColor);
   const creationFillColor = useEditorStore((s) => s.creationFillColor);
   const freehandSmoothingPx = useEditorStore((s) => s.freehandSmoothingPx);
-  const selectedAddShape = useEditorStore((s) => s.selectedAddShape);
   const toolProjectNamedColorSwatches = useProjectNamedColorSwatches();
 
   const {
-    source,
-    snapshot,
     selectedSourceIds,
     projectNamedColorSwatches,
     globalTransformValues,
@@ -263,8 +157,6 @@ export function InspectorPanel() {
     applyRoundedCornersValueMany,
     applyNodeShapeValue,
     applyNodeShapeValueMany,
-    applyNodeInnerSepValue,
-    applyNodeInnerSepValueMany,
     applyNodeFontValue,
     applyNodeFontValueMany
   } = useInspectorMutations(dispatch);

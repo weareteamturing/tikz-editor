@@ -233,6 +233,7 @@ export function toolModeHasPopup(mode: ToolMode): boolean {
 }
 
 export function toolModeAutoOpensPopup(mode: ToolMode): boolean {
+  void mode;
   // Shape tool no longer auto-opens; it opens on click but doesn't activate until selection
   return false;
 }

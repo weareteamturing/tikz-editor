@@ -61,7 +61,7 @@ export function useFrameTimingStats(activeDragKind: CanvasDragKind | null, enabl
         });
 
         const cutoffTs = nowTs - SAMPLE_WINDOW_MS;
-        while (samples.length > 0 && samples[0]!.atMs < cutoffTs) {
+        while (samples.length > 0 && samples[0].atMs < cutoffTs) {
           samples.shift();
         }
 

@@ -51,7 +51,7 @@ export function buildFigureContext(
   if (activeIndex < 0) {
     return null;
   }
-  const figure = figures[activeIndex]!;
+  const figure = figures[activeIndex];
   const figureSource = fullSource.slice(figure.span.from, figure.span.to);
   const linesBeforeFigure = fullSource.slice(0, figure.span.from).split("\n").length;
   const numberedLines = figureSource

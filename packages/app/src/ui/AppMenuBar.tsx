@@ -139,12 +139,13 @@ function MenuPopup({
             disabled={!binding.enabled}
             className={[css.item, hasCheckItems ? "" : css.itemNoCheck].filter(Boolean).join(" ")}
             data-testid={`menu-cmd-${item.commandId}`}
-            onClick={async () => {
+            onClick={() => {
               if (!binding.enabled) {
                 return;
               }
-              await binding.run("menu");
-              onCommandRun();
+              void Promise.resolve(binding.run("menu")).then(() => {
+                onCommandRun();
+              });
             }}
           >
             {hasCheckItems ? <span className={css.check}>{binding.checked ? "✓" : ""}</span> : null}

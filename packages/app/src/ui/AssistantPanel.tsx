@@ -378,14 +378,14 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
     }
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await submitPrompt();
+    void submitPrompt();
   }
 
   async function respondToApproval(
     requestId: string,
-    decision: "accept" | "acceptForSession" | "decline" | "cancel" | string
+    decision: string
   ): Promise<void> {
     await getActiveEditorPlatform().assistant?.respondToApproval?.({
       documentId: activeDocumentId,
@@ -950,7 +950,13 @@ function asNumber(value: unknown): number | null {
 }
 
 function asString(value: unknown): string {
-  return typeof value === "string" ? value : value == null ? "" : String(value);
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return value.toString();
+  }
+  return "";
 }
 
 function ApprovalPreview({ approval }: { approval: AssistantPendingApproval }) {

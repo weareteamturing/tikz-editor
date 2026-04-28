@@ -10,6 +10,7 @@ import {
   isFillAdvancedPropertyId,
   isFillMoreOptionsPropertyId,
   isStrokeMoreOptionsPropertyId,
+  type InspectorPropertyProvenance,
   type InspectorPropertyProvenanceMap
 } from "./panel-helpers";
 import { SidePanel } from "../SidePanel";
@@ -27,14 +28,14 @@ export function InspectorSingleSection(props: {
   renderSingleNumberPair: (
     left: Extract<InspectorProperty, { kind: "number" }>,
     right: Extract<InspectorProperty, { kind: "number" }>,
-    leftProvenance?: any,
-    rightProvenance?: any
+    leftProvenance: InspectorPropertyProvenance | null,
+    rightProvenance: InspectorPropertyProvenance | null
   ) => JSX.Element;
   renderSingleLengthPair: (
     left: Extract<InspectorProperty, { kind: "length" }>,
     right: Extract<InspectorProperty, { kind: "length" }>,
-    leftProvenance?: any,
-    rightProvenance?: any
+    leftProvenance: InspectorPropertyProvenance | null,
+    rightProvenance: InspectorPropertyProvenance | null
   ) => JSX.Element;
   renderProperty: (property: InspectorProperty) => JSX.Element;
   onEnableGradientFillSingle: () => void;
@@ -111,8 +112,8 @@ export function InspectorSingleSection(props: {
           const next = visibleProperties[index + 1];
           if (shouldRenderCompactPair(property, next)) {
             if (property.kind === "number" && next?.kind === "number") {
-              const left = property as Extract<InspectorProperty, { kind: "number" }>;
-              const right = next as Extract<InspectorProperty, { kind: "number" }>;
+              const left = property;
+              const right = next;
               return renderSingleNumberPair(
                 left,
                 right,
@@ -121,8 +122,8 @@ export function InspectorSingleSection(props: {
               );
             }
             if (property.kind === "length" && next?.kind === "length") {
-              const left = property as Extract<InspectorProperty, { kind: "length" }>;
-              const right = next as Extract<InspectorProperty, { kind: "length" }>;
+              const left = property;
+              const right = next;
               return renderSingleLengthPair(
                 left,
                 right,
@@ -215,14 +216,14 @@ export function InspectorMultiSection(props: {
   renderMultiNumberPair: (
     left: Extract<MultiInspectorProperty, { kind: "number" }>,
     right: Extract<MultiInspectorProperty, { kind: "number" }>,
-    leftProvenance?: any,
-    rightProvenance?: any
+    leftProvenance: InspectorPropertyProvenance | null,
+    rightProvenance: InspectorPropertyProvenance | null
   ) => JSX.Element;
   renderMultiLengthPair: (
     left: Extract<MultiInspectorProperty, { kind: "length" }>,
     right: Extract<MultiInspectorProperty, { kind: "length" }>,
-    leftProvenance?: any,
-    rightProvenance?: any
+    leftProvenance: InspectorPropertyProvenance | null,
+    rightProvenance: InspectorPropertyProvenance | null
   ) => JSX.Element;
   renderMultiProperty: (property: MultiInspectorProperty) => JSX.Element | null;
   onEnableGradientFillMulti: () => void;
@@ -299,8 +300,8 @@ export function InspectorMultiSection(props: {
           const next = visibleProperties[index + 1];
           if (shouldRenderCompactPair(property, next)) {
             if (property.kind === "number" && next?.kind === "number") {
-              const left = property as Extract<MultiInspectorProperty, { kind: "number" }>;
-              const right = next as Extract<MultiInspectorProperty, { kind: "number" }>;
+              const left = property;
+              const right = next;
               return renderMultiNumberPair(
                 left,
                 right,
@@ -309,8 +310,8 @@ export function InspectorMultiSection(props: {
               );
             }
             if (property.kind === "length" && next?.kind === "length") {
-              const left = property as Extract<MultiInspectorProperty, { kind: "length" }>;
-              const right = next as Extract<MultiInspectorProperty, { kind: "length" }>;
+              const left = property;
+              const right = next;
               return renderMultiLengthPair(
                 left,
                 right,

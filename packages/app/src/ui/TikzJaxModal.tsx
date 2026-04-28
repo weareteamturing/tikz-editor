@@ -139,7 +139,7 @@ export function TikzJaxModal({
         const timeoutId = window.setTimeout(() => {
           reject(new Error(`Native compile did not return within ${NATIVE_COMPILE_TIMEOUT_MS}ms.`));
         }, NATIVE_COMPILE_TIMEOUT_MS);
-        compilePromise.finally(() => window.clearTimeout(timeoutId));
+        void compilePromise.finally(() => window.clearTimeout(timeoutId));
       });
       return Promise.race([compilePromise, timeoutPromise]).then((svg) => {
         if (cancelled) return;

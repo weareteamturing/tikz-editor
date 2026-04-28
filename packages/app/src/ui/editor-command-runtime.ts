@@ -968,7 +968,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       if (!binding || !binding.enabled) {
         return false;
       }
-      binding.run(origin);
+      void binding.run(origin);
       return true;
     }
   };
@@ -1145,7 +1145,6 @@ export function useEditorCommandRuntime(
       showStylesPanel,
       showFiguresPanel,
       showAssistantPanel,
-      activeCanvasDragKind,
       rightSidebarTab,
       assistantAvailable,
       assistantRunning,
@@ -1165,7 +1164,9 @@ export function useEditorCommandRuntime(
       options.onInterruptAssistant,
       options.onOpenInsertEquation,
       options.onOpenEditEquation,
-      options.onOpenRepeat
+      options.onOpenManageWorkspaces,
+      options.onOpenRepeat,
+      options.onOpenSaveWorkspace
     ]
   );
 }

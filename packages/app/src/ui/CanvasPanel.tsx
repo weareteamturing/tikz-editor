@@ -1,304 +1,160 @@
 import {
-  Suspense,
-  lazy,
-  memo,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ClipboardEvent as ReactClipboardEvent,
-  type DragEvent as ReactDragEvent,
-  type MouseEvent as ReactMouseEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
-  type SyntheticEvent as ReactSyntheticEvent
+Suspense,
+lazy,
+memo,
+useCallback,
+useEffect,
+useLayoutEffect,
+useMemo,
+useRef,
+useState,
+type ClipboardEvent as ReactClipboardEvent,
+type DragEvent as ReactDragEvent,
+type KeyboardEvent as ReactKeyboardEvent,
+type PointerEvent as ReactPointerEvent,
+type SyntheticEvent as ReactSyntheticEvent
 } from "react";
-import { useShallow } from "zustand/react/shallow";
-import type { AppMenuCommandId } from "../app-menu";
-import { buildCanvasContextMenuDefinition, type CanvasContextMenuTarget } from "../context-menu";
-import { collectGeometryInvalidation } from "tikz-editor/semantic/index";
+import { clientPoint as makeClientPoint,svgPoint as makeSvgPoint,worldPoint as makeWorldPoint,pt,px,svgBounds,viewportPoint } from "tikz-editor/coords/index";
 import {
-  ADORNMENT_EDIT_NOOP_REASON,
-  PATH_ATTACHED_NODE_EDIT_NOOP_REASON,
-  applyEditAction,
-  type EditAction,
-  type ResizeRole
+ADORNMENT_EDIT_NOOP_REASON,
+PATH_ATTACHED_NODE_EDIT_NOOP_REASON,
+applyEditAction,
+type EditAction
 } from "tikz-editor/edit/actions";
-import { formatNumber } from "tikz-editor/edit/format";
-import { createMathJaxNodeTextEngine, getActiveMathJaxOutputJax } from "tikz-editor/text/mathjax-engine";
+import { PT_PER_CM,formatNumber } from "tikz-editor/edit/format";
+import { resolveEligibleExplicitPath,type ExplicitPathAnalysis } from "tikz-editor/edit/path-editing";
 import {
-  getKnuthPlassCaretFromPoint,
-  getKnuthPlassLineRangeFromPoint,
-  getKnuthPlassPointFromOffset,
-  getKnuthPlassSelectionRects
-} from "tikz-editor/text/knuth-plass";
-import {
-  buildSnapContext,
-  collectSelectionGeometry,
-  snapKeyboardNudge,
-  snapToolPointer,
-  type SnapLine
-} from "tikz-editor/edit/snapping";
-import type { NodeTextEngine, NodeTextLayoutKind } from "tikz-editor/text/types";
-import type { Statement } from "tikz-editor/ast/types";
-import { PT_PER_CM } from "tikz-editor/edit/format";
-import { resolveEligibleExplicitPath, type ExplicitPathAnalysis } from "tikz-editor/edit/path-editing";
-import {
-  makeForeachTemplateTargetId,
-  resolvePropertyTarget,
-  resolvePropertyTargetFromParseResult
+makeForeachTemplateTargetId,
+resolvePropertyTarget,
+resolvePropertyTargetFromParseResult
 } from "tikz-editor/edit/property-target";
 import {
-  EditHandle,
-  NodeAnchorTarget,
-  SceneElement,
-  ScenePath,
-  SceneText
-} from "tikz-editor/semantic/types";
-import { svgPoint as makeSvgPoint, viewportPoint, clientPoint as makeClientPoint, svgBounds, worldPoint as makeWorldPoint, pt, px } from "tikz-editor/coords/index";
+type SnapLine
+} from "tikz-editor/edit/snapping";
 import { renderTikzToSvg } from "tikz-editor/render/index";
-import { type SvgDiffHints, type SvgViewBox } from "tikz-editor/svg/index";
+import { collectGeometryInvalidation } from "tikz-editor/semantic/index";
+import {
+EditHandle,
+SceneElement
+} from "tikz-editor/semantic/types";
 import type { SvgRenderModel } from "tikz-editor/svg";
-import { getSharedEditAnalysisView, getSharedEditAnalysisSession } from "../edit-analysis-manager";
-import { useEditorStore } from "../store/store";
-import type { CanvasDragKind, CanvasTransform } from "../store/types";
-import type { ClientPoint, SvgBounds, SvgPoint, ViewportPoint, WorldPoint } from "./coords/types";
+import { type SvgDiffHints,type SvgViewBox } from "tikz-editor/svg/index";
+import {
+getKnuthPlassCaretFromPoint,
+getKnuthPlassLineRangeFromPoint
+} from "tikz-editor/text/knuth-plass";
+import { createMathJaxNodeTextEngine,getActiveMathJaxOutputJax } from "tikz-editor/text/mathjax-engine";
+import type { NodeTextEngine,NodeTextLayoutKind } from "tikz-editor/text/types";
+import { useShallow } from "zustand/react/shallow";
+import type { AppMenuCommandId } from "../app-menu";
+import { buildCanvasContextMenuDefinition,type CanvasContextMenuTarget } from "../context-menu";
+import { getSharedEditAnalysisSession,getSharedEditAnalysisView } from "../edit-analysis-manager";
 import { getActiveEditorPlatform } from "../platform/current";
-import { buildHitRegions, type HitRegion } from "./canvas-panel/hit-regions";
-import { computeDragCapability } from "./canvas-panel/drag-capability";
-import { deriveCurveControlLines } from "./canvas-panel/curve-controls";
+import { GRID_SIZE_MINOR_TARGET_PX } from "../settings/types";
+import { useSettingsStore } from "../settings/useSettingsStore";
+import { useEditorStore } from "../store/store";
+import type { CanvasDragKind,CanvasTransform } from "../store/types";
 import { resolveBucketFillEdit } from "./canvas-panel/bucket-fill";
-import { resolveEndpointAnchorSnap } from "./canvas-panel/endpoint-anchor-snap";
 import {
-  boundsFromPoints,
-  collectSourceIdsInBounds,
-  pickClosestSourceId,
-  resolveBezierControlsFromBend
-} from "./canvas-panel/interaction-helpers";
-import { useCanvasDragController } from "./canvas-panel/useCanvasDragController";
-import { applyTextMeasureFont, collectLogicalLineRanges, createVisualTextLayout } from "./canvas-panel/text-visual-layout";
-import type {
-  ApplyActionFeedback,
-  CanvasContextMenuState,
-  DragState,
-  DragTooltipState,
-  EditableTextTarget,
-  FreehandToolDraft,
-  GuideDragState,
-  GuidePreview,
-  GuidesState,
-  MagnifierState,
-  NodeAnchorOverlayState,
-  PendingTouchViewport,
-  PendingAddedSelection,
-  PendingBezier,
-  PathToolDraft,
-  SelectionBounds,
-  SourceBoundsMap,
-  SnapDebugLogInput,
-  TextEditingSession
-} from "./canvas-panel/types";
-import {
-  buildValueSequence,
-  buildTicks,
-  clamp,
-  clientToSvgPoint,
-  clientToWorldPoint,
-  computeVisibleRanges,
-  distanceSquared,
-  fmt,
-  isMultipleOfStep,
-  resizeCursorForVector,
-  resolveOverlayGridSteps,
-  rotatePointAroundCenter,
-  toViewportXFromWorld,
-  toViewportYFromWorld,
-  vectorLengthSquared,
-  viewportToSvgPoint,
-  viewportToWorldPoint,
-  worldToSvgPoint,
-  worldToSvgY,
-  type RulerTick,
-  type VisibleRanges
-} from "./canvas-panel/geometry";
-import {
-  clampSnapDebugOverlayRect,
-  summarizeSnapContextForDebug,
-  summarizeSnapLinesForDebug,
-  toDebugPoint,
-  type SnapDebugContextSummary,
-  type SnapDebugLineSummary,
-  type SnapDebugOverlayRect,
-  type SnapDebugPoint
-} from "./canvas-panel/snap-debug";
-import {
-  CurveControlOverlay,
-  HandleOverlay,
-  HitRegionLayer,
-  NodeAnchorOverlay,
-  SelectionDragLayer,
-  SelectionOverlay,
-  SnapOverlay,
-  ToolPreviewOverlay
-} from "./canvas-panel/overlays";
+INITIAL_CANVAS_TEXT_EDIT_STATE,
+isCanvasTextInputIntentType,
+reduceCanvasTextEdit,
+type CanvasTextEditAction
+} from "./canvas-panel/canvas-text-edit-machine";
+import { CanvasPanelView } from "./canvas-panel/CanvasPanelView";
 import { resolveCanvasContextMenuTarget } from "./canvas-panel/context-menu-target";
-import { resolveNodeAdornmentContextAction } from "./canvas-panel/node-adornment-context-action";
 import {
-  appendPathToolSegmentFromGesture,
-  createPathToolDraft,
-  generateAppendSegmentSource,
-  generatePathToolSource,
-  pathToolCanClose,
-  pathToolCloseRadiusWorld,
-  pathToolCurrentPoint,
-  pathToolHasDrawableSegments,
-  pathToolShouldClose,
-  type PathToolGestureSegment
-} from "./canvas-panel/path-tool";
-import {
-  appendFreehandToolPoint,
-  createFreehandToolDraft,
-  generateFreehandToolSource,
-  resolveFreehandPreviewSegments
+appendFreehandToolPoint,
+generateFreehandToolSource
 } from "./canvas-panel/freehand-tool";
 import {
-  RESIZE_FRAME_CORNER_ROLES,
-  resolveResizeFrameForSource
+clamp,
+clientToSvgPoint,
+viewportToSvgPoint,
+viewportToWorldPoint,
+worldToSvgPoint
+} from "./canvas-panel/geometry";
+import { type HitRegion } from "./canvas-panel/hit-regions";
+import {
+pickClosestSourceId
+} from "./canvas-panel/interaction-helpers";
+import { resolveNodeAdornmentContextAction } from "./canvas-panel/node-adornment-context-action";
+import {
+canvasDragKindFromDragState,
+collectNewSourceIds,
+collectSourceBounds,
+dragCursorForState,
+makeMergeKey,
+mapPointToRectRegionLocal,
+preferredNodeBoundsForSource,
+previewArrowPoints,
+rectHitRegionsForTargetId,
+resolveRectHitRegionContentBox
+} from "./canvas-panel/panel-helpers";
+import {
+appendPathToolSegmentFromGesture,
+generateAppendSegmentSource,
+generatePathToolSource,
+pathToolHasDrawableSegments,
+type PathToolGestureSegment
+} from "./canvas-panel/path-tool";
+import {
+resolveResizeFrameForSource
 } from "./canvas-panel/resize-frames";
-import { angleDeg, resolveRotateHandlePosition } from "./canvas-panel/rotate-handle";
 import {
-  isToolCreateMode,
-  type ToolCreateMode
-} from "./tool-config";
-import { CanvasContextMenu } from "./CanvasContextMenu";
-import { useEditorCommandRuntime } from "./editor-command-runtime";
-import { CanvasPanelView } from "./canvas-panel/CanvasPanelView";
-import { useCanvasDerivedState } from "./canvas-panel/useCanvasDerivedState";
-import { useCanvasGuidesAndRulers } from "./canvas-panel/useCanvasGuidesAndRulers";
-import { useCanvasSelectionInteractions } from "./canvas-panel/useCanvasSelectionInteractions";
-import { useCanvasToolInteractions } from "./canvas-panel/useCanvasToolInteractions";
-import { useCanvasHandleInteractions } from "./canvas-panel/useCanvasHandleInteractions";
-import { useCanvasKeyboardClipboard } from "./canvas-panel/useCanvasKeyboardClipboard";
-import { useCanvasElementInteractions } from "./canvas-panel/useCanvasElementInteractions";
-import { useCanvasGuideEffects } from "./canvas-panel/useCanvasGuideEffects";
-import { useCanvasViewportEffects } from "./canvas-panel/useCanvasViewportEffects";
-import { useCanvasTextEditingEffects } from "./canvas-panel/useCanvasTextEditingEffects";
-import {
-  INITIAL_CANVAS_TEXT_EDIT_STATE,
-  isCanvasTextInputIntentType,
-  reduceCanvasTextEdit,
-  type CanvasTextEditAction,
-  type CanvasTextEditEffect
-} from "./canvas-panel/canvas-text-edit-machine";
-import { createSourceRenderOffsetMap } from "./canvas-panel/text-offset-map";
-import { useCanvasSelectionDerivedState } from "./canvas-panel/useCanvasSelectionDerivedState";
-import {
-  isSvgPointWithinScopeBounds,
-  resolveFocusedScopeIdForSelection
+isSvgPointWithinScopeBounds,
+resolveFocusedScopeIdForSelection
 } from "./canvas-panel/scope-overlay";
 import {
-  copySelection,
-  copySelectionToClipboardData,
-  cutSelection,
-  cutSelectionToClipboardData,
-  pasteSelectionFromPayload,
-  pasteSelectionFromClipboardData,
-  pasteSnippetsWithOffset
-} from "./editor-commands";
+clampSnapDebugOverlayRect,
+summarizeSnapContextForDebug,
+summarizeSnapLinesForDebug,
+toDebugPoint,
+type SnapDebugContextSummary,
+type SnapDebugLineSummary,
+type SnapDebugOverlayRect,
+type SnapDebugPoint
+} from "./canvas-panel/snap-debug";
+import { createSourceRenderOffsetMap } from "./canvas-panel/text-offset-map";
+import { applyTextMeasureFont,collectLogicalLineRanges,createVisualTextLayout } from "./canvas-panel/text-visual-layout";
+import type {
+ApplyActionFeedback,
+CanvasContextMenuState,
+DragState,
+DragTooltipState,
+EditableTextTarget,
+FreehandToolDraft,
+GuideDragState,
+GuidePreview,
+GuidesState,
+MagnifierState,
+NodeAnchorOverlayState,
+PathToolDraft,
+PendingAddedSelection,
+PendingBezier,
+PendingTouchViewport,
+SnapDebugLogInput,
+SourceBoundsMap
+} from "./canvas-panel/types";
+import { useCanvasDerivedState } from "./canvas-panel/useCanvasDerivedState";
+import { useCanvasDragController } from "./canvas-panel/useCanvasDragController";
+import { useCanvasElementInteractions } from "./canvas-panel/useCanvasElementInteractions";
+import { useCanvasGuideEffects } from "./canvas-panel/useCanvasGuideEffects";
+import { useCanvasGuidesAndRulers } from "./canvas-panel/useCanvasGuidesAndRulers";
+import { useCanvasHandleInteractions } from "./canvas-panel/useCanvasHandleInteractions";
+import { useCanvasKeyboardClipboard } from "./canvas-panel/useCanvasKeyboardClipboard";
+import { useCanvasSelectionDerivedState } from "./canvas-panel/useCanvasSelectionDerivedState";
+import { useCanvasSelectionInteractions } from "./canvas-panel/useCanvasSelectionInteractions";
+import { useCanvasTextEditingEffects } from "./canvas-panel/useCanvasTextEditingEffects";
+import { useCanvasToolInteractions } from "./canvas-panel/useCanvasToolInteractions";
+import { useCanvasViewportEffects } from "./canvas-panel/useCanvasViewportEffects";
+import type { ClientPoint,SvgBounds,ViewportPoint,WorldPoint } from "./coords/types";
+import { useEditorCommandRuntime,type CommandOrigin } from "./editor-command-runtime";
 import {
-  formatEquationText,
-  resolveEquationNodeTarget,
-  type EquationNodeTarget
+formatEquationText,
+resolveEquationNodeTarget,
+type EquationNodeTarget
 } from "./equation-utils";
-import { parseClipboardPayloadJson } from "./editor-clipboard";
-import {
-  buildScopeWrappedSnippet,
-  convertSvgToScopeSnippet,
-  dataTransferHasFilePayload,
-  findSvgFileInDataTransfer
-} from "./svg-import";
-import {
-  buildAnchoredGridPreviewLines,
-  canvasDragKindFromDragState,
-  caretStrokeWidthInSvg,
-  collectMatrixStatementSourceIds,
-  collectNewSourceIds,
-  collectSelectionBounds,
-  collectSourceBounds,
-  dragCursorForState,
-  ellipseAspectRatioForSource,
-  getHandleCursor,
-  isPointInsideRect,
-  isPointInsideRectHitRegionContentBox,
-  mapPointToRectRegionLocal,
-  makeMergeKey,
-  preferredNodeBoundsForSource,
-  previewArrowPoints,
-  rectHitRegionsForTargetId,
-  resolveAdornmentOwnerBoundaryPoint,
-  resolveBoundsEdgePointToward,
-  resolveRectHitRegionContentBox,
-  removeGuideValue,
-  findPathStatementById,
-  resolveRotateDegreesFromOptions,
-  resolveGridResizeSnapForHandleDrag,
-  resolveScenePathShapeHint,
-  resizeCursorForRole,
-  selectNudgeAnchorHandle,
-  sourceHasSingleResizablePathShape,
-  upsertGuideValue
-} from "./canvas-panel/panel-helpers";
-import { useSettingsStore } from "../settings/useSettingsStore";
-import { GRID_SIZE_MINOR_TARGET_PX } from "../settings/types";
-import { RenderedTooltip } from "./RenderedTooltip";
-import css from "./CanvasPanel.module.css";
-
-type DiagnosticRow = {
-  severity: "error" | "warning";
-  message: string;
-  code?: string;
-  source: "parse" | "semantic";
-};
-
-
-type GridLines = {
-  verticalMinor: number[];
-  verticalMajor: number[];
-  horizontalMinor: number[];
-  horizontalMajor: number[];
-  yMin: number;
-  yMax: number;
-};
-
-type ToolPreview =
-  | { kind: "cursor"; x: number; y: number }
-  | { kind: "node"; x: number; y: number }
-  | { kind: "line"; x1: number; y1: number; x2: number; y2: number; arrow: boolean }
-  | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
-  | {
-      kind: "complex-path";
-      startX: number;
-      startY: number;
-      closeCandidate: boolean;
-      canClose: boolean;
-      segments: Array<
-        | { kind: "line"; x1: number; y1: number; x2: number; y2: number }
-        | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
-      >;
-    }
-  | {
-      kind: "freehand";
-      segments: Array<
-        | { kind: "line"; x1: number; y1: number; x2: number; y2: number }
-        | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
-      >;
-    }
-  | { kind: "grid"; x: number; y: number; width: number; height: number; verticalLines: number[]; horizontalLines: number[] }
-  | { kind: "rect"; x: number; y: number; width: number; height: number }
-  | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number }
-  | { kind: "circle"; cx: number; cy: number; r: number };
 
 type BucketPreviewSession = {
   sourceId: string;
@@ -363,9 +219,6 @@ const MAX_SCALE = 20;
 const NUDGE_STEP_PT = 0.05 * PT_PER_CM;
 const NUDGE_STEP_SHIFT_PT = 0.25 * PT_PER_CM;
 const ROTATE_HANDLE_OFFSET_PX = 24;
-const TOOL_PREVIEW_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
-const TOOL_PREVIEW_GRID_STEP_PT = PT_PER_CM;
-const TOOL_PREVIEW_GRID_MAX_LINES = 120;
 const LEFT_RULER_DRAG_SOURCE_WIDTH_PX = 12;
 const RESIZE_NOOP_REASON = "Resize would not change node constraints.";
 const CANVAS_DRAG_CURSOR_LOCK_CLASS = "is-dragging-canvas-cursor-lock";
@@ -738,7 +591,7 @@ function estimateTextLineRangeFromClient(
     return { start: 0, end: 0 };
   }
   if (ranges.length === 1) {
-    return ranges[0]!;
+    return ranges[0];
   }
 
   const contentBox = resolveRectHitRegionContentBox(target.region);
@@ -754,7 +607,7 @@ function estimateTextLineRangeFromClient(
       ? 0
       : clamp((localPoint.y - contentBox.y) / contentBox.height, 0, 0.999999);
   const index = Math.min(ranges.length - 1, Math.max(0, Math.floor(yRatio * ranges.length)));
-  return ranges[index] ?? ranges[ranges.length - 1]!;
+  return ranges[index] ?? ranges[ranges.length - 1];
 }
 
 function viewportPointFromClient(clientPoint: ClientPoint, viewport: HTMLDivElement | null): ViewportPoint {
@@ -960,9 +813,6 @@ export const CanvasPanel = memo(function CanvasPanel({
 
   const baseSvgResult = snapshot.svg;
   const baseSvgModel = snapshot.svgModel;
-  const parseDiags = snapshot.parseResult?.diagnostics;
-  const semanticDiags = snapshot.semanticResult?.diagnostics;
-
   const [warning, setWarning] = useState<string | null>(null);
   const [dragTooltip, setDragTooltip] = useState<DragTooltipState | null>(null);
   const dragTooltipBoundaryRef = useRef<{ left: number; top: number; right: number; bottom: number } | null>(null);
@@ -1373,7 +1223,10 @@ export const CanvasPanel = memo(function CanvasPanel({
     showNativeContextMenu,
     source,
     svgResult,
-    toolMode
+    toolMode,
+    dispatch,
+    editParseOptions,
+    platform.menu?.usesNativeContextMenus
   ]);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -1579,24 +1432,6 @@ export const CanvasPanel = memo(function CanvasPanel({
     [snapDebugRect.height, snapDebugRect.width]
   );
 
-  const diagnostics = useMemo(() => {
-    const result: DiagnosticRow[] = [];
-    if (parseDiags) {
-      for (const d of parseDiags) {
-        result.push({ ...d, source: "parse" });
-      }
-    }
-    if (semanticDiags) {
-      for (const d of semanticDiags) {
-        result.push({ ...d, source: "semantic" });
-      }
-    }
-    return result;
-  }, [parseDiags, semanticDiags]);
-
-  const errorCount = diagnostics.filter((d) => d.severity === "error").length;
-  const warnCount = diagnostics.filter((d) => d.severity === "warning").length;
-
   useEffect(() => {
     let cancelled = false;
     void createMathJaxNodeTextEngine({ font: mathJaxFont })
@@ -1721,7 +1556,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   const pathSelectionHint = useMemo(() => {
     if (warning || toolMode !== "select") return null;
     if (selectedElementIds.size !== 1) return null;
-    const sourceId = [...selectedElementIds][0]!;
+    const sourceId = [...selectedElementIds][0];
     const isNodeSource = snapshot.editHandles.some(
       (handle) => handle.sourceRef.sourceId === sourceId && handle.kind === "node-position"
     );
@@ -1735,7 +1570,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     if (!hasInsertablePathSegment(snapshot.editHandles, sourceId, resolved.analysis)) return null;
     // dense paths that are expanded are also eligible for add-point hint
     return "Double-click path to add a point.";
-  }, [warning, toolMode, collapsedDensePathSourceIds, selectedElementIds, densePathSourceIds, snapshot.editHandles, snapshot.scene, editParseOptions, source]);
+  }, [warning, toolMode, collapsedDensePathSourceIds, selectedElementIds, snapshot.editHandles, snapshot.scene, editParseOptions, source]);
 
   const {
     nodeAnchorTargets,
@@ -1745,7 +1580,6 @@ export const CanvasPanel = memo(function CanvasPanel({
     draggableSourceIds,
     sceneTextByRegionKey,
     sourceBoundsSvg,
-    interactionBoundsSvgBySource,
     matrixSelectionSourceIds,
     resizeFramesBySource,
     selectionBoxes,
@@ -1974,8 +1808,6 @@ export const CanvasPanel = memo(function CanvasPanel({
     }
     dispatchCanvasTransform({ translateX, translateY, scale: nextScale });
   }, [
-    MAX_SCALE,
-    MIN_SCALE,
     canvasTransformRef,
     dispatchCanvasTransform,
     fitToContentModeActiveRef,
@@ -2111,8 +1943,8 @@ export const CanvasPanel = memo(function CanvasPanel({
 
       const snippet = generateFreehandToolSource(draft, canvasTransform.scale, freehandSmoothingPx);
       if (snippet) {
-        const firstPoint = draft.points[0]!;
-        const lastPoint = draft.points[draft.points.length - 1]!;
+        const firstPoint = draft.points[0];
+        const lastPoint = draft.points[draft.points.length - 1];
         queueSelectionForAddedElement(
           makeWorldPoint(
             pt((firstPoint.x + lastPoint.x) / 2),
@@ -2708,7 +2540,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     };
     textarea.addEventListener("beforeinput", handleBeforeInput);
     return () => textarea.removeEventListener("beforeinput", handleBeforeInput);
-  }, [dispatchTextEditBeforeInputIntent, textEditingSession?.sourceId]);
+  }, [dispatchTextEditBeforeInputIntent, textEditingSession]);
 
   useEffect(() => {
     const textarea = textEditTextareaRef.current;
@@ -2982,8 +2814,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   const {
     onHandlePointerDown,
     onResizeHandlePointerDown,
-    onRotateHandlePointerDown,
-    resolveRotateWriteTargetId
+    onRotateHandlePointerDown
   } = useCanvasHandleInteractions({
     svgResult,
     toolMode,
@@ -3072,6 +2903,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       logSnapDebug,
       resolveWorldFromViewportClient,
       selectedElementIds,
+      svgResult,
       setDragState,
       scopeOverlay,
       snapshot.source,
@@ -3202,7 +3034,8 @@ export const CanvasPanel = memo(function CanvasPanel({
       showNativeContextMenu,
       source,
       svgResult,
-      toolMode
+      toolMode,
+      editParseOptions
     ]
   );
 
@@ -3550,6 +3383,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     lastEditChangeToken,
     lastEditChangedSourceIds,
     selectedElementIds,
+    snapshot.editHandles,
     snapshot.scene,
     snapshot.semanticResult
   ]);
@@ -3679,7 +3513,7 @@ export const CanvasPanel = memo(function CanvasPanel({
         ? inferredMatrixSourceId
       : (
           newSourceIds.length === 1
-            ? newSourceIds[0]!
+            ? newSourceIds[0]
             : pickClosestSourceId(sceneElements, newSourceIds, pending.preferredWorld)
         );
 
@@ -4046,7 +3880,7 @@ export const CanvasPanel = memo(function CanvasPanel({
         commandRuntimeBindings={commandRuntime.bindings}
         contextMenuDefinition={contextMenuDefinition}
         onContextMenuClose={() => setContextMenuState(null)}
-        onContextMenuCommandRun={(commandId: AppMenuCommandId, origin: any) => {
+        onContextMenuCommandRun={(commandId: AppMenuCommandId, origin: CommandOrigin) => {
           commandRuntime.runCommand(commandId, origin);
           setContextMenuState(null);
         }}

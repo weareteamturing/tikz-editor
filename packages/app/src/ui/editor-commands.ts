@@ -148,17 +148,17 @@ export function deleteSelection(context: SelectionCommandContext): boolean {
       type: "APPLY_EDIT_ACTION",
       action: {
         kind: "removeTreeChild",
-        childSourceId: ids[0]!
+        childSourceId: ids[0]
       }
     });
     return true;
   }
-  if (ids.length === 1 && parseEditableTargetId(ids[0]!).kind === "node-adornment") {
+  if (ids.length === 1 && parseEditableTargetId(ids[0]).kind === "node-adornment") {
     context.dispatch({
       type: "APPLY_EDIT_ACTION",
       action: {
         kind: "deleteAdornment",
-        targetId: ids[0]!
+        targetId: ids[0]
       }
     });
     return true;
@@ -168,7 +168,7 @@ export function deleteSelection(context: SelectionCommandContext): boolean {
     action: ids.length === 1
       ? {
           kind: "deleteElement",
-          elementId: ids[0]!
+          elementId: ids[0]
         }
       : {
           kind: "deleteElements",
@@ -201,10 +201,10 @@ export function cutSelectionToClipboardData(
   return deleteSelection(context);
 }
 
-export async function pasteSelectionFromClipboardData(
+export function pasteSelectionFromClipboardData(
   context: PasteCommandContext,
   dataTransfer: DataTransfer | null
-): Promise<PasteSelectionResult> {
+): PasteSelectionResult {
   const parsed = readClipboardPayloadFromDataTransfer(dataTransfer);
   if (parsed.kind === "failure") {
     return parsed;
@@ -320,12 +320,12 @@ export function duplicateSelection(context: SelectionCommandContext): boolean {
   }
 
   const ids = [...context.selectedElementIds];
-  if (ids.length === 1 && parseEditableTargetId(ids[0]!).kind === "node-adornment") {
+  if (ids.length === 1 && parseEditableTargetId(ids[0]).kind === "node-adornment") {
     context.dispatch({
       type: "APPLY_EDIT_ACTION",
       action: {
         kind: "duplicateAdornment",
-        targetId: ids[0]!
+        targetId: ids[0]
       }
     });
     return true;
@@ -918,7 +918,7 @@ export function splitSelectedPath(context: SelectionCommandContext): boolean {
     type: "APPLY_EDIT_ACTION",
     action: {
       kind: "splitPath",
-      elementId: ids[0]!,
+      elementId: ids[0],
       handleId: context.activeHandleId
     }
   });
@@ -934,7 +934,7 @@ export function joinSelectedPaths(context: SelectionCommandContext): boolean {
     type: "APPLY_EDIT_ACTION",
     action: {
       kind: "joinPaths",
-      elementIds: [ids[0]!, ids[1]!]
+      elementIds: [ids[0], ids[1]]
     }
   });
   return true;
@@ -949,7 +949,7 @@ export function reverseSelectedPath(context: SelectionCommandContext): boolean {
     type: "APPLY_EDIT_ACTION",
     action: {
       kind: "reversePath",
-      elementId: ids[0]!
+      elementId: ids[0]
     }
   });
   return true;
@@ -965,7 +965,7 @@ export function setSelectedPathClosed(context: SelectionCommandContext, closed: 
     type: "APPLY_EDIT_ACTION",
     action: {
       kind: "toggleClosedPath",
-      elementId: ids[0]!,
+      elementId: ids[0],
       closed
     }
   });
@@ -981,7 +981,7 @@ export function deleteSelectedPathPoint(context: SelectionCommandContext): boole
     type: "APPLY_EDIT_ACTION",
     action: {
       kind: "deletePathPoint",
-      elementId: ids[0]!,
+      elementId: ids[0],
       handleId: context.activeHandleId
     }
   });
@@ -998,7 +998,7 @@ export function setSelectedPathPointKind(context: SelectionCommandContext, point
     type: "APPLY_EDIT_ACTION",
     action: {
       kind: "setPathPointKind",
-      elementId: ids[0]!,
+      elementId: ids[0],
       handleId: context.activeHandleId,
       pointKind
     }
@@ -1013,8 +1013,7 @@ export function actionAvailability(
 }
 
 function selectedSnippets(context: SelectionCommandContext): string[] {
-  const { source, selectedElementIds, activeFigureId } = context;
-  const parseActiveFigureId = resolvedContextActiveFigureId(context);
+  const { source, selectedElementIds } = context;
   const parseOptions = parseOptionsForContext(context);
   if (selectedElementIds.size === 0) {
     return [];
@@ -1149,46 +1148,6 @@ function resolveMatrixStatementCommandTarget(
     matrixSourceId: sourceId,
     rowCount: dimensions.rowCount,
     columnCount: dimensions.columnCount
-  };
-}
-
-function resolveMatrixCellCommandTarget(
-  context: SelectionCommandContext
-): { matrixSourceId: string; rowIndex: number; columnIndex: number } | null {
-  if (context.selectedElementIds.size !== 1) {
-    return null;
-  }
-  const sourceId = [...context.selectedElementIds][0]?.trim() ?? "";
-  if (!sourceId) {
-    return null;
-  }
-  const parseOptions = parseOptionsForContext(context);
-  const resolved = resolvePropertyTarget(context.source, sourceId, parseOptions);
-  if (resolved.kind !== "found" || resolved.target.kind !== "matrix-cell") {
-    return null;
-  }
-  const matrixSourceId = resolved.target.matrixSourceId?.trim() ?? "";
-  const rowIndex = resolved.target.row ?? 0;
-  const columnIndex = resolved.target.column ?? 0;
-  if (!matrixSourceId || rowIndex <= 0 || columnIndex <= 0) {
-    return null;
-  }
-  const resolvedMatrix = resolvePropertyTarget(context.source, matrixSourceId, parseOptions);
-  if (resolvedMatrix.kind !== "found" || resolvedMatrix.target.kind !== "matrix-statement") {
-    return null;
-  }
-  const dimensions = resolveMatrixDimensions(
-    context.source,
-    resolvedMatrix.target.matrixTextSpan,
-    resolvedMatrix.target.options
-  );
-  if (!dimensions) {
-    return null;
-  }
-  return {
-    matrixSourceId,
-    rowIndex,
-    columnIndex
   };
 }
 

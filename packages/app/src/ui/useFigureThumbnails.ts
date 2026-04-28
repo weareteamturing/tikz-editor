@@ -68,7 +68,7 @@ export function useFigureThumbnails(
     if (!lastThumbnailByDocumentKeyRef.current.has(documentKey)) {
       lastThumbnailByDocumentKeyRef.current.set(documentKey, new Map<string, string>());
     }
-  }, [documentKey]);
+  }, [documentKey, figures, source]);
 
   useEffect(() => {
     const timer = window.setTimeout(
@@ -100,6 +100,7 @@ export function useFigureThumbnails(
     })();
 
   const thumbnails = useMemo(() => {
+    void tick;
     const next = new Map<string, string>();
     for (const figure of figures) {
       const signature = figureSignatures.get(figure.id);
@@ -241,7 +242,7 @@ export function useFigureThumbnails(
         window.clearTimeout(timer.id);
       }
     };
-  }, [documentKey, figureKey, figureSignatures, maxToRender, priorityKey, stableFigures, stableSource]);
+  }, [documentKey, figureKey, figureSignatures, maxToRender, priorityFigureIds, priorityKey, stableFigures, stableSource]);
 
   return thumbnails;
 }

@@ -1,7 +1,7 @@
 import { textRectLocalPoint, px } from "tikz-editor/coords/index";
 import type { HitRegion } from "../canvas-panel/hit-regions";
 import { rotatePointAroundCenter } from "../canvas-panel/geometry";
-import { applyMatrix, inverseMatrix } from "tikz-editor/semantic/transform";
+import { inverseMatrix } from "tikz-editor/semantic/transform";
 import { worldTransform } from "tikz-editor/coords/index";
 import type { SvgPoint, TextRectLocalPoint } from "./types";
 

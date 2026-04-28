@@ -10,7 +10,8 @@ import {
   Prec,
   Transaction,
   StateEffect,
-  StateField
+  StateField,
+  type Range
 } from "@codemirror/state";
 import {
   defaultKeymap,
@@ -921,7 +922,7 @@ export function SourcePanel() {
   useExternalSourceSync(
     viewRef,
     source,
-    lastEditPatches as readonly SourceSyncPatch[] | null,
+    lastEditPatches,
     activeCanvasDragKind != null
   );
 
@@ -936,7 +937,7 @@ export function SourcePanel() {
       activeFigureId
     });
     view.dispatch({ effects: setFigureOverlay.of(decorations) });
-  }, [figureOverlaySignature]);
+  }, [activeFigureId, figureOverlaySignature, figures]);
 
   const prevActiveFigureIdRef = useRef(activeFigureId);
   useEffect(() => {
@@ -1066,7 +1067,7 @@ export function SourcePanel() {
   }, [snapshot]);
 
   useEffect(() => {
-    const handleFormatRequest = (_rawEvent: Event): void => {
+    const handleFormatRequest = (): void => {
       const view = viewRef.current;
       if (!view) {
         return;
@@ -1093,8 +1094,8 @@ export function SourcePanel() {
       });
     };
 
-    window.addEventListener(SOURCE_FORMAT_REQUEST_EVENT, handleFormatRequest as EventListener);
-    return () => window.removeEventListener(SOURCE_FORMAT_REQUEST_EVENT, handleFormatRequest as EventListener);
+    window.addEventListener(SOURCE_FORMAT_REQUEST_EVENT, handleFormatRequest);
+    return () => window.removeEventListener(SOURCE_FORMAT_REQUEST_EVENT, handleFormatRequest);
   }, [editorIndentSize, formatterMaxLineLength, formatterReflowLongOptions]);
 
   const handleInlineColorChange = (nextToken: string): void => {
@@ -1241,7 +1242,7 @@ function buildFigureOverlayDecorations(params: {
   if (normalizedFigures.length < 2) {
     return Decoration.none;
   }
-  const decorations: any[] = [];
+  const decorations: Range<Decoration>[] = [];
   const activeFigure = activeFigureId ? normalizedFigures.find((figure) => figure.id === activeFigureId) : null;
   if (activeFigure) {
     if (activeFigure.span.from > 0) {
@@ -1500,27 +1501,6 @@ function syncSelectionFromSourceCursor(
   dispatch({ type: "CLEAR_SELECTION" });
 }
 
-function shouldSuppressStoreSelectionSync(sourceId: string, selectedElementIds: ReadonlySet<string>): boolean {
-  return !(selectedElementIds.size === 1 && selectedElementIds.has(sourceId));
-}
-
-function findSelectionSourceId(
-  anchor: number,
-  head: number,
-  docLength: number,
-  spanIndex: SourceSpanIndex
-): string | null {
-  const headSourceId = findSourceIdAtPosition(head, docLength, spanIndex);
-  const anchorSourceId = findSourceIdAtPosition(anchor, docLength, spanIndex);
-  if (headSourceId && anchorSourceId && headSourceId === anchorSourceId) {
-    return headSourceId;
-  }
-  if (headSourceId) {
-    return headSourceId;
-  }
-  return anchorSourceId;
-}
-
 function findSourceIdAtPosition(
   position: number | null | undefined,
   docLength: number,
@@ -1549,7 +1529,8 @@ function normalizeDiagnostics(inputs: DiagnosticInput[], docLength: number): Dia
     })
     .slice(0, MAX_DIAGNOSTICS)
     .map((d) => {
-      let { from, to } = normalizeRange(d.from, d.to, docLength);
+      const { from, to: normalizedTo } = normalizeRange(d.from, d.to, docLength);
+      let to = normalizedTo;
       if (to - from > MAX_DECORATED_SPAN) to = from + MAX_DECORATED_SPAN;
       return { ...d, from, to };
     })

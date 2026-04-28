@@ -1,6 +1,7 @@
 import { Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Layout, Model, Actions, DockLocation, type IJsonModel, type TabNode, type Action } from "flexlayout-react";
+import { Layout, Model, Actions, DockLocation, type IJsonModel, type TabNode } from "flexlayout-react";
 import { useEditorStore } from "../store/store";
+import type { EditorAction } from "../store/types";
 import { getActiveEditorPlatform } from "../platform/current";
 import { loadDockLayout, saveDockLayout } from "../store/workspace-storage";
 import { SourcePanel } from "./SourcePanel";
@@ -318,7 +319,7 @@ export const BUILT_IN_WORKSPACES: readonly BuiltInWorkspace[] = [
 
 // ── Sync helpers ──────────────────────────────────────────────────────────────
 
-function syncLayoutStateToStore(model: Model, dispatch: (action: any) => void) {
+function syncLayoutStateToStore(model: Model, dispatch: (action: EditorAction) => void) {
   const sourceVisible = model.getNodeById(PANEL_IDS.source) != null;
   const inspectorVisible = model.getNodeById(PANEL_IDS.inspector) != null;
   const objectsVisible = model.getNodeById(PANEL_IDS.objects) != null;
@@ -437,6 +438,8 @@ export function DockLayout({ repeatPreviewModel, onSubmitPrompt, onInterruptTurn
           return <MemoStylesPanel />;
         case "assistant":
           return <MemoAssistantPanel onSubmitPrompt={onSubmitPrompt} onInterruptTurn={onInterruptTurn} />;
+        case undefined:
+          return <div>Unknown panel</div>;
         default:
           return <div>Unknown panel: {component}</div>;
       }
@@ -446,7 +449,7 @@ export function DockLayout({ repeatPreviewModel, onSubmitPrompt, onInterruptTurn
 
   // On model change: persist + sync to Zustand
   const onModelChange = useCallback(
-    (_model: Model, _action: Action) => {
+    (_model: Model) => {
       saveDockLayout(_model.toJson());
       syncLayoutStateToStore(_model, dispatch);
     },
@@ -554,15 +557,16 @@ export function DockLayout({ repeatPreviewModel, onSubmitPrompt, onInterruptTurn
     if (figureCount > 1 && !figTabExists && prev <= 1) {
       // Multi-figure document — auto-open below canvas with small height
       const canvasTabset = m.getNodeById("canvas-tabset");
-      const target = canvasTabset ? "canvas-tabset" : m.getFirstTabSet().getId();
-      const added = m.doAction(
+      const firstTabSetId = m.getFirstTabSet().getId();
+      const target = canvasTabset ? "canvas-tabset" : firstTabSetId;
+      const added = Boolean(m.doAction(
         Actions.addNode(
           { type: "tab", id: PANEL_IDS.figureNavigator, name: "Figures", component: "figure-navigator" },
           target,
           DockLocation.BOTTOM,
           -1
         )
-      );
+      ));
       // Shrink the new tabset so it doesn't take half the space
       if (added) {
         const figTabset = m.getNodeById(PANEL_IDS.figureNavigator)?.getParent();

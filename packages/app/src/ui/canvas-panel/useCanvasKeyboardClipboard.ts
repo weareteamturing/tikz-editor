@@ -461,7 +461,7 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
           }
         }
 
-        const result = await pasteSelectionFromClipboardData(
+        const result = pasteSelectionFromClipboardData(
           pasteContext,
           event.clipboardData
         );

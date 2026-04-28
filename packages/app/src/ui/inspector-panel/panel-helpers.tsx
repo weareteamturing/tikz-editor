@@ -728,7 +728,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "enum") {
     const sameKind = properties.every((property) => property.kind === "enum");
     if (!sameKind) return null;
-    const enumProperties = properties as Array<Extract<InspectorProperty, { kind: "enum" }>>;
+    const enumProperties = properties;
     const writes = enumProperties.map((property) => property.write);
     return {
       kind: "enum",
@@ -745,7 +745,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "boolean") {
     const sameKind = properties.every((property) => property.kind === "boolean");
     if (!sameKind) return null;
-    const booleanProperties = properties as Array<Extract<InspectorProperty, { kind: "boolean" }>>;
+    const booleanProperties = properties;
     const writes = booleanProperties.map((property) => property.write);
     const clearKeys = allValuesEqual(booleanProperties.map((property) => (property.clearKeys ?? []).join("\n")))
       ? booleanProperties[0]?.clearKeys
@@ -773,7 +773,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "number") {
     const sameKind = properties.every((property) => property.kind === "number");
     if (!sameKind) return null;
-    const numberProperties = properties as Array<Extract<InspectorProperty, { kind: "number" }>>;
+    const numberProperties = properties;
     const writes = numberProperties
       .map((property) => property.write)
       .filter((write): write is SetPropertyWriteTarget => write?.mode === "setProperty");
@@ -804,7 +804,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "length") {
     const sameKind = properties.every((property) => property.kind === "length");
     if (!sameKind) return null;
-    const lengthProperties = properties as Array<Extract<InspectorProperty, { kind: "length" }>>;
+    const lengthProperties = properties;
     const values = lengthProperties.map((property) => property.value);
     const writes = lengthProperties.map((property) => property.write);
     const notes = lengthProperties.map((property) => property.note ?? null);
@@ -833,7 +833,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "optionalLength") {
     const sameKind = properties.every((property) => property.kind === "optionalLength");
     if (!sameKind) return null;
-    const optionalLengthProperties = properties as Array<Extract<InspectorProperty, { kind: "optionalLength" }>>;
+    const optionalLengthProperties = properties;
     const values = optionalLengthProperties.map((property) => property.value);
     const writes = optionalLengthProperties.map((property) => property.write);
     const notes = optionalLengthProperties.map((property) => property.note ?? null);
@@ -859,7 +859,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "nodeShape") {
     const sameKind = properties.every((property) => property.kind === "nodeShape");
     if (!sameKind) return null;
-    const shapeProperties = properties as Array<Extract<InspectorProperty, { kind: "nodeShape" }>>;
+    const shapeProperties = properties;
     const values = shapeProperties.map((property) => property.value);
     const writes = shapeProperties.map((property) => property.write);
     const notes = shapeProperties.map((property) => property.note ?? null);
@@ -880,7 +880,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "nodeTextAlign") {
     const sameKind = properties.every((property) => property.kind === "nodeTextAlign");
     if (!sameKind) return null;
-    const alignProperties = properties as Array<Extract<InspectorProperty, { kind: "nodeTextAlign" }>>;
+    const alignProperties = properties;
     const values = alignProperties.map((property) => property.value);
     const writes = alignProperties.map((property) => property.write);
     const clearKeys = allValuesEqual(alignProperties.map((property) => (property.clearKeys ?? []).join("\n")))
@@ -902,7 +902,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "nodeFont") {
     const sameKind = properties.every((property) => property.kind === "nodeFont");
     if (!sameKind) return null;
-    const fontProperties = properties as Array<Extract<InspectorProperty, { kind: "nodeFont" }>>;
+    const fontProperties = properties;
     const writes = fontProperties.map((property) => property.write);
     const families = fontProperties.map((property) => property.family);
     const weights = fontProperties.map((property) => property.weight);
@@ -951,7 +951,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "color") {
     const sameKind = properties.every((property) => property.kind === "color");
     if (!sameKind) return null;
-    const colorProperties = properties as Array<Extract<InspectorProperty, { kind: "color" }>>;
+    const colorProperties = properties;
     const values = colorProperties.map((property) => property.value);
     const syntaxValues = colorProperties.map((property) => property.syntaxValue);
     const mixed = !allValuesEqual(values) || !allValuesEqual(syntaxValues);
@@ -973,7 +973,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "fillMode") {
     const sameKind = properties.every((property) => property.kind === "fillMode");
     if (!sameKind) return null;
-    const fillModeProperties = properties as Array<Extract<InspectorProperty, { kind: "fillMode" }>>;
+    const fillModeProperties = properties;
     const values = fillModeProperties.map((property) => property.value);
     const writes = fillModeProperties.map((property) => property.write);
 
@@ -993,7 +993,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "fillShading") {
     const sameKind = properties.every((property) => property.kind === "fillShading");
     if (!sameKind) return null;
-    const fillShadingProperties = properties as Array<Extract<InspectorProperty, { kind: "fillShading" }>>;
+    const fillShadingProperties = properties;
     const values = fillShadingProperties.map((property) => property.value);
     const notes = fillShadingProperties.map((property) => property.note ?? null);
     const writes = fillShadingProperties.map((property) => property.write);
@@ -1014,7 +1014,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "fillPattern") {
     const sameKind = properties.every((property) => property.kind === "fillPattern");
     if (!sameKind) return null;
-    const fillPatternProperties = properties as Array<Extract<InspectorProperty, { kind: "fillPattern" }>>;
+    const fillPatternProperties = properties;
     const values = fillPatternProperties.map((property) => property.value);
     const notes = fillPatternProperties.map((property) => property.note ?? null);
     const writes = fillPatternProperties.map((property) => property.write);
@@ -1035,7 +1035,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "fillPatternOption") {
     const sameKind = properties.every((property) => property.kind === "fillPatternOption");
     if (!sameKind) return null;
-    const fillPatternOptionProperties = properties as Array<Extract<InspectorProperty, { kind: "fillPatternOption" }>>;
+    const fillPatternOptionProperties = properties;
     const values = fillPatternOptionProperties.map((property) => property.value);
     const writes = fillPatternOptionProperties.map((property) => property.write);
 
@@ -1057,7 +1057,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "lineWidth") {
     const sameKind = properties.every((property) => property.kind === "lineWidth");
     if (!sameKind) return null;
-    const widthProperties = properties as Array<Extract<InspectorProperty, { kind: "lineWidth" }>>;
+    const widthProperties = properties;
     const values = widthProperties.map((property) => property.value);
     const writes = widthProperties.map((property) => property.write);
 
@@ -1079,7 +1079,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "dashStyle") {
     const sameKind = properties.every((property) => property.kind === "dashStyle");
     if (!sameKind) return null;
-    const dashProperties = properties as Array<Extract<InspectorProperty, { kind: "dashStyle" }>>;
+    const dashProperties = properties;
     const values = dashProperties.map((property) => property.value);
     const writes = dashProperties.map((property) => property.write);
 
@@ -1099,7 +1099,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "lineCap") {
     const sameKind = properties.every((property) => property.kind === "lineCap");
     if (!sameKind) return null;
-    const lineCapProperties = properties as Array<Extract<InspectorProperty, { kind: "lineCap" }>>;
+    const lineCapProperties = properties;
     const values = lineCapProperties.map((property) => property.value);
     const writes = lineCapProperties.map((property) => property.write);
 
@@ -1119,7 +1119,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "lineJoin") {
     const sameKind = properties.every((property) => property.kind === "lineJoin");
     if (!sameKind) return null;
-    const lineJoinProperties = properties as Array<Extract<InspectorProperty, { kind: "lineJoin" }>>;
+    const lineJoinProperties = properties;
     const values = lineJoinProperties.map((property) => property.value);
     const writes = lineJoinProperties.map((property) => property.write);
 
@@ -1139,7 +1139,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "pathMorphingDecoration") {
     const sameKind = properties.every((property) => property.kind === "pathMorphingDecoration");
     if (!sameKind) return null;
-    const pathMorphingProperties = properties as Array<Extract<InspectorProperty, { kind: "pathMorphingDecoration" }>>;
+    const pathMorphingProperties = properties;
     const values = pathMorphingProperties.map((property) => property.value);
     const writes = pathMorphingProperties.map((property) => property.write);
 
@@ -1159,7 +1159,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "roundedCorners") {
     const sameKind = properties.every((property) => property.kind === "roundedCorners");
     if (!sameKind) return null;
-    const roundedProperties = properties as Array<Extract<InspectorProperty, { kind: "roundedCorners" }>>;
+    const roundedProperties = properties;
     const enabledValues = roundedProperties.map((property) => property.enabled);
     const writes = roundedProperties.map((property) => property.write);
     const anyEnabled = enabledValues.some(Boolean);
@@ -1201,8 +1201,8 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "arrowTip") {
     const sameKind = properties.every((property) => property.kind === "arrowTip");
     if (!sameKind) return null;
-    const arrowBase = base as Extract<InspectorProperty, { kind: "arrowTip" }>;
-    const arrowProperties = properties as Array<Extract<InspectorProperty, { kind: "arrowTip" }>>;
+    const arrowBase = base;
+    const arrowProperties = properties;
     const values = arrowProperties.map((property) => property.value);
     const writes = arrowProperties.map((property) => property.write);
 
@@ -1223,8 +1223,8 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
   if (base.kind === "shadowPreset") {
     const sameKind = properties.every((property) => property.kind === "shadowPreset");
     if (!sameKind) return null;
-    const shadowBase = base as Extract<InspectorProperty, { kind: "shadowPreset" }>;
-    const shadowProperties = properties as Array<Extract<InspectorProperty, { kind: "shadowPreset" }>>;
+    const shadowBase = base;
+    const shadowProperties = properties;
     const values = shadowProperties.map((property) => property.value);
     const writes = shadowProperties.map((property) => property.write);
     const contexts = shadowProperties.map((property) => property.context);
@@ -1701,8 +1701,8 @@ export function toShadowPresetDropdownOptions(
   options: ShadowPresetOption[]
 ): Array<CustomDropdownOption<ShadowPresetDropdownValue>> {
   return [
-    { value: "none" as ShadowPresetId, label: "None" },
-    ...options.map((option) => ({ value: option.value as ShadowPresetDropdownValue, label: option.label }))
+    { value: "none", label: "None" },
+    ...options.map((option) => ({ value: option.value, label: option.label }))
   ];
 }
 
@@ -1786,8 +1786,7 @@ export function dashStyleDashArrayForPreview(
 }
 
 export function LineCapPreview({
-  preset,
-  lineWidth: _lineWidth
+  preset
 }: {
   preset: Exclude<LineCapPresetId, "custom">;
   lineWidth: number;
@@ -1814,8 +1813,7 @@ export function LineCapPreview({
 }
 
 export function LineJoinPreview({
-  preset,
-  lineWidth: _lineWidth
+  preset
 }: {
   preset: Exclude<LineJoinPresetId, "custom">;
   lineWidth: number;

@@ -33,6 +33,7 @@ type SvgCodeEditorProps = {
 export function SvgCodeEditor({ value, onChange, ariaLabel }: SvgCodeEditorProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const initialValueRef = useRef(value);
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -48,7 +49,7 @@ export function SvgCodeEditor({ value, onChange, ariaLabel }: SvgCodeEditorProps
 
     const view = new EditorView({
       state: EditorState.create({
-        doc: value,
+        doc: initialValueRef.current,
         extensions: [
           EditorState.tabSize.of(2),
           EditorView.lineWrapping,

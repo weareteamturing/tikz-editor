@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { rgbToXcolorExpression, type RgbColor, type RgbToXcolorMode } from "xcolor-rgb-convert";
 import { normalizeColor } from "tikz-editor/semantic/style/colors";
 import { BASIC_PICKER_COLORS, BASIC_PICKER_COLOR_SET } from "../color-palette";
@@ -303,6 +303,16 @@ export function ColorPicker({
     [grayscaleDriverValue, activeBaseColor, toneSelectableTokens]
   );
   const customHsv = useMemo(() => rgbToHsv(customRgb), [customRgb]);
+  const syncCustomStateFromDriver = useCallback((): void => {
+    const resolved = resolveCustomRgbFromDriver(driverValue, namedColorLookup);
+    setCustomRgb(resolved);
+    setCustomInputValue(rgbToHex(resolved));
+    setCustomExpression(
+      rgbToXcolorExpression(resolved, resolveRgbToXcolorOptions("drag", colorPickerAccuracy)).expression
+    );
+    setCustomInputError(null);
+    setCustomInputWarning(null);
+  }, [colorPickerAccuracy, driverValue, namedColorLookup]);
 
   useEffect(() => {
     if (!isToneBaseColor(toneState.baseColor) || toneState.baseColor === activeBaseColor) {
@@ -334,7 +344,7 @@ export function ColorPicker({
     if (tab !== "custom" || enteredCustom) {
       syncCustomStateFromDriver();
     }
-  }, [tab, driverValue, namedColorLookup]);
+  }, [driverValue, namedColorLookup, syncCustomStateFromDriver, tab]);
 
   useEffect(() => {
     setCustomExpression(
@@ -613,17 +623,6 @@ export function ColorPicker({
     }
     event.preventDefault();
     applyCustomHsv(customHsv.h, clamp01(nextS), clamp01(nextV), "release");
-  }
-
-  function syncCustomStateFromDriver(): void {
-    const resolved = resolveCustomRgbFromDriver(driverValue, namedColorLookup);
-    setCustomRgb(resolved);
-    setCustomInputValue(rgbToHex(resolved));
-    setCustomExpression(
-      rgbToXcolorExpression(resolved, resolveRgbToXcolorOptions("drag", colorPickerAccuracy)).expression
-    );
-    setCustomInputError(null);
-    setCustomInputWarning(null);
   }
 
   function applyCustomRgb(nextRgb: RgbColor, mode: RgbToXcolorMode, warning: string | null = null): void {
@@ -988,12 +987,12 @@ function isStandardTabColorSupported(
   }
 
   const darkMatch = driverValue.match(DARK_MIX_RE);
-  if (darkMatch && toneSelectableTokens.has(darkMatch[1]!)) {
+  if (darkMatch && toneSelectableTokens.has(darkMatch[1])) {
     return true;
   }
 
   const lightMatch = driverValue.match(LIGHT_MIX_RE);
-  if (lightMatch && toneSelectableTokens.has(lightMatch[1]!)) {
+  if (lightMatch && toneSelectableTokens.has(lightMatch[1])) {
     return true;
   }
 
@@ -1115,12 +1114,12 @@ function baseColorFromValue(driverValue: string | null, toneSelectableTokens: Re
   }
 
   const darkMatch = driverValue.match(DARK_MIX_RE);
-  if (darkMatch && toneSelectableTokens.has(darkMatch[1]!)) {
-    return darkMatch[1]!;
+  if (darkMatch && toneSelectableTokens.has(darkMatch[1])) {
+    return darkMatch[1];
   }
   const lightMatch = driverValue.match(LIGHT_MIX_RE);
-  if (lightMatch && toneSelectableTokens.has(lightMatch[1]!)) {
-    return lightMatch[1]!;
+  if (lightMatch && toneSelectableTokens.has(lightMatch[1])) {
+    return lightMatch[1];
   }
   return null;
 }
@@ -1141,21 +1140,21 @@ function deriveToneState(
   }
   const blackLightMatch = driverValue.match(BLACK_LIGHT_RE);
   if (blackLightMatch) {
-    const blackPercent = clampPercent(Number(blackLightMatch[1]!));
+    const blackPercent = clampPercent(Number(blackLightMatch[1]));
     return { baseColor: fallbackBaseColor, position: clampTonePosition((100 - blackPercent) * 2) };
   }
 
   const darkMatch = driverValue.match(DARK_MIX_RE);
-  if (darkMatch && toneSelectableTokens.has(darkMatch[1]!)) {
-    const baseColor = isToneBaseColor(darkMatch[1]!) ? darkMatch[1]! : fallbackBaseColor;
-    const percent = clampPercent(Number(darkMatch[2]!));
+  if (darkMatch && toneSelectableTokens.has(darkMatch[1])) {
+    const baseColor = isToneBaseColor(darkMatch[1]) ? darkMatch[1] : fallbackBaseColor;
+    const percent = clampPercent(Number(darkMatch[2]));
     return { baseColor, position: percent };
   }
 
   const lightMatch = driverValue.match(LIGHT_MIX_RE);
-  if (lightMatch && toneSelectableTokens.has(lightMatch[1]!)) {
-    const baseColor = isToneBaseColor(lightMatch[1]!) ? lightMatch[1]! : fallbackBaseColor;
-    const percent = clampPercent(Number(lightMatch[2]!));
+  if (lightMatch && toneSelectableTokens.has(lightMatch[1])) {
+    const baseColor = isToneBaseColor(lightMatch[1]) ? lightMatch[1] : fallbackBaseColor;
+    const percent = clampPercent(Number(lightMatch[2]));
     return { baseColor, position: TONE_MAX - percent };
   }
 
@@ -1180,12 +1179,12 @@ function resolveSelectedSwatchColor(
     return driverValue;
   }
   const darkMatch = driverValue.match(DARK_MIX_RE);
-  if (darkMatch && toneSelectableTokens.has(darkMatch[1]!)) {
-    return darkMatch[1]!;
+  if (darkMatch && toneSelectableTokens.has(darkMatch[1])) {
+    return darkMatch[1];
   }
   const lightMatch = driverValue.match(LIGHT_MIX_RE);
-  if (lightMatch && toneSelectableTokens.has(lightMatch[1]!)) {
-    return lightMatch[1]!;
+  if (lightMatch && toneSelectableTokens.has(lightMatch[1])) {
+    return lightMatch[1];
   }
   return null;
 }
@@ -1314,8 +1313,8 @@ function resolveMixedColorForPicker(
     }
     cursor += 1;
 
-    const mixToken = parts[cursor] && parts[cursor]!.length > 0 ? parts[cursor]! : "white";
-    if (parts[cursor] && parts[cursor]!.length > 0) {
+    const mixToken = parts[cursor] && parts[cursor].length > 0 ? parts[cursor] : "white";
+    if (parts[cursor] && parts[cursor].length > 0) {
       cursor += 1;
     }
 
@@ -1491,7 +1490,7 @@ function buildToneHitBuckets(): ToneHitBucket[] {
   const buckets: ToneHitBucket[] = [];
   let cursor = 0;
   for (let index = 0; index < weights.length; index += 1) {
-    const weight = weights[index]!;
+    const weight = weights[index];
     const start = cursor / totalWeight;
     cursor += weight;
     const end = cursor / totalWeight;

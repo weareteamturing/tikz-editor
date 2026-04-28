@@ -12,7 +12,6 @@ import {
 import css from "./Modal.module.css";
 
 type SheetSize = "sm" | "md" | "lg" | "xl" | "auto";
-type ModalVariant = "sheet" | "panel";
 
 type CommonModalProps = {
   onClose: () => void;

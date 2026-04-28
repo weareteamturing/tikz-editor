@@ -359,7 +359,7 @@ export function App() {
     } else {
       apply(colorScheme === "dark");
     }
-  }, [colorScheme, canvasInvert]);
+  }, [canvasInvert, colorScheme, platform.window]);
 
   useEffect(() => {
     const desktopOs = desktopOsFromPlatformId(platform.id);
@@ -450,8 +450,6 @@ export function App() {
     };
   }, [repeatModalState, snapshot.svg]);
 
-  const activeAssistantDoc = documents[activeDocumentId];
-
   useEffect(() => {
     const scheduler = createSingleFlightScheduler<ComputeRequest, ComputeResponse>({
       run: (request) => computeSnapshot(request),
@@ -493,7 +491,10 @@ export function App() {
 
   // ── Compute pipeline ─────────────────────────────────────────────────────────
   // Keep at most one in-flight compute; while in-flight, coalesce to the latest source.
-  const changedSourceIds = lastEditChangedSourceIds ?? (activeSourceScrubSourceId ? [activeSourceScrubSourceId] : null);
+  const changedSourceIds = useMemo(
+    () => lastEditChangedSourceIds ?? (activeSourceScrubSourceId ? [activeSourceScrubSourceId] : null),
+    [activeSourceScrubSourceId, lastEditChangedSourceIds]
+  );
   const trigger = computeTrigger(activeCanvasDragKind, activeSourceScrubSourceId);
   const typingComputeDelay = trigger === "other" && changedSourceIds == null
     ? (source.length > 80_000 ? 220 : 120)
@@ -592,7 +593,7 @@ export function App() {
           await respond(false, `Invalid figure_index ${figureIndexArg}. Document has ${snapshotForDoc.figures.length} figure(s).`);
           return;
         }
-        const requestedFigId = snapshotForDoc.figures[idx]!.id;
+        const requestedFigId = snapshotForDoc.figures[idx].id;
         if (requestedFigId !== snapshotForDoc.activeFigureId) {
           try {
             const result = await computeSnapshot({
@@ -723,6 +724,10 @@ export function App() {
             figurePath: event.thread.figurePath,
             previewPath: event.thread.previewPath
           });
+          break;
+        case "account-updated":
+        case "login-completed":
+        case "rate-limits-updated":
           break;
         case "thread-state":
           dispatch({ type: "ASSISTANT_THREAD_LOADED", documentId: event.documentId, state: event.state });
@@ -1013,17 +1018,19 @@ export function App() {
   }, [commandRuntime, dispatch]);
 
   useEffect(() => {
-    const unbind = getActiveEditorPlatform().files?.bindOpenRequest?.(async (opened) => {
-      const resolved = await resolveOpenedFileForDocument(opened);
-      if (resolved.kind === "failure") {
-        const alertFn = (globalThis as { alert?: (message?: string) => void }).alert;
-        if (typeof alertFn === "function") {
-          alertFn(resolved.message);
+    const unbind = getActiveEditorPlatform().files?.bindOpenRequest?.((opened) => {
+      void (async () => {
+        const resolved = await resolveOpenedFileForDocument(opened);
+        if (resolved.kind === "failure") {
+          const alertFn = (globalThis as { alert?: (message?: string) => void }).alert;
+          if (typeof alertFn === "function") {
+            alertFn(resolved.message);
+          }
+          return;
         }
-        return;
-      }
-      dispatch({ type: "NEW_DOCUMENT", source: resolved.source, title: resolved.title });
-      dispatch({ type: "MARK_DOCUMENT_SAVED", fileRef: resolved.fileRef });
+        dispatch({ type: "NEW_DOCUMENT", source: resolved.source, title: resolved.title });
+        dispatch({ type: "MARK_DOCUMENT_SAVED", fileRef: resolved.fileRef });
+      })();
     });
     return typeof unbind === "function" ? unbind : undefined;
   }, [dispatch]);
@@ -1072,7 +1079,7 @@ export function App() {
       commandStates,
       workspaceSignature
     });
-  }, [commandRuntime.bindings, menuDefinition, platform.menu, userWorkspaces]);
+  }, [commandRuntime, commandRuntime.bindings, menuDefinition, platform.menu, userWorkspaces]);
 
   // ── Keyboard shortcuts ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -1158,7 +1165,7 @@ export function App() {
         return;
       }
 
-      const target = e.target as EventTarget | null;
+      const target = e.target;
       const activeElement = document.activeElement;
       const inCodeMirror = isCodeMirrorEventTarget(target) || isCodeMirrorEventTarget(activeElement);
       if (inCodeMirror) return;
@@ -1689,7 +1696,7 @@ async function blobToBase64(blob: Blob): Promise<string> {
   const bytes = new Uint8Array(arrayBuffer);
   let binary = "";
   for (let index = 0; index < bytes.length; index += 1) {
-    binary += String.fromCharCode(bytes[index]!);
+    binary += String.fromCharCode(bytes[index]);
   }
   return btoa(binary);
 }

@@ -36,7 +36,12 @@ import type {
   ThumbnailWorkerResponseMessage
 } from "./thumbnail-worker-types";
 
-const workerContext: any = self;
+type ThumbnailWorkerGlobalScope = {
+  onmessage: ((event: MessageEvent<ThumbnailWorkerRequestMessage>) => void) | null;
+  postMessage: (message: ThumbnailWorkerResponseMessage) => void;
+};
+
+const workerContext = self as unknown as ThumbnailWorkerGlobalScope;
 
 const queue: ThumbnailRenderRequest[] = [];
 const cancelledRequestIds = new Set<string>();

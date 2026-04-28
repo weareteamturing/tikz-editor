@@ -144,7 +144,7 @@ export function CanvasContextMenu({
     setPosition((current) =>
       current.x === anchor.x && current.y === anchor.y ? current : anchor
     );
-  }, [anchor.x, anchor.y, open, target]);
+  }, [anchor, open, target]);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -174,7 +174,7 @@ export function CanvasContextMenu({
         ? current
         : nextPosition
     );
-  }, [anchor.x, anchor.y, containerRef, open, target]);
+  }, [anchor, containerRef, open, target]);
 
   useEffect(() => {
     if (!open) {

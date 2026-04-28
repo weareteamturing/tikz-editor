@@ -75,7 +75,7 @@ export async function blobToBase64(blob: Blob): Promise<string> {
   }
   let binary = "";
   for (let i = 0; i < bytes.length; i += 1) {
-    binary += String.fromCharCode(bytes[i]!);
+    binary += String.fromCharCode(bytes[i]);
   }
   return btoa(binary);
 }

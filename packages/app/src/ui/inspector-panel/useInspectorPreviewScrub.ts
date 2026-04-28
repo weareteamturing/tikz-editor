@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import type { InspectorDescriptor } from "tikz-editor/edit/inspector";
+import type { EditorAction } from "../../store/types";
 import { useEditorStore } from "../../store/store";
 import { createNumberScrubState, updateNumberScrubState } from "./number-scrub";
+import type { InspectorPropertyProvenanceMap, MultiInspectorModel } from "./panel-helpers";
 import type { FrozenInspectorView } from "./useInspectorModel";
 
 type NumberLabelScrubBinding = {
@@ -27,12 +30,12 @@ type NumberLabelScrubSession = {
 };
 
 export function useInspectorPreviewScrub(args: {
-  dispatch: (action: any) => void;
+  dispatch: (action: EditorAction) => void;
   selectedSourceIds: string[];
-  descriptor: any;
-  multiModel: any;
-  singlePropertyProvenance: any;
-  multiPropertyProvenance: any;
+  descriptor: InspectorDescriptor | null;
+  multiModel: MultiInspectorModel | null;
+  singlePropertyProvenance: InspectorPropertyProvenanceMap;
+  multiPropertyProvenance: InspectorPropertyProvenanceMap;
   setFrozenInspectorView: (v: FrozenInspectorView | null) => void;
 }) {
   const {
