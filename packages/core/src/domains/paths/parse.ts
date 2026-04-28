@@ -482,7 +482,7 @@ function tryMapGraphOperation(
     if (firstNode.type.name === "OptionList") {
       optionsNode = firstNode;
       consumeCount += 1;
-      const maybeSpecNode = nodes[startIndex + consumeCount] ? unwrapPathItemNode(nodes[startIndex + consumeCount]!) : null;
+      const maybeSpecNode = nodes[startIndex + consumeCount] ? unwrapPathItemNode(nodes[startIndex + consumeCount]) : null;
       if (maybeSpecNode && isGraphSpecNode(maybeSpecNode, source)) {
         specNode = maybeSpecNode;
         consumeCount += 1;
@@ -531,7 +531,7 @@ function tryMapGraphOperation(
     }
   }
 
-  const specNode = nodes[startIndex + consumeCount] ? unwrapPathItemNode(nodes[startIndex + consumeCount]!) : null;
+  const specNode = nodes[startIndex + consumeCount] ? unwrapPathItemNode(nodes[startIndex + consumeCount]) : null;
   if (!specNode || !isGraphSpecNode(specNode, source)) {
     return null;
   }
@@ -618,13 +618,13 @@ function tryMapPlotOperation(
 
   let mode: "coordinates" | "expression" | "function" | "file" | "unknown" = "unknown";
   let dataNode: SyntaxNode | null = null;
-  const payloadNode = nodes[startIndex + consumeCount] ? unwrapPathItemNode(nodes[startIndex + consumeCount]!) : null;
+  const payloadNode = nodes[startIndex + consumeCount] ? unwrapPathItemNode(nodes[startIndex + consumeCount]) : null;
 
   if (payloadNode) {
     const payloadRaw = source.slice(payloadNode.from, payloadNode.to).trim().toLowerCase();
 
     if (payloadRaw === "coordinates") {
-      const maybeDataNode = nodes[startIndex + consumeCount + 1] ? unwrapPathItemNode(nodes[startIndex + consumeCount + 1]!) : null;
+      const maybeDataNode = nodes[startIndex + consumeCount + 1] ? unwrapPathItemNode(nodes[startIndex + consumeCount + 1]) : null;
       if (maybeDataNode && isPlotDataGroupNode(maybeDataNode, source)) {
         mode = "coordinates";
         dataNode = maybeDataNode;
@@ -639,7 +639,7 @@ function tryMapPlotOperation(
       consumeCount += 1;
     } else if (payloadRaw === "function" || payloadRaw === "file") {
       mode = payloadRaw;
-      const maybeDataNode = nodes[startIndex + consumeCount + 1] ? unwrapPathItemNode(nodes[startIndex + consumeCount + 1]!) : null;
+      const maybeDataNode = nodes[startIndex + consumeCount + 1] ? unwrapPathItemNode(nodes[startIndex + consumeCount + 1]) : null;
       if (maybeDataNode && isPlotDataGroupNode(maybeDataNode, source)) {
         dataNode = maybeDataNode;
         consumeCount += 2;

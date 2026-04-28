@@ -182,20 +182,20 @@ function evaluateIfthenelseCondition(condition: string): boolean {
   // \isodd{n}
   const isoddMatch = /^\\isodd\s*\{([^}]*)\}$/.exec(trimmed);
   if (isoddMatch) {
-    const n = tryParseInt(isoddMatch[1]!.trim());
+    const n = tryParseInt(isoddMatch[1].trim());
     return n != null && n % 2 !== 0;
   }
 
   // \equal{a}{b}
   const equalMatch = /^\\equal\s*\{([^}]*)\}\s*\{([^}]*)\}$/.exec(trimmed);
   if (equalMatch) {
-    return equalMatch[1]!.trim() === equalMatch[2]!.trim();
+    return equalMatch[1].trim() === equalMatch[2].trim();
   }
 
   // \NOT <cond>
   const notMatch = /^\\NOT\s+(.+)$/.exec(trimmed);
   if (notMatch) {
-    return !evaluateIfthenelseCondition(notMatch[1]!);
+    return !evaluateIfthenelseCondition(notMatch[1]);
   }
 
   // <cond> \AND <cond>
@@ -217,9 +217,9 @@ function evaluateIfthenelseCondition(condition: string): boolean {
   // numeric comparison: a < b, a > b, a = b
   const cmpMatch = /^(-?\d+)\s*([<>=])\s*(-?\d+)$/.exec(trimmed);
   if (cmpMatch) {
-    const a = Number.parseInt(cmpMatch[1]!, 10);
-    const b = Number.parseInt(cmpMatch[3]!, 10);
-    const op = cmpMatch[2]!;
+    const a = Number.parseInt(cmpMatch[1], 10);
+    const b = Number.parseInt(cmpMatch[3], 10);
+    const op = cmpMatch[2];
     if (op === "<") return a < b;
     if (op === ">") return a > b;
     return a === b;
@@ -232,7 +232,7 @@ function evaluateIfthenelseCondition(condition: string): boolean {
 function findTopLevelOperator(input: string, op: string): number {
   let depth = 0;
   for (let i = 0; i <= input.length - op.length; i += 1) {
-    const ch = input[i]!;
+    const ch = input[i];
     if (ch === "{") { depth += 1; continue; }
     if (ch === "}") { depth -= 1; continue; }
     if (depth === 0 && input.slice(i, i + op.length) === op) {
@@ -284,7 +284,7 @@ function findElseAndFi(
   let cursor = startIndex;
 
   while (cursor < input.length) {
-    const ch = input[cursor]!;
+    const ch = input[cursor];
 
     if (ch !== "\\") {
       cursor += 1;
@@ -347,7 +347,7 @@ function parseInteger(input: string, startIndex: number): { value: number; nextI
   }
 
   const digitStart = cursor;
-  while (cursor < input.length && isDigit(input[cursor]!)) {
+  while (cursor < input.length && isDigit(input[cursor])) {
     cursor += 1;
   }
 
@@ -379,7 +379,7 @@ function parseToken(input: string, startIndex: number): { value: string; nextInd
     return { value: input.slice(tokenStart, cursor), nextIndex: cursor };
   }
 
-  return { value: input[cursor]!, nextIndex: cursor + 1 };
+  return { value: input[cursor], nextIndex: cursor + 1 };
 }
 
 function readBracedContent(input: string, startIndex: number): { value: string; nextIndex: number } | null {
@@ -390,7 +390,7 @@ function readBracedContent(input: string, startIndex: number): { value: string; 
   let depth = 0;
   let cursor = startIndex;
   while (cursor < input.length) {
-    const ch = input[cursor]!;
+    const ch = input[cursor];
     if (ch === "\\") {
       cursor += 2;
       continue;
@@ -417,7 +417,7 @@ function readBracedContent(input: string, startIndex: number): { value: string; 
 }
 
 function skipWhitespace(input: string, index: number): number {
-  while (index < input.length && /\s/.test(input[index]!)) {
+  while (index < input.length && /\s/.test(input[index])) {
     index += 1;
   }
   return index;

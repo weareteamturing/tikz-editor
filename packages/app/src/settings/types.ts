@@ -62,7 +62,7 @@ export const GRID_SIZE_MINOR_TARGET_PX: Record<GridSize, number> = {
 export const DEFAULT_SETTINGS: AppSettings = {
   general: {
     uiFontSizePx: 11,
-    colorScheme: "system" as ColorScheme,
+    colorScheme: "system",
     canvasInvert: false
   },
   editor: {

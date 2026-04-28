@@ -3,7 +3,7 @@ export function mountRenderedScene(group: SVGGElement, innerSvg: string): void {
 }
 
 export function queryRenderedElement<T extends Element>(root: ParentNode, selector: string): T | null {
-  return root.querySelector(selector) as T | null;
+  return root.querySelector(selector);
 }
 
 export function wrapRenderedElements(elements: Element[], className?: string): SVGGElement | null {

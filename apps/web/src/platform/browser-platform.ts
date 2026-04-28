@@ -29,7 +29,7 @@ type FsApiLike = {
 };
 
 type FsHandleStore = {
-  load: (handleId: string) => Promise<unknown | null>;
+  load: (handleId: string) => Promise<unknown>;
   save: (handleId: string, handle: unknown) => Promise<void>;
 };
 
@@ -138,7 +138,7 @@ function createIndexedDbHandleStore(): FsHandleStore {
   return {
     load: async (handleId) => {
       try {
-        const result = await withStore("readonly", (store) => store.get(handleId));
+        const result: unknown = await withStore("readonly", (store) => store.get(handleId));
         return result ?? null;
       } catch {
         return null;
@@ -200,7 +200,8 @@ function openTextFileWithInput(): Promise<{ source: string; fileRef: DocumentFil
     input.type = "file";
     input.accept = ".tex,.tikz,.txt,.svg,text/plain,image/svg+xml";
     input.style.display = "none";
-    input.addEventListener("change", async () => {
+    input.addEventListener("change", () => {
+      void (async () => {
       const file = input.files?.[0];
       if (!file) {
         input.remove();
@@ -217,6 +218,7 @@ function openTextFileWithInput(): Promise<{ source: string; fileRef: DocumentFil
           provider: DOWNLOAD_PROVIDER
         }
       });
+      })();
     }, { once: true });
     document.body.appendChild(input);
     input.click();
@@ -233,7 +235,8 @@ function openBinaryFileWithInput(): Promise<{ bytes: ArrayBuffer; fileRef: Docum
     input.type = "file";
     input.accept = ".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation";
     input.style.display = "none";
-    input.addEventListener("change", async () => {
+    input.addEventListener("change", () => {
+      void (async () => {
       const file = input.files?.[0];
       if (!file) {
         input.remove();
@@ -250,6 +253,7 @@ function openBinaryFileWithInput(): Promise<{ bytes: ArrayBuffer; fileRef: Docum
           provider: DOWNLOAD_PROVIDER
         }
       });
+      })();
     }, { once: true });
     document.body.appendChild(input);
     input.click();
@@ -322,7 +326,7 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
     return { handleId, handle };
   }
 
-  async function resolvePersistedHandle(fileRef: DocumentFileRef | null | undefined): Promise<unknown | null> {
+  async function resolvePersistedHandle(fileRef: DocumentFileRef | null | undefined): Promise<unknown> {
     if (!fileRef || fileRef.kind !== "browser-file" || !fileRef.handleId || !fsHandleStore) {
       return null;
     }
@@ -499,14 +503,14 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
       }
     },
     files: {
-      openText: async (_options) => {
+      openText: async () => {
         const fsResult = await openViaFsApi();
         if (fsResult) {
           return fsResult;
         }
         return await openTextFileWithInput();
       },
-      openBinary: async (_options) => {
+      openBinary: async () => {
         const fsResult = await openBinaryViaFsApi();
         if (fsResult) {
           return fsResult;
@@ -542,7 +546,7 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
             : currentRef
         };
       },
-      exportFile: async (content, options) => {
+      exportFile: (content, options) => {
         if (
           typeof document === "undefined" ||
           typeof Blob === "undefined" ||
@@ -551,7 +555,7 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
           typeof URL.revokeObjectURL !== "function" ||
           !document.body
         ) {
-          return false;
+          return Promise.resolve(false);
         }
         const blob = new Blob(content, { type: options.mimeType });
         const objectUrl = URL.createObjectURL(blob);
@@ -563,7 +567,7 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
           document.body.appendChild(anchor);
           anchor.click();
           anchor.remove();
-          return true;
+          return Promise.resolve(true);
         } finally {
           URL.revokeObjectURL(objectUrl);
         }

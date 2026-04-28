@@ -35,8 +35,6 @@ function buildTree(tree: Tree, source: string): TreeNodeData[] {
   return roots;
 }
 
-const treeStyles: React.CSSProperties = {};
-
 function TreeNode({
   node,
   depth,

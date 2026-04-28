@@ -18,6 +18,7 @@ import {
   type EditorPlatform,
   type MenuCommandHandler
 } from "@tikz-editor/app";
+import type { CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu } from "@tauri-apps/api/menu";
 
 type StorageLike = {
   getItem: (key: string) => string | null;
@@ -173,6 +174,8 @@ type NativeCommandRef = {
   };
 };
 
+type NativeMenuNode = CheckMenuItem | MenuItem | PredefinedMenuItem | Submenu;
+
 function readInjectedTestEnvironment(): DesktopPlatformEnvironment {
   return ((globalThis as BrowserLikeGlobal).__TIKZ_EDITOR_DESKTOP_PLATFORM_ENV__) ?? {};
 }
@@ -208,7 +211,7 @@ function base64FromBytes(bytes: Uint8Array): string {
   }
   let binary = "";
   for (let i = 0; i < bytes.byteLength; i += 1) {
-    binary += String.fromCharCode(bytes[i]!);
+    binary += String.fromCharCode(bytes[i]);
   }
   return btoa(binary);
 }
@@ -296,7 +299,7 @@ function createNativeDesktopMenuManager(options: {
   const APP_DISPLAY_NAME = "TikZ Editor";
   const { getBridge, dispatchCommand, dispatchOpenRecent } = options;
   const commandRefs = new Map<AppMenuCommandId, NativeCommandRef[]>();
-  let currentMenu: { setAsAppMenu: () => Promise<unknown> } | null = null;
+  let currentMenu: Menu | null = null;
   let latestPayload: NativeMenuSyncPayload | null = null;
   let definitionKey: string | null = null;
   let workspaceKey: string | null = null;
@@ -339,8 +342,8 @@ function createNativeDesktopMenuManager(options: {
     commandStates: Record<AppMenuCommandId, NativeCommandState>,
     recentFiles: readonly string[],
     origin: "platform" | "context-menu"
-  ): Promise<any[]> {
-    const built: any[] = [];
+  ): Promise<NativeMenuNode[]> {
+    const built: NativeMenuNode[] = [];
     for (const item of items) {
       if (item.kind === "workspace-list") {
         const expanded = await buildWorkspaceMenuItems();
@@ -353,11 +356,11 @@ function createNativeDesktopMenuManager(options: {
     return built;
   }
 
-  async function buildWorkspaceMenuItems(): Promise<any[]> {
+  async function buildWorkspaceMenuItems(): Promise<NativeMenuNode[]> {
     const menuApi = await import("@tauri-apps/api/menu");
     const entries = listAllWorkspaces();
     const activeId = findActiveWorkspaceId();
-    const items: any[] = [];
+    const items: NativeMenuNode[] = [];
     const workspaceMenuItems: Array<{
       id: string;
       item: { setChecked?: (checked: boolean) => Promise<void> };
@@ -400,7 +403,7 @@ function createNativeDesktopMenuManager(options: {
     commandStates: Record<AppMenuCommandId, NativeCommandState>,
     recentFiles: readonly string[],
     origin: "platform" | "context-menu"
-  ): Promise<any | null> {
+  ): Promise<NativeMenuNode | null> {
     const menuApi = await import("@tauri-apps/api/menu");
 
     if (item.kind === "separator") {
@@ -408,10 +411,10 @@ function createNativeDesktopMenuManager(options: {
     }
 
     if (item.kind === "recent-files") {
-      const recentItems: any[] = [];
+      const recentItems: NativeMenuNode[] = [];
       if (recentFiles.length > 0) {
         for (let i = 0; i < recentFiles.length; i += 1) {
-          const path = recentFiles[i]!;
+          const path = recentFiles[i];
           recentItems.push(
             await menuApi.MenuItem.new({
               id: `file.open-recent.${i}`,
@@ -512,7 +515,7 @@ function createNativeDesktopMenuManager(options: {
 
   async function buildMacApplicationSubmenu(
     commandStates: Record<AppMenuCommandId, NativeCommandState>
-  ): Promise<any> {
+  ): Promise<Submenu> {
     const menuApi = await import("@tauri-apps/api/menu");
     const aboutItem = await menuApi.PredefinedMenuItem.new({
       text: `About ${APP_DISPLAY_NAME}`,
@@ -553,7 +556,7 @@ function createNativeDesktopMenuManager(options: {
     const recentFiles = await getBridge().listRecentFiles().catch(() => [] as string[]);
 
     commandRefs.clear();
-    const topLevelItems: any[] = [];
+    const topLevelItems: Submenu[] = [];
 
     if (isMacPlatform()) {
       topLevelItems.push(await buildMacApplicationSubmenu(payload.commandStates));

@@ -1428,7 +1428,7 @@ function mixColors(first: string, second: string, ratioFirst: number): string | 
 function toRgb(color: string): { r: number; g: number; b: number } | null {
   const normalized = color.trim().toLowerCase();
   if (normalized in COLOR_HEX) {
-    return hexToRgb(COLOR_HEX[normalized as keyof typeof COLOR_HEX]);
+    return hexToRgb(COLOR_HEX[normalized]);
   }
   if (/^#[0-9a-f]{3}$/i.test(normalized) || /^#[0-9a-f]{6}$/i.test(normalized)) {
     return hexToRgb(normalized);

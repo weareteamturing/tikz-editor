@@ -35,7 +35,7 @@ export function loadWorkspaceSeed(): WorkspaceSeed | null {
     if (!raw) {
       return null;
     }
-    const parsed = JSON.parse(raw) as Partial<PersistedWorkspaceV1 | PersistedWorkspaceV2 | PersistedWorkspaceV3>;
+    const parsed = JSON.parse(raw) as Partial<PersistedWorkspaceV1    >;
     const migrated = migrateWorkspace(parsed);
     if (!migrated) {
       return null;
@@ -72,7 +72,7 @@ function normalizeFileRef(raw: unknown): DocumentFileRef | null {
   };
 }
 
-function migrateWorkspace(parsed: Partial<PersistedWorkspaceV1 | PersistedWorkspaceV2 | PersistedWorkspaceV3>): WorkspaceSeed | null {
+function migrateWorkspace(parsed: Partial<PersistedWorkspaceV1    >): WorkspaceSeed | null {
   const version = typeof parsed.workspaceVersion === "number" ? parsed.workspaceVersion : 1;
   if (version !== 1 && version !== 2 && version !== 3) {
     return null;
@@ -103,7 +103,7 @@ function migrateWorkspace(parsed: Partial<PersistedWorkspaceV1 | PersistedWorksp
   const activeDocumentId =
     typeof parsed.activeDocumentId === "string" && docIds.has(parsed.activeDocumentId)
       ? parsed.activeDocumentId
-      : tabOrder[0] ?? docs[0]!.id;
+      : tabOrder[0] ?? docs[0].id;
   if (!Array.isArray(parsed.recentDocumentIds)) {
     return null;
   }

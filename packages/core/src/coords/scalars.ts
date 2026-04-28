@@ -26,7 +26,7 @@ export function deg(value: number): Deg {
 }
 
 export function scalarValue(value: Scalar): number {
-  return value as number;
+  return value;
 }
 
 export function addScalar<TScalar extends Scalar>(left: TScalar, right: TScalar): TScalar {

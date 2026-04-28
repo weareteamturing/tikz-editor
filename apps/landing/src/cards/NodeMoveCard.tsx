@@ -43,10 +43,10 @@ const SOURCE_S_END = { x: -0.9, y: 0.7 };
 const SOURCE_T = { x: 2, y: 0 };
 
 function queryNodeSceneElements(contentGroup: SVGGElement): NodeSceneElements | null {
-  const sCircle = contentGroup.querySelector('circle[data-source-id="path:1"]') as SVGCircleElement | null;
-  const sLabel = contentGroup.querySelector('svg[data-source-id="path:1"][data-text-renderer="mathjax"]') as SVGSVGElement | null;
-  const edgeLine = contentGroup.querySelector('path[data-source-id="path:3"]:not([data-arrow-tip-kind])') as SVGPathElement | null;
-  const edgeTip = contentGroup.querySelector('path[data-source-id="path:3"][data-arrow-tip-kind]') as SVGPathElement | null;
+  const sCircle = contentGroup.querySelector('circle[data-source-id="path:1"]');
+  const sLabel = contentGroup.querySelector('svg[data-source-id="path:1"][data-text-renderer="mathjax"]');
+  const edgeLine = contentGroup.querySelector<SVGPathElement>('path[data-source-id="path:3"]:not([data-arrow-tip-kind])');
+  const edgeTip = contentGroup.querySelector<SVGPathElement>('path[data-source-id="path:3"][data-arrow-tip-kind]');
 
   if (!sCircle || !sLabel || !edgeLine || !edgeTip) {
     return null;
@@ -262,6 +262,8 @@ export function NodeMoveCard() {
     }, rootRef);
 
     return () => ctx.revert();
+  // GSAP owns this mount-time script; callback identities are intentionally excluded.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playbackEnabled]);
 
   const initialBounds = {

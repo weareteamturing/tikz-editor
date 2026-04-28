@@ -225,7 +225,7 @@ export function hasDanglingMathScriptOperator(text: string): boolean {
 }
 
 export function seedPrefixWidthTable(sourceLength: number, totalWidthUnits: number): number[] {
-  const table = new Array(sourceLength + 1);
+  const table = Array.from<number>({ length: sourceLength + 1 });
   table[0] = 0;
   table[sourceLength] = totalWidthUnits;
   return table;
@@ -295,8 +295,8 @@ export function readPrefixUnitsFromTable(
   }
 
   const normalizedIndex = normalizeIndex(index, sourceLength);
-  if (Array.isArray(table) && table.length === sourceLength + 1) {
-    const measured = table[normalizedIndex];
+  if (table != null && table.length === sourceLength + 1) {
+    const measured: number | undefined = table[normalizedIndex];
     if (Number.isFinite(measured)) {
       return Number(measured);
     }

@@ -139,25 +139,25 @@ function expandStatement(
   }
 
   if (statement.kind === "MacroDefinition") {
-    collectMacroDefinition(statement as MacroDefinitionStatement, context.macroBindings);
+    collectMacroDefinition(statement, context.macroBindings);
     maybeRecordStatementAttribution(statement, stack, context, templateSource);
     return [statement];
   }
 
   if (statement.kind === "MacroCommandDefinition") {
-    collectMacroCommandDefinition(statement as MacroCommandDefinitionStatement, context.macroBindings);
+    collectMacroCommandDefinition(statement, context.macroBindings);
     maybeRecordStatementAttribution(statement, stack, context, templateSource);
     return [statement];
   }
 
   if (statement.kind === "MacroAlias") {
-    collectMacroAlias(statement as MacroAliasStatement, context.macroBindings);
+    collectMacroAlias(statement, context.macroBindings);
     maybeRecordStatementAttribution(statement, stack, context, templateSource);
     return [statement];
   }
 
   if (statement.kind === "Scope") {
-    const scope = statement as ScopeStatement;
+    const scope = statement;
     const expandedBody = expandStatements(
       scope.body,
       stack,
@@ -360,8 +360,8 @@ function expandPathItems(
       continue;
     }
 
-    if (item.kind === "Node" && (item as NodeItem).foreachClauses && (item as NodeItem).foreachClauses!.length > 0) {
-      const expandedNodes = expandNodeForeachItem(item as NodeItem, stack, inheritedBindings, context);
+    if (item.kind === "Node" && (item).foreachClauses && (item).foreachClauses.length > 0) {
+      const expandedNodes = expandNodeForeachItem(item, stack, inheritedBindings, context);
       expanded.push(...expandedNodes);
       continue;
     }
@@ -716,14 +716,14 @@ function collectMacroBindings(statements: Statement[]): Map<string, MacroBinding
   const bindings = new Map<string, MacroBinding>();
   for (const statement of statements) {
     if (statement.kind === "MacroDefinition") {
-      collectMacroDefinition(statement as MacroDefinitionStatement, bindings);
+      collectMacroDefinition(statement, bindings);
     } else if (statement.kind === "MacroCommandDefinition") {
-      collectMacroCommandDefinition(statement as MacroCommandDefinitionStatement, bindings);
+      collectMacroCommandDefinition(statement, bindings);
     } else if (statement.kind === "MacroAlias") {
-      collectMacroAlias(statement as MacroAliasStatement, bindings);
+      collectMacroAlias(statement, bindings);
     } else if (statement.kind === "Scope") {
       // Collect from scope bodies too (though scoping is approximate in pre-pass)
-      const scopeBindings = collectMacroBindings((statement as ScopeStatement).body);
+      const scopeBindings = collectMacroBindings((statement).body);
       for (const [key, value] of scopeBindings) {
         bindings.set(key, value);
       }
@@ -827,7 +827,7 @@ function findEndOfMacroInvocation(source: string, afterName: number, binding: Ma
   const totalArgs = binding.parameterCount;
 
   // Skip whitespace before first arg
-  while (cursor < source.length && /\s/.test(source[cursor]!)) {
+  while (cursor < source.length && /\s/.test(source[cursor])) {
     cursor += 1;
   }
 
@@ -842,7 +842,7 @@ function findEndOfMacroInvocation(source: string, afterName: number, binding: Ma
 
   // Parse required brace arguments
   while (argsFound < totalArgs && cursor < source.length) {
-    while (cursor < source.length && /\s/.test(source[cursor]!)) {
+    while (cursor < source.length && /\s/.test(source[cursor])) {
       cursor += 1;
     }
     if (cursor >= source.length) break;
@@ -852,7 +852,7 @@ function findEndOfMacroInvocation(source: string, afterName: number, binding: Ma
     } else if (source[cursor] === "\\") {
       // Single control sequence as arg
       cursor += 1;
-      while (cursor < source.length && /[a-zA-Z@]/.test(source[cursor]!)) {
+      while (cursor < source.length && /[a-zA-Z@]/.test(source[cursor])) {
         cursor += 1;
       }
     } else {
@@ -869,7 +869,7 @@ function skipBraceGroup(source: string, start: number): number {
   let depth = 0;
   let cursor = start;
   while (cursor < source.length) {
-    const ch = source[cursor]!;
+    const ch = source[cursor];
     if (ch === "\\") { cursor += 2; continue; }
     if (ch === "{") { depth += 1; }
     if (ch === "}") { depth -= 1; if (depth === 0) return cursor + 1; }
@@ -882,7 +882,7 @@ function skipBracketGroup(source: string, start: number): number {
   let depth = 0;
   let cursor = start;
   while (cursor < source.length) {
-    const ch = source[cursor]!;
+    const ch = source[cursor];
     if (ch === "\\") { cursor += 2; continue; }
     if (ch === "[") { depth += 1; }
     if (ch === "]") { depth -= 1; if (depth === 0) return cursor + 1; }

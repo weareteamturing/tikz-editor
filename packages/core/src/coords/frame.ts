@@ -6,8 +6,8 @@ import { scalarValue, pt } from "./scalars.js";
 
 export function applyFrameToWorldPoint(transform: FrameToWorldTransform, point: FrameLocalPoint): WorldPoint {
   return worldPoint(
-    pt((transform.a * scalarValue(point.x) + transform.c * scalarValue(point.y) + transform.e) as WorldPoint["x"]),
-    pt((transform.b * scalarValue(point.x) + transform.d * scalarValue(point.y) + transform.f) as WorldPoint["y"])
+    pt((transform.a * scalarValue(point.x) + transform.c * scalarValue(point.y) + transform.e)),
+    pt((transform.b * scalarValue(point.x) + transform.d * scalarValue(point.y) + transform.f))
   );
 }
 
@@ -16,8 +16,8 @@ export function applyFrameToWorldVector(
   vector: FrameLocalVector
 ): WorldVector {
   return worldVector(
-    pt((transform.a * scalarValue(vector.x) + transform.c * scalarValue(vector.y)) as WorldVector["x"]),
-    pt((transform.b * scalarValue(vector.x) + transform.d * scalarValue(vector.y)) as WorldVector["y"])
+    pt((transform.a * scalarValue(vector.x) + transform.c * scalarValue(vector.y))),
+    pt((transform.b * scalarValue(vector.x) + transform.d * scalarValue(vector.y)))
   );
 }
 
@@ -38,8 +38,8 @@ export function invertFrameToWorldTransform(transform: FrameToWorldTransform): W
 
 export function applyWorldToFramePoint(transform: WorldToFrameTransform, point: WorldPoint): FrameLocalPoint {
   return frameLocalPoint(
-    pt((transform.a * scalarValue(point.x) + transform.c * scalarValue(point.y) + transform.e) as FrameLocalPoint["x"]),
-    pt((transform.b * scalarValue(point.x) + transform.d * scalarValue(point.y) + transform.f) as FrameLocalPoint["y"])
+    pt((transform.a * scalarValue(point.x) + transform.c * scalarValue(point.y) + transform.e)),
+    pt((transform.b * scalarValue(point.x) + transform.d * scalarValue(point.y) + transform.f))
   );
 }
 
@@ -48,8 +48,8 @@ export function applyWorldToFrameVector(
   vector: WorldVector
 ): FrameLocalVector {
   return frameLocalVector(
-    pt((transform.a * scalarValue(vector.x) + transform.c * scalarValue(vector.y)) as FrameLocalVector["x"]),
-    pt((transform.b * scalarValue(vector.x) + transform.d * scalarValue(vector.y)) as FrameLocalVector["y"])
+    pt((transform.a * scalarValue(vector.x) + transform.c * scalarValue(vector.y))),
+    pt((transform.b * scalarValue(vector.x) + transform.d * scalarValue(vector.y)))
   );
 }
 

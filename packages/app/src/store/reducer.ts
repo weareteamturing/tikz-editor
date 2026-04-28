@@ -194,7 +194,7 @@ function initialWorkspaceStateFromSeed(seed: WorkspaceSeed): WorkspacePersistedS
   if (fallbackOrder.length === 0) {
     return initialWorkspaceState();
   }
-  const activeDocumentId = docs[seed.activeDocumentId] ? seed.activeDocumentId : fallbackOrder[0]!;
+  const activeDocumentId = docs[seed.activeDocumentId] ? seed.activeDocumentId : fallbackOrder[0];
   const seededRecents = seed.recentDocumentIds.filter((id) => docs[id]);
   const normalizedRecents = seededRecents.length > 0 ? seededRecents : [activeDocumentId];
   return {
@@ -213,7 +213,7 @@ function resolveActiveDocument(workspace: WorkspacePersistedState): DocumentSess
   }
   const fallbackId = workspace.tabOrder[0];
   if (fallbackId && workspace.documents[fallbackId]) {
-    return workspace.documents[fallbackId]!;
+    return workspace.documents[fallbackId];
   }
   const created = createDocumentSession({ source: DEFAULT_SOURCE, title: "Untitled 1" });
   workspace.documents[created.id] = created;
@@ -401,23 +401,27 @@ function mergeAssistantItem(items: AssistantItem[], nextItem: AssistantItem): As
 
 function appendAssistantDelta(item: AssistantItem, deltaType: string, delta: string): AssistantItem {
   if (item.type === "agentMessage" && deltaType === "item/agentMessage/delta") {
-    return { ...item, text: `${item.text ?? ""}${delta}` };
+    return { ...item, text: `${readAssistantText(item.text)}${delta}` };
   }
   if (item.type === "plan" && deltaType === "item/plan/delta") {
-    return { ...item, text: `${item.text ?? ""}${delta}` };
+    return { ...item, text: `${readAssistantText(item.text)}${delta}` };
   }
   if (item.type === "reasoning") {
     if (deltaType === "item/reasoning/summaryTextDelta") {
-      return { ...item, summary: `${item.summary ?? ""}${delta}` };
+      return { ...item, summary: `${readAssistantText(item.summary)}${delta}` };
     }
     if (deltaType === "item/reasoning/textDelta") {
-      return { ...item, content: `${item.content ?? ""}${delta}` };
+      return { ...item, content: `${readAssistantText(item.content)}${delta}` };
     }
   }
   if (item.type === "commandExecution" && deltaType === "item/commandExecution/outputDelta") {
-    return { ...item, aggregatedOutput: `${item.aggregatedOutput ?? ""}${delta}` };
+    return { ...item, aggregatedOutput: `${readAssistantText(item.aggregatedOutput)}${delta}` };
   }
   return item;
+}
+
+function readAssistantText(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }
 
 export function makeInitialState(seed?: WorkspaceSeed): EditorState {
@@ -546,7 +550,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       const nextActiveId =
         workspace.activeDocumentId === closeId
-          ? nextOrder[Math.max(0, workspace.tabOrder.indexOf(closeId) - 1)] ?? nextOrder[0]!
+          ? nextOrder[Math.max(0, workspace.tabOrder.indexOf(closeId) - 1)] ?? nextOrder[0]
           : workspace.activeDocumentId;
       workspace = {
         ...workspace,
@@ -649,7 +653,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
             action.snapshot.figures.length >= 2 &&
             action.snapshot.figures.length > previousFigureCount);
         if (shouldAutoSelectFirst) {
-          nextActiveFigureId = action.snapshot.figures[0]!.id;
+          nextActiveFigureId = action.snapshot.figures[0].id;
           hasInitializedFigureSelection = true;
         }
         return {
@@ -741,7 +745,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           return doc;
         }
         const nextItems = [...doc.assistantItems];
-        nextItems[index] = appendAssistantDelta(nextItems[index]!, action.deltaType, action.delta);
+        nextItems[index] = appendAssistantDelta(nextItems[index], action.deltaType, action.delta);
         return {
           ...doc,
           assistantItems: nextItems

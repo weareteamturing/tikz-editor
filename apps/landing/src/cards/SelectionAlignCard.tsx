@@ -143,7 +143,7 @@ export function SelectionAlignCard() {
 
   const toolbar = useMemo(() => {
     const [vbX, , vbW] = selectionAlignCommonViewBox.split(/\s+/).map(Number);
-    const imageCenterX = vbX! + vbW! / 2;
+    const imageCenterX = vbX + vbW / 2;
     const totalWidth = BUTTON.width * 3;
     return {
       x: imageCenterX - totalWidth / 2,
@@ -163,14 +163,14 @@ export function SelectionAlignCard() {
     const rightNodePaths = rightInitial.map((node) => queryNodePath(sceneRef.current!, node));
     const rightLabels = rightInitial.map((node) => queryNodeLabel(sceneRef.current!, node));
     const leftNodeGroups = leftNodePaths.map((path, index) =>
-      path && leftLabels[index] ? wrapRenderedElements([path, leftLabels[index]!], "animatedNodeGroup") : null
+      path && leftLabels[index] ? wrapRenderedElements([path, leftLabels[index]], "animatedNodeGroup") : null
     );
     const rightNodeGroups = rightNodePaths.map((path, index) =>
-      path && rightLabels[index] ? wrapRenderedElements([path, rightLabels[index]!], "animatedNodeGroup") : null
+      path && rightLabels[index] ? wrapRenderedElements([path, rightLabels[index]], "animatedNodeGroup") : null
     );
     const edgePaths = Array.from(
       sceneRef.current.querySelectorAll('path[data-source-id][fill="none"][stroke="black"]:not([data-arrow-tip-kind])')
-    ) as SVGPathElement[];
+    );
 
     if (
       leftNodePaths.some((el) => !el) ||
@@ -193,7 +193,7 @@ export function SelectionAlignCard() {
         for (const right of rightStates) {
           const from = { x: left.bounds.x + left.bounds.width, y: left.center.y };
           const to = { x: right.bounds.x, y: right.center.y };
-          setSvgAttrs(edgePaths[edgeIndex]!, { d: `M ${from.x} ${from.y} L ${to.x} ${to.y}` });
+          setSvgAttrs(edgePaths[edgeIndex], { d: `M ${from.x} ${from.y} L ${to.x} ${to.y}` });
           edgeIndex += 1;
         }
       }
@@ -272,14 +272,14 @@ export function SelectionAlignCard() {
       sourceStateRef.current.leftTargetX = leftTargetX;
       commitSource();
       leftStates.forEach((state, index) => {
-        Object.assign(state.bounds, leftInitial[index]!.bounds);
-        Object.assign(state.center, leftInitial[index]!.center);
-        Object.assign(state.labelPos, leftInitial[index]!.labelPos);
+        Object.assign(state.bounds, leftInitial[index].bounds);
+        Object.assign(state.center, leftInitial[index].center);
+        Object.assign(state.labelPos, leftInitial[index].labelPos);
       });
       rightStates.forEach((state, index) => {
-        Object.assign(state.bounds, rightInitial[index]!.bounds);
-        Object.assign(state.center, rightInitial[index]!.center);
-        Object.assign(state.labelPos, rightInitial[index]!.labelPos);
+        Object.assign(state.bounds, rightInitial[index].bounds);
+        Object.assign(state.center, rightInitial[index].center);
+        Object.assign(state.labelPos, rightInitial[index].labelPos);
       });
       updateAll();
     };
@@ -386,7 +386,7 @@ export function SelectionAlignCard() {
 
       tl.call(() => {
         options.states.forEach((state, index) => {
-          const final = options.finals[index]!;
+          const final = options.finals[index];
           Object.assign(state.bounds, final.bounds);
           Object.assign(state.center, final.center);
           Object.assign(state.labelPos, final.labelPos);
@@ -500,6 +500,8 @@ export function SelectionAlignCard() {
     }, rootRef);
 
     return () => ctx.revert();
+  // GSAP owns this mount-time script; callback identities are intentionally excluded.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leftBounds, rightBounds, leftInitial, rightInitial, leftFinal, rightFinal, toolbar, playbackEnabled]);
 
   return (
@@ -590,15 +592,15 @@ function buildSelectionAlignSourceLines(state: SelectionAlignSourceState): Sourc
   const rowYs = [1, 0, -1.3];
   const leftPositions = state.leftNodes.map((node, index) => ({
     x: state.leftAligned ? state.leftTargetX : node.center.x / 25,
-    y: rowYs[index] ?? rowYs[rowYs.length - 1]!
+    y: rowYs[index] ?? rowYs[rowYs.length - 1]
   }));
   const rightPositions = state.rightNodes.map((node, index) => ({
     x: state.rightAligned ? 1.9 : node.center.x / 25,
-    y: rowYs[index] ?? rowYs[rowYs.length - 1]!
+    y: rowYs[index] ?? rowYs[rowYs.length - 1]
   }));
 
   leftLabels.forEach((labelText, index) => {
-    const pos = leftPositions[index] ?? leftPositions[leftPositions.length - 1]!;
+    const pos = leftPositions[index] ?? leftPositions[leftPositions.length - 1];
     lines.push(
       sourceLine(
         sourceKeyword("\\node"),
@@ -616,7 +618,7 @@ function buildSelectionAlignSourceLines(state: SelectionAlignSourceState): Sourc
   });
 
   rightLabels.forEach((labelText, index) => {
-    const pos = rightPositions[index] ?? rightPositions[rightPositions.length - 1]!;
+    const pos = rightPositions[index] ?? rightPositions[rightPositions.length - 1];
     lines.push(
       sourceLine(
         sourceKeyword("\\node"),
@@ -682,14 +684,6 @@ function cloneNode(node: NodeState): NodeState {
     center: { ...node.center },
     labelPos: { ...node.labelPos }
   };
-}
-
-function rectPathD(bounds: Rect): string {
-  const x0 = bounds.x;
-  const y0 = bounds.y;
-  const x1 = bounds.x + bounds.width;
-  const y1 = bounds.y + bounds.height;
-  return `M ${x0} ${y0} L ${x1} ${y0} L ${x1} ${y1} L ${x0} ${y1} Z`;
 }
 
 function average(values: readonly number[]): number {

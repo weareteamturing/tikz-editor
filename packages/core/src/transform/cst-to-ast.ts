@@ -187,7 +187,7 @@ function collectFigureNodes(tree: Tree, source: string): FigureNodeEntry[] {
   const lineStarts = buildLineStarts(source);
   const scanned = scanFigureInventories(source, lineStarts);
   for (let index = 0; index < scanned.length; index += 1) {
-    const inventory = scanned[index]!;
+    const inventory = scanned[index];
     const id = `figure:${index}`;
     const parsedNode = parsedNodes.find(
       (candidate) => candidate.from === inventory.span.from && candidate.to === inventory.span.to
@@ -538,7 +538,7 @@ function collectScopedMacroDefinitionsFromStream(
       if (commandName === "\\newcommand" || commandName === "\\renewcommand") {
         const parsed = tryParseNewCommandStatement(
           source,
-          commandName as "\\newcommand" | "\\renewcommand",
+          commandName,
           command.from,
           cursor,
           nextStatementIndex
@@ -634,9 +634,9 @@ function tryParseLetStatement(
   }
   cursor = skipWhitespaceAndComments(source, cursor);
 
-  let targetRaw = "";
   let targetSpan: { from: number; to: number } | undefined;
   const targetControl = readControlSequence(source, cursor);
+  let targetRaw: string;
   if (targetControl) {
     targetRaw = targetControl.raw;
     targetSpan = { from: targetControl.from, to: targetControl.to };
@@ -682,9 +682,9 @@ function tryParseNewCommandStatement(
   }
   cursor = skipWhitespaceAndComments(source, cursor);
 
-  let nameRaw = "";
   let nameSpan: { from: number; to: number } | undefined;
   const directName = readControlSequence(source, cursor);
+  let nameRaw: string;
   if (directName) {
     nameRaw = directName.raw;
     nameSpan = { from: directName.from, to: directName.to };

@@ -172,7 +172,7 @@ export function collectDetectedColors(
       if (groups.length < 2) {
         return;
       }
-      const valueGroup = groups[1]!;
+      const valueGroup = groups[1];
       if (valueGroup.innerRaw.length === 0) {
         return;
       }
@@ -205,8 +205,8 @@ export function collectDetectedColors(
         return;
       }
 
-      const modelRaw = groups[1]!.innerRaw.trim();
-      const specificationGroup = groups[2]!;
+      const modelRaw = groups[1].innerRaw.trim();
+      const specificationGroup = groups[2];
       const specificationRaw = specificationGroup.innerRaw.trim();
       if (modelRaw.length === 0 || specificationRaw.length === 0) {
         return;
@@ -435,8 +435,8 @@ function resolveMixedColor(raw: string, context: ColorResolveContext): string | 
     }
     cursor += 1;
 
-    const mixToken = parts[cursor] && parts[cursor]!.length > 0 ? parts[cursor]! : "white";
-    if (parts[cursor] && parts[cursor]!.length > 0) {
+    const mixToken = parts[cursor] && parts[cursor].length > 0 ? parts[cursor] : "white";
+    if (parts[cursor] && parts[cursor].length > 0) {
       cursor += 1;
     }
 
@@ -626,10 +626,10 @@ function intersectsRanges(from: number, to: number, ranges: readonly SourceRange
 function trimWithOffsets(raw: string, absoluteFrom: number): { value: string; from: number; to: number } {
   let start = 0;
   let end = raw.length;
-  while (start < end && isWhitespace(raw[start]!)) {
+  while (start < end && isWhitespace(raw[start])) {
     start += 1;
   }
-  while (end > start && isWhitespace(raw[end - 1]!)) {
+  while (end > start && isWhitespace(raw[end - 1])) {
     end -= 1;
   }
 

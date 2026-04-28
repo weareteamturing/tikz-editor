@@ -120,7 +120,7 @@ export function AddRectCard() {
     }
 
     mountRenderedScene(contentGroup, addRectInitial.innerSvg);
-    const bodyRect = contentGroup.querySelector('path[data-source-id="path:1"]') as SVGPathElement | null;
+    const bodyRect = contentGroup.querySelector<SVGPathElement>('path[data-source-id="path:1"]');
     if (!bodyRect) {
       return;
     }
@@ -268,7 +268,9 @@ export function AddRectCard() {
     }, rootRef);
 
     return () => ctx.revert();
-  }, [addRectCommonViewBox, addRectInitial.bounds.width, addRectInitial.bounds.height, addRectInitial.bounds.x, addRectInitial.bounds.y, addRectResized.bounds.height, addRectResized.bounds.width, addRectResized.bounds.x, addRectResized.bounds.y, playbackEnabled]);
+  // GSAP owns this mount-time script; callback identities are intentionally excluded.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playbackEnabled]);
 
   return (
     <article className="featureCard" ref={rootRef}>
@@ -342,11 +344,11 @@ function buildAddRectSourceLines(state: AddRectSourceState): SourceLine[] {
 }
 
 function queryEditHandleOverlayRefs(handlesGroup: SVGGElement): EditHandleOverlayRefs | null {
-  const selectionRect = handlesGroup.querySelector("rect.selectionRect") as SVGRectElement | null;
-  const rotateStem = handlesGroup.querySelector("line.rotateHandleStem") as SVGLineElement | null;
-  const rotateCircle = handlesGroup.querySelector("circle.rotateHandleCircle") as SVGCircleElement | null;
-  const rotateGlyph = handlesGroup.querySelector("g.rotateHandleGlyph") as SVGGElement | null;
-  const handles = Array.from(handlesGroup.querySelectorAll("rect.handle")).filter(
+  const selectionRect = handlesGroup.querySelector<SVGRectElement>("rect.selectionRect");
+  const rotateStem = handlesGroup.querySelector<SVGLineElement>("line.rotateHandleStem");
+  const rotateCircle = handlesGroup.querySelector<SVGCircleElement>("circle.rotateHandleCircle");
+  const rotateGlyph = handlesGroup.querySelector<SVGGElement>("g.rotateHandleGlyph");
+  const handles = Array.from(handlesGroup.querySelectorAll<SVGRectElement>("rect.handle")).filter(
     (element): element is SVGRectElement => element instanceof SVGRectElement
   );
 

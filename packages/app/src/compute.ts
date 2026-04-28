@@ -547,7 +547,7 @@ async function getOptionalTextEngine(): Promise<NodeTextEngine | null> {
       try {
         const { createMathJaxNodeTextEngine } = await import("tikz-editor/text/mathjax-engine");
         return await createMathJaxNodeTextEngine({ font });
-      } catch (_error) {
+      } catch {
         return null;
       }
     })();

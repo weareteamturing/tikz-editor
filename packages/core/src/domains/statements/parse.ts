@@ -236,7 +236,7 @@ function mapMacroCommandDefinitionStatement(
   const commandNameNode = findFirstChildByName(node, "MacroCommandName");
   const commandNameTokenNode = commandNameNode ? findFirstChildByName(commandNameNode, "CommandName") : null;
   const commandNameGroupNode = commandNameNode ? findFirstChildByName(commandNameNode, "Group") : null;
-  const bodyNode = resolveMacroCommandBodyNode(node, source);
+  const bodyNode = resolveMacroCommandBodyNode(node);
   const arityNode = findFirstNodeByName(node, "MacroCommandArity");
   const arityNumberNode = arityNode ? findFirstChildByName(arityNode, "Number") : null;
   const defaultArgNode = findFirstNodeByName(node, "MacroCommandDefaultArg");
@@ -433,7 +433,7 @@ function mapDefineColorStatement(node: SyntaxNode, source: string, state: Statem
   };
 }
 
-function resolveMacroCommandBodyNode(node: SyntaxNode, source: string): SyntaxNode | null {
+function resolveMacroCommandBodyNode(node: SyntaxNode): SyntaxNode | null {
   const groups: SyntaxNode[] = [];
   forEachChild(node, (child) => {
     if (child.type.name === "Group") {

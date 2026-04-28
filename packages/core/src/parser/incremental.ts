@@ -286,7 +286,7 @@ export function createIncrementalParseSession(): IncrementalParseSession {
           reusedStatementCount: Math.max(0, nextIndex.size - changedSourceIds.length)
         }
       };
-    } catch (_error) {
+    } catch {
       return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "runtime-error");
     }
   };

@@ -3,8 +3,6 @@ import type { Extension } from "@codemirror/state";
 import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 import {
-  SCRUB_ACTIVATION_DELTA_PX,
-  clamp,
   computeScrubbedValue,
   formatScrubNumber,
   fractionDigits,
@@ -473,7 +471,7 @@ function isXcolorMixPercentage(doc: EditorView["state"]["doc"], numberNode: Synt
     return true;
   }
 
-  return /[,\]\});%]/u.test(after);
+  return /[,\]});%]/u.test(after);
 }
 
 function previousNonWhitespaceChar(doc: EditorView["state"]["doc"], start: number): string | null {

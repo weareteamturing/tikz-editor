@@ -77,7 +77,7 @@ export function normalizeVector(vector: WorldVector): WorldVector {
 }
 
 export function perpendicular(vector: WorldVector): WorldVector {
-  return worldVector(pt(-vector.y), pt(vector.x));
+  return worldVector(pt(-1 * vector.y), pt(vector.x));
 }
 
 export function clonePathCommand(command: ScenePathCommand): ScenePathCommand {

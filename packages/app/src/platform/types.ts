@@ -114,7 +114,7 @@ export type AssistantPastedImage = {
 
 export type AssistantItem =
   | { type: "userMessage"; id: string; content: AssistantChatContent[] }
-  | { type: "agentMessage"; id: string; text: string; phase?: "commentary" | "final_answer" | string }
+  | { type: "agentMessage"; id: string; text: string; phase?: string }
   | { type: "plan"; id: string; text: string }
   | { type: "reasoning"; id: string; summary?: string; content?: string }
   | {
@@ -245,7 +245,7 @@ export type AssistantApi = {
   }) => Promise<{ turnId: string | null }>;
   interruptTurn?: (params: { documentId: string }) => Promise<void>;
   syncSource?: (params: { documentId: string; source: string }) => Promise<void>;
-  respondToApproval?: (params: { documentId: string; requestId: string; decision: "accept" | "acceptForSession" | "decline" | "cancel" | string }) => Promise<void>;
+  respondToApproval?: (params: { documentId: string; requestId: string; decision: string }) => Promise<void>;
   respondToDynamicToolCall?: (params: { documentId: string; requestId: string; result: AssistantDynamicToolResult }) => Promise<void>;
   loadThreadState?: (params: { documentId: string }) => Promise<AssistantThreadState | null>;
   warmUp?: () => Promise<void>;

@@ -9,7 +9,7 @@ import { createCursorPathScript } from "../animation/cursor-path";
 import { point } from "../animation/points";
 import { mountRenderedScene } from "../animation/rendered-scene";
 import { toSvgAttrs } from "../animation/svg-actors";
-import type { AnchorDot, RectBounds } from "../animation/anchor-overlay";
+import type { RectBounds } from "../animation/anchor-overlay";
 import { useDemoPlayback } from "../use-demo-playback";
 import {
   sourceKeyword,
@@ -191,6 +191,8 @@ export function AddArrowCard() {
     }, rootRef);
 
     return () => ctx.revert();
+  // GSAP owns this mount-time script; callback identities are intentionally excluded.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playbackEnabled]);
 
   return (
@@ -306,18 +308,6 @@ function buildAddArrowSourceLines(state: AddArrowSourceState): SourceLine[] {
   }
 
   return lines;
-}
-
-function buildAnchorDots(bounds: RectBounds, cursor: { x: number; y: number } | null): AnchorDot[] {
-  const anchors = buildRectAnchorDots(bounds);
-  if (!cursor) {
-    return anchors.map((anchor) => ({ ...anchor, active: false }));
-  }
-  const snappedKey = resolveSnappedRectAnchor(bounds, cursor);
-  return anchors.map((anchor) => ({
-    ...anchor,
-    active: anchor.key === snappedKey
-  }));
 }
 
 function resolveHoveredRectNode(cursor: { x: number; y: number }, sBounds: RectBounds, tBounds: RectBounds): "s" | "t" | null {

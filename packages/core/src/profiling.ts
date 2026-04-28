@@ -44,7 +44,7 @@ export type TikzEditorProfilingRecorder = {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var __TIKZ_EDITOR_PROFILING_RECORDER__: TikzEditorProfilingRecorder | undefined;
 }
 

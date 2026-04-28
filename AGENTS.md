@@ -24,16 +24,22 @@ Capability drift is CI-gated by `/Users/dominik/GitHub/tikz-editor/test/capabili
 
 ## Scripts
 1. `npm run typecheck` runs root TypeScript checks (`tsc --noEmit`).
-2. `npm test` runs all vitest suites (`generate:grammar` + `vitest run`).
-3. `npm run test:capabilities` runs capability matrix guards only.
-4. `npm run test:corpus` runs PGF corpus regression only.
-5. `npm run test:e2e` runs web Playwright suites.
-6. `npm run test:e2e:ci` runs web Playwright suites with line reporter.
-7. `npm run test:desktop:e2e` runs desktop e2e (may skip on unsupported platforms).
-8. `npm run build` builds the core parser package.
-9. `cd /Users/dominik/GitHub/tikz-editor/apps/web && npm run build` builds the web app.
-10. `npm run compare:renderers -- --input path/to/snippet.tex` runs our renderer and a TeX reference render, then writes a comparison manifest.
+2. `npm run lint:prod` runs ESLint over production app/core code and fails on warnings. It intentionally excludes tests, e2e/profiling harnesses, scripts, config files, and temp repro files.
+3. `npm run lint:ci` currently aliases `npm run lint:prod`; use it as the CI lint gate.
+4. `npm run lint` runs full-repo noisy ESLint, including the remaining test/tooling/harness warning debt. Use it for audits, not as the production gate.
+5. `npm test` runs all vitest suites (`generate:grammar` + `vitest run`).
+6. `npm run test:capabilities` runs capability matrix guards only.
+7. `npm run test:corpus` runs PGF corpus regression only.
+8. `npm run test:e2e` runs web Playwright suites.
+9. `npm run test:e2e:ci` runs web Playwright suites with line reporter.
+10. `npm run test:desktop:e2e` runs desktop e2e (may skip on unsupported platforms).
+11. `npm run build` builds the core parser package.
+12. `cd /Users/dominik/GitHub/tikz-editor/apps/web && npm run build` builds the web app.
+13. `npm run compare:renderers -- --input path/to/snippet.tex` runs our renderer and a TeX reference render, then writes a comparison manifest.
 14. `npm run compare:pgf-docs -- --source-file pgfmanual-en-tikz-paths.tex` renders snippets from one PGF doc source file and writes an `index.html` side-by-side gallery. It generates side-by-side.png files that can be visually inspected for render accuracy.
+
+## Linting policy
+Production app/core code should stay warning-free under `npm run lint:prod`. Do not add new warnings there. If you touch test, e2e, profiling, script, config, or temp repro files, prefer cleaning local warnings opportunistically, but those areas are still tracked as full-audit debt under `npm run lint`.
 
 ## Corpus Source
 The repository includes `pgf-docs/`, a copy of the PGF manual source files. It also includes `pgf-src/`, a copy of the PGF source files. Both should be used to check the intended rendering of TikZ features against the reference implementation. The `pgf-docs/` snippets are also used for testing and capability tracking.

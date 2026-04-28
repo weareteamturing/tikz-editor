@@ -156,7 +156,7 @@ async function getXmlFormatter(): Promise<XmlFormatter> {
       if (typeof formatter !== "function") {
         throw new Error("xml-formatter default export is not a function.");
       }
-      return formatter as XmlFormatter;
+      return formatter;
     });
   }
   return xmlFormatterPromise;

@@ -6,7 +6,6 @@ import { createCursorScript, type CursorFrame } from "../cursor-script";
 import { createCursorPathScript } from "../animation/cursor-path";
 import { SnapGuidesOverlay, type SnapGuideLine } from "../animation/snap-guides";
 import { mountRenderedScene, queryRenderedElement, wrapRenderedElements } from "../animation/rendered-scene";
-import { setSvgAttrs } from "../animation/svg-actors";
 import { snapGuidesCommonViewBox, snapGuidesFinal, snapGuidesInitial } from "../generated/feature-svgs";
 import {
   formatTikzNumber,
@@ -116,10 +115,6 @@ export function SnapGuidesCard() {
     };
     const cursorGrabOffsetX = snapGuidesInitial.movingNode.bounds.width * 0.22;
     const cursorGrabOffsetY = snapGuidesInitial.movingNode.bounds.height * 0.22;
-    const preSnapGrab = {
-      x: preSnapCenter.x + cursorGrabOffsetX,
-      y: preSnapCenter.y + cursorGrabOffsetY
-    };
     const finalGrab = {
       x: finalCenter.x + cursorGrabOffsetX,
       y: finalCenter.y + cursorGrabOffsetY
@@ -266,6 +261,8 @@ export function SnapGuidesCard() {
     }, rootRef);
 
     return () => ctx.revert();
+  // GSAP owns this mount-time script; callback identities are intentionally excluded.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playbackEnabled]);
 
   return (
@@ -357,12 +354,4 @@ function cloneNode(node: RectNode): RectNode {
     center: { ...node.center },
     labelPos: { ...node.labelPos }
   };
-}
-
-function rectPathD(bounds: { x: number; y: number; width: number; height: number }): string {
-  const x0 = bounds.x;
-  const y0 = bounds.y;
-  const x1 = bounds.x + bounds.width;
-  const y1 = bounds.y + bounds.height;
-  return `M ${x0} ${y0} L ${x1} ${y0} L ${x1} ${y1} L ${x0} ${y1} Z`;
 }

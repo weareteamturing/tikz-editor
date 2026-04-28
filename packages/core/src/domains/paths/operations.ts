@@ -409,8 +409,8 @@ function buildChildTemplateRaw(node: SyntaxNode, source: string, clauses: ChildF
     return source.slice(node.from, node.to);
   }
 
-  const firstClauseStart = clauses.reduce((min, clause) => Math.min(min, clause.span.from), clauses[0]!.span.from);
-  const lastClauseEnd = clauses.reduce((max, clause) => Math.max(max, clause.span.to), clauses[0]!.span.to);
+  const firstClauseStart = clauses.reduce((min, clause) => Math.min(min, clause.span.from), clauses[0].span.from);
+  const lastClauseEnd = clauses.reduce((max, clause) => Math.max(max, clause.span.to), clauses[0].span.to);
   return `${source.slice(node.from, firstClauseStart)}${source.slice(lastClauseEnd, node.to)}`;
 }
 

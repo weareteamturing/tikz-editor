@@ -36,6 +36,8 @@ type MathJaxRuntime = {
   };
 };
 
+type MathJaxStartup = NonNullable<MathJaxRuntime["startup"]>;
+
 type MathJaxEntrypoint = {
   init(config: Record<string, unknown>): Promise<MathJaxRuntime>;
 };
@@ -170,7 +172,7 @@ export async function createMathJaxNodeTextEngine(options?: { font?: MathJaxFont
   }
 }
 
-export function getActiveMathJaxOutputJax(): unknown | null {
+export function getActiveMathJaxOutputJax(): unknown {
   const browserRuntime = (globalThis as { MathJax?: MathJaxRuntime }).MathJax;
   return (
     browserRuntime?.outputJax ??
@@ -429,7 +431,7 @@ async function initializeWorkerRuntimeOnce(): Promise<MathJaxRuntime> {
 
   const runtime: MathJaxRuntime = {
     tex2svg,
-    tex2svgPromise: async (input, options) => tex2svg(input, options),
+    tex2svgPromise: (input, options) => Promise.resolve(tex2svg(input, options)),
     outputJax: svg,
     startup: {
       output: svg,
@@ -438,8 +440,8 @@ async function initializeWorkerRuntimeOnce(): Promise<MathJaxRuntime> {
           return adaptor.firstChild(node as never);
         },
         getAttribute(node: unknown, name: string): string | null {
-          const value = adaptor.getAttribute(node as never, name);
-          return value == null ? null : String(value);
+          const value: unknown = adaptor.getAttribute(node as never, name);
+          return typeof value === "string" ? value : value == null ? null : "";
         },
         innerHTML(node: unknown): string {
           return adaptor.innerHTML(node as never);
@@ -535,7 +537,7 @@ function createMathJaxConfig(): Record<string, unknown> {
 
 async function readBrowserRuntime(timeoutMs: number): Promise<MathJaxRuntime | null> {
   const deadline = Date.now() + Math.max(0, timeoutMs);
-  do {
+  while (true) {
     const candidate = (globalThis as { MathJax?: unknown }).MathJax;
     const runtime = await coerceBrowserRuntime(candidate);
     if (runtime) {
@@ -545,7 +547,7 @@ async function readBrowserRuntime(timeoutMs: number): Promise<MathJaxRuntime | n
       return null;
     }
     await waitForNextTurn();
-  } while (true);
+  }
 }
 
 async function coerceBrowserRuntime(candidate: unknown): Promise<MathJaxRuntime | null> {
@@ -687,14 +689,14 @@ function getBrowserDocument(): BrowserDocumentLike | null {
   if (!isRecord(candidate)) {
     return null;
   }
-  return candidate as BrowserDocumentLike;
+  return candidate;
 }
 
 function toScriptRecord(value: unknown): ScriptRecord | null {
   if (!isRecord(value)) {
     return null;
   }
-  return value as ScriptRecord;
+  return value;
 }
 
 async function waitForScriptLoad(script: ScriptRecord): Promise<void> {
@@ -818,12 +820,12 @@ function summarizeKeys(value: Record<string, unknown>): string {
   return `[${keys.slice(0, 12).join(", ")}${keys.length > 12 ? ", ..." : ""}]`;
 }
 
-function startupFromRecord(value: Record<string, unknown>): MathJaxRuntime["startup"] {
+function startupFromRecord(value: Record<string, unknown>): MathJaxStartup {
   return {
     adaptor: isMathJaxAdaptor(value.adaptor) ? value.adaptor : undefined,
-    document: isRecord(value.document) ? (value.document as { outputJax?: unknown }) : null,
+    document: isRecord(value.document) ? (value.document) : null,
     output: isRecord(value.output) ? value.output : undefined,
-    promise: isPromiseLike(value.promise) ? (value.promise as Promise<unknown>) : undefined
+    promise: isPromiseLike(value.promise) ? (value.promise) : undefined
   };
 }
 
@@ -907,10 +909,6 @@ function queueAsyncCachePopulate(
   void task.finally(() => {
     pendingAsyncRenders.delete(task);
   });
-}
-
-function buildCacheEntry(cacheKey: string, containerNode: unknown, adaptor: MathJaxAdaptor | null): CachedRenderEntry | null {
-  return buildCacheEntryWithMetadata(cacheKey, containerNode, adaptor, "", null);
 }
 
 function buildCacheEntryWithMetadata(
@@ -1243,16 +1241,6 @@ function renderMeasuredNodeWithPromise(
   });
 }
 
-function resolveLatestParagraphReport(runtime: MathJaxRuntime) {
-  const outputJax =
-    runtime.outputJax ??
-    runtime.startup?.output ??
-    runtime.startup?.document?.outputJax ??
-    getActiveMathJaxOutputJax();
-  const reports = getKnuthPlassReportsFromOutputJax(outputJax);
-  return reports.length > 0 ? reports[reports.length - 1] : null;
-}
-
 function resolveParagraphReportById(runtime: MathJaxRuntime, paragraphId: string | null): ParagraphLayoutReport | null {
   if (!paragraphId) {
     return null;
@@ -1413,7 +1401,7 @@ function extractSvgPayload(
   };
 }
 
-function findSvgElement(value: unknown): unknown | null {
+function findSvgElement(value: unknown): unknown {
   if (!isRecord(value)) {
     return null;
   }
@@ -1425,7 +1413,7 @@ function findSvgElement(value: unknown): unknown | null {
 
   const querySelector = value.querySelector;
   if (typeof querySelector === "function") {
-    const nested = querySelector.call(value, "svg");
+    const nested: unknown = querySelector.call(value, "svg");
     return nested ?? null;
   }
 
@@ -1436,8 +1424,8 @@ function readAttr(node: unknown, name: string): string | null {
   if (!isRecord(node) || typeof node.getAttribute !== "function") {
     return null;
   }
-  const value = node.getAttribute.call(node, name);
-  return typeof value === "string" ? value : value == null ? null : String(value);
+  const value: unknown = node.getAttribute.call(node, name);
+  return typeof value === "string" ? value : value == null ? null : "";
 }
 
 function readInnerHtml(node: unknown): string {

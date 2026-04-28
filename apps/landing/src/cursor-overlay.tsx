@@ -233,7 +233,7 @@ export function applyCursorOverlayFrame(target: SVGGElement, frame: CursorOverla
 const LAST_CURSOR_DOM_FRAME = new WeakMap<SVGGElement, { transform: string; opacity: string }>();
 
 export const CursorOverlay = memo(forwardRef<SVGGElement, CursorOverlayProps>(function CursorOverlay(
-  { x, y, visible, pressed, cursor, scale = 1 }: CursorOverlayProps,
+  { x, y, visible, cursor, scale = 1 }: CursorOverlayProps,
   ref
 ) {
   const def = CURSOR_DEFS[cursor] ?? CURSOR_DEFS.pointer;

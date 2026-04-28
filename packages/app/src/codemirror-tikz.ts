@@ -77,7 +77,7 @@ const tikzHighlighting = styleTags({
   "⚠": t.invalid,
 });
 
-const tikzEnvironmentFolding = foldService.of((state, lineStart, lineEnd) => {
+const tikzEnvironmentFolding = foldService.of((state, lineStart) => {
   const line = state.doc.lineAt(lineStart);
   const text = line.text;
 

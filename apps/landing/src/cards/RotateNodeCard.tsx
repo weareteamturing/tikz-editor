@@ -181,6 +181,8 @@ export function RotateNodeCard() {
     }, rootRef);
 
     return () => ctx.revert();
+  // GSAP owns this mount-time script; callback identities are intentionally excluded.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playbackEnabled]);
 
   const initialBounds = {
