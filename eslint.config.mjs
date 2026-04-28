@@ -18,6 +18,8 @@ export default tseslint.config(
       "apps/desktop/src-tauri/target/**",
       "packages/app/public/docs/**",
       "test/papers/**",
+      "test-results/**",
+      "apps/*/test-results/**",
       "apps/web/profiling/traces/**",
       "examples/**",
       "prototypes/**",

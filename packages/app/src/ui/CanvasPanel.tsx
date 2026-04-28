@@ -3099,7 +3099,6 @@ export const CanvasPanel = memo(function CanvasPanel({
     applyActionWithFeedback,
     pendingAddedSelectionRef,
     dispatch,
-    selectedAddShape,
     selectedAddMatrixRows,
     selectedAddMatrixColumns,
     pathDraft,

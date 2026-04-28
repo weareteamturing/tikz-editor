@@ -1,7 +1,6 @@
 import { useCallback, useEffect, type MouseEvent as ReactMouseEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { viewportPoint, clientPoint as makeClientPoint, worldPoint, pt, px } from "tikz-editor/coords/index";
 import { buildSnapContext, snapToolPointer, type SnapGuideInput, type SnapLine, type SnapSettingsPatch } from "tikz-editor/edit/snapping";
-import type { NodeShapePresetId } from "tikz-editor/edit/inspector";
 import type { NodeAnchorTarget } from "tikz-editor/semantic/types";
 import type { ClientPoint, WorldBounds, WorldPoint } from "../coords/types";
 import type { CanvasTransform, ToolMode } from "../../store/types";
@@ -69,7 +68,6 @@ export type UseCanvasToolInteractionsArgs = {
   applyActionWithFeedback: ApplyActionWithFeedbackFn;
   pendingAddedSelectionRef: MutableRefObject<PendingAddedSelection | null>;
   dispatch: CanvasDispatch;
-  selectedAddShape: Exclude<NodeShapePresetId, "custom">;
   selectedAddMatrixRows: number;
   selectedAddMatrixColumns: number;
   pathDraft: PathToolDraft | null;
@@ -121,7 +119,6 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     applyActionWithFeedback,
     pendingAddedSelectionRef,
     dispatch,
-    selectedAddShape,
     selectedAddMatrixRows,
     selectedAddMatrixColumns,
     pathDraft,
@@ -489,7 +486,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
           return;
         }
 
-        if (toolMode === "addNode" || toolMode === "addMatrix" || toolMode === "addShape") {
+        if (toolMode === "addNode" || toolMode === "addMatrix") {
           event.preventDefault();
           event.stopPropagation();
           const snapResult = toolSnapContext
@@ -517,9 +514,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
           }
           const ok = applyActionWithFeedback({
             kind: "addElement",
-            template: toolMode === "addShape"
-              ? { kind: "node", shape: selectedAddShape, text: "" }
-              : toolMode === "addMatrix"
+            template: toolMode === "addMatrix"
                 ? {
                     kind: "matrix",
                     rows: selectedAddMatrixRows,
@@ -624,7 +619,6 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       queueSelectionForAddedElement,
       setDragState,
       setNodeAnchorOverlay,
-      selectedAddShape,
       selectedAddMatrixRows,
       selectedAddMatrixColumns,
       snapshot.scene,
