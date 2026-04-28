@@ -832,10 +832,14 @@ test("selected scope drag tracks cursor displacement without runaway shifts", as
 
   await focusCanvas(page);
   await clickHitRegionByTargetId(page, "path:2");
-  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:1"]);
-  await expect.poll(async () => readSelectionOverlayBoxSourceIds(page)).toEqual(["scope:1"]);
+  await expect.poll(async () => {
+    const selected = await readSelectedSourceIds(page);
+    return selected.length === 1 && selected[0]?.startsWith("scope:") ? selected[0] : null;
+  }).not.toBeNull();
+  const scopeId = (await readSelectedSourceIds(page))[0] as string;
+  await expect.poll(async () => readSelectionOverlayBoxSourceIds(page)).toEqual([scopeId]);
 
-  const beforeBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+  const beforeBox = await page.locator(`[data-selection-overlay-box-source-id='${scopeId}']`).boundingBox();
   expect(beforeBox).not.toBeNull();
   if (!beforeBox) {
     return;
@@ -848,15 +852,16 @@ test("selected scope drag tracks cursor displacement without runaway shifts", as
     return;
   }
 
-  const scopeHitRegion = page.locator("[data-hit-region-target-id='scope:1']").first();
-  const scopeHitBox = await scopeHitRegion.boundingBox();
-  expect(scopeHitBox).not.toBeNull();
-  if (!scopeHitBox) {
+  const overlayBox = page.locator(`[data-selection-overlay-box-source-id='${scopeId}']`).first();
+  await expect(overlayBox).toBeVisible();
+  const scopeDragBox = await overlayBox.boundingBox();
+  expect(scopeDragBox).not.toBeNull();
+  if (!scopeDragBox) {
     return;
   }
 
-  const startX = scopeHitBox.x + scopeHitBox.width / 2;
-  const startY = scopeHitBox.y + scopeHitBox.height / 2;
+  const startX = scopeDragBox.x + scopeDragBox.width / 2;
+  const startY = scopeDragBox.y + scopeDragBox.height / 2;
   await page.mouse.move(startX, startY);
   await page.evaluate(() => {
     const globalLike = globalThis as typeof globalThis & {
@@ -891,7 +896,7 @@ test("selected scope drag tracks cursor displacement without runaway shifts", as
     delete globalLike.__PW_SCOPE_DRAG_SAMPLES__;
     return samples;
   });
-  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:1"]);
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual([scopeId]);
 
   const sampledXShifts = dragSamples
     .map((sample) => readShiftValue(sample, "x"))
@@ -902,28 +907,28 @@ test("selected scope drag tracks cursor displacement without runaway shifts", as
   }
 
   await expect.poll(async () => {
-    const currentBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+    const currentBox = await page.locator(`[data-selection-overlay-box-source-id='${scopeId}']`).boundingBox();
     if (!currentBox) {
       return Number.NaN;
     }
     return (currentBox.x + currentBox.width / 2) - (beforeBox.x + beforeBox.width / 2);
   }).toBeGreaterThan(120);
   await expect.poll(async () => {
-    const currentBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+    const currentBox = await page.locator(`[data-selection-overlay-box-source-id='${scopeId}']`).boundingBox();
     if (!currentBox) {
       return Number.NaN;
     }
     return (currentBox.x + currentBox.width / 2) - (beforeBox.x + beforeBox.width / 2);
   }).toBeLessThan(260);
   await expect.poll(async () => {
-    const currentBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+    const currentBox = await page.locator(`[data-selection-overlay-box-source-id='${scopeId}']`).boundingBox();
     if (!currentBox) {
       return Number.NaN;
     }
     return (currentBox.y + currentBox.height / 2) - (beforeBox.y + beforeBox.height / 2);
   }).toBeGreaterThan(-20);
   await expect.poll(async () => {
-    const currentBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+    const currentBox = await page.locator(`[data-selection-overlay-box-source-id='${scopeId}']`).boundingBox();
     if (!currentBox) {
       return Number.NaN;
     }

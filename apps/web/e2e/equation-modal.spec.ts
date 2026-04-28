@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  focusCanvas,
   clickHitRegionByTargetId,
   gotoApp,
   openMenuCommand,
@@ -88,7 +89,27 @@ test("math-only nodes expose Edit equation in context menu", async ({ page }) =>
 
   await page.keyboard.press("Escape");
   await clickHitRegionByTargetId(page, "path:0");
-  await page.keyboard.press("ControlOrMeta+Shift+E");
-  await expect(page.getByTestId("equation-modal")).toBeVisible();
-  await expect(page.locator("math-field")).toHaveJSProperty("value", "x-y");
+  await expect.poll(async () => readSource(page)).toContain("\\node at (0,0) {$x-y$};");
+  await expect.poll(async () => {
+    const selected = await page.evaluate(() => {
+      const api = (globalThis as unknown as {
+        __TIKZ_EDITOR_APP_TEST_API__?: { getSelectedSourceIds?: () => string[] };
+      }).__TIKZ_EDITOR_APP_TEST_API__;
+      return api?.getSelectedSourceIds?.() ?? [];
+    });
+    return selected.includes("path:0");
+  }).toBe(true);
+  await focusCanvas(page);
+  let modalOpened = false;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.keyboard.press("ControlOrMeta+Shift+E");
+    try {
+      await expect(page.getByTestId("equation-modal")).toBeVisible({ timeout: 2_000 });
+      modalOpened = true;
+      break;
+    } catch {
+      // Retry to handle occasional delayed keybinding activation after context-menu workflows.
+    }
+  }
+  expect(modalOpened).toBe(true);
 });

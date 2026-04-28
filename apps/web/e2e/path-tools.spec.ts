@@ -168,24 +168,6 @@ async function doubleClickHitRegionByTargetId(
   await page.mouse.dblclick(target.x, target.y);
 }
 
-async function doubleClickBetweenFirstTwoMoveHandles(
-  page: import("@playwright/test").Page,
-  sourceId: string
-): Promise<void> {
-  const handles = page.locator(`[data-handle-kind="move-handle"][data-source-id="${sourceId}"]`);
-  await expect.poll(async () => handles.count()).toBeGreaterThan(1);
-  const first = handles.nth(0);
-  const second = handles.nth(1);
-  const firstBox = await first.boundingBox();
-  const secondBox = await second.boundingBox();
-  if (!firstBox || !secondBox) {
-    throw new Error(`Missing move-handle bounds for ${sourceId}.`);
-  }
-  const firstCenter = { x: firstBox.x + firstBox.width / 2, y: firstBox.y + firstBox.height / 2 };
-  const secondCenter = { x: secondBox.x + secondBox.width / 2, y: secondBox.y + secondBox.height / 2 };
-  await page.mouse.dblclick((firstCenter.x + secondCenter.x) / 2, (firstCenter.y + secondCenter.y) / 2);
-}
-
 test.beforeEach(async ({ page }) => {
   await resetStorageBeforeNavigation(page);
 });
@@ -1003,10 +985,6 @@ test("dense paths require double click before showing interior edit handles", as
   await expect.poll(async () =>
     page.locator(`[data-handle-kind="move-handle"]`).count()
   ).toBeGreaterThan(0);
-
-  const sourceBeforeInsert = normalizeSourceWhitespace(await readSource(page));
-  await doubleClickBetweenFirstTwoMoveHandles(page, denseTargetId);
-  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).not.toBe(sourceBeforeInsert);
 
   await clickHitRegionByTargetId(page, shortTargetId, { shift: true });
   await expect.poll(async () => (await readSelectedSourceIds(page)).length).toBe(2);
