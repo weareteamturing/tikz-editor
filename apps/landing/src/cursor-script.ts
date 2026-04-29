@@ -57,7 +57,38 @@ export function createCursorScript(
       return api;
     },
     glideTo(x, y, duration = 0.42, position, ease = "power2.inOut") {
-      return api.moveTo(x, y, duration, position, ease);
+      let fromX = state.x;
+      let fromY = state.y;
+      let bend = createSubtleCursorBend(fromX, fromY, x, y);
+      timeline.to(
+        state,
+        {
+          x,
+          y,
+          duration,
+          ease,
+          onStart: () => {
+            fromX = state.x;
+            fromY = state.y;
+            bend = createSubtleCursorBend(fromX, fromY, x, y);
+            commitPosition();
+          },
+          onUpdate: () => {
+            const progress = cursorLineProgress(fromX, fromY, x, y, state.x, state.y);
+            const amount = 4 * progress * (1 - progress) * bend.offset;
+            state.x += bend.normalX * amount;
+            state.y += bend.normalY * amount;
+            commitPosition();
+          },
+          onComplete: () => {
+            state.x = x;
+            state.y = y;
+            commitPosition();
+          }
+        },
+        position
+      );
+      return api;
     },
     setFrame(frame, position) {
       timeline.call(() => {
@@ -99,7 +130,45 @@ export function createCursorScript(
       return api;
     }
   };
+
   return api;
+}
+
+type CursorBend = {
+  normalX: number;
+  normalY: number;
+  offset: number;
+};
+
+function createSubtleCursorBend(fromX: number, fromY: number, toX: number, toY: number): CursorBend {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const distance = Math.hypot(dx, dy);
+  if (distance < 28) {
+    return { normalX: 0, normalY: 0, offset: 0 };
+  }
+  const bend = Math.min(3, Math.max(0.9, distance * 0.025));
+  const sign = cursorBendSign(fromX, fromY, toX, toY);
+  return {
+    normalX: (-dy / distance) * sign,
+    normalY: (dx / distance) * sign,
+    offset: bend
+  };
+}
+
+function cursorLineProgress(fromX: number, fromY: number, toX: number, toY: number, x: number, y: number): number {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) {
+    return 1;
+  }
+  return Math.max(0, Math.min(1, ((x - fromX) * dx + (y - fromY) * dy) / lengthSquared));
+}
+
+function cursorBendSign(fromX: number, fromY: number, toX: number, toY: number): 1 | -1 {
+  const hash = Math.round(fromX * 13 + fromY * 17 + toX * 19 + toY * 23);
+  return hash % 2 === 0 ? 1 : -1;
 }
 
 function assignCursorPatchIfChanged(target: CursorFrame, patch: Partial<CursorFrame>): boolean {

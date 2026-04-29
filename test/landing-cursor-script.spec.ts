@@ -52,4 +52,28 @@ describe("landing cursor script", () => {
     expect(state.x).toBeLessThan(16);
     expect(positions.at(-1)).toMatchObject({ x: state.x, y: state.y });
   });
+
+  it("adds only a subtle bend to longer cursor glide paths", () => {
+    const state: CursorFrame = {
+      x: 0,
+      y: 0,
+      visible: true,
+      pressed: false,
+      cursor: "pointer"
+    };
+    const timeline = gsap.timeline({ paused: true });
+    const cursor = createCursorScript(timeline, state, {});
+
+    cursor.glideTo(100, 0, 1, 0, "none");
+
+    timeline.progress(0.5);
+
+    expect(state.x).toBeCloseTo(50, 2);
+    expect(Math.abs(state.y)).toBeGreaterThan(0.5);
+    expect(Math.abs(state.y)).toBeLessThanOrEqual(3);
+
+    timeline.progress(1);
+
+    expect(state).toMatchObject({ x: 100, y: 0 });
+  });
 });

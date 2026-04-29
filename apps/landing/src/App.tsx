@@ -667,13 +667,19 @@ function SourceEditDemo() {
         ease = "power1.inOut"
       ): void => {
         const pathState = { progress: 0 };
-        const segments = buildSourceEditCursorSegments(points);
         tl.to(pathState, {
           progress: 1,
           duration,
           ease,
+          onStart: () => {
+            pathState.progress = 0;
+            const pointOnPath = interpolateSourceEditCursorPath(points, 0);
+            cursorStateRef.current.x = pointOnPath.x;
+            cursorStateRef.current.y = pointOnPath.y;
+            commitCursorPosition();
+          },
           onUpdate: () => {
-            const pointOnPath = interpolateSourceEditCursorPath(segments, pathState.progress);
+            const pointOnPath = interpolateSourceEditCursorPath(points, pathState.progress);
             cursorStateRef.current.x = pointOnPath.x;
             cursorStateRef.current.y = pointOnPath.y;
             commitCursorPosition();
@@ -846,52 +852,26 @@ type SourceEditCaretFrame = {
   visible: boolean;
 };
 
-type SourceEditCursorSegment = {
-  from: SourceEditPoint;
-  to: SourceEditPoint;
-  start: number;
-  end: number;
-};
-
-function buildSourceEditCursorSegments(points: SourceEditPoint[]): SourceEditCursorSegment[] {
-  const segments = points.slice(0, -1).map((from, index) => {
-    const to = points[index + 1]!;
-    return {
-      from,
-      to,
-      length: Math.hypot(to.x - from.x, to.y - from.y)
-    };
-  });
-  const totalLength = segments.reduce((sum, segment) => sum + segment.length, 0) || 1;
-  let cursor = 0;
-  return segments.map((segment) => {
-    const start = cursor / totalLength;
-    cursor += segment.length;
-    return {
-      from: segment.from,
-      to: segment.to,
-      start,
-      end: cursor / totalLength
-    };
-  });
-}
-
 function interpolateSourceEditCursorPath(
-  segments: SourceEditCursorSegment[],
+  points: SourceEditPoint[],
   progress: number
 ): SourceEditPoint {
   const clamped = Math.max(0, Math.min(1, progress));
-  const segment = segments.find((candidate) => clamped <= candidate.end) ?? segments[segments.length - 1];
-  if (!segment) {
+  const first = points[0];
+  const last = points.at(-1);
+  if (!first || !last) {
     return { x: 0, y: 0 };
   }
-  const localProgress = segment.end === segment.start
-    ? 1
-    : (clamped - segment.start) / (segment.end - segment.start);
-  return {
-    x: segment.from.x + (segment.to.x - segment.from.x) * localProgress,
-    y: segment.from.y + (segment.to.y - segment.from.y) * localProgress
-  };
+  if (points.length === 1) {
+    return first;
+  }
+  if (points.length === 2) {
+    return interpolatePoint(first, last, clamped);
+  }
+  const control = points[1]!;
+  const a = interpolatePoint(first, control, clamped);
+  const b = interpolatePoint(control, last, clamped);
+  return interpolatePoint(a, b, clamped);
 }
 
 function querySourceEditSceneElements(contentGroup: SVGGElement): SourceEditSceneElements | null {
