@@ -7,6 +7,8 @@
  */
 import { defineConfig, devices } from "@playwright/test";
 
+const withoutColorEnv = "env -u NO_COLOR -u FORCE_COLOR";
+
 export default defineConfig({
   testDir: ".",
   timeout: 120_000,
@@ -21,7 +23,7 @@ export default defineConfig({
     trace: "off"
   },
   webServer: {
-    command: "npm run build -- --base /editor/ --sourcemap && npx vite preview --host 127.0.0.1 --port 4174",
+    command: `${withoutColorEnv} npm run build -- --base /editor/ --sourcemap && ${withoutColorEnv} npx vite preview --host 127.0.0.1 --port 4174`,
     cwd: "..",
     url: "http://127.0.0.1:4174",
     reuseExistingServer: !process.env.CI,

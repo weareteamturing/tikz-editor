@@ -102,6 +102,43 @@ type SelectionAlignStates = {
   commonViewBox: string;
 };
 
+type SourceEditState = {
+  viewBox: string;
+  innerSvg: string;
+  aCenter: Point;
+  aRadius: number;
+  edge: RenderedEdge;
+  sourceX: number;
+  label: string;
+};
+
+type SourceEditStates = {
+  initial: SourceEditState;
+  moved: SourceEditState;
+  typed: SourceEditState[];
+  commonViewBox: string;
+};
+
+type ShowcaseSvg = {
+  title: string;
+  source: string;
+  svg: string;
+};
+
+type ForeachRepeatCell = {
+  x: number;
+  y: number;
+  circleSvg: string;
+  labelSvg: string;
+};
+
+type ForeachRepeatShowcaseSvg = ShowcaseSvg & {
+  maxColumns: number;
+  maxRows: number;
+  viewBox: string;
+  cells: ForeachRepeatCell[];
+};
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_FILE = path.resolve(__dirname, "../src/generated/feature-svgs.ts");
 
@@ -127,6 +164,46 @@ async function renderNodeMoveStates(): Promise<NodeMoveStates> {
     initial,
     moved,
     commonViewBox: initial.viewBox
+  };
+}
+
+async function renderSourceEditStates(): Promise<SourceEditStates> {
+  const initial = await renderSourceEditState(0.8, "A");
+  const moved = await renderSourceEditState(2.2, "A");
+  const typed = await Promise.all(["A", "Al", "Alp", "Alph", "Alpha"].map((label) => renderSourceEditState(2.2, label)));
+
+  return {
+    initial,
+    moved,
+    typed,
+    commonViewBox: initial.viewBox
+  };
+}
+
+async function renderSourceEditState(sourceX: number, label: string): Promise<SourceEditState> {
+  const source = String.raw`\begin{tikzpicture}[>=Stealth]
+\path[use as bounding box] (-0.2,-0.5) rectangle (4.2,1.6);
+\node[draw=blue,fill=blue!10,circle] (a) at (${sourceX},0.8) {${label}};
+\node[draw=green!50!black,fill=green!12,circle] (b) at (3.2,0.0) {B};
+\draw[->] (a) -- (b);
+\end{tikzpicture}`;
+
+  const rendered = await renderTikzToSvgAsync(source);
+  const svg = rendered.svg.svg;
+  const circleNodes = extractCircleNodes(svg);
+  if (circleNodes.length < 2) {
+    throw new Error("Expected two circle nodes for source edit scene");
+  }
+  const a = circleNodes[0]!;
+
+  return {
+    viewBox: capture(svg, /viewBox="([^"]+)"/, "source edit viewBox"),
+    innerSvg: extractInnerSvg(svg),
+    aCenter: a.center,
+    aRadius: a.radius,
+    edge: extractEdge(svg),
+    sourceX,
+    label
   };
 }
 
@@ -388,6 +465,105 @@ async function renderRectNetworkState(source: string): Promise<SelectionAlignSta
   };
 }
 
+async function renderShowcaseSvgs(): Promise<Record<string, ShowcaseSvg | ForeachRepeatShowcaseSvg>> {
+  const foreachMaxColumns = 6;
+  const foreachMaxRows = 4;
+  const sources: Record<string, { title: string; source: string }> = {
+    shapes: {
+      title: "Node shapes",
+      source: String.raw`\begin{tikzpicture}
+\node[draw, fill=blue!15, rectangle] at (0,1.4) {rect};
+\node[draw, fill=green!15, rounded corners=3pt] at (2.2,1.4) {round};
+\node[draw, fill=red!12, circle] at (4.4,1.4) {circle};
+\node[draw, fill=yellow!18, ellipse] at (0,0) {ellipse};
+\node[draw, fill=cyan!12, minimum width=16mm, minimum height=9mm] at (2.2,0) {$x_i$};
+\node[draw, fill=magenta!12, rounded corners=8pt] at (4.4,0) {label};
+\end{tikzpicture}`
+    },
+    paths: {
+      title: "Paths",
+      source: String.raw`\begin{tikzpicture}[>=Stealth]
+\draw[->] (0,1.4) -- (2.2,1.4);
+\draw[blue, thick] (3,1.4) .. controls (3.6,2.2) and (4.4,0.6) .. (5.2,1.4);
+\draw[step=0.35, gray!55] (0,0) grid (1.4,0.9);
+\draw (2.2,0) rectangle (3.2,0.9);
+\draw[green!50!black, thick] (4.4,0.45) ellipse (0.65 and 0.38);
+\end{tikzpicture}`
+    },
+    styles: {
+      title: "Styles",
+      source: String.raw`\begin{tikzpicture}
+\node[draw=blue, fill=blue!30, minimum width=18mm] at (0,1.2) {blue!30};
+\node[draw=green!50!black, fill=green!15, dashed, minimum width=18mm] at (2.4,1.2) {dashed};
+\draw[thick, red] (0,0.25) -- (1.4,0.25);
+\draw[densely dotted, very thick] (1.8,0.25) -- (3.2,0.25);
+\draw[fill=red!20, fill opacity=0.6] (4.2,0.6) circle (0.55);
+\draw[fill=yellow!40, fill opacity=0.6] (4.8,0.6) circle (0.55);
+\end{tikzpicture}`
+    },
+    matrix: {
+      title: "Matrices",
+      source: String.raw`\begin{tikzpicture}[>=Stealth]
+\matrix (m) [matrix of math nodes, row sep=10mm, column sep=16mm] {
+  A & B \\
+  C & D \\
+};
+\draw[->] (m-1-1) -- node[above] {$f$} (m-1-2);
+\draw[->] (m-1-1) -- node[left] {$g$} (m-2-1);
+\draw[->] (m-1-2) -- node[right] {$h$} (m-2-2);
+\draw[->] (m-2-1) -- node[below] {$k$} (m-2-2);
+\end{tikzpicture}`
+    },
+    foreachRepeat: {
+      title: "Foreach output",
+      source: String.raw`\begin{tikzpicture}
+\foreach \x in {1,...,${foreachMaxColumns}} {
+  \foreach \y in {1,...,${foreachMaxRows}} {
+    \node[circle,draw,minimum size=8mm] at (\x,-\y) {\x,\y};
+  }
+}
+\end{tikzpicture}`
+    }
+  };
+
+  const entries = await Promise.all(
+    Object.entries(sources).map(async ([key, item]) => {
+      const rendered = await renderTikzToSvgAsync(item.source, { svg: { padding: 8 } });
+      if (key === "foreachRepeat") {
+        return [
+          key,
+          {
+            title: item.title,
+            source: item.source,
+            svg: rendered.svg.svg,
+            maxColumns: foreachMaxColumns,
+            maxRows: foreachMaxRows,
+            viewBox: capture(rendered.svg.svg, /viewBox="([^"]+)"/, "foreach repeat viewBox"),
+            cells: extractForeachRepeatCells(rendered.svg.svg, foreachMaxColumns, foreachMaxRows)
+          }
+        ] as const;
+      }
+      return [key, { title: item.title, source: item.source, svg: rendered.svg.svg }] as const;
+    })
+  );
+  return Object.fromEntries(entries);
+}
+
+function extractForeachRepeatCells(svg: string, maxColumns: number, maxRows: number): ForeachRepeatCell[] {
+  const circleLabelPairs = [...svg.matchAll(/(<circle[^>]*data-source-id="foreach:[^"]+"[^>]*\/>)\s*(<svg[^>]*data-source-id="foreach:[^"]+"[^>]*data-text-renderer="mathjax"[\s\S]*?<\/svg>)/g)];
+  const expected = maxColumns * maxRows;
+  if (circleLabelPairs.length !== expected) {
+    throw new Error(`Expected ${expected} foreach repeat cells, found ${circleLabelPairs.length}`);
+  }
+
+  return circleLabelPairs.map((match, index) => ({
+    x: Math.floor(index / maxRows) + 1,
+    y: (index % maxRows) + 1,
+    circleSvg: match[1]!,
+    labelSvg: match[2]!
+  }));
+}
+
 function extractRectNodes(svg: string): RenderedRectNode[] {
   const rectTags = [...svg.matchAll(/(<path[^>]*data-source-id="path:\d+"[^>]*>)/g)].map((match) => match[1]!);
   return rectTags
@@ -511,11 +687,13 @@ function escapeRegExp(input: string): string {
 
 async function main(): Promise<void> {
   const nodeMove = await renderNodeMoveStates();
+  const sourceEdit = await renderSourceEditStates();
   const addArrow = await renderAddArrowStates();
   const addRect = await renderAddRectStates();
   const snapGuides = await renderSnapGuideStates();
   const selectionAlign = await renderSelectionAlignStates();
   const rotateNode = await renderRotateNodeState();
+  const showcaseSvgs = await renderShowcaseSvgs();
 
   const content = [
     "/* auto-generated by apps/landing/scripts/generate-feature-svgs.mts */",
@@ -581,6 +759,43 @@ async function main(): Promise<void> {
     "  rightNodes: RenderedRectNode[];",
     "};",
     "",
+    "export type SourceEditState = {",
+    "  viewBox: string;",
+    "  innerSvg: string;",
+    "  aCenter: { x: number; y: number };",
+    "  aRadius: number;",
+    "  edge: { lineD: string; tipD: string };",
+    "  sourceX: number;",
+    "  label: string;",
+    "};",
+    "",
+    "export type SourceEditStates = {",
+    "  initial: SourceEditState;",
+    "  moved: SourceEditState;",
+    "  typed: SourceEditState[];",
+    "  commonViewBox: string;",
+    "};",
+    "",
+    "export type ShowcaseSvg = {",
+    "  title: string;",
+    "  source: string;",
+    "  svg: string;",
+    "};",
+    "",
+    "export type ForeachRepeatCell = {",
+    "  x: number;",
+    "  y: number;",
+    "  circleSvg: string;",
+    "  labelSvg: string;",
+    "};",
+    "",
+    "export type ForeachRepeatShowcaseSvg = ShowcaseSvg & {",
+    "  maxColumns: number;",
+    "  maxRows: number;",
+    "  viewBox: string;",
+    "  cells: ForeachRepeatCell[];",
+    "};",
+    "",
     `export const nodeMoveInitial: RenderedCardState = ${JSON.stringify(
       {
         viewBox: nodeMove.initial.viewBox,
@@ -608,6 +823,8 @@ async function main(): Promise<void> {
     )} as const;`,
     "",
     `export const nodeMoveCommonViewBox = ${JSON.stringify(nodeMove.commonViewBox)};`,
+    "",
+    `export const sourceEditStates: SourceEditStates = ${JSON.stringify(sourceEdit, null, 2)} as const;`,
     "",
     `export const addArrowInitial: AddArrowCardState = ${JSON.stringify(
       {
@@ -718,7 +935,9 @@ async function main(): Promise<void> {
       2
     )} as const;`,
     "",
-    `export const selectionAlignCommonViewBox = ${JSON.stringify(selectionAlign.commonViewBox)};`
+    `export const selectionAlignCommonViewBox = ${JSON.stringify(selectionAlign.commonViewBox)};`,
+    "",
+    `export const landingShowcaseSvgs: Record<string, ShowcaseSvg | ForeachRepeatShowcaseSvg> = ${JSON.stringify(showcaseSvgs, null, 2)} as const;`
   ].join("\n");
 
   await writeFile(OUT_FILE, content, "utf8");

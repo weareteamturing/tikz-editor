@@ -8,9 +8,8 @@ import { AnchorOverlay, applyAnchorOverlayState, buildRectAnchorDots } from "../
 import { createCursorPathScript } from "../animation/cursor-path";
 import { point } from "../animation/points";
 import { mountRenderedScene } from "../animation/rendered-scene";
-import { toSvgAttrs } from "../animation/svg-actors";
 import type { RectBounds } from "../animation/anchor-overlay";
-import { useDemoPlayback } from "../use-demo-playback";
+import { useDemoTimelinePlayback } from "../use-demo-playback";
 import {
   sourceKeyword,
   sourceLine,
@@ -25,7 +24,7 @@ import {
 
 type SceneRefs = {
   contentGroup: SVGGElement | null;
-  previewLine: SVGLineElement | null;
+  previewLineGroup: SVGGElement | null;
   tipPath: SVGPathElement | null;
 };
 
@@ -38,14 +37,15 @@ const ANCHOR_SNAP_RADIUS = 4.2;
 
 export function AddArrowCard() {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const playbackEnabled = useDemoPlayback(rootRef);
+  const timelineRef = useRef<gsap.core.Timeline | null>(null);
+  useDemoTimelinePlayback(rootRef, timelineRef);
   const cursorOverlayRef = useRef<SVGGElement | null>(null);
   const sourcePreviewRef = useRef<HTMLElement | null>(null);
   const sAnchorOverlayRef = useRef<SVGGElement | null>(null);
   const tAnchorOverlayRef = useRef<SVGGElement | null>(null);
   const sceneRef = useRef<SceneRefs>({
     contentGroup: null,
-    previewLine: null,
+    previewLineGroup: null,
     tipPath: null
   });
   const sourceStateRef = useRef<AddArrowSourceState>({
@@ -106,8 +106,8 @@ export function AddArrowCard() {
       return;
     }
 
-    const { contentGroup, previewLine, tipPath } = sceneRef.current;
-    if (!contentGroup || !previewLine || !tipPath) {
+    const { contentGroup, previewLineGroup, tipPath } = sceneRef.current;
+    if (!contentGroup || !previewLineGroup || !tipPath) {
       return;
     }
 
@@ -117,9 +117,12 @@ export function AddArrowCard() {
     const tWest = point(addArrowInitial.t.bounds.x, addArrowInitial.t.center.y);
     const initialAbove = point(addArrowInitial.s.center.x, addArrowInitial.s.bounds.y - 18);
 
-    gsap.set([previewLine, tipPath], { autoAlpha: 0 });
-    gsap.set(previewLine, {
-      attr: { x1: sEast.x, y1: sEast.y, x2: sEast.x, y2: sEast.y }
+    gsap.set([previewLineGroup, tipPath], { autoAlpha: 0 });
+    gsap.set(previewLineGroup, {
+      x: sEast.x,
+      y: sEast.y,
+      scaleX: 0,
+      transformOrigin: "0 0"
     });
     gsap.set(tipPath, { attr: { d: addArrowFinal.edge?.tipD ?? "" } });
     sourceStateRef.current.arrowVisible = false;
@@ -133,12 +136,9 @@ export function AddArrowCard() {
     });
     commitCursorFrame();
 
-    if (!playbackEnabled) {
-      return;
-    }
-
     const ctx = gsap.context(() => {
-      const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.85 });
+      const tl = gsap.timeline({ paused: true, repeat: -1, repeatDelay: 0.85 });
+      timelineRef.current = tl;
       const cursor = createCursorScript(tl, cursorStateRef.current, {
         onPositionChange: commitCursorPosition,
         onFrameChange: commitCursorFrame
@@ -153,7 +153,7 @@ export function AddArrowCard() {
       tl.to({}, { duration: 0.42, ease: "none" }, 0);
 
       tl.add("sourceMove");
-      cursorPath.moveTo("sourceAnchor", 1.12, "sourceMove");
+      cursorPath.glideTo("sourceAnchor", 1.12, "sourceMove");
 
       tl.add("sourceHover", "sourceMove+=1.12");
       tl.to({}, { duration: 0.16, ease: "none" }, "sourceHover");
@@ -161,12 +161,12 @@ export function AddArrowCard() {
       tl.add("sourceClick", "sourceHover+=0.02");
       cursor.setPressed(true, "sourceClick");
       cursor.setPressed(false, "sourceClick+=0.12");
-      tl.to(previewLine, { autoAlpha: 1, duration: 0.05, ease: "none" }, "sourceClick+=0.02");
+      tl.to(previewLineGroup, { autoAlpha: 1, duration: 0.05, ease: "none" }, "sourceClick+=0.02");
 
       tl.add("targetMove", "sourceClick+=0.18");
       cursorPath.moveTo("targetAnchor", 0.86, "targetMove", "power1.inOut");
       cursor.setStyle(CURSOR_FOR_DRAG.toolCreate, "targetMove");
-      toSvgAttrs(tl, previewLine, { x2: tWest.x, y2: tWest.y }, 0.86, "targetMove", "power1.inOut");
+      tl.to(previewLineGroup, { scaleX: tWest.x - sEast.x, duration: 0.86, ease: "power1.inOut" }, "targetMove");
 
       tl.add("targetClick", "targetMove+=0.86");
       cursor.setPressed(true, "targetClick");
@@ -190,10 +190,13 @@ export function AddArrowCard() {
       }, undefined, 0);
     }, rootRef);
 
-    return () => ctx.revert();
+    return () => {
+      timelineRef.current = null;
+      ctx.revert();
+    };
   // GSAP owns this mount-time script; callback identities are intentionally excluded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playbackEnabled]);
+  }, []);
 
   return (
     <article className="featureCard" ref={rootRef}>
@@ -217,19 +220,22 @@ export function AddArrowCard() {
           <AnchorOverlay ref={tAnchorOverlayRef} anchors={tAnchors} visible={false} />
         </g>
 
-        <line
+        <g
           ref={(el) => {
-            sceneRef.current.previewLine = el;
+            sceneRef.current.previewLineGroup = el;
           }}
-          x1={addArrowInitial.s.bounds.x + addArrowInitial.s.bounds.width}
-          y1={addArrowInitial.s.center.y}
-          x2={addArrowInitial.s.bounds.x + addArrowInitial.s.bounds.width}
-          y2={addArrowInitial.s.center.y}
-          stroke="black"
-          strokeWidth={0.4}
-          strokeLinecap="butt"
-          vectorEffect="non-scaling-stroke"
-        />
+        >
+          <line
+            x1={0}
+            y1={0}
+            x2={1}
+            y2={0}
+            stroke="black"
+            strokeWidth={0.4}
+            strokeLinecap="butt"
+            vectorEffect="non-scaling-stroke"
+          />
+        </g>
 
         <path
           ref={(el) => {
@@ -294,18 +300,16 @@ function buildAddArrowSourceLines(state: AddArrowSourceState): SourceLine[] {
     )
   ];
 
-  if (state.arrowVisible) {
-    lines.push(
-      sourceLine(
-        sourceKeyword("\\draw"),
-        sourceText("[->] "),
-        sourcePunctuation("(s.east)"),
-        sourceText(" -- "),
-        sourcePunctuation("(t.west)"),
-        sourcePunctuation(";")
-      )
-    );
-  }
+  lines.push(state.arrowVisible
+    ? sourceLine(
+      sourceKeyword("\\draw"),
+      sourceText("[->] "),
+      sourcePunctuation("(s.east)"),
+      sourceText(" -- "),
+      sourcePunctuation("(t.west)"),
+      sourcePunctuation(";")
+    )
+    : sourceLine(sourceText(" ")));
 
   return lines;
 }

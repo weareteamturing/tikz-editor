@@ -9,7 +9,7 @@ import {
 import { applyCursorOverlayFrame, CursorOverlay } from "../cursor-overlay";
 import { createCursorScript, type CursorFrame, type CursorScript } from "../cursor-script";
 import { mountRenderedScene, queryRenderedElement, wrapRenderedElements } from "../animation/rendered-scene";
-import { setSvgAttrs } from "../animation/svg-actors";
+import { applyLinePathEndpoints, prepareTransformDrivenLinePath, setSvgAttrs } from "../animation/svg-actors";
 import { renderEditHandlesForBounds } from "../edit-handles";
 import {
   selectionAlignCommonViewBox,
@@ -18,7 +18,6 @@ import {
 } from "../generated/feature-svgs";
 import {
   formatTikzNumber,
-  sourceComment,
   sourceKeyword,
   sourceLine,
   sourcePunctuation,
@@ -29,7 +28,7 @@ import {
   sourceText,
   type SourceLine
 } from "../source-preview";
-import { useDemoPlayback } from "../use-demo-playback";
+import { useDemoTimelinePlayback } from "../use-demo-playback";
 
 type NodeState = SelectionAlignCardState["leftNodes"][number];
 type Rect = { x: number; y: number; width: number; height: number };
@@ -77,7 +76,8 @@ function padBounds(bounds: Rect, pad: number): Rect {
 
 export function SelectionAlignCard() {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const playbackEnabled = useDemoPlayback(rootRef);
+  const timelineRef = useRef<gsap.core.Timeline | null>(null);
+  useDemoTimelinePlayback(rootRef, timelineRef);
   const cursorOverlayRef = useRef<SVGGElement | null>(null);
   const sourcePreviewRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<SVGGElement | null>(null);
@@ -186,6 +186,7 @@ export function SelectionAlignCard() {
 
     const leftStates: NodeState[] = leftInitial.map((node) => cloneNode(node));
     const rightStates: NodeState[] = rightInitial.map((node) => cloneNode(node));
+    edgePaths.forEach(prepareTransformDrivenLinePath);
 
     const updateEdges = (): void => {
       let edgeIndex = 0;
@@ -193,7 +194,7 @@ export function SelectionAlignCard() {
         for (const right of rightStates) {
           const from = { x: left.bounds.x + left.bounds.width, y: left.center.y };
           const to = { x: right.bounds.x, y: right.center.y };
-          setSvgAttrs(edgePaths[edgeIndex], { d: `M ${from.x} ${from.y} L ${to.x} ${to.y}` });
+          applyLinePathEndpoints(edgePaths[edgeIndex], from, to);
           edgeIndex += 1;
         }
       }
@@ -324,7 +325,7 @@ export function SelectionAlignCard() {
 
       tl.add(move);
       cursor.setStyle("pointer", move);
-      cursor.moveTo(anchor.x, anchor.y, 0.36, move, "power1.inOut");
+      cursor.glideTo(anchor.x, anchor.y, 0.36, move);
       tl.to({}, { duration: 0.18, ease: "none" }, `${move}+=0.36`);
 
       tl.add(press, `${move}+=0.54`);
@@ -372,7 +373,7 @@ export function SelectionAlignCard() {
 
       tl.add(btnMove, `${release}+=0.3`);
       cursor.setStyle("pointer", btnMove);
-      cursor.moveTo(toolbarCenter.x, toolbarCenter.y, 0.46, btnMove, "power1.inOut");
+      cursor.glideTo(toolbarCenter.x, toolbarCenter.y, 0.46, btnMove);
 
       tl.add(btnHover, `${btnMove}+=0.48`);
       tl.to({}, { duration: 0.36, ease: "none" }, btnHover);
@@ -427,23 +428,6 @@ export function SelectionAlignCard() {
       return end;
     };
 
-    if (!playbackEnabled) {
-      const startPos = {
-        x: padBounds(leftBounds, MARQUEE_PAD).x - CURSOR_OVERSHOOT - 4,
-        y: padBounds(leftBounds, MARQUEE_PAD).y - CURSOR_OVERSHOOT - 3
-      };
-      Object.assign(cursorStateRef.current, {
-        x: startPos.x,
-        y: startPos.y,
-        visible: true,
-        pressed: false,
-        cursor: "pointer"
-      });
-      commitCursorFrame();
-      resetAll();
-      return;
-    }
-
     const ctx = gsap.context(() => {
       const startPos = {
         x: padBounds(leftBounds, MARQUEE_PAD).x - CURSOR_OVERSHOOT - 4,
@@ -459,7 +443,8 @@ export function SelectionAlignCard() {
       commitCursorFrame();
       resetAll();
 
-      const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.9 });
+      const tl = gsap.timeline({ paused: true, repeat: -1, repeatDelay: 0.9 });
+      timelineRef.current = tl;
       const cursor = createCursorScript(tl, cursorStateRef.current, {
         onPositionChange: commitCursorPosition,
         onFrameChange: commitCursorFrame
@@ -499,10 +484,13 @@ export function SelectionAlignCard() {
       cursor.setStyle("pointer", "reset+=0.26");
     }, rootRef);
 
-    return () => ctx.revert();
+    return () => {
+      timelineRef.current = null;
+      ctx.revert();
+    };
   // GSAP owns this mount-time script; callback identities are intentionally excluded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leftBounds, rightBounds, leftInitial, rightInitial, leftFinal, rightFinal, toolbar, playbackEnabled]);
+  }, [leftBounds, rightBounds, leftInitial, rightInitial, leftFinal, rightFinal, toolbar]);
 
   return (
     <article className="featureCard" ref={rootRef}>
@@ -588,7 +576,7 @@ export function SelectionAlignCard() {
 function buildSelectionAlignSourceLines(state: SelectionAlignSourceState): SourceLine[] {
   const leftLabels = ["Start", "Mid", "Bottom"];
   const rightLabels = ["End", "End", "End"];
-  const lines: SourceLine[] = [sourceLine(sourceComment("% align selection demo"))];
+  const lines: SourceLine[] = [];
   const rowYs = [1, 0, -1.3];
   const leftPositions = state.leftNodes.map((node, index) => ({
     x: state.leftAligned ? state.leftTargetX : node.center.x / 25,

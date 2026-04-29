@@ -215,22 +215,33 @@ const CURSOR_DEFS: Record<CursorStyle, CursorDef> = {
 
 export function applyCursorOverlayFrame(target: SVGGElement, frame: CursorOverlayFrame, scale = 1): void {
   const def = CURSOR_DEFS[frame.cursor] ?? CURSOR_DEFS.pointer;
-  const offsetX = (def.offsetX ?? 0) * scale;
-  const offsetY = (def.offsetY ?? 0) * scale;
-  const transform = `translate(${frame.x + offsetX} ${frame.y + offsetY}) scale(${scale})`;
+  const transform = `translate3d(${frame.x}px, ${frame.y}px, 0) scale(${scale})`;
+  const glyphTransform = `translate(${def.offsetX ?? 0} ${def.offsetY ?? 0})`;
   const opacity = frame.visible ? "1" : "0";
 
   const previous = LAST_CURSOR_DOM_FRAME.get(target);
   if (!previous || previous.transform !== transform) {
-    target.setAttribute("transform", transform);
+    target.style.transform = transform;
+  }
+  const glyph = cursorGlyphFor(target);
+  if (glyph && (!previous || previous.glyphTransform !== glyphTransform)) {
+    glyph.setAttribute("transform", glyphTransform);
   }
   if (!previous || previous.opacity !== opacity) {
     target.style.opacity = opacity;
   }
-  LAST_CURSOR_DOM_FRAME.set(target, { transform, opacity });
+  LAST_CURSOR_DOM_FRAME.set(target, { glyphTransform, transform, opacity });
 }
 
-const LAST_CURSOR_DOM_FRAME = new WeakMap<SVGGElement, { transform: string; opacity: string }>();
+const LAST_CURSOR_DOM_FRAME = new WeakMap<SVGGElement, { glyphTransform: string; transform: string; opacity: string }>();
+const CURSOR_GLYPHS = new WeakMap<SVGGElement, SVGGElement | null>();
+
+function cursorGlyphFor(target: SVGGElement): SVGGElement | null {
+  if (!CURSOR_GLYPHS.has(target)) {
+    CURSOR_GLYPHS.set(target, target.querySelector<SVGGElement>("[data-landing-cursor-glyph]"));
+  }
+  return CURSOR_GLYPHS.get(target) ?? null;
+}
 
 export const CursorOverlay = memo(forwardRef<SVGGElement, CursorOverlayProps>(function CursorOverlay(
   { x, y, visible, cursor, scale = 1 }: CursorOverlayProps,
@@ -238,32 +249,38 @@ export const CursorOverlay = memo(forwardRef<SVGGElement, CursorOverlayProps>(fu
 ) {
   const def = CURSOR_DEFS[cursor] ?? CURSOR_DEFS.pointer;
   const size = def.size ?? 24;
-  const offsetX = (def.offsetX ?? 0) * scale;
-  const offsetY = (def.offsetY ?? 0) * scale;
 
   return (
     <g
       ref={ref}
       aria-hidden
-      transform={`translate(${x + offsetX} ${y + offsetY}) scale(${scale})`}
+      data-cursor-visible={visible ? "true" : "false"}
+      data-cursor-scale={scale}
+      data-cursor-x={x}
+      data-cursor-y={y}
+      data-landing-cursor
       style={{
         pointerEvents: "none",
-        opacity: visible ? 1 : 0,
-        transition: "opacity 120ms linear"
+        transformBox: "view-box",
+        transformOrigin: "0 0",
+        transition: "opacity 120ms linear",
+        willChange: "transform, opacity"
       }}
     >
-      <rect x="0" y="0" width={size} height={size} fill="none" />
-      {def.paths.map((path, i) => (
-        <path
-          key={i}
-          d={path.d}
-          fill={path.fill ?? "none"}
-          stroke={path.stroke ?? "none"}
-          strokeWidth={path.strokeWidth}
-          strokeLinecap={path.strokeLinecap}
-          strokeLinejoin={path.strokeLinejoin}
-        />
-      ))}
+      <g data-landing-cursor-glyph>
+        <rect x="0" y="0" width={size} height={size} fill="none" />
+        {def.paths.map((path, i) => (
+          <path
+            key={i}
+            d={path.d}
+            fill={path.fill ?? "none"}
+            stroke={path.stroke ?? "none"}
+            strokeWidth={path.strokeWidth}
+            strokeLinecap={path.strokeLinecap}
+            strokeLinejoin={path.strokeLinejoin}
+          />
+        ))}
+      </g>
     </g>
   );
 }));

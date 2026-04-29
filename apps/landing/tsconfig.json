@@ -7,7 +7,13 @@
     "jsx": "react-jsx",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@tikz-editor/app": ["../../packages/app/src/index.ts"],
+      "@tikz-editor/app/landing-assets": ["../../packages/app/src/landing-assets.ts"],
+      "tikz-editor/*": ["../../packages/core/src/*"]
+    }
   },
   "include": ["src"]
 }

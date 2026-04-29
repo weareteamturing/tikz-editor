@@ -11,6 +11,7 @@ export type CursorFrame = {
 
 export type CursorScript = {
   moveTo: (x: number, y: number, duration?: number, position?: string | number, ease?: string) => CursorScript;
+  glideTo: (x: number, y: number, duration?: number, position?: string | number, ease?: string) => CursorScript;
   setFrame: (frame: Partial<CursorFrame>, position?: string | number) => CursorScript;
   setStyle: (cursor: CursorStyle, position?: string | number) => CursorScript;
   setPressed: (pressed: boolean, position?: string | number) => CursorScript;
@@ -36,8 +37,27 @@ export function createCursorScript(
 
   const api: CursorScript = {
     moveTo(x, y, duration = 0.3, position, ease = "power1.inOut") {
-      timeline.to(state, { x, y, duration, ease, onUpdate: commitPosition }, position);
+      timeline.to(
+        state,
+        {
+          x,
+          y,
+          duration,
+          ease,
+          onStart: commitPosition,
+          onUpdate: commitPosition,
+          onComplete: () => {
+            state.x = x;
+            state.y = y;
+            commitPosition();
+          }
+        },
+        position
+      );
       return api;
+    },
+    glideTo(x, y, duration = 0.42, position, ease = "power2.inOut") {
+      return api.moveTo(x, y, duration, position, ease);
     },
     setFrame(frame, position) {
       timeline.call(() => {

@@ -6,7 +6,13 @@ import { renderEditHandlesForBounds } from "../edit-handles";
 import { nodeMoveCommonViewBox, nodeMoveInitial, nodeMoveMoved } from "../generated/feature-svgs";
 import { createCursorPathScript } from "../animation/cursor-path";
 import { offsetPoint, point } from "../animation/points";
-import { setSvgAttrs, toSvgAttrs, toTranslate } from "../animation/svg-actors";
+import {
+  applyLinePathEndpoints,
+  prepareTransformDrivenLinePath,
+  setSvgAttrs,
+  toSvgAttrs,
+  toTranslate
+} from "../animation/svg-actors";
 import { wrapRenderedElements } from "../animation/rendered-scene";
 import {
   formatTikzNumber,
@@ -20,7 +26,7 @@ import {
   sourceText,
   type SourceLine
 } from "../source-preview";
-import { useDemoPlayback } from "../use-demo-playback";
+import { useDemoTimelinePlayback } from "../use-demo-playback";
 
 type SceneRefs = {
   contentGroup: SVGGElement | null;
@@ -65,7 +71,7 @@ function setNodeFrame(elements: NodeSceneElements, frame: typeof nodeMoveInitial
     x: frame.sCenter.x - nodeMoveInitial.sCenter.x,
     y: frame.sCenter.y - nodeMoveInitial.sCenter.y
   });
-  setSvgAttrs(elements.edgeLine, { d: frame.edge.lineD });
+  applyNodeMoveLineFrame(elements.edgeLine, frame);
   setSvgAttrs(elements.edgeTip, { d: frame.edge.tipD });
 }
 
@@ -75,8 +81,7 @@ function tweenNodeFrame(
   frame: typeof nodeMoveInitial,
   duration: number,
   position: gsap.Position,
-  ease = "power1.inOut"
-  ,
+  ease = "power1.inOut",
   onUpdate?: () => void
 ): void {
   toTranslate(
@@ -88,7 +93,20 @@ function tweenNodeFrame(
     position,
     ease
   );
-  toSvgAttrs(tl, elements.edgeLine, { d: frame.edge.lineD }, duration, position, ease);
+  const lineFrame = { progress: 0 };
+  tl.to(lineFrame, {
+    progress: 1,
+    duration,
+    ease,
+    onUpdate: () => {
+      const progress = frame === nodeMoveMoved ? lineFrame.progress : 1 - lineFrame.progress;
+      applyLinePathEndpoints(
+        elements.edgeLine,
+        interpolatePoint(nodeMoveInitialEdgeEndpoints.from, nodeMoveMovedEdgeEndpoints.from, progress),
+        interpolatePoint(nodeMoveInitialEdgeEndpoints.to, nodeMoveMovedEdgeEndpoints.to, progress)
+      );
+    }
+  }, position);
   toSvgAttrs(tl, elements.edgeTip, { d: frame.edge.tipD }, duration, position, ease);
   if (onUpdate) {
     tl.to({}, { duration, ease, onUpdate }, position);
@@ -97,7 +115,8 @@ function tweenNodeFrame(
 
 export function NodeMoveCard() {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const playbackEnabled = useDemoPlayback(rootRef);
+  const timelineRef = useRef<gsap.core.Timeline | null>(null);
+  useDemoTimelinePlayback(rootRef, timelineRef);
   const cursorOverlayRef = useRef<SVGGElement | null>(null);
   const sourcePreviewRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<SceneRefs>({ contentGroup: null, handlesGroup: null });
@@ -105,6 +124,7 @@ export function NodeMoveCard() {
     s: { ...SOURCE_S_START },
     t: { ...SOURCE_T }
   });
+  const lastSourceKeyRef = useRef<string | null>(null);
   const cursorStateRef = useRef<CursorFrame>({
     x: nodeMoveInitial.sCenter.x,
     y: nodeMoveInitial.sCenter.y,
@@ -124,6 +144,16 @@ export function NodeMoveCard() {
     setCursorFrame({ ...cursorStateRef.current });
   };
   const commitSource = (): void => {
+    const sourceKey = [
+      formatTikzNumber(sourceStateRef.current.s.x),
+      formatTikzNumber(sourceStateRef.current.s.y),
+      formatTikzNumber(sourceStateRef.current.t.x),
+      formatTikzNumber(sourceStateRef.current.t.y)
+    ].join("|");
+    if (lastSourceKeyRef.current === sourceKey) {
+      return;
+    }
+    lastSourceKeyRef.current = sourceKey;
     if (sourcePreviewRef.current) {
       renderSourcePreview(sourcePreviewRef.current, buildNodeMoveSourceLines(sourceStateRef.current));
     }
@@ -154,6 +184,7 @@ export function NodeMoveCard() {
 
     const dx = nodeMoveMoved.sCenter.x - nodeMoveInitial.sCenter.x;
     const dy = nodeMoveMoved.sCenter.y - nodeMoveInitial.sCenter.y;
+    prepareTransformDrivenLinePath(elements.edgeLine);
 
     const initialCenter = point(nodeMoveInitial.sCenter.x, nodeMoveInitial.sCenter.y);
     const movedCenter = point(nodeMoveMoved.sCenter.x, nodeMoveMoved.sCenter.y);
@@ -176,12 +207,9 @@ export function NodeMoveCard() {
     });
     commitCursorFrame();
 
-    if (!playbackEnabled) {
-      return;
-    }
-
     const ctx = gsap.context(() => {
-      const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.9 });
+      const tl = gsap.timeline({ paused: true, repeat: -1, repeatDelay: 0.9 });
+      timelineRef.current = tl;
       tl.eventCallback("onRepeat", () => {
         sourceStateRef.current.s.x = SOURCE_S_START.x;
         sourceStateRef.current.s.y = SOURCE_S_START.y;
@@ -196,10 +224,10 @@ export function NodeMoveCard() {
       const cursorPath = createCursorPathScript(cursor, waypoints);
 
       tl.add("hoverStart");
-      cursorPath.moveTo("initialHover", 0.34, "hoverStart");
-      cursor.setStyle("move", "hoverStart+=0.14");
+      cursorPath.glideTo("initialHover", 0.55, "hoverStart");
+      cursor.setStyle("move", "hoverStart+=0.35");
 
-      tl.add("selectClick", "hoverStart+=0.36");
+      tl.add("selectClick", "hoverStart+=0.57");
       cursor.setPressed(true, "selectClick");
       cursor.setPressed(false, "selectClick+=0.12");
       tl.to(handlesGroup, { autoAlpha: 1, duration: 0.08, ease: "none" }, "selectClick+=0.02");
@@ -242,7 +270,7 @@ export function NodeMoveCard() {
       cursor.setPressed(false, "dragBackEnd-=0.14");
       cursor.setStyle("pointer", "dragBackEnd");
       tl.to({}, { duration: 0.26, ease: "none" }, "dragBackEnd");
-      cursorPath.moveTo("deselectOutside", 0.4, "dragBackEnd");
+      cursorPath.glideTo("deselectOutside", 0.4, "dragBackEnd");
 
       // Rest briefly at the outside point before clicking to deselect.
       tl.add("deselectClick", "dragBackEnd+=0.84");
@@ -261,10 +289,13 @@ export function NodeMoveCard() {
       cursor.setFrame({ pressed: false }, "deselectClick+=0.3");
     }, rootRef);
 
-    return () => ctx.revert();
+    return () => {
+      timelineRef.current = null;
+      ctx.revert();
+    };
   // GSAP owns this mount-time script; callback identities are intentionally excluded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playbackEnabled]);
+  }, []);
 
   const initialBounds = {
     x: nodeMoveInitial.sCenter.x - nodeMoveInitial.sRadius,
@@ -314,6 +345,33 @@ export function NodeMoveCard() {
       />
     </article>
   );
+}
+
+const nodeMoveInitialEdgeEndpoints = parseMoveLineEndpoints(nodeMoveInitial.edge.lineD);
+const nodeMoveMovedEdgeEndpoints = parseMoveLineEndpoints(nodeMoveMoved.edge.lineD);
+
+function applyNodeMoveLineFrame(target: Element, frame: typeof nodeMoveInitial): void {
+  const endpoints = frame === nodeMoveMoved ? nodeMoveMovedEdgeEndpoints : nodeMoveInitialEdgeEndpoints;
+  applyLinePathEndpoints(target, endpoints.from, endpoints.to);
+}
+
+function parseMoveLineEndpoints(d: string): { from: { x: number; y: number }; to: { x: number; y: number } } {
+  const numbers = [...d.matchAll(/-?\d+(?:\.\d+)?/g)].map((match) => Number(match[0]));
+  return {
+    from: { x: numbers[0] ?? 0, y: numbers[1] ?? 0 },
+    to: { x: numbers[2] ?? 0, y: numbers[3] ?? 0 }
+  };
+}
+
+function interpolatePoint(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  progress: number
+): { x: number; y: number } {
+  return {
+    x: from.x + (to.x - from.x) * progress,
+    y: from.y + (to.y - from.y) * progress
+  };
 }
 
 function buildNodeMoveSourceLines(state: NodeMoveSourceState): SourceLine[] {

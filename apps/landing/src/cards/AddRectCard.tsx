@@ -11,7 +11,6 @@ import { mountRenderedScene } from "../animation/rendered-scene";
 import { setSvgAttrs } from "../animation/svg-actors";
 import {
   formatTikzNumber,
-  sourceComment,
   sourceKeyword,
   sourceLine,
   sourcePunctuation,
@@ -21,7 +20,7 @@ import {
   sourceText,
   type SourceLine
 } from "../source-preview";
-import { useDemoPlayback } from "../use-demo-playback";
+import { useDemoTimelinePlayback } from "../use-demo-playback";
 
 type SceneRefs = {
   contentGroup: SVGGElement | null;
@@ -58,7 +57,8 @@ const ROTATE_HANDLE_GAP = 5.2;
 
 export function AddRectCard() {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const playbackEnabled = useDemoPlayback(rootRef);
+  const timelineRef = useRef<gsap.core.Timeline | null>(null);
+  useDemoTimelinePlayback(rootRef, timelineRef);
   const cursorOverlayRef = useRef<SVGGElement | null>(null);
   const sourcePreviewRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<SceneRefs>({
@@ -80,6 +80,7 @@ export function AddRectCard() {
     x1: 0,
     y1: 0
   });
+  const lastSourceKeyRef = useRef<string | null>(null);
 
   const commitCursorPosition = (): void => {
     if (cursorOverlayRef.current) {
@@ -91,8 +92,22 @@ export function AddRectCard() {
     setCursorFrame({ ...cursorStateRef.current });
   };
   const commitSource = (): void => {
+    const state = sourceStateRef.current;
+    const sourceKey = state.visible
+      ? [
+        "visible",
+        formatTikzNumber(state.x0),
+        formatTikzNumber(state.y0),
+        formatTikzNumber(state.x1),
+        formatTikzNumber(state.y1)
+      ].join("|")
+      : "hidden";
+    if (lastSourceKeyRef.current === sourceKey) {
+      return;
+    }
+    lastSourceKeyRef.current = sourceKey;
     if (sourcePreviewRef.current) {
-      renderSourcePreview(sourcePreviewRef.current, buildAddRectSourceLines(sourceStateRef.current));
+      renderSourcePreview(sourcePreviewRef.current, buildAddRectSourceLines(state));
     }
   };
   const idleAbove = point(addRectInitial.bounds.x - 6, addRectInitial.bounds.y - 18);
@@ -124,11 +139,16 @@ export function AddRectCard() {
     if (!bodyRect) {
       return;
     }
+    setSvgAttrs(bodyRect, {
+      d: "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+      "vector-effect": "non-scaling-stroke"
+    });
 
     const overlayRefs = queryEditHandleOverlayRefs(handlesGroup);
     if (!overlayRefs) {
       return;
     }
+    prepareTransformDrivenEditHandleOverlay(overlayRefs);
 
     const createState: RectBounds = { ...collapsedBounds };
     const resizeState: RectBounds = { ...initialBounds };
@@ -165,7 +185,7 @@ export function AddRectCard() {
     };
 
     const updateBodyAndOverlay = (bounds: RectBounds, overlayVisible: boolean, phase: "create" | "resize" | "reset"): void => {
-      setSvgAttrs(bodyRect, { d: rectPathD(bounds) });
+      applyRectPathBounds(bodyRect, bounds);
       applyEditHandleOverlayBounds(overlayRefs, bounds);
       handlesGroup.style.display = overlayVisible ? "inline" : "none";
       handlesGroup.style.opacity = overlayVisible ? "1" : "0";
@@ -186,19 +206,12 @@ export function AddRectCard() {
     });
     commitCursorFrame();
 
-    if (!playbackEnabled) {
-      gsap.set(contentGroup, { opacity: 1 });
-      gsap.set(handlesGroup, { opacity: 0, display: "none", visibility: "hidden" });
-      setSvgAttrs(bodyRect, { d: rectPathD(initialBounds) });
-      bodyRect.style.opacity = "1";
-      return;
-    }
-
     const ctx = gsap.context(() => {
       gsap.set(contentGroup, { opacity: 0 });
       gsap.set(handlesGroup, { opacity: 0, display: "none", visibility: "hidden" });
 
-      const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.9 });
+      const tl = gsap.timeline({ paused: true, repeat: -1, repeatDelay: 0.9 });
+      timelineRef.current = tl;
       const cursor = createCursorScript(tl, cursorStateRef.current, {
         onPositionChange: commitCursorPosition,
         onFrameChange: commitCursorFrame
@@ -215,7 +228,7 @@ export function AddRectCard() {
       tl.to({}, { duration: 0.26, ease: "none" }, 0);
 
       tl.add("createHover");
-      cursorPath.moveTo("createStart", 0.44, "createHover");
+      cursorPath.glideTo("createStart", 0.44, "createHover");
 
       tl.add("createPress", "createHover+=0.46");
       cursor.setPressed(true, "createPress");
@@ -235,7 +248,7 @@ export function AddRectCard() {
       cursor.setStyle("pointer", "createRelease");
 
       tl.add("resizeHoverMove", "createRelease+=0.2");
-      cursorPath.moveTo("resizeHover", 0.5, "resizeHoverMove", "power1.inOut");
+      cursorPath.glideTo("resizeHover", 0.5, "resizeHoverMove");
       cursor.setStyle(CURSOR_FOR_HANDLE_ROLE.right, "resizeHoverMove+=0.5");
 
       tl.add("resizePress", "resizeHoverMove+=0.54");
@@ -262,15 +275,18 @@ export function AddRectCard() {
       tl.call(() => {
         updateBodyAndOverlay(resetState, false, "reset");
       }, undefined, "reset+=0.6");
-      cursorPath.moveTo("idleAbove", 0.42, "reset", "power1.inOut");
+      cursorPath.moveTo("idleAbove", 0.7, "reset", "power1.inOut");
       cursor.setStyle(CURSOR_FOR_DRAG.toolCreate, "reset+=0.32");
       cursor.setPressed(false, "reset");
     }, rootRef);
 
-    return () => ctx.revert();
+    return () => {
+      timelineRef.current = null;
+      ctx.revert();
+    };
   // GSAP owns this mount-time script; callback identities are intentionally excluded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playbackEnabled]);
+  }, []);
 
   return (
     <article className="featureCard" ref={rootRef}>
@@ -319,9 +335,7 @@ export function AddRectCard() {
 
 function buildAddRectSourceLines(state: AddRectSourceState): SourceLine[] {
   if (!state.visible) {
-    return [
-      sourceLine(sourceComment("% drag to create a rectangle"))
-    ];
+    return [sourceLine(sourceText(" "))];
   }
 
   return [
@@ -367,10 +381,7 @@ function queryEditHandleOverlayRefs(handlesGroup: SVGGElement): EditHandleOverla
 
 function applyEditHandleOverlayBounds(refs: EditHandleOverlayRefs, bounds: RectBounds): void {
   setSvgAttrs(refs.selectionRect, {
-    x: bounds.x,
-    y: bounds.y,
-    width: Math.max(0.001, bounds.width),
-    height: Math.max(0.001, bounds.height)
+    transform: `translate(${bounds.x} ${bounds.y}) scale(${Math.max(0.001, bounds.width)} ${Math.max(0.001, bounds.height)})`
   });
 
   const centers = buildRectHandleCenters(bounds);
@@ -380,10 +391,7 @@ function applyEditHandleOverlayBounds(refs: EditHandleOverlayRefs, bounds: RectB
       return;
     }
     setSvgAttrs(handle, {
-      x: center.x - HANDLE_HALF_SIZE,
-      y: center.y - HANDLE_HALF_SIZE,
-      width: HANDLE_HALF_SIZE * 2,
-      height: HANDLE_HALF_SIZE * 2
+      transform: `translate(${center.x} ${center.y})`
     });
   });
 
@@ -394,18 +402,45 @@ function applyEditHandleOverlayBounds(refs: EditHandleOverlayRefs, bounds: RectB
   const glyphScale = (rotateRadius * 1.4) / 16;
 
   setSvgAttrs(refs.rotateStem, {
-    x1: rotateAnchorX,
-    y1: rotateAnchorY,
-    x2: rotateAnchorX,
-    y2: rotateY
+    transform: `translate(${rotateAnchorX} ${rotateAnchorY})`
   });
   setSvgAttrs(refs.rotateCircle, {
-    cx: rotateAnchorX,
-    cy: rotateY,
-    r: rotateRadius
+    transform: `translate(${rotateAnchorX} ${rotateY})`
   });
   setSvgAttrs(refs.rotateGlyph, {
     transform: `translate(${rotateAnchorX} ${rotateY}) scale(${glyphScale}) translate(-8 -8)`
+  });
+}
+
+function prepareTransformDrivenEditHandleOverlay(refs: EditHandleOverlayRefs): void {
+  setSvgAttrs(refs.selectionRect, {
+    x: 0,
+    y: 0,
+    width: 1,
+    height: 1,
+    "vector-effect": "non-scaling-stroke"
+  });
+  refs.handles.forEach((handle) => {
+    setSvgAttrs(handle, {
+      x: -HANDLE_HALF_SIZE,
+      y: -HANDLE_HALF_SIZE,
+      width: HANDLE_HALF_SIZE * 2,
+      height: HANDLE_HALF_SIZE * 2
+    });
+  });
+
+  const rotateRadius = HANDLE_HALF_SIZE * 1.3;
+  setSvgAttrs(refs.rotateStem, {
+    x1: 0,
+    y1: 0,
+    x2: 0,
+    y2: -ROTATE_HANDLE_GAP,
+    "vector-effect": "non-scaling-stroke"
+  });
+  setSvgAttrs(refs.rotateCircle, {
+    cx: 0,
+    cy: 0,
+    r: rotateRadius
   });
 }
 
@@ -435,10 +470,8 @@ function tweenRectBounds(
   );
 }
 
-function rectPathD(bounds: RectBounds): string {
-  const x0 = bounds.x;
-  const y0 = bounds.y;
-  const x1 = bounds.x + bounds.width;
-  const y1 = bounds.y + bounds.height;
-  return `M ${x0} ${y0} L ${x1} ${y0} L ${x1} ${y1} L ${x0} ${y1} Z`;
+function applyRectPathBounds(path: SVGPathElement, bounds: RectBounds): void {
+  setSvgAttrs(path, {
+    transform: `translate(${bounds.x} ${bounds.y}) scale(${Math.max(0.001, bounds.width)} ${Math.max(0.001, bounds.height)})`
+  });
 }

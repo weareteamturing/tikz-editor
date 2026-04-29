@@ -14,6 +14,7 @@ export type SourceTokenKind =
 export type SourceToken = {
   kind: SourceTokenKind;
   text: string;
+  className?: string;
 };
 
 export type SourceLine = readonly SourceToken[];
@@ -46,33 +47,69 @@ export function formatTikzNumber(value: number): string {
   return Object.is(rounded, -0) ? "0" : text;
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+function getTokenClassName(token: SourceToken): string {
+  return ["sourceToken", `sourceToken--${token.kind}`, token.className].filter(Boolean).join(" ");
 }
 
 export function renderSourcePreview(target: HTMLElement, lines: readonly SourceLine[]): void {
-  const html = lines
-    .map((line) => {
-      const tokens = line
-        .map((token) => `<span class="sourceToken sourceToken--${token.kind}">${escapeHtml(token.text)}</span>`)
-        .join("");
-      return `<span class="sourceLine">${tokens}</span>`;
-    })
-    .join("");
+  const signature = sourceStructureSignature(lines);
+  const previous = LAST_RENDERED_SOURCE.get(target);
 
-  const previous = LAST_RENDERED_SOURCE_HTML.get(target);
-  if (previous === html) {
+  if (!previous || previous.signature !== signature) {
+    LAST_RENDERED_SOURCE.set(target, mountSourcePreview(target, lines, signature));
     return;
   }
 
-  LAST_RENDERED_SOURCE_HTML.set(target, html);
-  target.innerHTML = html;
+  let tokenIndex = 0;
+  lines.forEach((line) => {
+    line.forEach((token) => {
+      const textNode = previous.textNodes[tokenIndex];
+      if (textNode && textNode.nodeValue !== token.text) {
+        textNode.nodeValue = token.text;
+      }
+      tokenIndex += 1;
+    });
+  });
 }
 
-const LAST_RENDERED_SOURCE_HTML = new WeakMap<HTMLElement, string>();
+type RenderedSourcePreview = {
+  signature: string;
+  textNodes: Text[];
+};
+
+const LAST_RENDERED_SOURCE = new WeakMap<HTMLElement, RenderedSourcePreview>();
+
+function sourceStructureSignature(lines: readonly SourceLine[]): string {
+  return lines
+    .map((line) => line.map((token) => `${token.kind}:${token.className ?? ""}`).join(","))
+    .join("|");
+}
+
+function mountSourcePreview(
+  target: HTMLElement,
+  lines: readonly SourceLine[],
+  signature: string
+): RenderedSourcePreview {
+  const fragment = document.createDocumentFragment();
+  const textNodes: Text[] = [];
+
+  lines.forEach((line) => {
+    const lineElement = document.createElement("span");
+    lineElement.className = "sourceLine";
+    line.forEach((token) => {
+      const tokenElement = document.createElement("span");
+      tokenElement.className = getTokenClassName(token);
+      const textNode = document.createTextNode(token.text);
+      textNodes.push(textNode);
+      tokenElement.append(textNode);
+      lineElement.append(tokenElement);
+    });
+    fragment.append(lineElement);
+  });
+
+  target.replaceChildren(fragment);
+  return { signature, textNodes };
+}
 
 export const SourcePreview = forwardRef<HTMLElement, SourcePreviewProps>(function SourcePreview(
   { lines, managedImperatively = false },
@@ -84,7 +121,7 @@ export const SourcePreview = forwardRef<HTMLElement, SourcePreviewProps>(functio
         {managedImperatively ? null : lines.map((line, lineIndex) => (
           <span className="sourceLine" key={lineIndex}>
             {line.map((token, tokenIndex) => (
-              <span className={`sourceToken sourceToken--${token.kind}`} key={`${lineIndex}-${tokenIndex}`}>
+              <span className={getTokenClassName(token)} key={`${lineIndex}-${tokenIndex}`}>
                 {token.text}
               </span>
             ))}

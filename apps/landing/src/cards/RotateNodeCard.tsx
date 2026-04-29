@@ -21,7 +21,7 @@ import {
   sourceText,
   type SourceLine
 } from "../source-preview";
-import { useDemoPlayback } from "../use-demo-playback";
+import { useDemoTimelinePlayback } from "../use-demo-playback";
 
 type SceneRefs = {
   contentGroup: SVGGElement | null;
@@ -30,7 +30,8 @@ type SceneRefs = {
 
 export function RotateNodeCard() {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const playbackEnabled = useDemoPlayback(rootRef);
+  const timelineRef = useRef<gsap.core.Timeline | null>(null);
+  useDemoTimelinePlayback(rootRef, timelineRef);
   const cursorOverlayRef = useRef<SVGGElement | null>(null);
   const sourcePreviewRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<SceneRefs>({
@@ -38,6 +39,7 @@ export function RotateNodeCard() {
     handlesGroup: null
   });
   const sourceStateRef = useRef({ rotation: 0 });
+  const lastSourceKeyRef = useRef<string | null>(null);
   const cursorStateRef = useRef<CursorFrame>({
     x: rotateNodeInitial.center.x - rotateNodeInitial.bounds.width / 2 - 28,
     y: rotateNodeInitial.center.y + rotateNodeInitial.bounds.height / 2 + 2,
@@ -57,6 +59,11 @@ export function RotateNodeCard() {
     setCursorFrame({ ...cursorStateRef.current });
   };
   const commitSource = (): void => {
+    const sourceKey = formatTikzNumber(sourceStateRef.current.rotation);
+    if (lastSourceKeyRef.current === sourceKey) {
+      return;
+    }
+    lastSourceKeyRef.current = sourceKey;
     if (sourcePreviewRef.current) {
       renderSourcePreview(sourcePreviewRef.current, buildRotateNodeSourceLines(sourceStateRef.current.rotation));
     }
@@ -103,14 +110,6 @@ export function RotateNodeCard() {
     sourceStateRef.current.rotation = 0;
     commitSource();
 
-    if (!playbackEnabled) {
-      gsap.set([bodyPath, labelSvg, handlesGroup], {
-        rotation: 0,
-        svgOrigin
-      });
-      return;
-    }
-
     const ctx = gsap.context(() => {
       gsap.set([bodyPath, labelSvg, handlesGroup], {
         rotation: 0,
@@ -128,7 +127,8 @@ export function RotateNodeCard() {
       });
       commitCursorFrame();
 
-      const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.85 });
+      const tl = gsap.timeline({ paused: true, repeat: -1, repeatDelay: 0.85 });
+      timelineRef.current = tl;
       const cursor = createCursorScript(tl, cursorStateRef.current, {
         onPositionChange: commitCursorPosition,
         onFrameChange: commitCursorFrame
@@ -140,10 +140,10 @@ export function RotateNodeCard() {
       });
 
       tl.add("approachHandle");
-      cursorPath.moveTo("handleStart", 0.36, "approachHandle");
-      cursor.setStyle(CURSOR_FOR_ROTATE_HANDLE, "approachHandle+=0.36");
+      cursorPath.glideTo("handleStart", 0.58, "approachHandle");
+      cursor.setStyle(CURSOR_FOR_ROTATE_HANDLE, "approachHandle+=0.58");
 
-      tl.add("grabHandle", "approachHandle+=0.36");
+      tl.add("grabHandle", "approachHandle+=0.58");
       cursor.setPressed(true, "grabHandle");
       cursor.setPressed(false, "grabHandle+=0.12");
 
@@ -180,10 +180,13 @@ export function RotateNodeCard() {
       cursor.setPressed(false, "returnStart");
     }, rootRef);
 
-    return () => ctx.revert();
+    return () => {
+      timelineRef.current = null;
+      ctx.revert();
+    };
   // GSAP owns this mount-time script; callback identities are intentionally excluded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playbackEnabled]);
+  }, []);
 
   const initialBounds = {
     x: rotateNodeInitial.bounds.x,

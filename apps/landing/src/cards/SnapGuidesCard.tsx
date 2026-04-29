@@ -19,7 +19,7 @@ import {
   sourceText,
   type SourceLine
 } from "../source-preview";
-import { useDemoPlayback } from "../use-demo-playback";
+import { useDemoTimelinePlayback } from "../use-demo-playback";
 
 type RectNode = {
   sourceId: string;
@@ -45,7 +45,8 @@ const SNAP_IDLE_START = {
 
 export function SnapGuidesCard() {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const playbackEnabled = useDemoPlayback(rootRef);
+  const timelineRef = useRef<gsap.core.Timeline | null>(null);
+  useDemoTimelinePlayback(rootRef, timelineRef);
   const cursorOverlayRef = useRef<SVGGElement | null>(null);
   const sourcePreviewRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<SVGGElement | null>(null);
@@ -58,9 +59,11 @@ export function SnapGuidesCard() {
   });
   const [cursorFrame, setCursorFrame] = useState<CursorFrame>({ ...cursorStateRef.current });
   const [snapLines, setSnapLines] = useState<SnapGuideLine[]>([]);
+  const snapLinesKeyRef = useRef("hidden");
   const sourceStateRef = useRef<SnapGuidesSourceState>({
     d: { ...SOURCE_D_START }
   });
+  const lastSourceKeyRef = useRef<string | null>(null);
   const commitCursorPosition = (): void => {
     if (cursorOverlayRef.current) {
       applyCursorOverlayFrame(cursorOverlayRef.current, cursorStateRef.current, 0.35);
@@ -71,9 +74,22 @@ export function SnapGuidesCard() {
     setCursorFrame({ ...cursorStateRef.current });
   };
   const commitSource = (): void => {
+    const sourceKey = `${formatTikzNumber(sourceStateRef.current.d.x)}|${formatTikzNumber(sourceStateRef.current.d.y)}`;
+    if (lastSourceKeyRef.current === sourceKey) {
+      return;
+    }
+    lastSourceKeyRef.current = sourceKey;
     if (sourcePreviewRef.current) {
       renderSourcePreview(sourcePreviewRef.current, buildSnapGuidesSourceLines(sourceStateRef.current));
     }
+  };
+  const commitSnapLines = (nextLines: SnapGuideLine[]): void => {
+    const nextKey = nextLines.map(snapLineKey).join("|") || "hidden";
+    if (snapLinesKeyRef.current === nextKey) {
+      return;
+    }
+    snapLinesKeyRef.current = nextKey;
+    setSnapLines(nextLines);
   };
 
   useLayoutEffect(() => {
@@ -160,7 +176,7 @@ export function SnapGuidesCard() {
           ]
         });
       }
-      setSnapLines(nextLines);
+      commitSnapLines(nextLines);
     };
 
     updateMoving(false);
@@ -173,10 +189,6 @@ export function SnapGuidesCard() {
     });
     commitCursorFrame();
 
-    if (!playbackEnabled) {
-      return;
-    }
-
     const ctx = gsap.context(() => {
       Object.assign(cursorStateRef.current, {
         x: SNAP_IDLE_START.x,
@@ -186,9 +198,10 @@ export function SnapGuidesCard() {
         cursor: "pointer"
       });
       commitCursorFrame();
-      setSnapLines([]);
+      commitSnapLines([]);
 
-      const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.8 });
+      const tl = gsap.timeline({ paused: true, repeat: -1, repeatDelay: 0.8 });
+      timelineRef.current = tl;
       tl.eventCallback("onRepeat", () => {
         sourceStateRef.current.d = { ...SOURCE_D_START };
         commitSource();
@@ -209,7 +222,7 @@ export function SnapGuidesCard() {
       tl.to({}, { duration: 0.28, ease: "none" }, 0);
 
       tl.add("hoverMove");
-      cursorPath.moveTo("hoverOnNode", 0.34, "hoverMove", "power1.inOut");
+      cursorPath.glideTo("hoverOnNode", 0.34, "hoverMove");
       cursor.setStyle(CURSOR_FOR_DRAG.element, "hoverMove+=0.34");
       tl.to({}, { duration: hoverHold, ease: "none" }, "hoverMove+=0.34");
 
@@ -246,7 +259,7 @@ export function SnapGuidesCard() {
       cursor.setPressed(false, "release");
       cursor.setStyle("pointer", "release");
       tl.call(() => {
-        setSnapLines([]);
+        commitSnapLines([]);
       }, undefined, "release+=0.05");
 
       tl.add("reset", "release+=0.4");
@@ -260,10 +273,13 @@ export function SnapGuidesCard() {
       cursor.setStyle("pointer", "reset+=0.3");
     }, rootRef);
 
-    return () => ctx.revert();
+    return () => {
+      timelineRef.current = null;
+      ctx.revert();
+    };
   // GSAP owns this mount-time script; callback identities are intentionally excluded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playbackEnabled]);
+  }, []);
 
   return (
     <article className="featureCard" ref={rootRef}>
@@ -345,6 +361,22 @@ function queryNode(root: ParentNode, node: RectNode): SVGPathElement | null {
 
 function queryLabel(root: ParentNode, node: RectNode): SVGSVGElement | null {
   return queryRenderedElement<SVGSVGElement>(root, `svg[data-source-id="${node.sourceId}"][data-text-renderer="mathjax"]`);
+}
+
+function snapLineKey(line: SnapGuideLine): string {
+  if (line.type === "points") {
+    return `points:${line.axis}:${line.points.map(pointKey).join(";")}`;
+  }
+  if (line.type === "pointer") {
+    return `pointer:${line.axis}:${pointKey(line.from)}:${pointKey(line.to)}`;
+  }
+  return `gap:${line.direction}:${line.gapKind}:${line.segments
+    .map(([from, to]) => `${pointKey(from)}-${pointKey(to)}`)
+    .join(";")}`;
+}
+
+function pointKey(point: { x: number; y: number }): string {
+  return `${point.x},${point.y}`;
 }
 
 function cloneNode(node: RectNode): RectNode {

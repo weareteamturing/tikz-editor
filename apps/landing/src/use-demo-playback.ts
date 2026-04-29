@@ -1,8 +1,10 @@
-import { RefObject, useEffect, useState } from "react";
+import { type RefObject, useEffect } from "react";
+import type gsap from "gsap";
 
-export function useDemoPlayback(targetRef: RefObject<Element | null>): boolean {
-  const [playbackEnabled, setPlaybackEnabled] = useState(false);
-
+export function useDemoTimelinePlayback(
+  targetRef: RefObject<Element | null>,
+  timelineRef: RefObject<gsap.core.Timeline | null>
+): void {
   useEffect(() => {
     const target = targetRef.current;
     if (!target || typeof window === "undefined") {
@@ -10,34 +12,41 @@ export function useDemoPlayback(targetRef: RefObject<Element | null>): boolean {
     }
 
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let isInView = false;
 
-    const updatePlayback = (inView: boolean): void => {
-      setPlaybackEnabled(inView && !mediaQuery.matches);
+    const syncPlayback = (): void => {
+      const timeline = timelineRef.current;
+      if (!timeline) {
+        return;
+      }
+      if (mediaQuery.matches) {
+        timeline.pause(0);
+        return;
+      }
+      if (isInView) {
+        timeline.resume();
+      } else {
+        timeline.pause();
+      }
     };
 
-    let isInView = false;
     const observer = new IntersectionObserver(
       ([entry]) => {
         isInView = entry?.isIntersecting ?? false;
-        updatePlayback(isInView);
+        syncPlayback();
       },
       {
         rootMargin: "120px 0px"
       }
     );
 
-    const handleMotionChange = (): void => {
-      updatePlayback(isInView);
-    };
-
     observer.observe(target);
-    mediaQuery.addEventListener("change", handleMotionChange);
+    mediaQuery.addEventListener("change", syncPlayback);
+    syncPlayback();
 
     return () => {
       observer.disconnect();
-      mediaQuery.removeEventListener("change", handleMotionChange);
+      mediaQuery.removeEventListener("change", syncPlayback);
     };
-  }, [targetRef]);
-
-  return playbackEnabled;
+  }, [targetRef, timelineRef]);
 }
