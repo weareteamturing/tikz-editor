@@ -53,6 +53,10 @@ select {
   overflow: hidden;
 }
 
+.deferredSectionsTrigger {
+  height: 1px;
+}
+
 .tikzDevHeader {
   height: var(--header-height);
   display: flex;
