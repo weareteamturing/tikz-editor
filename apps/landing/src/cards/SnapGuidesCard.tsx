@@ -44,7 +44,7 @@ const SNAP_IDLE_START = {
 };
 
 export function SnapGuidesCard() {
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLElement | null>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   useDemoTimelinePlayback(rootRef, timelineRef);
   const cursorOverlayRef = useRef<SVGGElement | null>(null);
@@ -282,9 +282,9 @@ export function SnapGuidesCard() {
   }, []);
 
   return (
-    <article className="featureCard" ref={rootRef}>
-      <div className="featureCardTitle">Snap guides appear while moving a node</div>
-      <svg className="featureScene" viewBox={snapGuidesCommonViewBox} role="img" aria-label="Snap guides demo">
+    <figure className="featureDemo" ref={rootRef}>
+      <svg className="featureScene" viewBox={snapGuidesCommonViewBox} role="img" aria-labelledby="snap-guides-demo-title">
+        <title id="snap-guides-demo-title">Snap guides appear while moving a node</title>
         <g ref={sceneRef} />
         <SnapGuidesOverlay lines={snapLines} strokeWidth={SNAP_STROKE_WIDTH} crossSize={SNAP_CROSS_SIZE} />
         <CursorOverlay
@@ -302,7 +302,7 @@ export function SnapGuidesCard() {
         lines={buildSnapGuidesSourceLines(sourceStateRef.current)}
         managedImperatively
       />
-    </article>
+    </figure>
   );
 }
 

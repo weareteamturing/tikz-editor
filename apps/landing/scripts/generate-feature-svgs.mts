@@ -141,6 +141,7 @@ type ForeachRepeatShowcaseSvg = ShowcaseSvg & {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_FILE = path.resolve(__dirname, "../src/generated/feature-svgs.ts");
+const DEMO_SVG_OPTIONS = { svg: { padding: 0 } } as const;
 
 async function renderNodeMoveStates(): Promise<NodeMoveStates> {
   const initialSource = String.raw`\begin{tikzpicture}
@@ -337,7 +338,7 @@ async function renderRotateNodeState(): Promise<RotateNodeState> {
 \node[draw=black,fill=white,rectangle] (e) at (0,0) {$e = mc^2$};
 \end{tikzpicture}`;
 
-  const rendered = await renderTikzToSvgAsync(source);
+  const rendered = await renderTikzToSvgAsync(source, DEMO_SVG_OPTIONS);
   const svg = rendered.svg.svg;
   const viewBox = capture(svg, /viewBox="([^"]+)"/, "viewBox");
   const innerSvg = extractInnerSvg(svg);
@@ -362,7 +363,7 @@ async function renderRotateNodeState(): Promise<RotateNodeState> {
 }
 
 async function renderCircleNodeMoveState(source: string): Promise<NodeMoveState> {
-  const rendered = await renderTikzToSvgAsync(source);
+  const rendered = await renderTikzToSvgAsync(source, DEMO_SVG_OPTIONS);
   const svg = rendered.svg.svg;
   const viewBox = capture(svg, /viewBox="([^"]+)"/, "viewBox");
   const innerSvg = extractInnerSvg(svg);
@@ -384,7 +385,7 @@ async function renderCircleNodeMoveState(source: string): Promise<NodeMoveState>
 }
 
 async function renderRectPairState(source: string): Promise<AddArrowState> {
-  const rendered = await renderTikzToSvgAsync(source);
+  const rendered = await renderTikzToSvgAsync(source, DEMO_SVG_OPTIONS);
   const svg = rendered.svg.svg;
   const viewBox = capture(svg, /viewBox="([^"]+)"/, "viewBox");
   const innerSvg = extractInnerSvg(svg);
@@ -406,7 +407,7 @@ async function renderRectPairState(source: string): Promise<AddArrowState> {
 }
 
 async function renderRectState(source: string): Promise<AddRectState> {
-  const rendered = await renderTikzToSvgAsync(source);
+  const rendered = await renderTikzToSvgAsync(source, DEMO_SVG_OPTIONS);
   const svg = rendered.svg.svg;
   const viewBox = capture(svg, /viewBox="([^"]+)"/, "viewBox");
   const innerSvg = extractInnerSvg(svg);
@@ -427,7 +428,7 @@ async function renderSnapGuideState(
   peerXIndex: number,
   peerYIndex: number
 ): Promise<SnapGuideState> {
-  const rendered = await renderTikzToSvgAsync(source);
+  const rendered = await renderTikzToSvgAsync(source, DEMO_SVG_OPTIONS);
   const svg = rendered.svg.svg;
   const viewBox = capture(svg, /viewBox="([^"]+)"/, "viewBox");
   const innerSvg = extractInnerSvg(svg);
@@ -448,7 +449,7 @@ async function renderSnapGuideState(
 }
 
 async function renderRectNetworkState(source: string): Promise<SelectionAlignState> {
-  const rendered = await renderTikzToSvgAsync(source);
+  const rendered = await renderTikzToSvgAsync(source, DEMO_SVG_OPTIONS);
   const svg = rendered.svg.svg;
   const viewBox = capture(svg, /viewBox="([^"]+)"/, "viewBox");
   const innerSvg = extractInnerSvg(svg);

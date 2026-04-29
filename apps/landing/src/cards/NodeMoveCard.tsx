@@ -114,7 +114,7 @@ function tweenNodeFrame(
 }
 
 export function NodeMoveCard() {
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLElement | null>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   useDemoTimelinePlayback(rootRef, timelineRef);
   const cursorOverlayRef = useRef<SVGGElement | null>(null);
@@ -305,9 +305,9 @@ export function NodeMoveCard() {
   };
 
   return (
-    <article className="featureCard" ref={rootRef}>
-      <div className="featureCardTitle">Node drag keeps edge attached</div>
-      <svg className="featureScene" viewBox={nodeMoveCommonViewBox} role="img" aria-label="Node drag demo">
+    <figure className="featureDemo" ref={rootRef}>
+      <svg className="featureScene" viewBox={nodeMoveCommonViewBox} role="img" aria-labelledby="node-move-demo-title">
+        <title id="node-move-demo-title">Node drag keeps edge attached</title>
         <g
           ref={(el) => {
             sceneRef.current.contentGroup = el;
@@ -343,7 +343,7 @@ export function NodeMoveCard() {
         lines={buildNodeMoveSourceLines(sourceStateRef.current)}
         managedImperatively
       />
-    </article>
+    </figure>
   );
 }
 

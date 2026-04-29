@@ -29,7 +29,7 @@ type SceneRefs = {
 };
 
 export function RotateNodeCard() {
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLElement | null>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   useDemoTimelinePlayback(rootRef, timelineRef);
   const cursorOverlayRef = useRef<SVGGElement | null>(null);
@@ -196,9 +196,9 @@ export function RotateNodeCard() {
   };
 
   return (
-    <article className="featureCard" ref={rootRef}>
-      <div className="featureCardTitle">Rotate handle spins the node</div>
-      <svg className="featureScene" viewBox={rotateNodeInitial.viewBox} role="img" aria-label="Rotate node demo">
+    <figure className="featureDemo" ref={rootRef}>
+      <svg className="featureScene" viewBox={rotateNodeInitial.viewBox} role="img" aria-labelledby="rotate-node-demo-title">
+        <title id="rotate-node-demo-title">Rotate handle spins the node</title>
         <g
           ref={(el) => {
             sceneRef.current.contentGroup = el;
@@ -234,7 +234,7 @@ export function RotateNodeCard() {
         lines={buildRotateNodeSourceLines(sourceStateRef.current.rotation)}
         managedImperatively
       />
-    </article>
+    </figure>
   );
 }
 

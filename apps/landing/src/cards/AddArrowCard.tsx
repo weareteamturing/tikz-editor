@@ -36,7 +36,7 @@ const NODE_REVEAL_RADIUS = 10.5;
 const ANCHOR_SNAP_RADIUS = 4.2;
 
 export function AddArrowCard() {
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLElement | null>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   useDemoTimelinePlayback(rootRef, timelineRef);
   const cursorOverlayRef = useRef<SVGGElement | null>(null);
@@ -199,9 +199,9 @@ export function AddArrowCard() {
   }, []);
 
   return (
-    <article className="featureCard" ref={rootRef}>
-      <div className="featureCardTitle">Add arrow snaps to node anchors</div>
-      <svg className="featureScene" viewBox={addArrowCommonViewBox} role="img" aria-label="Add arrow demo">
+    <figure className="featureDemo" ref={rootRef}>
+      <svg className="featureScene" viewBox={addArrowCommonViewBox} role="img" aria-labelledby="add-arrow-demo-title">
+        <title id="add-arrow-demo-title">Add arrow snaps to node anchors</title>
         <g
           ref={(el) => {
             sceneRef.current.contentGroup = el;
@@ -265,7 +265,7 @@ export function AddArrowCard() {
         lines={buildAddArrowSourceLines(sourceStateRef.current)}
         managedImperatively
       />
-    </article>
+    </figure>
   );
 }
 

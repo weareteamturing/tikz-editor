@@ -75,7 +75,7 @@ function padBounds(bounds: Rect, pad: number): Rect {
 }
 
 export function SelectionAlignCard() {
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLElement | null>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   useDemoTimelinePlayback(rootRef, timelineRef);
   const cursorOverlayRef = useRef<SVGGElement | null>(null);
@@ -493,9 +493,9 @@ export function SelectionAlignCard() {
   }, [leftBounds, rightBounds, leftInitial, rightInitial, leftFinal, rightFinal, toolbar]);
 
   return (
-    <article className="featureCard" ref={rootRef}>
-      <div className="featureCardTitle">Marquee select and align center</div>
-      <svg className="featureScene" viewBox={selectionAlignCommonViewBox} role="img" aria-label="Align selection demo">
+    <figure className="featureDemo" ref={rootRef}>
+      <svg className="featureScene" viewBox={selectionAlignCommonViewBox} role="img" aria-labelledby="selection-align-demo-title">
+        <title id="selection-align-demo-title">Marquee select and align center</title>
         <g ref={(el) => { sceneRef.current = el; }} />
 
         <rect
@@ -569,7 +569,7 @@ export function SelectionAlignCard() {
         lines={buildSelectionAlignSourceLines(sourceStateRef.current)}
         managedImperatively
       />
-    </article>
+    </figure>
   );
 }
 

@@ -56,7 +56,7 @@ const SELECTION_STROKE_WIDTH = 0.24;
 const ROTATE_HANDLE_GAP = 5.2;
 
 export function AddRectCard() {
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLElement | null>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   useDemoTimelinePlayback(rootRef, timelineRef);
   const cursorOverlayRef = useRef<SVGGElement | null>(null);
@@ -288,9 +288,9 @@ export function AddRectCard() {
   }, []);
 
   return (
-    <article className="featureCard" ref={rootRef}>
-      <div className="featureCardTitle">Rectangle draw and resize follows the handle</div>
-      <svg className="featureScene" viewBox={addRectCommonViewBox} role="img" aria-label="Rectangle draw demo">
+    <figure className="featureDemo" ref={rootRef}>
+      <svg className="featureScene" viewBox={addRectCommonViewBox} role="img" aria-labelledby="add-rectangle-demo-title">
+        <title id="add-rectangle-demo-title">Rectangle draw and resize follows the handle</title>
         <g
           ref={(el) => {
             sceneRef.current.contentGroup = el;
@@ -328,7 +328,7 @@ export function AddRectCard() {
         lines={buildAddRectSourceLines(sourceStateRef.current)}
         managedImperatively
       />
-    </article>
+    </figure>
   );
 }
 
