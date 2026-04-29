@@ -661,8 +661,8 @@ function queryNodePath(root: ParentNode, node: NodeState): SVGPathElement | null
   return queryRenderedElement<SVGPathElement>(root, `path[data-source-id="${node.sourceId}"]:not([fill="none"])`);
 }
 
-function queryNodeLabel(root: ParentNode, node: NodeState): SVGSVGElement | null {
-  return queryRenderedElement<SVGSVGElement>(root, `svg[data-source-id="${node.sourceId}"][data-text-renderer="mathjax"]`);
+function queryNodeLabel(root: ParentNode, node: NodeState): SVGImageElement | null {
+  return queryRenderedElement<SVGImageElement>(root, `[data-source-id="${node.sourceId}"][data-text-renderer="mathjax"]`);
 }
 
 function cloneNode(node: NodeState): NodeState {

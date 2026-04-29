@@ -359,8 +359,8 @@ function queryNode(root: ParentNode, node: RectNode): SVGPathElement | null {
   return queryRenderedElement<SVGPathElement>(root, `path[data-source-id="${node.sourceId}"]:not([fill="none"])`);
 }
 
-function queryLabel(root: ParentNode, node: RectNode): SVGSVGElement | null {
-  return queryRenderedElement<SVGSVGElement>(root, `svg[data-source-id="${node.sourceId}"][data-text-renderer="mathjax"]`);
+function queryLabel(root: ParentNode, node: RectNode): SVGImageElement | null {
+  return queryRenderedElement<SVGImageElement>(root, `[data-source-id="${node.sourceId}"][data-text-renderer="mathjax"]`);
 }
 
 function snapLineKey(line: SnapGuideLine): string {

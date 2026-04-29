@@ -1,22 +1,23 @@
 :root {
   --bg-pane: #ffffff;
-  --bg-app: #eeeeec;
-  --bg-header: #f7f7f4;
-  --bg-subtle: #f4f1ea;
-  --border: #cfcfca;
-  --border-light: #deded8;
-  --border-lighter: #e8e8e1;
-  --btn-hover-bg: #eeeeea;
-  --btn-disabled-bg: #f5f5f2;
+  --bg-app: #faf7f4;
+  --bg-header: #f4f1eb;
+  --bg-subtle: #f6f1e9;
+  --border: #c8c1b8;
+  --border-light: #d8d0c6;
+  --border-lighter: #e6ded4;
+  --btn-hover-bg: #eee7de;
+  --btn-disabled-bg: #f6f1eb;
   --btn-disabled-text: #9b9b94;
-  --text: #1d1d1b;
-  --text-muted: #595955;
-  --text-faint: #73736d;
-  --accent: #1769aa;
-  --accent-dark: #10578f;
+  --text: #000000;
+  --text-muted: #45423e;
+  --text-faint: #6b665f;
+  --accent: #1a458f;
+  --accent-dark: #163a78;
   --color-snap: #d92332;
-  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --header-height: 60px;
+  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, Roboto, "Segoe UI", "Source Sans Pro", Arial, sans-serif;
+  --font-mono: "SF Mono", SFMono-Regular, ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, "Source Code Pro", monospace;
   font-family: var(--font-ui);
   color: var(--text);
   background: var(--bg-app);
@@ -34,6 +35,7 @@ body {
   margin: 0;
   background: var(--bg-app);
   color: var(--text);
+  font-size: 100%;
 }
 
 a {
@@ -51,6 +53,44 @@ select {
   overflow: hidden;
 }
 
+.tikzDevHeader {
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #1a458f;
+  color: #fff;
+  border-bottom: 1px solid color-mix(in srgb, #000 20%, #1a458f);
+}
+
+.tikzDevHeader strong {
+  display: block;
+  margin-left: 0.4em;
+  font-size: 1.1em;
+  line-height: 1.2;
+}
+
+.tikzDevHeader a,
+.tikzDevHeader a:visited,
+.tikzDevHeader a:hover {
+  color: #fff;
+  text-decoration: none;
+}
+
+.tikzDevParentLink {
+  font-weight: 400;
+}
+
+.tikzDevHamburger {
+  font-family: "Linux Libertine O", "Hoefler Text", "Garamond", "Bembo", "Janson", "TeX Gyre Pagella", "Palatino", "Liberation Serif", "Nimbus Roman No 9 L", "FreeSerif", Times, "Times New Roman", serif;
+  padding-left: 0.5em;
+  padding-right: 0.2em;
+  font-size: 1.3em;
+  line-height: 1;
+}
+
 .heroSection,
 .wideSection,
 .storyBlock,
@@ -62,7 +102,7 @@ select {
 }
 
 .heroSection {
-  padding: 72px 0 52px;
+  padding: 52px 0 42px;
 }
 
 .heroCopy {
@@ -89,17 +129,17 @@ p {
 
 h1 {
   margin-bottom: 16px;
-  font-size: clamp(56px, 8vw, 104px);
-  line-height: 0.95;
-  font-weight: 720;
+  font-size: clamp(42px, 6vw, 72px);
+  line-height: 1.04;
+  font-weight: 700;
   letter-spacing: 0;
 }
 
 h2 {
   margin-bottom: 14px;
-  font-size: clamp(30px, 4vw, 54px);
-  line-height: 1.02;
-  font-weight: 690;
+  font-size: clamp(28px, 3.6vw, 44px);
+  line-height: 1.14;
+  font-weight: 700;
   letter-spacing: 0;
 }
 
@@ -119,8 +159,8 @@ h3 {
 .sectionText p,
 .galleryHeader p {
   color: var(--text-muted);
-  font-size: 18px;
-  line-height: 1.55;
+  font-size: 17px;
+  line-height: 1.5;
 }
 
 .heroActions {
@@ -133,17 +173,28 @@ h3 {
 .textLink {
   text-decoration: none;
   border-bottom: 1px solid currentColor;
-  color: var(--text);
+  color: #000080;
   font-size: 14px;
   line-height: 1.4;
 }
 
+.textLink:visited {
+  color: #800000;
+}
+
+.textLink:hover {
+  color: #4545df;
+  text-decoration: underline;
+}
+
 .heroScreenshotFrame {
-  margin: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  background: var(--bg-pane);
-  box-shadow: 0 20px 60px color-mix(in srgb, black 14%, transparent);
+  width: min(1280px, calc(100vw - 16px));
+  margin: 0 0 0 50%;
+  transform: translateX(-50%);
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .heroScreenshotFrame img {
@@ -158,7 +209,7 @@ h3 {
   gap: clamp(28px, 5vw, 72px);
   align-items: center;
   padding: 76px 0;
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid color-mix(in srgb, silver 74%, transparent);
 }
 
 .sectionText {
@@ -175,7 +226,7 @@ h3 {
 
 .storyBlock {
   padding: 74px 0;
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid color-mix(in srgb, silver 74%, transparent);
   content-visibility: auto;
   contain-intrinsic-size: auto 760px;
 }
@@ -519,7 +570,7 @@ h3 {
 .gallerySection,
 .showcaseSection {
   padding: 80px 0;
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid color-mix(in srgb, silver 74%, transparent);
   content-visibility: auto;
   contain-intrinsic-size: auto 760px;
 }
@@ -599,7 +650,7 @@ h3 {
 
 .inspectorColorMock {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 230px;
+  grid-template-columns: minmax(0, 1fr) 238px;
   grid-template-rows: auto auto;
   gap: 0;
 }
@@ -608,11 +659,15 @@ h3 {
   min-width: 0;
   background: #f1f1ef;
   border-right: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  padding: 24px;
 }
 
 .inspectorCanvasPane svg {
   display: block;
   width: 100%;
+  max-height: 248px;
   height: auto;
 }
 
@@ -631,43 +686,40 @@ h3 {
 .repeatPanel {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  padding: 12px;
   background: #fbfbfa;
 }
 
 .panelTitle {
-  margin-bottom: 2px;
   color: var(--text);
   font-size: 13px;
   font-weight: 650;
 }
 
 .inspectorPanelMock label,
-.inspectorProperty,
-.repeatPanel label {
+.inspectorProperty {
   display: grid;
   gap: 4px;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .inspectorPanelMock input,
-.inspectorPanelMock select,
-.repeatPanel input {
+.inspectorPanelMock select {
   width: 100%;
-  height: 26px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  height: 22px;
+  border: 1px solid var(--border-light);
+  border-radius: 2px;
   background: var(--bg-pane);
   color: var(--text);
-  padding: 0 8px;
-  font-size: 12px;
+  padding: 0 5px;
+  font-size: 11px;
 }
 
 .inspectorPanelMock {
   position: relative;
   min-height: 280px;
+  gap: 9px;
+  padding: 12px;
 }
 
 .inspectorPropertyActive {
@@ -695,67 +747,181 @@ h3 {
 .inspectorPopover {
   position: absolute;
   z-index: 5;
-  top: 45px;
+  top: 41px;
   right: 0;
-  width: min(326px, calc(100vw - 48px));
-  border: 1px solid var(--border);
-  box-shadow: 0 12px 28px color-mix(in srgb, black 16%, transparent);
+  width: min(258px, calc(100vw - 48px));
+  box-shadow: 0 10px 24px color-mix(in srgb, black 28%, transparent);
   background: var(--bg-pane);
 }
 
 .foreachSection {
-  grid-template-columns: minmax(240px, 0.58fr) minmax(0, 1.42fr);
+  grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1.58fr);
+  --foreach-source-cols: 78;
+  --foreach-source-width: 545px;
 }
 
 .foreachDemo {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 210px;
+  grid-template-columns: minmax(240px, 1fr) var(--foreach-source-width);
   grid-template-rows: auto auto;
+  gap: 14px 24px;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  overflow: visible;
 }
 
 .foreachSource {
-  grid-column: 1 / -1;
-  border-bottom: 1px solid var(--border);
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
+  width: var(--foreach-source-width);
+  max-height: none;
+  min-height: 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  background: color-mix(in srgb, white 88%, var(--bg-app));
+  box-shadow: 0 18px 42px color-mix(in srgb, black 10%, transparent);
+  font-size: 11px;
+  line-height: 1.45;
+  transform: translateY(-4px);
 }
 
 .foreachCanvas {
+  grid-column: 1;
+  grid-row: 1 / span 2;
   min-width: 0;
-  background: #f1f1ef;
-  border-right: 1px solid var(--border);
+  background: transparent;
+  border: 0;
   display: grid;
   place-items: center;
-  padding: 18px;
+  padding: 6px 0;
+  overflow: visible;
 }
 
 .foreachRenderedSvg {
   display: block;
-  width: 100%;
-  max-height: 240px;
+  width: min(100%, 360px);
+  max-height: 300px;
+  overflow: visible;
 }
 
 .repeatPanel {
-  border-left: 0;
+  grid-column: 2;
+  grid-row: 2;
+  width: min(100%, 344px);
+  justify-self: end;
+  align-self: start;
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: 6px;
+  box-shadow: 0 20px 46px color-mix(in srgb, black 14%, transparent);
+  overflow: hidden;
+}
+
+.repeatHeader {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px 7px 12px;
+  border-bottom: 1px solid var(--border-lighter);
+  background: var(--bg-pane);
+}
+
+.repeatCloseButton {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.repeatCloseButton:hover {
+  background: var(--btn-hover-bg);
+  color: var(--text);
+}
+
+.repeatBody {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.repeatGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.repeatGrid label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.repeatGrid input {
+  width: 100%;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-pane);
+  color: var(--text);
+  padding: 0 7px;
+  font-size: 12px;
 }
 
 .repeatMetrics {
   display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+}
+
+.repeatMetrics div {
+  display: flex;
   justify-content: space-between;
   gap: 8px;
   color: var(--text-muted);
-  font-size: 11px;
 }
 
 .repeatMetrics strong {
   color: var(--text);
 }
 
-.repeatPanel button {
+.repeatFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--border-lighter);
+}
+
+.repeatSecondaryButton,
+.repeatPrimaryButton {
+  min-width: 72px;
   height: 28px;
   border: 1px solid var(--accent-dark);
   border-radius: 4px;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.repeatSecondaryButton {
+  border-color: var(--border);
+  background: var(--bg-pane);
+  color: var(--text-muted);
+}
+
+.repeatPrimaryButton {
   background: var(--accent-dark);
   color: white;
-  cursor: pointer;
 }
 
 .capabilitySection {
@@ -763,7 +929,7 @@ h3 {
   grid-template-columns: 0.8fr 1.2fr;
   gap: clamp(28px, 5vw, 72px);
   padding: 80px 0 96px;
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid color-mix(in srgb, silver 74%, transparent);
 }
 
 .pipeline {
@@ -1001,6 +1167,25 @@ h3 {
   .inspectorColorMock,
   .foreachDemo {
     grid-template-columns: 1fr;
+  }
+
+  .foreachSource,
+  .foreachCanvas,
+  .repeatPanel {
+    grid-column: 1;
+  }
+
+  .foreachSource {
+    grid-row: 1;
+  }
+
+  .foreachCanvas {
+    grid-row: 2;
+  }
+
+  .repeatPanel {
+    grid-row: 3;
+    justify-self: stretch;
   }
 
   .storyBlockHeader {

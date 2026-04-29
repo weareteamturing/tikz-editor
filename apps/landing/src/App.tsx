@@ -16,6 +16,7 @@ import { SelectionAlignCard } from "./cards/SelectionAlignCard";
 import { RotateNodeCard } from "./cards/RotateNodeCard";
 import { applyCursorOverlayFrame, CursorOverlay, type CursorStyle } from "./cursor-overlay";
 import { createCursorScript, type CursorFrame } from "./cursor-script";
+import { renderEditHandlesForBounds, type RectBounds } from "./edit-handles";
 import { mountRenderedScene, wrapRenderedElements } from "./animation/rendered-scene";
 import { applyLinePathEndpoints, prepareTransformDrivenLinePath, setSvgAttrs } from "./animation/svg-actors";
 import {
@@ -63,19 +64,93 @@ const CAPABILITIES = [
   "PNG export"
 ];
 
+type ParsedSvgMarkup = {
+  viewBox: string;
+  innerSvg: string;
+};
+
+const GENERATED_OPEN_EXAMPLE_PREVIEWS_BY_ID = GENERATED_OPEN_EXAMPLE_PREVIEWS as Record<string, { svg: string | null } | undefined>;
+const FOREACH_NODE_FILL = cssColorForToken("blue!10") ?? "#e6e6ff";
+
+const VENN_SELECTED_SET_BOUNDS: RectBounds = {
+  x: -39.8339,
+  y: -56.39,
+  width: 79.6678,
+  height: 79.6678
+};
+
+function parseSvgMarkup(svg: string | null | undefined): ParsedSvgMarkup | null {
+  if (!svg) {
+    return null;
+  }
+  const viewBox = svg.match(/\bviewBox="([^"]+)"/)?.[1];
+  const openTagEnd = svg.indexOf(">");
+  const closeTagStart = svg.lastIndexOf("</svg>");
+  if (!viewBox || openTagEnd < 0 || closeTagStart < openTagEnd) {
+    return null;
+  }
+  return {
+    viewBox,
+    innerSvg: svg.slice(openTagEnd + 1, closeTagStart)
+  };
+}
+
+function getVennInspectorSvg(fillCss: string, strokeCss: string): ParsedSvgMarkup | null {
+  const parsed = parseSvgMarkup(GENERATED_OPEN_EXAMPLE_PREVIEWS_BY_ID.venn?.svg);
+  if (!parsed) {
+    return null;
+  }
+  return {
+    viewBox: parsed.viewBox,
+    innerSvg: parsed.innerSvg
+      .replace('fill="#ccccff"', `fill="${fillCss}"`)
+      .replace(/(<path data-source-id="path:0"[^>]*\bstroke=")[^"]+/, `$1${strokeCss}`)
+  };
+}
+
+function ignoreChange(): void {}
+
+function parseCircleBounds(circleSvg: string): RectBounds | null {
+  const cx = Number.parseFloat(circleSvg.match(/\bcx="([^"]+)"/)?.[1] ?? "");
+  const cy = Number.parseFloat(circleSvg.match(/\bcy="([^"]+)"/)?.[1] ?? "");
+  const r = Number.parseFloat(circleSvg.match(/\br="([^"]+)"/)?.[1] ?? "");
+  if (!Number.isFinite(cx) || !Number.isFinite(cy) || !Number.isFinite(r)) {
+    return null;
+  }
+  return {
+    x: cx - r,
+    y: cy - r,
+    width: r * 2,
+    height: r * 2
+  };
+}
+
+function applyForeachNodeStyle(circleSvg: string): string {
+  return circleSvg.replace('fill="none"', `fill="${FOREACH_NODE_FILL}"`);
+}
+
 export function App() {
   return (
-    <main className="landingPage">
-      <Hero />
-      <SourceScrubSection />
-      <CanvasEditSection />
-      <ExamplesGallery />
-      <LayoutToolsSection />
-      <ShapeShowcase />
-      <InspectorColorSection />
-      <ForeachRepeatSection />
-      <CapabilityClose />
-    </main>
+    <div className="tikzDevPage">
+      <header className="tikzDevHeader">
+        <div className="tikzDevHamburger" aria-hidden="true">☰</div>
+        <strong>
+          <a href="https://tikz.dev" className="tikzDevParentLink">tikz.dev / </a>
+          <a href="/editor">TikZ Editor</a>
+        </strong>
+      </header>
+      <main className="landingPage">
+        <Hero />
+        <SourceScrubSection />
+        <CanvasEditSection />
+        <ExamplesGallery />
+        <LayoutToolsSection />
+        <ShapeShowcase />
+        <InspectorColorSection />
+        <ForeachRepeatSection />
+        <CapabilityClose />
+      </main>
+    </div>
   );
 }
 
@@ -250,10 +325,11 @@ function ShapeShowcase() {
 }
 
 function InspectorColorSection() {
-  const [fillColor, setFillColor] = useState("green!15");
-  const [strokeColor, setStrokeColor] = useState("blue!30");
-  const fillCss = cssColorForToken(fillColor) ?? "#d9f99d";
-  const strokeCss = cssColorForToken(strokeColor) ?? "#93c5fd";
+  const [fillColor, setFillColor] = useState("blue!20");
+  const [strokeColor, setStrokeColor] = useState("black");
+  const fillCss = cssColorForToken(fillColor) ?? "#ccccff";
+  const strokeCss = cssColorForToken(strokeColor) ?? "#111827";
+  const vennSvg = getVennInspectorSvg(fillCss, strokeCss);
 
   return (
     <StoryStrip
@@ -263,25 +339,23 @@ function InspectorColorSection() {
       visual={
         <div className="inspectorColorMock">
           <div className="inspectorCanvasPane">
-            <svg viewBox="0 0 360 210" role="img" aria-label="Selected TikZ node styled by the inspector">
-              <path d="M64 106 C108 40 222 40 292 102" fill="none" stroke="#111827" strokeWidth="1.2" />
-              <path d="M292 102 L283 98 L286 104 Z" fill="#111827" />
-              <rect x="86" y="70" width="118" height="52" rx="7" fill={fillCss} stroke={strokeCss} strokeWidth="2" />
-              <text x="145" y="103" textAnchor="middle" fontFamily="serif" fontSize="22">Start</text>
-              <rect className="selectionBox" x="82" y="66" width="126" height="60" rx="3" />
-              {[
-                [82, 66],
-                [145, 66],
-                [208, 66],
-                [208, 96],
-                [208, 126],
-                [145, 126],
-                [82, 126],
-                [82, 96]
-              ].map(([x, y]) => <rect className="selectionHandle" x={x - 4} y={y - 4} width="8" height="8" rx="1.5" key={`${x}-${y}`} />)}
-              <rect x="242" y="82" width="72" height="40" rx="5" fill="#f8fafc" stroke="#111827" />
-              <text x="278" y="108" textAnchor="middle" fontFamily="serif" fontSize="18">End</text>
-            </svg>
+            {vennSvg ? (
+              <svg viewBox={vennSvg.viewBox} role="img" aria-label="Selected Venn diagram set styled by the inspector">
+                <g
+                  className="inspectorRenderedVenn"
+                  dangerouslySetInnerHTML={{ __html: vennSvg.innerSvg }}
+                />
+                <g className="inspectorSelectionOverlay">
+                  {renderEditHandlesForBounds({
+                    bounds: VENN_SELECTED_SET_BOUNDS,
+                    handleHalfSize: 2.2,
+                    handleStrokeWidth: 0.45,
+                    selectionStrokeWidth: 0.38,
+                    rotateHandleGap: 11
+                  })}
+                </g>
+              </svg>
+            ) : null}
           </div>
           <div className="inspectorPanelMock">
             <div className="panelTitle">Inspector</div>
@@ -306,7 +380,7 @@ function InspectorColorSection() {
               </div>
             </div>
             <label className="inspectorProperty">
-              <span>Stroke</span>
+              <span>Draw</span>
               <div className="inspectorValueTrigger">
                 <span className="inspectorSwatch" style={{ background: strokeCss }} aria-hidden="true" />
                 <input value={strokeColor} onChange={(event) => setStrokeColor(event.target.value)} />
@@ -314,13 +388,13 @@ function InspectorColorSection() {
             </label>
             <label className="inspectorProperty">
               <span>Shape</span>
-              <select value="rounded rectangle" onChange={() => undefined}>
-                <option>rounded rectangle</option>
+              <select value="circle" onChange={ignoreChange}>
+                <option>circle</option>
               </select>
             </label>
             <label className="inspectorProperty">
-              <span>Minimum width</span>
-              <input value="2.8 cm" onChange={() => undefined} />
+              <span>Opacity</span>
+              <input value="0.5" readOnly />
             </label>
           </div>
         </div>
@@ -490,12 +564,62 @@ function SourceEditDemo() {
           y: labelRect.top - wrapRect.top + labelRect.height / 2
         },
         labelRight: {
-          x: labelRect.right - wrapRect.left + 1,
+          x: labelRect.right - wrapRect.left - 1.5,
           y: labelRect.top - wrapRect.top + labelRect.height / 2
         },
         labelHeight: labelRect.height
       };
     };
+
+    const setTypedLabelState = (state: SourceEditState): void => {
+      const elements = sceneElementsRef.current;
+      if (!elements) {
+        return;
+      }
+      applySourceEditNodeFrame(elements, getSourceEditLabelFrame(state));
+      sourceStateRef.current.x = state.sourceX;
+      sourceStateRef.current.label = state.label;
+      commitSource();
+    };
+
+    const getSourceEditLabelFrame = (() => {
+      const frames = new WeakMap<SourceEditState, SourceEditLabelFrame>();
+      return (state: SourceEditState): SourceEditLabelFrame => {
+        const cached = frames.get(state);
+        if (cached) {
+          return cached;
+        }
+        const scratch = document.createElementNS("http://www.w3.org/2000/svg", "g") as SVGGElement;
+        mountRenderedScene(scratch, state.innerSvg);
+        const label = scratch.querySelector<SVGImageElement>('[data-source-id="path:1"][data-text-renderer="mathjax"]');
+        const circle = scratch.querySelector<SVGCircleElement>('circle[data-source-id="path:1"]');
+        if (!label || !circle) {
+          return { attrs: {}, circleAttrs: {} };
+        }
+        const attrs = Object.fromEntries(Array.from(label.attributes).map((attribute) => [attribute.name, attribute.value]));
+        const circleAttrs = Object.fromEntries(Array.from(circle.attributes).map((attribute) => [attribute.name, attribute.value]));
+        const dx = state.aCenter.x - sourceEditStates.initial.aCenter.x;
+        const dy = state.aCenter.y - sourceEditStates.initial.aCenter.y;
+        if (attrs.x !== undefined) {
+          attrs.x = formatPathNumber(Number(attrs.x) - dx);
+        }
+        if (attrs.y !== undefined) {
+          attrs.y = formatPathNumber(Number(attrs.y) - dy);
+        }
+        if (circleAttrs.cx !== undefined) {
+          circleAttrs.cx = formatPathNumber(Number(circleAttrs.cx) - dx);
+        }
+        if (circleAttrs.cy !== undefined) {
+          circleAttrs.cy = formatPathNumber(Number(circleAttrs.cy) - dy);
+        }
+        const frame = {
+          circleAttrs,
+          attrs
+        };
+        frames.set(state, frame);
+        return frame;
+      };
+    })();
 
     const updateCaretAfterLabel = (): void => {
       const metrics = measureSourceMetrics();
@@ -617,7 +741,7 @@ function SourceEditDemo() {
         }
         const position = `textApproach+=${1.28 + (index - 1) * 0.24}`;
         tl.call(() => {
-          setRenderedState(state);
+          setTypedLabelState(state);
           updateCaretAfterLabel();
         }, undefined, position);
       });
@@ -691,6 +815,8 @@ function SourceEditDemo() {
 
 type SourceEditSceneElements = {
   aNodeGroup: SVGGElement;
+  aCircle: SVGCircleElement;
+  aLabel: SVGImageElement;
   edgeLine: SVGPathElement;
   edgeTip: SVGPathElement;
 };
@@ -706,6 +832,11 @@ type SourceEditMetrics = {
   labelLeft: SourceEditPoint;
   labelRight: SourceEditPoint;
   labelHeight: number;
+};
+
+type SourceEditLabelFrame = {
+  circleAttrs: Record<string, string>;
+  attrs: Record<string, string>;
 };
 
 type SourceEditCaretFrame = {
@@ -764,8 +895,8 @@ function interpolateSourceEditCursorPath(
 }
 
 function querySourceEditSceneElements(contentGroup: SVGGElement): SourceEditSceneElements | null {
-  const aCircle = contentGroup.querySelector('circle[data-source-id="path:1"]');
-  const aLabel = contentGroup.querySelector('svg[data-source-id="path:1"][data-text-renderer="mathjax"]');
+  const aCircle = contentGroup.querySelector<SVGCircleElement>('circle[data-source-id="path:1"]');
+  const aLabel = contentGroup.querySelector<SVGImageElement>('[data-source-id="path:1"][data-text-renderer="mathjax"]');
   const edgeLine = contentGroup.querySelector<SVGPathElement>('path[data-source-id="path:3"]:not([data-arrow-tip-kind])');
   const edgeTip = contentGroup.querySelector<SVGPathElement>('path[data-source-id="path:3"][data-arrow-tip-kind]');
   if (!aCircle || !aLabel || !edgeLine || !edgeTip) {
@@ -775,7 +906,28 @@ function querySourceEditSceneElements(contentGroup: SVGGElement): SourceEditScen
   if (!aNodeGroup) {
     return null;
   }
-  return { aNodeGroup, edgeLine, edgeTip };
+  return { aNodeGroup, aCircle, aLabel, edgeLine, edgeTip };
+}
+
+function applySourceEditNodeFrame(elements: SourceEditSceneElements, frame: SourceEditLabelFrame): void {
+  applySourceEditElementFrame(elements.aCircle, frame.circleAttrs);
+  applySourceEditElementFrame(elements.aLabel, frame.attrs);
+}
+
+function applySourceEditElementFrame(target: Element, attrs: Record<string, string>): void {
+  Array.from(target.attributes).forEach((attribute) => {
+    if (attribute.name.startsWith("data-")) {
+      return;
+    }
+    if (!(attribute.name in attrs)) {
+      target.removeAttribute(attribute.name);
+    }
+  });
+  Object.entries(attrs).forEach(([name, value]) => {
+    if (target.getAttribute(name) !== value) {
+      target.setAttribute(name, value);
+    }
+  });
 }
 
 function tweenSourceEditState(
@@ -866,14 +1018,6 @@ function formatPathNumber(value: number): string {
 function buildSourceEditLines(state: { x: number; label: string }): SourceLine[] {
   return [
     sourceLine(
-      sourceKeyword("\\draw"),
-      sourceText("[->] "),
-      sourcePunctuation("(a)"),
-      sourceText(" -- "),
-      sourcePunctuation("(b)"),
-      sourceText(";")
-    ),
-    sourceLine(
       sourceKeyword("\\node"),
       sourceText("[draw, fill=blue!10] "),
       sourcePunctuation("(a)"),
@@ -891,6 +1035,14 @@ function buildSourceEditLines(state: { x: number; label: string }): SourceLine[]
       sourcePunctuation("(b)"),
       sourceText(" at (3.2, 0) "),
       sourceString("{B}"),
+      sourceText(";")
+    ),
+    sourceLine(
+      sourceKeyword("\\draw"),
+      sourceText("[->] "),
+      sourcePunctuation("(a)"),
+      sourceText(" -- "),
+      sourcePunctuation("(b)"),
       sourceText(";")
     )
   ];
@@ -921,6 +1073,8 @@ function ForeachRepeatDemo() {
   const [columns, setColumns] = useState(5);
   const [rows, setRows] = useState(3);
   const foreach = landingShowcaseSvgs.foreachRepeat as ForeachRepeatShowcaseSvg;
+  const visibleCells = foreach.cells.filter((cell) => cell.x <= columns && cell.y <= rows);
+  const initialNodeBounds = parseCircleBounds(foreach.cells.find((cell) => cell.x === 1 && cell.y === 1)?.circleSvg ?? "");
 
   return (
     <div className="foreachDemo">
@@ -931,37 +1085,66 @@ function ForeachRepeatDemo() {
           viewBox={foreach.viewBox}
           role="img"
           aria-label="Foreach output with repeat preview"
-          dangerouslySetInnerHTML={{
-            __html: foreach.cells
-              .filter((cell) => cell.x <= columns && cell.y <= rows)
-              .map((cell) => `${cell.circleSvg}${cell.labelSvg}`)
-              .join("")
-          }}
-        />
+        >
+          <g
+            dangerouslySetInnerHTML={{
+              __html: visibleCells
+                .map((cell) => applyForeachNodeStyle(cell.circleSvg))
+                .join("")
+            }}
+          />
+          {initialNodeBounds ? (
+            <g className="foreachInitialHandles">
+              {renderEditHandlesForBounds({
+                bounds: initialNodeBounds,
+                handleHalfSize: 1.3,
+                handleStrokeWidth: 0.32,
+                selectionStrokeWidth: 0.28,
+                rotateHandleGap: 6
+              })}
+            </g>
+          ) : null}
+        </svg>
       </div>
       <div className="repeatPanel">
-        <div className="panelTitle">Repeat</div>
-        <label>
-          <span>Columns</span>
-          <input type="number" min="1" max="6" value={columns} onChange={(event) => setColumns(clampRepeatValue(event.target.value))} />
-        </label>
-        <label>
-          <span>Rows</span>
-          <input type="number" min="1" max="4" value={rows} onChange={(event) => setRows(clampRepeatValue(event.target.value, 4))} />
-        </label>
-        <label>
-          <span>H Step (cm)</span>
-          <input value="1.4" onChange={() => undefined} />
-        </label>
-        <label>
-          <span>V Step (cm)</span>
-          <input value="1.1" onChange={() => undefined} />
-        </label>
-        <div className="repeatMetrics">
-          <span>Selection</span>
-          <strong>0.7 cm x 0.7 cm</strong>
+        <div className="repeatHeader">
+          <div className="panelTitle">Repeat</div>
+          <button className="repeatCloseButton" type="button" aria-label="Close repeat dialog">&times;</button>
         </div>
-        <button type="button">Apply</button>
+        <div className="repeatBody">
+          <div className="repeatGrid">
+            <label>
+              <span>Columns</span>
+              <input type="number" min="1" max="6" value={columns} onChange={(event) => setColumns(clampRepeatValue(event.target.value))} />
+            </label>
+            <label>
+              <span>Rows</span>
+              <input type="number" min="1" max="4" value={rows} onChange={(event) => setRows(clampRepeatValue(event.target.value, 4))} />
+            </label>
+            <label>
+              <span>H Step (cm)</span>
+              <input type="number" step="0.1" value="1" readOnly />
+            </label>
+            <label>
+              <span>V Step (cm)</span>
+              <input type="number" step="0.1" value="1" readOnly />
+            </label>
+          </div>
+          <div className="repeatMetrics">
+            <div>
+              <span>Selection</span>
+              <strong>0.87 cm &times; 0.87 cm</strong>
+            </div>
+            <div>
+              <span>Gap</span>
+              <strong>0.13 cm &times; 0.13 cm</strong>
+            </div>
+          </div>
+        </div>
+        <div className="repeatFooter">
+          <button className="repeatSecondaryButton" type="button">Cancel</button>
+          <button className="repeatPrimaryButton" type="button">Apply</button>
+        </div>
       </div>
     </div>
   );
@@ -993,15 +1176,11 @@ function ForeachSource({ columns, rows }: { columns: number; rows: number }) {
         <span className="sourceLine">
           <span>{"    "}</span>
           <span className="sourceToken sourceToken--keyword">{"\\node"}</span>
-          <span>{"[circle,draw,minimum size=8mm] at ("}</span>
+          <span>{"[circle, draw, fill=blue!10, minimum size=8mm] at ("}</span>
           <span className="sourceToken sourceToken--meta">{"\\x"}</span>
           <span>{",-"}</span>
           <span className="sourceToken sourceToken--meta">{"\\y"}</span>
-          <span>{") {"}</span>
-          <span className="sourceToken sourceToken--meta">{"\\x"}</span>
-          <span>{","}</span>
-          <span className="sourceToken sourceToken--meta">{"\\y"}</span>
-          <span>{"};"}</span>
+          <span>{") {};"}</span>
         </span>
         <span className="sourceLine">{"  }"}</span>
         <span className="sourceLine">{"}"}</span>

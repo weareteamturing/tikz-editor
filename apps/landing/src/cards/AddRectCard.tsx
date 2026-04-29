@@ -232,7 +232,6 @@ export function AddRectCard() {
 
       tl.add("createPress", "createHover+=0.46");
       cursor.setPressed(true, "createPress");
-      cursor.setPressed(false, "createPress+=0.12");
 
       tl.add("createDrag", "createPress+=0.16");
       tl.to(contentGroup, { opacity: 1, duration: 0.05, ease: "none" }, "createDrag");
@@ -245,6 +244,7 @@ export function AddRectCard() {
       tl.call(() => {
         updateBodyAndOverlay(resizeState, true, "resize");
       }, undefined, "createRelease");
+      cursor.setPressed(false, "createRelease");
       cursor.setStyle("pointer", "createRelease");
 
       tl.add("resizeHoverMove", "createRelease+=0.2");
@@ -253,15 +253,14 @@ export function AddRectCard() {
 
       tl.add("resizePress", "resizeHoverMove+=0.54");
       cursor.setPressed(true, "resizePress");
-      cursor.setPressed(false, "resizePress+=0.12");
 
       tl.add("resizeDrag", "resizePress+=0.16");
-      cursorPath.moveTo("resizeEnd", 0.74, "resizeDrag", "power1.inOut");
-      tweenRectBounds(tl, resizeState, initialBounds, resizedBounds, 0.74, "resizeDrag", "power1.inOut", (bounds) =>
+      cursorPath.moveTo("resizeEnd", 1.35, "resizeDrag", "power1.inOut");
+      tweenRectBounds(tl, resizeState, initialBounds, resizedBounds, 1.315, "resizeDrag+=0.035", "power1.inOut", (bounds) =>
         updateBodyAndOverlay(bounds, true, "resize")
       );
 
-      tl.add("resizeRelease", "resizeDrag+=0.74");
+      tl.add("resizeRelease", "resizeDrag+=1.35");
       cursor.setPressed(false, "resizeRelease");
       cursor.setStyle("pointer", "resizeRelease");
 
