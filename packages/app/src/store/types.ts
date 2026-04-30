@@ -241,6 +241,7 @@ export type EditorAction =
       historyMergeKey?: string;
       parseOptions?: {
         indentSize?: 2 | 4;
+        propertyWriteMode?: "commit" | "preview" | "drag-frame" | "drag-end";
       };
       /** False for transient UI previews that should not affect undo/redo history. */
       recordInHistory?: boolean;

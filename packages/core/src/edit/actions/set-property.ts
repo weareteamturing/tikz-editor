@@ -38,6 +38,14 @@ export function applySetPropertyAction(
   action: SetPropertyAction,
   parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
+  return applySetPropertyActionRaw(source, action, parseOptions);
+}
+
+export function applySetPropertyActionRaw(
+  source: string,
+  action: SetPropertyAction,
+  parseOptions: EditParseOptions = {}
+): EditActionResultLike {
   const resolved = resolvePropertyTarget(source, action.elementId, parseOptions);
   if (resolved.kind === "not-found") {
     return { kind: "unsupported", reason: resolved.reason };

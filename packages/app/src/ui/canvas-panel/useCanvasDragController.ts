@@ -1125,6 +1125,16 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
         }
       }
 
+      const cleanupElementIds = propertyCleanupElementIdsForDrag(drag);
+      if ("historyMergeKey" in drag && typeof drag.historyMergeKey === "string" && cleanupElementIds.length > 0) {
+        dispatch({
+          type: "APPLY_EDIT_ACTION",
+          action: { kind: "cleanupPropertyWrites", elementIds: cleanupElementIds },
+          historyMergeKey: drag.historyMergeKey,
+          parseOptions: { propertyWriteMode: "drag-end" }
+        });
+      }
+
       setNodeAnchorOverlay(null);
       setSnapLines([]);
       setDragTooltip(null);
@@ -1182,6 +1192,25 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
     svgResult,
     svgResultRef
   ]);
+}
+
+function propertyCleanupElementIdsForDrag(drag: DragState): string[] {
+  switch (drag.kind) {
+    case "element":
+      return drag.elementIds;
+    case "resize":
+    case "rotate":
+      return [drag.elementId];
+    case "handle":
+      return [drag.sourceId];
+    case "tool-create":
+    case "pan":
+    case "marquee":
+    case "tool-bezier-bend":
+    case "tool-path-segment":
+    case "tool-freehand":
+      return [];
+  }
 }
 
 function snapGridResizeWorldPoint(point: WorldPoint, config: GridResizeSnapConfig): WorldPoint {

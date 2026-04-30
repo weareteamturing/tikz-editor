@@ -54,7 +54,11 @@ import {
 } from "./actions/move-arrange-actions.js";
 import { applyReorderElementsAction, buildParentReorderReplacement } from "./actions/reorder-elements.js";
 import { applyResizeElementAction } from "./actions/resize-element.js";
-import { applySetPropertyAction } from "./actions/set-property.js";
+import {
+  applyPlannedSetPropertyAction,
+  cleanupIdiomaticPropertyWrites,
+  PROPERTY_WRITE_CLEANUP_NOOP_REASON
+} from "./property-write-planner.js";
 import { applyGroupElementsAction, applyUngroupElementsAction } from "./actions/group-ungroup-actions.js";
 import { applyRepeatElementsAction } from "./actions/repeat.js";
 import {
@@ -87,6 +91,7 @@ export type { ElementTemplate } from "./element-templates.js";
 export type ReorderDirection = "sendToBack" | "sendBackward" | "bringForward" | "bringToFront";
 export { ADORNMENT_EDIT_NOOP_REASON } from "./actions/adornment-set-property.js";
 export { PATH_ATTACHED_NODE_EDIT_NOOP_REASON } from "./actions/path-attached-node-actions.js";
+export { PROPERTY_WRITE_CLEANUP_NOOP_REASON };
 
 export type EditAction =
   | { kind: "moveElement"; elementId: string; delta: WorldPoint }
@@ -114,6 +119,7 @@ export type EditAction =
       commentSourceText?: string;
     }
   | { kind: "updateNodeText"; elementId: string; text: string }
+  | { kind: "cleanupPropertyWrites"; elementIds?: string[] }
   | { kind: "addElement"; template: ElementTemplate; at: WorldPoint }
   | { kind: "deleteElement"; elementId: string }
   | { kind: "deleteElements"; elementIds: string[] }
@@ -222,6 +228,8 @@ export function applyEditAction(
         return applySetProperty(source, action, parseOptions);
       case "updateNodeText":
         return applyUpdateNodeText(source, action, parseOptions);
+      case "cleanupPropertyWrites":
+        return cleanupIdiomaticPropertyWrites(source, { ...parseOptions, propertyWriteMode: "drag-end" }, action.elementIds);
       case "addElement":
         return applyAddElement(source, action.template, action.at);
       case "deleteElement":
@@ -661,6 +669,8 @@ function inferChangedSourceIds(
       return normalizeElementIds([action.matrixSourceId]);
     case "setProperty":
       return normalizeElementIds([action.elementId]);
+    case "cleanupPropertyWrites":
+      return normalizeElementIds(action.elementIds ?? []);
     case "updateNodeText":
       return normalizeElementIds([action.elementId]);
     case "resizeElement":
@@ -888,7 +898,7 @@ function applySetProperty(
   action: Extract<EditAction, { kind: "setProperty" }>,
   parseOptions: EditParseOptions
 ): EditActionResult {
-  return applySetPropertyAction(source, action, parseOptions);
+  return applyPlannedSetPropertyAction(source, action, parseOptions);
 }
 
 function applyUpdateNodeText(

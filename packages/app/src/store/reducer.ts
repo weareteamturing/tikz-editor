@@ -1,4 +1,4 @@
-import { applyEditAction } from "tikz-editor/edit/actions";
+import { applyEditAction, PROPERTY_WRITE_CLEANUP_NOOP_REASON } from "tikz-editor/edit/actions";
 import type { EditActionResult } from "tikz-editor/edit/actions";
 import type {
   CanvasTransform,
@@ -859,13 +859,17 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
                 activeDoc.activeFigureId == null
                   ? (activeDoc.snapshot.figures.length > 1 ? null : undefined)
                   : activeDoc.activeFigureId,
-              indentSize: action.parseOptions?.indentSize
+              indentSize: action.parseOptions?.indentSize,
+              propertyWriteMode: action.parseOptions?.propertyWriteMode ?? (action.recordInHistory === false ? "preview" : "commit")
             }
           }
         );
       }
 
       if (result.kind !== "success" && result.kind !== "partial") {
+        if (action.action.kind === "cleanupPropertyWrites" && result.kind === "unsupported" && result.reason === PROPERTY_WRITE_CLEANUP_NOOP_REASON) {
+          return state;
+        }
         const message =
           result.kind === "unsupported"
             ? `Edit action skipped: ${result.reason}`
@@ -930,7 +934,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         action.action.kind === "moveHandle" || action.action.kind === "connectHandle" || action.action.kind === "moveAdornment" ? "move-handle" :
         action.action.kind === "splitPath" || action.action.kind === "joinPaths" || action.action.kind === "toggleClosedPath" ||
         action.action.kind === "deletePathPoint" || action.action.kind === "setPathPointKind" ? "path-edit" :
-        action.action.kind === "setProperty" || action.action.kind === "updateNodeText" ? "set-property" :
+        action.action.kind === "setProperty" || action.action.kind === "updateNodeText" || action.action.kind === "cleanupPropertyWrites" ? "set-property" :
         action.action.kind === "alignElements" ? "align" :
         action.action.kind === "distributeElements" ? "distribute" :
         action.action.kind === "reorderElements" ? "reorder" :

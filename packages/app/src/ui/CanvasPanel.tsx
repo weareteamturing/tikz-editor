@@ -18,6 +18,7 @@ import { clientPoint as makeClientPoint,svgPoint as makeSvgPoint,worldPoint as m
 import {
 ADORNMENT_EDIT_NOOP_REASON,
 PATH_ATTACHED_NODE_EDIT_NOOP_REASON,
+PROPERTY_WRITE_CLEANUP_NOOP_REASON,
 applyEditAction,
 type EditAction
 } from "tikz-editor/edit/actions";
@@ -1842,7 +1843,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     (action: EditAction, historyMergeKey?: string): ApplyActionFeedback => {
       const result = applyEditAction(source, snapshot.editHandles, action, {
         evaluateOptions: { textEngine: textEngineRef.current },
-        parseOptions: editParseOptions
+        parseOptions: { ...editParseOptions, propertyWriteMode: "drag-frame" }
       });
 
       if (result.kind === "success" || result.kind === "partial") {
@@ -1872,6 +1873,9 @@ export const CanvasPanel = memo(function CanvasPanel({
           return { sourceChanged: false };
         }
         if (action.kind === "movePathAttachedNode" && result.reason === PATH_ATTACHED_NODE_EDIT_NOOP_REASON) {
+          return { sourceChanged: false };
+        }
+        if (action.kind === "cleanupPropertyWrites" && result.reason === PROPERTY_WRITE_CLEANUP_NOOP_REASON) {
           return { sourceChanged: false };
         }
         setWarning(result.reason);
@@ -2771,7 +2775,8 @@ export const CanvasPanel = memo(function CanvasPanel({
         elements: snapshot.scene?.elements ?? [],
         editHandles: snapshot.editHandles,
         activeFigureId,
-        figureCount: snapshot.figures.length
+        figureCount: snapshot.figures.length,
+        propertyWriteMode: "commit"
       });
 
       if (resolution.kind !== "ready") {
@@ -3212,7 +3217,8 @@ export const CanvasPanel = memo(function CanvasPanel({
       elements: snapshot.scene?.elements ?? [],
       editHandles: snapshot.editHandles,
       activeFigureId,
-      figureCount: snapshot.figures.length
+      figureCount: snapshot.figures.length,
+      propertyWriteMode: "preview"
     });
 
     if (resolution.kind !== "ready") {

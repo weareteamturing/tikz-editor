@@ -8,7 +8,10 @@ export type EditParseOptions = {
   analysisView?: EditAnalysisView | null;
   colorAliases?: ReadonlyMap<string, string> | null;
   indentSize?: 2 | 4;
+  propertyWriteMode?: PropertyWriteInteractionMode;
 };
+
+export type PropertyWriteInteractionMode = "commit" | "preview" | "drag-frame" | "drag-end";
 
 export function parseTikzForEdit(source: string, options: EditParseOptions = {}): ParseTikzResult {
   incrementProfilingCounter("parseTikzForEditCalls");

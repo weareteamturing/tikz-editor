@@ -142,7 +142,7 @@ export function StylesPanel() {
         dispatch({
           type: "APPLY_EDIT_ACTION",
           historyMergeKey: mergeKey,
-          parseOptions: { indentSize: editorIndentSize },
+          parseOptions: { indentSize: editorIndentSize, propertyWriteMode: "commit" },
           action
         });
       }

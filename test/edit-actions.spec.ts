@@ -1244,6 +1244,175 @@ describe("applyEditAction – setProperty", () => {
     }
   });
 
+  it("rewrites no-draw \\draw paths to \\path when certified", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[blue, thick] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "draw",
+      value: "none"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\path[thick] (0,0) -- (1,0);");
+      expect(result.newSource).not.toContain("\\draw[none");
+      expect(result.newSource).not.toContain("draw=none");
+    }
+  });
+
+  it("rewrites no-fill \\fill paths to \\path when certified", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \fill[yellow] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "fill",
+      value: "none"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\path (0,0) rectangle (1,1);");
+      expect(result.newSource).not.toContain("\\fill[none");
+      expect(result.newSource).not.toContain("fill=none");
+    }
+  });
+
+  it("rewrites fill-only paint to \\fill when inherited draw is absent", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[draw=none] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "fill",
+      value: "red"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\fill[red] (0,0) rectangle (1,1);");
+      expect(result.newSource).not.toContain("draw=none");
+    }
+  });
+
+  it("keeps explicit draw disabling when inherited draw would change cleanup semantics", () => {
+    const source = String.raw`\begin{tikzpicture}[draw]
+  \draw[draw=none] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "fill",
+      value: "red"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\draw[draw=none, fill=red] (0,0) rectangle (1,1);");
+    }
+  });
+
+  it("uses conservative property writes in preview mode", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[blue, thick] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(
+      source,
+      [],
+      {
+        kind: "setProperty",
+        elementId: "path:0",
+        level: "command",
+        key: "draw",
+        value: "none"
+      },
+      { parseOptions: { propertyWriteMode: "preview" } }
+    );
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\draw[draw=none, thick] (0,0) -- (1,0);");
+    }
+  });
+
+  it("cleans existing conservative paint writes on drag-end cleanup", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[draw=none, fill=red] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "cleanupPropertyWrites"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\fill[red] (0,0) rectangle (1,1);");
+      expect(result.newSource).not.toContain("draw=none");
+    }
+  });
+
+  it("limits targeted paint cleanup to requested element ids", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[draw=none, fill=red] (0,0) rectangle (1,1);
+  \draw[draw=none, fill=blue] (2,0) rectangle (3,1);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "cleanupPropertyWrites",
+      elementIds: ["path:0"]
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\fill[red] (0,0) rectangle (1,1);");
+      expect(result.newSource).toContain("\\draw[draw=none, fill=blue] (2,0) rectangle (3,1);");
+    }
+  });
+
+  it("omits local default-equivalent properties when certified", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[line cap=round] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "line cap",
+      value: "butt"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\draw (0,0) -- (1,0);");
+      expect(result.newSource).not.toContain("line cap=butt");
+    }
+  });
+
+  it("keeps default-valued properties when omission would expose an inherited value", () => {
+    const source = String.raw`\begin{tikzpicture}[line cap=round]
+  \draw[line cap=round] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "line cap",
+      value: "butt"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\draw[line cap=butt] (0,0) -- (1,0);");
+    }
+  });
+
   it("inserts node options when targeting a node item id", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) node {A};

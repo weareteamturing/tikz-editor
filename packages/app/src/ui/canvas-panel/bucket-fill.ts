@@ -26,6 +26,7 @@ export function resolveBucketFillEdit(args: {
   editHandles: InspectorSnapshot["editHandles"];
   activeFigureId: string | null;
   figureCount: number;
+  propertyWriteMode?: "commit" | "preview";
 }): BucketFillEditResolution {
   const {
     sourceId,
@@ -34,7 +35,8 @@ export function resolveBucketFillEdit(args: {
     elements,
     editHandles,
     activeFigureId,
-    figureCount
+    figureCount,
+    propertyWriteMode = "commit"
   } = args;
 
   const element = elements.find((candidate) => candidate.sourceRef.sourceId === sourceId);
@@ -70,7 +72,8 @@ export function resolveBucketFillEdit(args: {
       activeFigureId:
         activeFigureId == null
           ? (figureCount > 1 ? null : undefined)
-          : activeFigureId
+          : activeFigureId,
+      propertyWriteMode
     }
   });
 

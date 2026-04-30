@@ -221,7 +221,8 @@ function shouldSerializeAsBareColorOption(
   value: string,
   serializationContext: OptionSerializationContext
 ): boolean {
-  return serializationContext.bareColorKey === key && value.toLowerCase() !== "false";
+  const normalizedValue = value.toLowerCase();
+  return serializationContext.bareColorKey === key && normalizedValue !== "false" && normalizedValue !== "none";
 }
 
 function resolveFlagAliasKey(
