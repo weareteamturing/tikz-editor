@@ -37,6 +37,14 @@ import { readBalancedBlock, stripEnclosingBraces } from "../semantic/style/optio
 import { parseCustomStyleDefinition } from "../semantic/style/custom-styles.js";
 import { parseOptionListRaw } from "../options/parse.js";
 import { incrementProfilingCounter } from "../profiling.js";
+import {
+  buildPropertyMutations,
+  isAddableProperty,
+  propertyIdForOptionEntry,
+  propertyIdForStyleContribution,
+  propertyIdForWriteKey,
+  type SemanticPropertyId
+} from "./property-registry.js";
 
 export type StylesCascadeDeclarationStatus = "active" | "overridden" | "inactive-default" | "unsupported" | "disabled";
 
@@ -93,49 +101,6 @@ type StylesDeclarationDraft = Omit<StylesCascadeDeclaration, "status" | "writeTa
   defaultLike: boolean;
   status?: StylesCascadeDeclarationStatus;
 };
-
-const SUPPORTED_ADD_PROPERTY_IDS = new Set([
-  "xshift",
-  "yshift",
-  "xscale",
-  "yscale",
-  "rotate",
-  "stroke-color",
-  "line-width",
-  "dash-style",
-  "line-cap",
-  "line-join",
-  "fill-color",
-  "fill-mode",
-  "fill-shading",
-  "fill-pattern",
-  "fill-pattern-color",
-  "fill-axis-top-color",
-  "fill-axis-bottom-color",
-  "fill-radial-inner-color",
-  "fill-radial-outer-color",
-  "fill-ball-color",
-  "rounded-corners",
-  "node-shape",
-  "node-inner-sep",
-  "node-text-color",
-  "adornment-text-color"
-]);
-
-const SUPPORTED_PROPERTY_KINDS = new Set<InspectorProperty["kind"]>([
-  "number",
-  "length",
-  "color",
-  "lineWidth",
-  "dashStyle",
-  "lineCap",
-  "lineJoin",
-  "fillMode",
-  "fillShading",
-  "fillPattern",
-  "roundedCorners",
-  "nodeShape"
-]);
 
 export function buildStylesCascadeModel(
   element: SceneElement,
@@ -236,22 +201,32 @@ export function areStylesCascadeModelsIdentical(models: StylesCascadeModel[]): b
 
 export function planStylesSetPropertyActions(
   writeTargets: readonly SetPropertyWriteTarget[],
-  mutation: { key: string; value: string; clearKeys?: string[] }
+  mutation: { key: string; value: string; clearKeys?: string[]; propertyId?: SemanticPropertyId }
 ): EditAction[] {
   const unique = new Map<string, EditAction>();
   for (const target of writeTargets) {
     if (!target.writable || target.elementId.trim().length === 0) {
       continue;
     }
+    const [plannedMutation] = buildPropertyMutations({
+      propertyId: mutation.propertyId ?? target.propertyId,
+      key: mutation.key,
+      value: mutation.value,
+      clearKeys: mutation.clearKeys
+    });
+    if (!plannedMutation) {
+      continue;
+    }
     const action: EditAction = {
       kind: "setProperty",
       elementId: target.elementId,
       level: target.level,
-      key: mutation.key,
-      value: mutation.value,
-      clearKeys: mutation.clearKeys
+      key: plannedMutation.key,
+      value: plannedMutation.value,
+      propertyId: plannedMutation.propertyId,
+      clearKeys: plannedMutation.clearKeys
     };
-    unique.set(`${target.elementId}:${mutation.key}:${mutation.value}:${(mutation.clearKeys ?? []).join(",")}`, action);
+    unique.set(`${target.elementId}:${plannedMutation.key}:${plannedMutation.value}:${(plannedMutation.clearKeys ?? []).join(",")}`, action);
   }
   return [...unique.values()];
 }
@@ -271,6 +246,7 @@ export function planStylesTogglePropertyActions(
       level: target.level,
       key: mutation.key,
       value: "",
+      propertyId: target.propertyId ?? propertyIdForWriteKey(mutation.key) ?? undefined,
       commentMode: mutation.mode,
       commentSourceText: mutation.sourceText
     };
@@ -545,7 +521,7 @@ function mapEntryToDeclaration(
     return null;
   }
   const normalizedKey = normalizeOptionKey(entry.key);
-  const propertyId = propertyIdForOptionEntry(normalizedKey, propertyMap);
+  const propertyId = propertyIdForOptionEntry(normalizedKey, new Set(propertyMap.keys()));
   if (!propertyId) {
     return null;
   }
@@ -576,7 +552,7 @@ function mapContributionToDeclaration(
   writeTarget: SetPropertyWriteTarget,
   entry: StyleChainEntry
 ): StylesDeclarationDraft | null {
-  const propertyId = propertyIdForContribution(key, propertyMap);
+  const propertyId = propertyIdForStyleContribution(key, new Set(propertyMap.keys()));
   if (!propertyId) {
     return null;
   }
@@ -650,7 +626,7 @@ function buildAddPropertyTemplates(
   const transformValues = resolveTransformInspectorValues(source, descriptor.writeTargetId, snapshot.parseOptions);
   const noopWrite: SetPropertyWriteTarget = { mode: "setProperty", elementId: descriptor.writeTargetId ?? "", level: "command", key: "", writable: true };
   const templates: InspectorProperty[] = [
-    ...(descriptor.sections.flatMap((section) => section.properties)).filter((property) => SUPPORTED_ADD_PROPERTY_IDS.has(property.id) && SUPPORTED_PROPERTY_KINDS.has(property.kind)),
+    ...(descriptor.sections.flatMap((section) => section.properties)).filter((property) => isAddableProperty(property.id, property.kind)),
     {
       kind: "number",
       id: "xshift",
@@ -796,10 +772,7 @@ function buildAddPropertyTemplates(
 
   const unique = new Map<string, InspectorProperty>();
   for (const property of templates) {
-    if (!SUPPORTED_ADD_PROPERTY_IDS.has(property.id)) {
-      continue;
-    }
-    if (!SUPPORTED_PROPERTY_KINDS.has(property.kind)) {
+    if (!isAddableProperty(property.id, property.kind)) {
       continue;
     }
     unique.set(property.id, property);
@@ -972,159 +945,6 @@ function formatSourceLocation(source: string, sourceRef: StyleSourceRef | undefi
     }
   }
   return `line ${line}`;
-}
-
-function propertyIdForOptionEntry(
-  normalizedKey: string,
-  propertyMap: Map<string, InspectorProperty>
-): string | null {
-  switch (normalizedKey) {
-    case "xshift":
-    case "yshift":
-    case "xscale":
-    case "yscale":
-    case "rotate":
-    case "draw":
-    case "color":
-    case "line width":
-    case "solid":
-    case "dashed":
-    case "densely dashed":
-    case "loosely dashed":
-    case "dotted":
-    case "densely dotted":
-    case "loosely dotted":
-    case "line cap":
-    case "line join":
-    case "fill":
-    case "shade":
-    case "shading":
-    case "pattern":
-    case "pattern color":
-    case "top color":
-    case "bottom color":
-    case "inner color":
-    case "outer color":
-    case "ball color":
-    case "rounded corners":
-    case "shape":
-    case "inner sep":
-    case "text":
-      break;
-    default:
-      if (propertyMap.has(normalizedKey)) {
-        return normalizedKey;
-      }
-      return null;
-  }
-
-  if (normalizedKey === "draw" || normalizedKey === "color") return propertyMap.has("stroke-color") ? "stroke-color" : null;
-  if (normalizedKey === "fill") return propertyMap.has("fill-color") ? "fill-color" : null;
-  if (normalizedKey === "line width") return propertyMap.has("line-width") ? "line-width" : null;
-  if (["solid", "dashed", "densely dashed", "loosely dashed", "dotted", "densely dotted", "loosely dotted"].includes(normalizedKey)) {
-    return propertyMap.has("dash-style") ? "dash-style" : null;
-  }
-  if (normalizedKey === "line cap") return propertyMap.has("line-cap") ? "line-cap" : null;
-  if (normalizedKey === "line join") return propertyMap.has("line-join") ? "line-join" : null;
-  if (normalizedKey === "shade" || normalizedKey === "shading") return propertyMap.has("fill-mode") ? "fill-mode" : null;
-  if (normalizedKey === "pattern") return propertyMap.has("fill-pattern") ? "fill-pattern" : propertyMap.has("fill-mode") ? "fill-mode" : null;
-  if (normalizedKey === "pattern color") return propertyMap.has("fill-pattern-color") ? "fill-pattern-color" : null;
-  if (normalizedKey === "top color") return propertyMap.has("fill-axis-top-color") ? "fill-axis-top-color" : null;
-  if (normalizedKey === "bottom color") return propertyMap.has("fill-axis-bottom-color") ? "fill-axis-bottom-color" : null;
-  if (normalizedKey === "inner color") return propertyMap.has("fill-radial-inner-color") ? "fill-radial-inner-color" : null;
-  if (normalizedKey === "outer color") return propertyMap.has("fill-radial-outer-color") ? "fill-radial-outer-color" : null;
-  if (normalizedKey === "ball color") return propertyMap.has("fill-ball-color") ? "fill-ball-color" : null;
-  if (normalizedKey === "rounded corners") return propertyMap.has("rounded-corners") ? "rounded-corners" : null;
-  if (normalizedKey === "shape") return propertyMap.has("node-shape") ? "node-shape" : null;
-  if (normalizedKey === "inner sep") return propertyMap.has("node-inner-sep") ? "node-inner-sep" : null;
-  if (normalizedKey === "text") {
-    if (propertyMap.has("node-text-color")) return "node-text-color";
-    if (propertyMap.has("adornment-text-color")) return "adornment-text-color";
-  }
-  return propertyMap.has(normalizedKey) ? normalizedKey : null;
-}
-
-function propertyIdForContribution(
-  key: keyof ResolvedStyle,
-  propertyMap: Map<string, InspectorProperty>
-): string | null {
-  switch (key) {
-    case "stroke":
-      return propertyMap.has("stroke-color") ? "stroke-color" : null;
-    case "fill":
-      return propertyMap.has("fill-color") ? "fill-color" : null;
-    case "textColor":
-      return propertyMap.has("node-text-color") ? "node-text-color" : propertyMap.has("adornment-text-color") ? "adornment-text-color" : null;
-    case "lineWidth":
-      return propertyMap.has("line-width") ? "line-width" : null;
-    case "dashArray":
-      return propertyMap.has("dash-style") ? "dash-style" : null;
-    case "lineCap":
-      return propertyMap.has("line-cap") ? "line-cap" : null;
-    case "lineJoin":
-      return propertyMap.has("line-join") ? "line-join" : null;
-    case "patternColor":
-      return propertyMap.has("fill-pattern-color") ? "fill-pattern-color" : null;
-    case "shadeEnabled":
-    case "shadingAngle":
-      return propertyMap.has("fill-mode") ? "fill-mode" : null;
-    case "shading":
-      return propertyMap.has("fill-shading") ? "fill-shading" : propertyMap.has("fill-mode") ? "fill-mode" : null;
-    case "fillPattern":
-      return propertyMap.has("fill-pattern") ? "fill-pattern" : propertyMap.has("fill-mode") ? "fill-mode" : null;
-    case "axisTopColor":
-      return propertyMap.has("fill-axis-top-color") ? "fill-axis-top-color" : null;
-    case "axisBottomColor":
-      return propertyMap.has("fill-axis-bottom-color") ? "fill-axis-bottom-color" : null;
-    case "radialInnerColor":
-      return propertyMap.has("fill-radial-inner-color") ? "fill-radial-inner-color" : null;
-    case "radialOuterColor":
-      return propertyMap.has("fill-radial-outer-color") ? "fill-radial-outer-color" : null;
-    case "ballColor":
-      return propertyMap.has("fill-ball-color") ? "fill-ball-color" : null;
-    case "roundedCorners":
-      return propertyMap.has("rounded-corners") ? "rounded-corners" : null;
-    case "arrowShorthandEnd":
-    case "arrowShorthandStart":
-    case "axisMiddleColor":
-    case "bilinearLowerLeft":
-    case "bilinearLowerRight":
-    case "bilinearUpperLeft":
-    case "bilinearUpperRight":
-    case "clip":
-    case "dashOffset":
-    case "decoration":
-    case "decorationPostActions":
-    case "decorationPreActions":
-    case "doubleDistance":
-    case "doubleStroke":
-    case "drawExplicit":
-    case "everyShadowStyles":
-    case "fillOpacity":
-    case "fillRule":
-    case "fontFamily":
-    case "fontSize":
-    case "fontStyle":
-    case "fontWeight":
-    case "markerEnd":
-    case "markerStart":
-    case "opacity":
-    case "radius":
-    case "shadowFade":
-    case "shadowLayers":
-    case "shadowScale":
-    case "shadowXShift":
-    case "shadowYShift":
-    case "strokeOpacity":
-    case "textAlign":
-    case "textOpacity":
-    case "tipsMode":
-    case "useAsBoundingBox":
-    case "xRadius":
-    case "yRadius":
-    default:
-      return null;
-  }
 }
 
 function entryValueForProperty(entry: OptionEntry, property: InspectorProperty): unknown {

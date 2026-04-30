@@ -75,6 +75,7 @@ import {
 } from "./actions/matrix-structure-actions.js";
 import { parseTikzForEdit, type EditParseOptions } from "./parse-options.js";
 import { patchesMatchSourceTransition } from "./source-patches.js";
+import type { SemanticPropertyId } from "./property-registry.js";
 
 export type ResizeRole =
   | "top-left"
@@ -114,6 +115,7 @@ export type EditAction =
       level: StyleLevel;
       key: string;
       value: string;
+      propertyId?: SemanticPropertyId;
       clearKeys?: string[];
       commentMode?: "disable" | "enable";
       commentSourceText?: string;

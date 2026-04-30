@@ -65,6 +65,7 @@ export function resolveBucketFillEdit(args: {
     level: fillProperty.write.level,
     key: fillProperty.write.key,
     value: colorToken,
+    propertyId: fillProperty.write.propertyId,
     clearKeys: colorClearKeys(fillProperty.syntaxValue)
   };
   const result = applyEditAction(source, editHandles ?? [], action, {

@@ -9,6 +9,7 @@ import type { SourcePatch } from "../types.js";
 import { applyAdornmentSetProperty } from "./adornment-set-property.js";
 import { applyPathAttachedNodeInspectorAction } from "./path-attached-node-actions.js";
 import type { EditParseOptions } from "../parse-options.js";
+import type { SemanticPropertyId } from "../property-registry.js";
 
 type EditActionResultLike =
   | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[]; changedSourceIds?: string[] }
@@ -28,6 +29,7 @@ export type SetPropertyAction = {
   elementId: string;
   key: string;
   value: string;
+  propertyId?: SemanticPropertyId;
   clearKeys?: string[];
   commentMode?: "disable" | "enable";
   commentSourceText?: string;

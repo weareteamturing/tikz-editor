@@ -147,6 +147,11 @@ import {
   type SignalDirection
 } from "../semantic/nodes/shape-geometry.js";
 import type { StyleChainEntry } from "../semantic/style-chain.js";
+import {
+  candidateKeysForProperty,
+  propertyIdForWriteKey,
+  type SemanticPropertyId
+} from "./property-registry.js";
 export { TIKZPICTURE_GLOBAL_TARGET_ID } from "./property-target.js";
 export type {
   ArrowTipPresetId,
@@ -388,6 +393,7 @@ export type SetPropertyWriteTarget = {
   elementId: string;
   level: StyleLevel;
   key: string;
+  propertyId?: SemanticPropertyId;
   transformContext?: {
     key: TransformInspectorKey;
     values: TransformInspectorValues;
@@ -3372,6 +3378,7 @@ function makeSetPropertyWriteTargetForElementId(
     elementId: elementId ?? "",
     level: "command",
     key,
+    propertyId: propertyIdForWriteKey(key) ?? undefined,
     writable,
     reason
   };
@@ -3491,6 +3498,11 @@ function inspectorPropertyDependsOnForeachVariables(
 }
 
 function inspectorPropertyCandidateKeys(property: InspectorProperty): string[] {
+  const write = "write" in property ? property.write : undefined;
+  const registryKeys = candidateKeysForProperty(write?.propertyId ?? property.id);
+  if (registryKeys.length > 0) {
+    return registryKeys;
+  }
   switch (property.kind) {
     case "dashStyle":
       return [...DASH_STYLE_PRESET_CLEAR_KEYS];
@@ -3525,11 +3537,10 @@ function inspectorPropertyCandidateKeys(property: InspectorProperty): string[] {
     case "shadowPreset":
       return [...SHADOW_ALL_KEYS];
     case "number": {
-      const write = property.write as SetPropertyWriteTarget;
-      if (write.transformContext) {
+      if (write?.transformContext) {
         return transformPropertyCandidateKeys(write.transformContext.key);
       }
-      return uniqueStrings([write.key, ...("clearKeys" in property && property.clearKeys ? property.clearKeys : [])]);
+      return uniqueStrings([write?.key ?? "", ...("clearKeys" in property && property.clearKeys ? property.clearKeys : [])]);
     }
     case "length":
     case "optionalLength":

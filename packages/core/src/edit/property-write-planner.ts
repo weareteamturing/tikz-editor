@@ -7,6 +7,11 @@ import type { SourcePatch } from "./types.js";
 import { normalizeOptionKey } from "./option-key.js";
 import type { SetPropertyAction } from "./actions/set-property.js";
 import { applySetPropertyActionRaw } from "./actions/set-property.js";
+import {
+  isDefaultOmissionEligible,
+  propertyCleanupKinds,
+  propertyIdForWriteKey
+} from "./property-registry.js";
 
 type EditActionResultLike =
   | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[]; changedSourceIds?: string[] }
@@ -58,27 +63,6 @@ type PaintOptions = {
   drawDisabled: boolean;
   fillDisabled: boolean;
 };
-
-const DEFAULT_OMISSION_ELIGIBLE_KEYS = new Set([
-  "align",
-  "dash",
-  "dash pattern",
-  "dash phase",
-  "double distance",
-  "draw opacity",
-  "fill opacity",
-  "line cap",
-  "line join",
-  "line width",
-  "opacity",
-  "radius",
-  "rounded corners",
-  "text",
-  "text opacity",
-  "transparent",
-  "x radius",
-  "y radius"
-]);
 
 export function applyPlannedSetPropertyAction(
   source: string,
@@ -229,7 +213,7 @@ function buildDefaultOmissionCandidate(
   action: SetPropertyAction,
   parseOptions: EditParseOptions
 ): string | null {
-  if (action.value.trim().length === 0 || !DEFAULT_OMISSION_ELIGIBLE_KEYS.has(normalizeOptionKey(action.key))) {
+  if (action.value.trim().length === 0 || !isDefaultOmissionEligible(action.propertyId ?? propertyIdForWriteKey(action.key))) {
     return null;
   }
   const result = applySetPropertyActionRaw(
@@ -249,8 +233,7 @@ function buildPaintCommandCleanupCandidates(
   action: SetPropertyAction,
   parseOptions: EditParseOptions
 ): CleanupCandidate[] {
-  const normalizedKey = normalizeOptionKey(action.key);
-  if (normalizedKey !== "draw" && normalizedKey !== "fill" && normalizedKey !== "color") {
+  if (!propertyCleanupKinds(action.propertyId ?? propertyIdForWriteKey(action.key)).includes("paint-command")) {
     return [];
   }
   const resolved = resolvePropertyTarget(source, action.elementId, parseOptions);

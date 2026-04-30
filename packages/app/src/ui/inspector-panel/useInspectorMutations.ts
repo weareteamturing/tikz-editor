@@ -31,10 +31,12 @@ import {
   type PathMorphingDecorationPresetId,
   type SetPropertyWriteTarget
 } from "tikz-editor/edit/inspector";
+import { buildPropertyMutations, propertyIdForWriteKey } from "tikz-editor/edit/property-registry";
 import type { EditorAction } from "../../store/types";
 
 export type ApplySetPropertyOptions = {
   key?: string;
+  propertyId?: SetPropertyWriteTarget["propertyId"];
   clearKeys?: string[];
   recordInHistory?: boolean;
 };
@@ -47,6 +49,13 @@ export function useInspectorMutations(dispatch: (action: EditorAction) => void) 
       options: ApplySetPropertyOptions = {}
     ): void => {
       if (!write.writable || write.elementId.length === 0) return;
+      const [mutation] = buildPropertyMutations({
+        propertyId: options.propertyId ?? (options.key ? propertyIdForWriteKey(options.key) ?? undefined : write.propertyId),
+        key: options.key ?? write.key,
+        value,
+        clearKeys: options.clearKeys
+      });
+      if (!mutation) return;
       dispatch({
         type: "APPLY_EDIT_ACTION",
         recordInHistory: options.recordInHistory,
@@ -54,9 +63,10 @@ export function useInspectorMutations(dispatch: (action: EditorAction) => void) 
           kind: "setProperty",
           elementId: write.elementId,
           level: write.level,
-          key: options.key ?? write.key,
-          value,
-          clearKeys: options.clearKeys
+          key: mutation.key,
+          value: mutation.value,
+          propertyId: mutation.propertyId,
+          clearKeys: mutation.clearKeys
         }
       });
     },
@@ -76,6 +86,15 @@ export function useInspectorMutations(dispatch: (action: EditorAction) => void) 
 
       const mergeKey = options.recordInHistory === false ? undefined : `multi-set:${Date.now().toString(36)}`;
       for (const write of writable) {
+        const [mutation] = buildPropertyMutations({
+          propertyId: options.propertyId ?? (options.key ? propertyIdForWriteKey(options.key) ?? undefined : write.propertyId),
+          key: options.key ?? write.key,
+          value,
+          clearKeys: options.clearKeys
+        });
+        if (!mutation) {
+          continue;
+        }
         dispatch({
           type: "APPLY_EDIT_ACTION",
           historyMergeKey: mergeKey,
@@ -84,9 +103,10 @@ export function useInspectorMutations(dispatch: (action: EditorAction) => void) 
             kind: "setProperty",
             elementId: write.elementId,
             level: write.level,
-            key: options.key ?? write.key,
-            value,
-            clearKeys: options.clearKeys
+            key: mutation.key,
+            value: mutation.value,
+            propertyId: mutation.propertyId,
+            clearKeys: mutation.clearKeys
           }
         });
       }
