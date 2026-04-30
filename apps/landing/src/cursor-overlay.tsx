@@ -29,6 +29,13 @@ export type CursorOverlayFrame = {
   cursor: CursorStyle;
 };
 
+export type CursorOverlayBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 const STROKE_COLOR = "#111111";
 const FILL_COLOR = "#ffffff";
 const STROKE_WIDTH = 1.2;
@@ -235,6 +242,17 @@ export function applyCursorOverlayFrame(target: SVGGElement, frame: CursorOverla
 
 const LAST_CURSOR_DOM_FRAME = new WeakMap<SVGGElement, { glyphTransform: string; transform: string; opacity: string }>();
 const CURSOR_GLYPHS = new WeakMap<SVGGElement, SVGGElement | null>();
+
+export function getCursorOverlayBounds(cursor: CursorStyle, x: number, y: number, scale = 1): CursorOverlayBounds {
+  const def = CURSOR_DEFS[cursor] ?? CURSOR_DEFS.pointer;
+  const size = def.size ?? 24;
+  return {
+    x: x + (def.offsetX ?? 0) * scale,
+    y: y + (def.offsetY ?? 0) * scale,
+    width: size * scale,
+    height: size * scale
+  };
+}
 
 function cursorGlyphFor(target: SVGGElement): SVGGElement | null {
   if (!CURSOR_GLYPHS.has(target)) {

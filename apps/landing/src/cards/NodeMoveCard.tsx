@@ -306,7 +306,7 @@ export function NodeMoveCard() {
 
   return (
     <figure className="featureDemo" ref={rootRef}>
-      <svg className="featureScene" viewBox={nodeMoveCommonViewBox} role="img" aria-labelledby="node-move-demo-title">
+      <svg className="featureScene" viewBox={nodeMoveCommonViewBox} role="img" aria-labelledby="node-move-demo-title" data-layout-item="canvas.move.demo">
         <title id="node-move-demo-title">Node drag keeps edge attached</title>
         <g
           ref={(el) => {
@@ -342,6 +342,7 @@ export function NodeMoveCard() {
         ref={sourcePreviewRef}
         lines={buildNodeMoveSourceLines(sourceStateRef.current)}
         managedImperatively
+        layoutItemId="canvas.move.source"
       />
     </figure>
   );

@@ -22,6 +22,7 @@ export type SourceLine = readonly SourceToken[];
 export type SourcePreviewProps = {
   lines: readonly SourceLine[];
   managedImperatively?: boolean;
+  layoutItemId?: string;
 };
 
 export function sourceLine(...tokens: SourceToken[]): SourceLine {
@@ -112,11 +113,11 @@ function mountSourcePreview(
 }
 
 export const SourcePreview = forwardRef<HTMLElement, SourcePreviewProps>(function SourcePreview(
-  { lines, managedImperatively = false },
+  { lines, managedImperatively = false, layoutItemId },
   ref
 ): ReactNode {
   return (
-    <pre className="sourcePreview" aria-label="TikZ source preview">
+    <pre className="sourcePreview" aria-label="TikZ source preview" data-layout-item={layoutItemId}>
       <code className="sourcePreviewCode" ref={ref}>
         {managedImperatively ? null : lines.map((line, lineIndex) => (
           <span className="sourceLine" key={lineIndex}>

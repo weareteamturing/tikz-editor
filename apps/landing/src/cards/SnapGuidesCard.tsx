@@ -283,7 +283,7 @@ export function SnapGuidesCard() {
 
   return (
     <figure className="featureDemo" ref={rootRef}>
-      <svg className="featureScene" viewBox={snapGuidesCommonViewBox} role="img" aria-labelledby="snap-guides-demo-title">
+      <svg className="featureScene" viewBox={snapGuidesCommonViewBox} role="img" aria-labelledby="snap-guides-demo-title" data-layout-item="layout.snap.demo">
         <title id="snap-guides-demo-title">Snap guides appear while moving a node</title>
         <g ref={sceneRef} />
         <SnapGuidesOverlay lines={snapLines} strokeWidth={SNAP_STROKE_WIDTH} crossSize={SNAP_CROSS_SIZE} />
@@ -301,6 +301,7 @@ export function SnapGuidesCard() {
         ref={sourcePreviewRef}
         lines={buildSnapGuidesSourceLines(sourceStateRef.current)}
         managedImperatively
+        layoutItemId="layout.snap.source"
       />
     </figure>
   );

@@ -6,7 +6,7 @@ import {
   RiAlignItemLeftLine,
   RiAlignItemRightLine
 } from "@remixicon/react";
-import { applyCursorOverlayFrame, CursorOverlay } from "../cursor-overlay";
+import { applyCursorOverlayFrame, CursorOverlay, getCursorOverlayBounds } from "../cursor-overlay";
 import { createCursorScript, type CursorFrame, type CursorScript } from "../cursor-script";
 import { mountRenderedScene, queryRenderedElement, wrapRenderedElements } from "../animation/rendered-scene";
 import { applyLinePathEndpoints, prepareTransformDrivenLinePath, setSvgAttrs } from "../animation/svg-actors";
@@ -49,6 +49,10 @@ const BUTTON = {
 const TOOLBAR_GAP = 6;
 const MARQUEE_PAD = 5.5;
 const CURSOR_OVERSHOOT = 2.6;
+const CURSOR_SCALE = 0.35;
+const HANDLE_HALF_SIZE = 1.05;
+const HANDLE_STROKE_WIDTH = 0.26;
+const SELECTION_STROKE_WIDTH = 0.24;
 
 function centerAlign(nodes: readonly NodeState[]): NodeState[] {
   const bounds = unionBounds(nodes);
@@ -72,6 +76,37 @@ function padBounds(bounds: Rect, pad: number): Rect {
     width: bounds.width + pad * 2,
     height: bounds.height + pad * 2
   };
+}
+
+function parseViewBox(viewBox: string): Rect {
+  const [x, y, width, height] = viewBox.split(/\s+/).map(Number);
+  if ([x, y, width, height].some((value) => !Number.isFinite(value))) {
+    throw new Error(`Invalid viewBox: ${viewBox}`);
+  }
+  return { x: x!, y: y!, width: width!, height: height! };
+}
+
+function formatViewBox(bounds: Rect): string {
+  return [bounds.x, bounds.y, bounds.width, bounds.height]
+    .map((value) => Number(value.toFixed(4)).toString())
+    .join(" ");
+}
+
+function unionRects(rects: readonly Rect[]): Rect {
+  const minX = Math.min(...rects.map((rect) => rect.x));
+  const minY = Math.min(...rects.map((rect) => rect.y));
+  const maxX = Math.max(...rects.map((rect) => rect.x + rect.width));
+  const maxY = Math.max(...rects.map((rect) => rect.y + rect.height));
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY
+  };
+}
+
+function handleOverlayBounds(bounds: Rect): Rect {
+  return padBounds(bounds, HANDLE_HALF_SIZE + Math.max(HANDLE_STROKE_WIDTH, SELECTION_STROKE_WIDTH) / 2);
 }
 
 export function SelectionAlignCard() {
@@ -150,6 +185,57 @@ export function SelectionAlignCard() {
       y: allBounds.y - MARQUEE_PAD - TOOLBAR_GAP - BUTTON.height
     };
   }, [allBounds]);
+
+  const animationViewBox = useMemo(() => {
+    const leftMarquee = padBounds(leftBounds, MARQUEE_PAD);
+    const rightMarquee = padBounds(rightBounds, MARQUEE_PAD);
+    const cursorPoints = [
+      {
+        cursor: "pointer" as const,
+        x: leftMarquee.x - CURSOR_OVERSHOOT - 4,
+        y: leftMarquee.y - CURSOR_OVERSHOOT - 3
+      },
+      {
+        cursor: "pointer" as const,
+        x: leftMarquee.x - CURSOR_OVERSHOOT,
+        y: leftMarquee.y - CURSOR_OVERSHOOT
+      },
+      {
+        cursor: "crosshair" as const,
+        x: leftMarquee.x + leftMarquee.width + CURSOR_OVERSHOOT,
+        y: leftMarquee.y + leftMarquee.height + CURSOR_OVERSHOOT
+      },
+      {
+        cursor: "pointer" as const,
+        x: rightMarquee.x - CURSOR_OVERSHOOT,
+        y: rightMarquee.y - CURSOR_OVERSHOOT
+      },
+      {
+        cursor: "crosshair" as const,
+        x: rightMarquee.x + rightMarquee.width + CURSOR_OVERSHOOT,
+        y: rightMarquee.y + rightMarquee.height + CURSOR_OVERSHOOT
+      },
+      {
+        cursor: "pointer" as const,
+        x: toolbar.x + BUTTON.width + BUTTON.width / 2,
+        y: toolbar.y + BUTTON.height / 2
+      }
+    ];
+
+    const rects: Rect[] = [
+      parseViewBox(selectionAlignCommonViewBox),
+      leftMarquee,
+      rightMarquee,
+      { x: toolbar.x, y: toolbar.y, width: BUTTON.width * 3, height: BUTTON.height },
+      ...leftInitial.map((node) => handleOverlayBounds(node.bounds)),
+      ...rightInitial.map((node) => handleOverlayBounds(node.bounds)),
+      ...leftFinal.map((node) => handleOverlayBounds(node.bounds)),
+      ...rightFinal.map((node) => handleOverlayBounds(node.bounds)),
+      ...cursorPoints.map((point) => getCursorOverlayBounds(point.cursor, point.x, point.y, CURSOR_SCALE))
+    ];
+
+    return formatViewBox(unionRects(rects));
+  }, [leftBounds, rightBounds, toolbar, leftInitial, rightInitial, leftFinal, rightFinal]);
 
   useLayoutEffect(() => {
     if (!rootRef.current || !sceneRef.current) {
@@ -494,7 +580,7 @@ export function SelectionAlignCard() {
 
   return (
     <figure className="featureDemo" ref={rootRef}>
-      <svg className="featureScene" viewBox={selectionAlignCommonViewBox} role="img" aria-labelledby="selection-align-demo-title">
+      <svg className="featureScene" viewBox={animationViewBox} role="img" aria-labelledby="selection-align-demo-title" data-layout-item="layout.align.demo">
         <title id="selection-align-demo-title">Marquee select and align center</title>
         <g ref={(el) => { sceneRef.current = el; }} />
 
@@ -517,9 +603,9 @@ export function SelectionAlignCard() {
             {renderEditHandlesForBounds({
               bounds: node.bounds,
               showRotateHandle: false,
-              handleHalfSize: 1.05,
-              handleStrokeWidth: 0.26,
-              selectionStrokeWidth: 0.24,
+              handleHalfSize: HANDLE_HALF_SIZE,
+              handleStrokeWidth: HANDLE_STROKE_WIDTH,
+              selectionStrokeWidth: SELECTION_STROKE_WIDTH,
               rotateHandleGap: 5.2
             })}
           </g>
@@ -534,9 +620,9 @@ export function SelectionAlignCard() {
             {renderEditHandlesForBounds({
               bounds: node.bounds,
               showRotateHandle: false,
-              handleHalfSize: 1.05,
-              handleStrokeWidth: 0.26,
-              selectionStrokeWidth: 0.24,
+              handleHalfSize: HANDLE_HALF_SIZE,
+              handleStrokeWidth: HANDLE_STROKE_WIDTH,
+              selectionStrokeWidth: SELECTION_STROKE_WIDTH,
               rotateHandleGap: 5.2
             })}
           </g>
@@ -561,13 +647,14 @@ export function SelectionAlignCard() {
           visible={cursorFrame.visible}
           pressed={cursorFrame.pressed}
           cursor={cursorFrame.cursor}
-          scale={0.35}
+          scale={CURSOR_SCALE}
         />
       </svg>
       <SourcePreview
         ref={sourcePreviewRef}
         lines={buildSelectionAlignSourceLines(sourceStateRef.current)}
         managedImperatively
+        layoutItemId="layout.align.source"
       />
     </figure>
   );

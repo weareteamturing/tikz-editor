@@ -285,7 +285,6 @@ async function renderSnapGuideStates(): Promise<SnapGuideStates> {
 
 async function renderSelectionAlignStates(): Promise<SelectionAlignStates> {
   const initialSource = String.raw`\begin{tikzpicture}
-\path[use as bounding box] (-2.8,-1.8) rectangle (3.0,1.9);
 \node[draw=black,fill=blue!20,rectangle] (L1) at (-1.5,0.9) {Start};
 \node[draw=black,fill=blue!20,rectangle] (L2) at (-1.8,0.0) {Mid};
 \node[draw=black,fill=blue!20,rectangle] (L3) at (-1.1,-0.95) {Bottom};
@@ -304,7 +303,6 @@ async function renderSelectionAlignStates(): Promise<SelectionAlignStates> {
 \end{tikzpicture}`;
 
   const finalSource = String.raw`\begin{tikzpicture}
-\path[use as bounding box] (-2.8,-1.8) rectangle (3.0,1.9);
 \node[draw=black,fill=blue!20,rectangle] (L1) at (-0.7,0.9) {Start};
 \node[draw=black,fill=blue!20,rectangle] (L2) at (-0.7,0.0) {Mid};
 \node[draw=black,fill=blue!20,rectangle] (L3) at (-0.7,-0.95) {Bottom};

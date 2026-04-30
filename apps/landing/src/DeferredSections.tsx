@@ -13,6 +13,7 @@ import { AddRectCard } from "./cards/AddRectCard";
 import { SnapGuidesCard } from "./cards/SnapGuidesCard";
 import { SelectionAlignCard } from "./cards/SelectionAlignCard";
 import { RotateNodeCard } from "./cards/RotateNodeCard";
+import { LandingLayoutEditor } from "./LandingLayoutEditor";
 import { applyCursorOverlayFrame, CursorOverlay, type CursorStyle } from "./cursor-overlay";
 import { createCursorScript, type CursorFrame } from "./cursor-script";
 import { renderEditHandlesForBounds, type RectBounds } from "./edit-handles";
@@ -139,6 +140,7 @@ export function DeferredSections() {
       <InspectorColorSection />
       <ForeachRepeatSection />
       <CapabilityClose />
+      <LandingLayoutEditor />
     </>
   );
 }
@@ -166,27 +168,34 @@ function CanvasEditSection() {
       </div>
       <div className="editStorySlices">
         <article className="storySlice storySliceNodeMove">
-          <div className="storySliceText">
-            <h3>Move a node.</h3>
-            <p>The edge follows the node, and the coordinate in the source updates while it moves.</p>
+          <div className="storySliceText" data-layout-item="canvas.move.text" data-layout-text>
+            <p>
+              Nodes can be dragged to a desired location, rescaled, or rotated. Paths can be edited
+              using line, arrow, Bezier, and freehand tools. All edits are immediately reflected in
+              the TikZ code.
+            </p>
           </div>
           <div className="storyAnimation storyAnimationLarge">
             <NodeMoveCard />
           </div>
         </article>
         <article className="storySlice storySliceRectangle">
-          <div className="storySliceText">
-            <h3>Draw and resize a shape.</h3>
-            <p>Create the rectangle on the canvas, then pull a handle to adjust the TikZ dimensions.</p>
+          <div className="storySliceText" data-layout-item="canvas.rectangle.text" data-layout-text>
+            <p>
+              New shapes can be added using the grid, rectangle, circle, and ellipse tools. They can
+              be styled with the inspector, then flexibly moved and resized.
+            </p>
           </div>
           <div className="storyAnimation">
             <AddRectCard />
           </div>
         </article>
         <article className="storySlice storySliceRotate">
-          <div className="storySliceText">
-            <h3>Rotate a label.</h3>
-            <p>The transform is represented as a normal TikZ option.</p>
+          <div className="storySliceText" data-layout-item="canvas.rotate.text" data-layout-text>
+            <p>
+              Tools for adding other shapes and matrices are included, along with helpers like a
+              magnifying glass and paint bucket.
+            </p>
           </div>
           <div className="storyAnimation">
             <RotateNodeCard />
@@ -242,27 +251,33 @@ function LayoutToolsSection() {
       </div>
       <div className="layoutStorySlices">
         <article className="storySlice storySliceAnchors">
-          <div className="storySliceText">
-            <h3>Attach arrows to anchors.</h3>
-            <p>Anchor dots appear on the node you are targeting, and the generated path uses those anchors.</p>
+          <div className="storySliceText" data-layout-item="layout.anchors.text" data-layout-text>
+            <p>
+              Paths can be attached to node anchors, which makes it straightforward to build graphs
+              and flow charts.
+            </p>
           </div>
           <div className="storyAnimation">
             <AddArrowCard />
           </div>
         </article>
         <article className="storySlice storySliceSnap">
-          <div className="storySliceText">
-            <h3>Snap into place.</h3>
-            <p>Guides appear as objects line up, while the source keeps the final coordinate.</p>
+          <div className="storySliceText" data-layout-item="layout.snap.text" data-layout-text>
+            <p>
+              During drag, snap guides allow exact positioning of elements in alignment with others.
+              Rulers and guide lines are also available.
+            </p>
           </div>
           <div className="storyAnimation">
             <SnapGuidesCard />
           </div>
         </article>
         <article className="storySlice storySliceAlign">
-          <div className="storySliceText">
-            <h3>Align a selection.</h3>
-            <p>Select several nodes, use the alignment toolbar, and keep the connected paths intact.</p>
+          <div className="storySliceText" data-layout-item="layout.align.text" data-layout-text>
+            <p>
+              When selecting several nodes, the editor allows grouping them, or aligning and
+              distributing them.
+            </p>
           </div>
           <div className="storyAnimation storyAnimationWide">
             <SelectionAlignCard />

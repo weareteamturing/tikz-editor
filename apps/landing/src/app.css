@@ -254,6 +254,8 @@ h3 {
 .storySliceText {
   max-width: 330px;
   align-self: center;
+  transform: translate(var(--layout-edit-x, 0px), var(--layout-edit-y, 0px));
+  transform-origin: center;
 }
 
 .storySliceText h3 {
@@ -304,7 +306,12 @@ h3 {
   margin-left: auto;
   align-self: flex-end;
   width: min(100%, 420px);
-  transform: translate(168px, 50px);
+  transform:
+    translate(
+      calc(168px + var(--layout-edit-x, 0px)),
+      calc(50px + var(--layout-edit-y, 0px))
+    )
+    scale(var(--layout-edit-scale, 1));
 }
 
 .storySliceNodeMove .storyAnimation .featureDemo {
@@ -359,18 +366,21 @@ h3 {
 
 .storyAnimation .featureScene {
   width: 100%;
-  height: clamp(130px, 14vw, 190px);
+  height: auto;
   overflow: visible;
   border: 0;
   background: transparent;
   box-shadow: none;
-  transform: scale(1.18);
+  transform:
+    translate(var(--layout-edit-x, 0px), var(--layout-edit-y, 0px))
+    scale(calc(1.18 * var(--layout-edit-scale, 1)));
   transform-origin: center;
 }
 
 .editStoryBlock .storyAnimation .featureScene {
-  height: clamp(175px, 20vw, 250px);
-  transform: scale(1.25);
+  transform:
+    translate(var(--layout-edit-x, 0px), var(--layout-edit-y, 0px))
+    scale(calc(1.25 * var(--layout-edit-scale, 1)));
 }
 
 .storyAnimation .sourcePreview {
@@ -382,7 +392,10 @@ h3 {
   background: color-mix(in srgb, white 88%, var(--bg-app));
   box-shadow: 0 18px 42px color-mix(in srgb, black 10%, transparent);
   font-size: 11px;
-  transform: translateY(-8px);
+  transform:
+    translate(var(--layout-edit-x, 0px), calc(-8px + var(--layout-edit-y, 0px)))
+    scale(var(--layout-edit-scale, 1));
+  transform-origin: center;
 }
 
 .storyAnimation .sourcePreview:has(.sourceLine:empty:only-child),
@@ -393,11 +406,6 @@ h3 {
 .storyAnimationLarge .featureDemo,
 .storyAnimationWide .featureDemo {
   grid-template-columns: minmax(0, 1fr) var(--source-panel-width);
-}
-
-.storyAnimationLarge .featureScene,
-.storyAnimationWide .featureScene {
-  height: clamp(150px, 17vw, 230px);
 }
 
 .storySliceRectangle,
@@ -433,12 +441,276 @@ h3 {
   grid-template-columns: minmax(0, 1fr) var(--source-panel-width);
 }
 
-.storySliceAlign .featureScene {
-  height: clamp(210px, 24vw, 330px);
-}
-
 .storySliceAlign .sourcePreview {
   max-height: 220px;
+}
+
+@media (min-width: 981px) {
+  .editStorySlices,
+  .layoutStorySlices {
+    position: relative;
+    display: block;
+  }
+
+  .editStorySlices {
+    min-height: 1040px;
+    padding-top: 0;
+  }
+
+  .layoutStorySlices {
+    min-height: 620px;
+    padding-top: 0;
+  }
+
+  .editStorySlices > .storySlice,
+  .layoutStorySlices > .storySlice {
+    display: contents;
+  }
+
+  .editStorySlices .storyAnimation,
+  .layoutStorySlices .storyAnimation {
+    position: absolute;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .editStorySlices .storySliceText,
+  .layoutStorySlices .storySliceText {
+    position: absolute;
+    max-width: none;
+    width: auto;
+    min-width: 0;
+    transform: translate(var(--layout-edit-x, 0px), var(--layout-edit-y, 0px));
+    transform-origin: center;
+  }
+
+  .editStorySlices .storySliceText p,
+  .layoutStorySlices .storySliceText p {
+    margin: 0;
+    font-size: clamp(17px, 1.35vw, 22px);
+    line-height: 1.65;
+    color: var(--text-muted);
+  }
+
+  .editStorySlices .featureScene,
+  .layoutStorySlices .featureScene,
+  .editStoryBlock .storyAnimation .featureScene {
+    width: 100%;
+    transform:
+      translate(var(--layout-edit-x, 0px), var(--layout-edit-y, 0px))
+      scale(var(--layout-edit-scale, 1));
+    transform-origin: center;
+  }
+
+  .editStorySlices .sourcePreview,
+  .layoutStorySlices .sourcePreview,
+  .storySliceNodeMove .storyAnimation .sourcePreview {
+    width: min(100%, var(--source-panel-width));
+    max-height: none;
+    transform:
+      translate(var(--layout-edit-x, 0px), var(--layout-edit-y, 0px))
+      scale(var(--layout-edit-scale, 1));
+    transform-origin: center;
+  }
+
+  .editStorySlices [data-layout-item="canvas.move.text"] {
+    left: 0;
+    top: 0;
+    width: min(100%, 478px);
+  }
+
+  .storySliceNodeMove .storyAnimation {
+    left: 510px;
+    top: 6px;
+    width: 670px;
+    height: 430px;
+  }
+
+  .storySliceNodeMove .featureDemo {
+    position: relative;
+    display: block;
+    height: 100%;
+  }
+
+  .storySliceNodeMove .sourcePreview {
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+
+  .editStorySlices .storySliceNodeMove [data-layout-item="canvas.move.demo"] {
+    position: absolute;
+    left: 56px;
+    top: 160px;
+    width: min(100%, 560px);
+    max-width: 560px;
+  }
+
+  .storySliceRotate .storyAnimation {
+    left: 46px;
+    top: 320px;
+    width: 560px;
+    height: 380px;
+  }
+
+  .storySliceRotate .featureDemo {
+    position: relative;
+    display: block;
+    height: 100%;
+  }
+
+  .editStorySlices .storySliceRotate [data-layout-item="canvas.rotate.demo"] {
+    position: absolute;
+    left: 82px;
+    top: 0;
+    width: min(100%, 420px);
+    max-width: 420px;
+  }
+
+  .storySliceRotate .sourcePreview {
+    position: absolute;
+    left: 0;
+    top: 286px;
+  }
+
+  .editStorySlices [data-layout-item="canvas.rectangle.text"] {
+    left: 720px;
+    top: 510px;
+    width: min(100%, 457px);
+  }
+
+  .storySliceRectangle .storyAnimation {
+    left: 650px;
+    top: 650px;
+    width: 530px;
+    height: 310px;
+  }
+
+  .storySliceRectangle .featureDemo {
+    position: relative;
+    display: block;
+    height: 100%;
+  }
+
+  .editStorySlices .storySliceRectangle [data-layout-item="canvas.rectangle.demo"] {
+    position: absolute;
+    left: 128px;
+    top: 0;
+    width: min(100%, 260px);
+    max-width: 260px;
+  }
+
+  .storySliceRectangle .sourcePreview {
+    position: absolute;
+    left: 48px;
+    top: 220px;
+  }
+
+  .editStorySlices [data-layout-item="canvas.rotate.text"] {
+    left: 140px;
+    top: 880px;
+    width: min(100%, 350px);
+  }
+
+  .layoutStorySlices [data-layout-item="layout.anchors.text"] {
+    left: 0;
+    top: 0;
+    width: min(100%, 285px);
+  }
+
+  .storySliceAnchors .storyAnimation {
+    left: 330px;
+    top: 0;
+    width: 850px;
+    height: 170px;
+  }
+
+  .storySliceAnchors .featureDemo {
+    position: relative;
+    display: block;
+    height: 100%;
+  }
+
+  .layoutStorySlices .storySliceAnchors [data-layout-item="layout.anchors.demo"] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: min(100%, 280px);
+    max-width: 280px;
+  }
+
+  .storySliceAnchors .sourcePreview {
+    position: absolute;
+    left: 320px;
+    top: 24px;
+  }
+
+  .storySliceSnap .storyAnimation {
+    left: 300px;
+    top: 205px;
+    width: 520px;
+    height: 210px;
+  }
+
+  .storySliceSnap .featureDemo {
+    position: relative;
+    display: block;
+    height: 100%;
+  }
+
+  .layoutStorySlices .storySliceSnap [data-layout-item="layout.snap.demo"] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: min(100%, 230px);
+    max-width: 230px;
+  }
+
+  .storySliceSnap .sourcePreview {
+    position: absolute;
+    left: 250px;
+    top: 42px;
+  }
+
+  .layoutStorySlices [data-layout-item="layout.snap.text"] {
+    left: 810px;
+    top: 230px;
+    width: min(100%, 368px);
+  }
+
+  .layoutStorySlices [data-layout-item="layout.align.text"] {
+    left: 0;
+    top: 440px;
+    width: min(100%, 282px);
+  }
+
+  .storySliceAlign .storyAnimation {
+    left: 335px;
+    top: 435px;
+    width: 845px;
+    height: 170px;
+  }
+
+  .storySliceAlign .featureDemo {
+    position: relative;
+    display: block;
+    height: 100%;
+  }
+
+  .layoutStorySlices .storySliceAlign [data-layout-item="layout.align.demo"] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: min(100%, 350px);
+    max-width: 350px;
+  }
+
+  .storySliceAlign .sourcePreview {
+    position: absolute;
+    left: 365px;
+    top: 8px;
+  }
+
 }
 
 .sourceEditDemo,
@@ -539,6 +811,121 @@ h3 {
   display: block;
   background: #f0f0ee;
   contain: layout paint;
+}
+
+.landingLayoutEditing [data-layout-item] {
+  outline: 1px dashed color-mix(in srgb, #1d4ed8 46%, transparent);
+  outline-offset: 4px;
+}
+
+.landingLayoutEditing [data-layout-text] {
+  cursor: text;
+}
+
+.landingLayoutPreviewing [data-layout-item] {
+  outline-color: transparent;
+}
+
+.landingLayoutPreviewing .layoutEditorOverlay {
+  display: none;
+}
+
+.layoutEditorOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.layoutEditorBox {
+  position: fixed;
+  border: 1px solid #1d4ed8;
+  background: color-mix(in srgb, #1d4ed8 7%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, white 64%, transparent);
+  pointer-events: none;
+  touch-action: none;
+}
+
+.layoutEditorBox span {
+  position: absolute;
+  left: 0;
+  top: -22px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: #1d4ed8;
+  color: white;
+  font-size: 10px;
+  line-height: 1;
+  padding: 5px 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  cursor: move;
+  pointer-events: auto;
+}
+
+.layoutEditorBox i {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid white;
+  background: #1d4ed8;
+  cursor: nwse-resize;
+  pointer-events: auto;
+}
+
+.layoutEditorPanel {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 1001;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  width: min(520px, calc(100vw - 28px));
+  padding: 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, white 96%, var(--bg-app));
+  box-shadow: 0 18px 44px color-mix(in srgb, black 18%, transparent);
+  font-size: 12px;
+}
+
+.layoutEditorPanel strong,
+.layoutEditorPanel span {
+  grid-column: 1 / -1;
+}
+
+.layoutEditorPanelHandle {
+  cursor: move;
+  user-select: none;
+}
+
+.layoutEditorPanel button {
+  border: 1px solid var(--border);
+  background: white;
+  padding: 5px 8px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.layoutEditorPreviewToggle {
+  align-self: center;
+  white-space: nowrap;
+}
+
+.layoutEditorPreviewToggle input {
+  vertical-align: middle;
+}
+
+.layoutEditorOutput {
+  grid-column: 1 / -1;
+  min-height: 120px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  padding: 8px;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .sourcePreview {
@@ -1229,13 +1616,6 @@ h3 {
   .storySlice {
     gap: 20px;
     padding-top: 24px;
-  }
-
-  .storyAnimation .featureScene,
-  .storyAnimationLarge .featureScene,
-  .storyAnimationWide .featureScene,
-  .storySliceAlign .featureScene {
-    height: clamp(180px, 54vw, 260px);
   }
 
   .storyAnimation .sourcePreview {

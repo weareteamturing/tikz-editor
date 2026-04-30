@@ -289,7 +289,7 @@ export function AddRectCard() {
 
   return (
     <figure className="featureDemo" ref={rootRef}>
-      <svg className="featureScene" viewBox={addRectCommonViewBox} role="img" aria-labelledby="add-rectangle-demo-title">
+      <svg className="featureScene" viewBox={addRectCommonViewBox} role="img" aria-labelledby="add-rectangle-demo-title" data-layout-item="canvas.rectangle.demo">
         <title id="add-rectangle-demo-title">Rectangle draw and resize follows the handle</title>
         <g
           ref={(el) => {
@@ -327,6 +327,7 @@ export function AddRectCard() {
         ref={sourcePreviewRef}
         lines={buildAddRectSourceLines(sourceStateRef.current)}
         managedImperatively
+        layoutItemId="canvas.rectangle.source"
       />
     </figure>
   );

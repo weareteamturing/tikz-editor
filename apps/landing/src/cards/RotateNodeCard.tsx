@@ -197,7 +197,7 @@ export function RotateNodeCard() {
 
   return (
     <figure className="featureDemo" ref={rootRef}>
-      <svg className="featureScene" viewBox={rotateNodeInitial.viewBox} role="img" aria-labelledby="rotate-node-demo-title">
+      <svg className="featureScene" viewBox={rotateNodeInitial.viewBox} role="img" aria-labelledby="rotate-node-demo-title" data-layout-item="canvas.rotate.demo">
         <title id="rotate-node-demo-title">Rotate handle spins the node</title>
         <g
           ref={(el) => {
@@ -233,6 +233,7 @@ export function RotateNodeCard() {
         ref={sourcePreviewRef}
         lines={buildRotateNodeSourceLines(sourceStateRef.current.rotation)}
         managedImperatively
+        layoutItemId="canvas.rotate.source"
       />
     </figure>
   );

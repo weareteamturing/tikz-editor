@@ -200,7 +200,7 @@ export function AddArrowCard() {
 
   return (
     <figure className="featureDemo" ref={rootRef}>
-      <svg className="featureScene" viewBox={addArrowCommonViewBox} role="img" aria-labelledby="add-arrow-demo-title">
+      <svg className="featureScene" viewBox={addArrowCommonViewBox} role="img" aria-labelledby="add-arrow-demo-title" data-layout-item="layout.anchors.demo">
         <title id="add-arrow-demo-title">Add arrow snaps to node anchors</title>
         <g
           ref={(el) => {
@@ -264,6 +264,7 @@ export function AddArrowCard() {
         ref={sourcePreviewRef}
         lines={buildAddArrowSourceLines(sourceStateRef.current)}
         managedImperatively
+        layoutItemId="layout.anchors.source"
       />
     </figure>
   );
