@@ -12,22 +12,25 @@ RiItalic
 import { useCallback,useEffect,useMemo,useState,type JSX } from "react";
 import { formatNumber } from "tikz-editor/edit/format";
 import {
-buildNodeMinimumDimensionSetPropertyMutations,
-buildShadowMutationContextForPreset,
-buildShadowSetPropertyMutations,
-buildTransformSetPropertyMutations,
 getInspectorDescriptor,
 NODE_INNER_SEP_DEFAULT,
 TIKZPICTURE_GLOBAL_TARGET_ID,
 type InspectorProperty,
 type NodeFontFamilyId,
 type NodeFontSizePresetId,
-type NodeMinimumDimensionKey,
 type NodeTextAlignInspectorValue,
 type SetPropertyWriteTarget,
-type ShadowMutationContext,
 type ShadowPresetId
 } from "tikz-editor/edit/inspector";
+import {
+buildNodeMinimumDimensionSetPropertyMutations,
+buildShadowMutationContextForPreset,
+buildShadowSetPropertyMutations,
+buildTransformSetPropertyMutations,
+type NodeMinimumDimensionKey,
+type ShadowMutationContext
+} from "tikz-editor/edit/property-write-builders";
+import { propertyIdForWriteKey } from "tikz-editor/edit/property-registry";
 import { BASIC_PICKER_COLORS } from "../color-palette";
 import { useProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
@@ -217,6 +220,7 @@ export function InspectorPanel() {
           level: write.level,
           key: mutation.key,
           value: mutation.value,
+          propertyId: propertyIdForWriteKey(mutation.key) ?? undefined,
           clearKeys: mutation.clearKeys
         }
       });
@@ -283,6 +287,7 @@ export function InspectorPanel() {
             level: write.level,
             key: write.key,
             value: formatNumberWriteValue(property, next),
+            propertyId: write.propertyId ?? propertyIdForWriteKey(write.key) ?? undefined,
             clearKeys: property.clearKeys
           }
         });
@@ -304,7 +309,8 @@ export function InspectorPanel() {
             level: write.level,
             key: mutation.key,
             value: mutation.value,
-            clearKeys: mutation.clearKeys
+            propertyId: propertyIdForWriteKey(mutation.key) ?? undefined,
+          clearKeys: mutation.clearKeys
           }
         });
       }
@@ -403,7 +409,8 @@ export function InspectorPanel() {
             level: property.write.level,
             key: mutation.key,
             value: mutation.value,
-            clearKeys: mutation.clearKeys
+            propertyId: propertyIdForWriteKey(mutation.key) ?? undefined,
+          clearKeys: mutation.clearKeys
           }
         });
       }
@@ -455,6 +462,7 @@ export function InspectorPanel() {
           level: write.level,
           key: mutation.key,
           value: mutation.value,
+          propertyId: propertyIdForWriteKey(mutation.key) ?? undefined,
           clearKeys: mutation.clearKeys
         }
       });
@@ -482,6 +490,7 @@ export function InspectorPanel() {
           level: write.level,
           key: mutation.key,
           value: mutation.value,
+          propertyId: propertyIdForWriteKey(mutation.key) ?? undefined,
           clearKeys: mutation.clearKeys
         }
       });
@@ -527,7 +536,8 @@ export function InspectorPanel() {
               level: write.level,
               key: mutation.key,
               value: mutation.value,
-              clearKeys: mutation.clearKeys
+              propertyId: propertyIdForWriteKey(mutation.key) ?? undefined,
+          clearKeys: mutation.clearKeys
             }
           });
         }

@@ -19,12 +19,12 @@ import {
   lineCapPresetFromStyle,
   lineJoinPresetFromStyle,
   lineWidthPresetLabel,
-  resolveTransformInspectorValues,
   type InspectorDescriptor,
   type InspectorProperty,
   type InspectorSnapshot,
   type SetPropertyWriteTarget
 } from "./inspector.js";
+import { resolveTransformInspectorValues } from "./property-write-builders.js";
 import {
   makeStyleSourceTargetId,
   resolvePropertyTarget,

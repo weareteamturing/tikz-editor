@@ -2,16 +2,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildMatrixInspectorDescriptor,
   buildTreeInspectorDescriptor,
-  resolveTransformInspectorMutationContextFromOptionEntries,
-  resolveTransformInspectorValues,
   TIKZPICTURE_GLOBAL_TARGET_ID,
   type InspectorDescriptor,
   type InspectorSection,
   type SetPropertyWriteTarget,
-  type TransformInspectorKey,
-  type TransformInspectorMutationContext,
   type InspectorSnapshot
 } from "tikz-editor/edit/inspector";
+import {
+  resolveTransformInspectorMutationContextFromOptionEntries,
+  resolveTransformInspectorValues,
+  type TransformInspectorKey,
+  type TransformInspectorMutationContext
+} from "tikz-editor/edit/property-write-builders";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import { buildStylesCascadeModel } from "tikz-editor/edit/styles-cascade";
 import type { SceneElement } from "tikz-editor/semantic/types";

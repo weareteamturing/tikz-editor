@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EditAction } from "../packages/core/src/edit/actions.js";
 import { applyEditAction } from "../packages/core/src/edit/actions.js";
-import { buildFillModeSetPropertyMutations } from "../packages/core/src/edit/inspector.js";
+import { buildFillModeSetPropertyMutations } from "../packages/core/src/edit/property-write-builders.js";
 import type { EditParseOptions } from "../packages/core/src/edit/parse-options.js";
 import { renderTikzToSvg } from "../packages/core/src/render/index.js";
 import {

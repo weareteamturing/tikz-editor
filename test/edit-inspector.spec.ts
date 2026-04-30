@@ -3,6 +3,11 @@ import { renderTikzToSvg } from "../packages/core/src/render/index.js";
 import { applyEditAction } from "../packages/core/src/edit/actions.js";
 import { parseTikz } from "../packages/core/src/parser/index.js";
 import {
+  buildTreeInspectorDescriptor,
+  getInspectorDescriptor,
+  TIKZPICTURE_GLOBAL_TARGET_ID
+} from "../packages/core/src/edit/inspector.js";
+import {
   buildArrowTipSetPropertyMutation,
   buildFillModeSetPropertyMutations,
   buildFillPatternOptionSetPropertyMutation,
@@ -16,13 +21,10 @@ import {
   buildRoundedCornersSetPropertyMutation,
   buildShadowMutationContextForPreset,
   buildShadowSetPropertyMutations,
-  buildTreeInspectorDescriptor,
   buildTransformSetPropertyMutations,
-  getInspectorDescriptor,
   resolveTransformInspectorMutationContext,
-  resolveTransformInspectorValues,
-  TIKZPICTURE_GLOBAL_TARGET_ID
-} from "../packages/core/src/edit/inspector.js";
+  resolveTransformInspectorValues
+} from "../packages/core/src/edit/property-write-builders.js";
 import { resolvePropertyTarget } from "../packages/core/src/edit/property-target.js";
 import { buildMultiInspectorModel } from "../packages/app/src/ui/inspector-panel/panel-helpers.js";
 

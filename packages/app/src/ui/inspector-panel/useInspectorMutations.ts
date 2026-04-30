@@ -1,36 +1,38 @@
 import { useCallback } from "react";
 import {
-  buildArrowTipSetPropertyMutation,
-  buildDashStyleSetPropertyMutation,
-  buildFillModeSetPropertyMutations,
-  buildNodeFontSetPropertyMutation,
-  buildNodeInnerSepSetPropertyMutation,
-  buildNodeShapeSetPropertyMutation,
-  buildFillPatternOptionSetPropertyMutation,
-  buildFillPatternSetPropertyMutation,
-  buildFillShadingSetPropertyMutations,
-  buildLineCapSetPropertyMutation,
-  buildLineJoinSetPropertyMutation,
-  buildPathMorphingDecorationSetPropertyMutations,
-  buildRoundedCornersSetPropertyMutation,
   type ArrowTipPresetId,
   type ArrowTipSide,
-  type ArrowTipWriteTarget,
   type DashStylePresetId,
   type FillModePresetId,
   type FillPatternPresetId,
   type FillPatternMetaOptionKey,
-  type FillPatternOptionMutationContext,
   type FillShadingPresetId,
   type LineCapPresetId,
   type LineJoinPresetId,
   type NodeFontFamilyId,
-  type NodeFontMutationContext,
   type NodeFontSizePresetId,
   type NodeShapePresetId,
   type PathMorphingDecorationPresetId,
   type SetPropertyWriteTarget
 } from "tikz-editor/edit/inspector";
+import {
+  buildArrowTipSetPropertyMutation,
+  buildDashStyleSetPropertyMutation,
+  buildFillModeSetPropertyMutations,
+  buildFillPatternOptionSetPropertyMutation,
+  buildFillPatternSetPropertyMutation,
+  buildFillShadingSetPropertyMutations,
+  buildLineCapSetPropertyMutation,
+  buildLineJoinSetPropertyMutation,
+  buildNodeFontSetPropertyMutation,
+  buildNodeInnerSepSetPropertyMutation,
+  buildNodeShapeSetPropertyMutation,
+  buildPathMorphingDecorationSetPropertyMutations,
+  buildRoundedCornersSetPropertyMutation,
+  type ArrowTipWriteTarget,
+  type FillPatternOptionMutationContext,
+  type NodeFontMutationContext
+} from "tikz-editor/edit/property-write-builders";
 import { buildPropertyMutations, propertyIdForWriteKey } from "tikz-editor/edit/property-registry";
 import type { EditorAction } from "../../store/types";
 

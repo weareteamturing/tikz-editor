@@ -7,7 +7,8 @@ import {
   resolveTransformInspectorMutationContext,
   resolveTransformInspectorValues,
   type TransformInspectorKey
-} from "tikz-editor/edit/inspector";
+} from "tikz-editor/edit/property-write-builders";
+import { propertyIdForWriteKey } from "tikz-editor/edit/property-registry";
 import {
   parseStatementSnapshot,
   resolveStatementRefs,
@@ -1423,6 +1424,7 @@ function transformSelection(
           level: "command",
           key: mutation.key,
           value: mutation.value,
+          propertyId: propertyIdForWriteKey(mutation.key) ?? undefined,
           clearKeys: mutation.clearKeys
         }
       });

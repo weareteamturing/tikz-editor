@@ -29,7 +29,7 @@ import { replaceSpan } from "../patch.js";
 import { rewriteCoordinate } from "../rewrite.js";
 import { CM_PER_PT, formatNumber } from "../format.js";
 import { applyTextReplacements } from "../statement-ops.js";
-import { resolveTransformInspectorMutationContextFromOptionEntries } from "../inspector.js";
+import { resolveTransformInspectorMutationContextFromOptionEntries } from "../property-write-builders.js";
 import {
   applyOptionMutationsToTarget,
   normalizeOptionKey,

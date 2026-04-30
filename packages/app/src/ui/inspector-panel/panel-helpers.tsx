@@ -4,29 +4,31 @@ import {
   ROUNDED_CORNERS_DEFAULT_RADIUS,
   type ArrowTipPresetId,
   type ArrowTipSide,
-  type ArrowTipWriteTarget,
   type DashStylePresetId,
   type FillModePresetId,
   type FillPatternPresetId,
   type FillPatternMetaOptionKey,
-  type FillPatternOptionMutationContext,
   type FillShadingPresetId,
   type InspectorDescriptor,
   type InspectorProperty,
   type LineCapPresetId,
   type LineJoinPresetId,
   type NodeFontFamilyId,
-  type NodeFontMutationContext,
   type NodeTextAlignInspectorValue,
-  type NodeMinimumDimensionsMutationContext,
   type NodeFontSizePresetId,
   type NodeShapePresetId,
   type PathMorphingDecorationPresetId,
   type SetPropertyWriteTarget,
-  type ShadowMutationContext,
   type ShadowPresetId,
   type ShadowPresetOption
 } from "tikz-editor/edit/inspector";
+import type {
+  ArrowTipWriteTarget,
+  FillPatternOptionMutationContext,
+  NodeFontMutationContext,
+  NodeMinimumDimensionsMutationContext,
+  ShadowMutationContext
+} from "tikz-editor/edit/property-write-builders";
 import type { StylesCascadeModel } from "tikz-editor/edit/styles-cascade";
 import { makeDefaultArrowMarker } from "tikz-editor/semantic/style/arrows";
 import type { ArrowTipKind } from "tikz-editor/semantic/types";

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseOptionListRaw } from "../packages/core/src/options/parse.js";
+import * as inspectorModule from "../packages/core/src/edit/inspector.js";
 import {
   PROPERTY_REGISTRY,
   candidateKeysForProperty,
@@ -57,5 +58,11 @@ describe("property registry", () => {
     expect(isAddableProperty("fill-mode", "fillMode")).toBe(true);
     expect(isAddableProperty("arrow-tip")).toBe(false);
     expect(getPropertySemantics("foo")).toBeNull();
+  });
+
+  it("keeps mutation builders out of the inspector module", () => {
+    expect("buildTransformSetPropertyMutations" in inspectorModule).toBe(false);
+    expect("buildFillModeSetPropertyMutations" in inspectorModule).toBe(false);
+    expect("buildRoundedCornersSetPropertyMutation" in inspectorModule).toBe(false);
   });
 });

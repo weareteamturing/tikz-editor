@@ -11,7 +11,7 @@ import { CM_PER_PT, formatNumber } from "../format.js";
 import {
   buildTransformSetPropertyMutations,
   resolveTransformInspectorMutationContextFromOptionEntries
-} from "../inspector.js";
+} from "../property-write-builders.js";
 import { replaceSpan } from "../patch.js";
 import { resolvePropertyTarget, type PropertyTarget } from "../property-target.js";
 import { rewriteCoordinate } from "../rewrite.js";

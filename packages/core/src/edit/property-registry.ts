@@ -91,6 +91,25 @@ export type PropertySemantics = {
   addableKind?: string;
   defaultOmission?: "never" | "certified";
   cleanup?: readonly PropertyCleanupKind[];
+  buildMutations?: (context: PropertyWriteContext) => readonly PropertyWriteMutation[];
+};
+
+export type SetPropertyActionTarget = {
+  elementId: string;
+  level: string;
+  key: string;
+  propertyId?: SemanticPropertyId;
+  writable: boolean;
+};
+
+export type RegistrySetPropertyAction = {
+  kind: "setProperty";
+  elementId: string;
+  level: string;
+  key: string;
+  value: string;
+  propertyId?: SemanticPropertyId;
+  clearKeys?: string[];
 };
 
 const SHIFT_CLEAR_KEYS = ["shift", "/tikz/shift"] as const;
@@ -385,6 +404,14 @@ export function propertyIdForWriteKey(key: string, availablePropertyIds?: Readon
 
 export function buildPropertyMutations(context: PropertyWriteContext): PropertyWriteMutation[] {
   const semantics = getPropertySemantics(context.propertyId ?? propertyIdForWriteKey(context.key ?? ""));
+  const semanticMutations = semantics?.buildMutations?.(context);
+  if (semantics && semanticMutations && semanticMutations.length > 0) {
+    return semanticMutations.map((mutation) => ({
+      ...mutation,
+      propertyId: mutation.propertyId ?? semantics.id,
+      clearKeys: mutation.clearKeys ? uniqueStrings(mutation.clearKeys) : undefined
+    }));
+  }
   const key = context.key ?? semantics?.primaryKey;
   if (!key) {
     return [];
@@ -397,6 +424,35 @@ export function buildPropertyMutations(context: PropertyWriteContext): PropertyW
       propertyId: semantics?.id
     }
   ];
+}
+
+export function buildSetPropertyActionsForTargets(
+  targets: readonly SetPropertyActionTarget[],
+  context: PropertyWriteContext
+): RegistrySetPropertyAction[] {
+  const actions: RegistrySetPropertyAction[] = [];
+  for (const target of targets) {
+    if (!target.writable || target.elementId.trim().length === 0) {
+      continue;
+    }
+    const mutations = buildPropertyMutations({
+      ...context,
+      key: context.key ?? target.key,
+      propertyId: context.propertyId ?? target.propertyId
+    });
+    for (const mutation of mutations) {
+      actions.push({
+        kind: "setProperty",
+        elementId: target.elementId,
+        level: target.level,
+        key: mutation.key,
+        value: mutation.value,
+        propertyId: mutation.propertyId,
+        clearKeys: mutation.clearKeys
+      });
+    }
+  }
+  return actions;
 }
 
 export function uniqueStrings(values: readonly string[]): string[] {

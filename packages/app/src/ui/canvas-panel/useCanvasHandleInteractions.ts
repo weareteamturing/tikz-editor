@@ -1,6 +1,6 @@
 import { useCallback, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { clientPoint as makeClientPoint, px } from "tikz-editor/coords/index";
-import { resolveTransformInspectorMutationContext } from "tikz-editor/edit/inspector";
+import { resolveTransformInspectorMutationContext } from "tikz-editor/edit/property-write-builders";
 import { buildSnapContext, type SnapGuideInput, type SnapLine, type SnapSettingsPatch } from "tikz-editor/edit/snapping";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import type { EditHandle, SceneElement, ScenePath } from "tikz-editor/semantic/types";

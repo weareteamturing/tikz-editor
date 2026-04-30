@@ -4,7 +4,7 @@ import type { PathItem, Statement } from "tikz-editor/ast/types";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import { FIT_DIRECT_MANIPULATION_BLOCK_REASON, sourceUsesFitNodeFromParseResult } from "tikz-editor/edit/fit";
 import { resolvePropertyTargetFromParseResult } from "tikz-editor/edit/property-target";
-import { resolveTransformInspectorMutationContextFromOptionEntries } from "tikz-editor/edit/inspector";
+import { resolveTransformInspectorMutationContextFromOptionEntries } from "tikz-editor/edit/property-write-builders";
 import { collectSourceWorldBounds } from "tikz-editor/edit/snapping";
 import type { EditHandle, NodeAnchorTarget, SceneElement, ScenePath, SceneText } from "tikz-editor/semantic/types";
 import type { SvgBounds, SvgPoint, WorldBounds, WorldPoint } from "../coords/types";

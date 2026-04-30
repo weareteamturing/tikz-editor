@@ -13,6 +13,7 @@ import {
 } from "tikz-editor/coords/index";
 import { parseEditableTargetId } from "tikz-editor/edit/editable-targets";
 import { formatNumber } from "tikz-editor/edit/format";
+import { propertyIdForWriteKey } from "tikz-editor/edit/property-registry";
 import { worldToLocal } from "tikz-editor/edit/coords";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import { parseLength } from "tikz-editor/semantic/coords/parse-length";
@@ -512,6 +513,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
             level: "command",
             key: "rotate",
             value: Math.abs(nextRotate) <= 1e-6 ? "" : formatNumber(nextRotate),
+            propertyId: propertyIdForWriteKey("rotate") ?? undefined,
             clearKeys: ["/tikz/rotate"]
           },
           drag.historyMergeKey

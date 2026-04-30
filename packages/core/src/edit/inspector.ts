@@ -21,7 +21,7 @@ import {
 } from "./inspector/rounded-corners.js";
 import { parseTikz } from "../parser/index.js";
 import type { PathItem, PathStatement, Statement } from "../ast/types.js";
-import type { OptionEntry, OptionListAst } from "../options/types.js";
+import type { OptionListAst } from "../options/types.js";
 import {
   findTopLevelCharacter,
   parseFontStyle,
@@ -32,7 +32,22 @@ import { parseCoordinateLike, parseLength } from "../semantic/coords/parse-lengt
 import { DEFAULT_TEXT_FONT_SIZE } from "../semantic/style/constants.js";
 import { normalizeColor } from "../semantic/style/colors.js";
 import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../semantic/types.js";
-import { CM_PER_PT, formatNumber } from "./format.js";
+import { CM_PER_PT } from "./format.js";
+import {
+  cloneTransformInspectorValues,
+  resolveTransformInspectorMutationContext,
+  transformPropertyCandidateKeys,
+  type ArrowTipWriteContext,
+  type FillModeMutationContext,
+  type FillPatternOptionMutationContext,
+  type NodeFontMutationContext,
+  type NodeMinimumDimensionsMutationContext,
+  type ShadowMutationContext,
+  type TransformInspectorKey,
+  type TransformInspectorMutationContext,
+  type TransformInspectorPresence,
+  type TransformInspectorValues
+} from "./property-write-builders.js";
 import {
   ARROW_DEFAULT_CLEAR_KEYS,
   ARROW_OPTION_KEY,
@@ -60,16 +75,10 @@ import {
   META_FILL_PATTERN_PRESET_BY_KIND,
   META_FILL_PATTERN_PRESET_BY_LOWER,
   NODE_FONT_CUSTOM_NOTE,
-  NODE_FONT_FAMILY_COMMAND,
-  NODE_FONT_PRESET_BY_ID,
   NODE_FONT_SIZE_EPSILON,
   NODE_FONT_SIZE_PRESETS,
-  NODE_FONT_STYLE_COMMAND,
-  NODE_FONT_WEIGHT_COMMAND,
-  NODE_INNER_SEP_CLEAR_KEYS,
   NODE_INNER_SEP_CONFLICT_NOTE,
   NODE_INNER_SEP_DEFAULT,
-  NODE_MINIMUM_DIMENSION_CLEAR_KEYS,
   NODE_MINIMUM_DIMENSION_CONFLICT_NOTE,
   NODE_MINIMUM_DIMENSION_DEFAULT,
   NODE_SHAPE_CUSTOM_NOTE,
@@ -87,7 +96,6 @@ import {
   SHADOW_ALL_KEYS,
   SHADOW_PRESET_DEFAULTS,
   SHADOW_PRESET_OPTIONS,
-  SHADOW_PRESET_TIKZ_KEY,
   SHADING_ACTIVATION_KEYS
 } from "./inspector/presets.js";
 import {
@@ -215,175 +223,14 @@ function createInspectorTargetResolver(
   };
 }
 
-export type ArrowTipWriteContext = {
-  startRaw: string;
-  endRaw: string;
-  clearKeys: string[];
-};
-
-export type ArrowTipWriteTarget = SetPropertyWriteTarget & {
+type ArrowTipWriteTarget = SetPropertyWriteTarget & {
   arrowContext: ArrowTipWriteContext;
-};
-
-export type ArrowTipSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
-};
-
-export type DashStyleSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
-};
-
-export type LineCapSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
-};
-
-export type LineJoinSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
-};
-
-export type PathMorphingDecorationSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
-};
-
-export type RoundedCornersSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
-};
-
-export type FillModeMutationContext = {
-  fillColor: string | null;
-  patternColor: string | null;
-  shading: FillShadingPresetId;
-  pattern: FillPatternPresetId;
-};
-
-export type FillModeSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
-};
-
-export type FillShadingSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
-};
-
-export type FillPatternSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
-};
-
-export type FillPatternOptionMutationContext = {
-  family: FillPatternMetaFamilyId;
-  values: FillPatternMetaValues;
-};
-
-export type FillPatternOptionSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
-};
-
-export type NodeShapeSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
-};
-
-export type NodeInnerSepSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
-};
-
-export type NodeMinimumDimensionKey = "minimum width" | "minimum height";
-
-export type NodeMinimumDimensionsMutationContext = {
-  minimumWidth: number;
-  minimumHeight: number;
-};
-
-export type NodeMinimumDimensionSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
-};
-
-export type NodeFontMutationContext = {
-  key: "font" | "node font";
-  clearKeys: string[];
-  fallbackCustomSizePt: number;
-};
-
-export type NodeFontSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
-};
-
-export type TransformInspectorKey = "xshift" | "yshift" | "xscale" | "yscale" | "rotate";
-
-export type TransformInspectorValues = {
-  xshift: number;
-  yshift: number;
-  xscale: number;
-  yscale: number;
-  rotate: number;
-};
-
-export type TransformInspectorPresence = {
-  shift: boolean;
-  scale: boolean;
-  xshift: boolean;
-  yshift: boolean;
-  xscale: boolean;
-  yscale: boolean;
-  rotate: boolean;
-};
-
-export type TransformInspectorMutationContext = {
-  values: TransformInspectorValues;
-  presence?: TransformInspectorPresence;
-};
-
-export type TransformSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
 };
 
 export type InspectorSnapshot = {
   source: string;
   editHandles?: EditHandle[];
   parseOptions?: EditParseOptions;
-};
-
-export type ShadowMutationContext = {
-  preset: ShadowPresetId;
-  xshiftPt: number;
-  yshiftPt: number;
-  scale: number;
-  opacity: number;
-  color: string | null;
-};
-
-export type ShadowSetPropertyMutation = {
-  key: string;
-  value: string;
-  clearKeys: string[];
 };
 
 export type NodeTextAlignInspectorValue = "unset" | "left" | "center" | "right" | "justify";
@@ -660,29 +507,12 @@ export type InspectorDescriptor = {
 };
 
 const ROUNDED_CORNERS_MIN = 0.1;
-const DEFAULT_TRANSFORM_INSPECTOR_VALUES: TransformInspectorValues = {
-  xshift: 0,
-  yshift: 0,
-  xscale: 1,
-  yscale: 1,
-  rotate: 0
-};
-const SHIFT_CLEAR_KEYS = ["shift", "/tikz/shift"] as const;
-const SCALE_CLEAR_KEYS = ["scale", "/tikz/scale"] as const;
-const ROTATE_CLEAR_KEYS = ["/tikz/rotate"] as const;
 const GRID_DEFAULT_STEP_CM = 1;
 const GRID_STEP_CLEAR_KEYS = ["xstep", "x step", "ystep", "y step"] as const;
 const GRID_XSTEP_CLEAR_KEYS = ["x step"] as const;
 const GRID_YSTEP_CLEAR_KEYS = ["y step"] as const;
 const FOREACH_TEMPLATE_INFO_NOTE = "Editing the foreach template. Changes apply to all iterations.";
 const FOREACH_VARIABLE_READONLY_REASON = "This property depends on foreach iteration variables and is read-only.";
-const TRANSFORM_KEY_ALIAS_CLEAR_KEYS: Record<TransformInspectorKey, readonly string[]> = {
-  xshift: ["/tikz/xshift"],
-  yshift: ["/tikz/yshift"],
-  xscale: ["/tikz/xscale"],
-  yscale: ["/tikz/yscale"],
-  rotate: ["/tikz/rotate"]
-};
 
 type ShapeAdaptiveControlBase = {
   id: string;
@@ -1147,588 +977,6 @@ function signalDirectionsToEnumValue(sides: SignalDirection[]): string {
     return "north and south";
   }
   return unique[0] ?? "nowhere";
-}
-
-export function buildArrowTipSetPropertyMutation(
-  context: ArrowTipWriteContext,
-  side: ArrowTipSide,
-  value: Exclude<ArrowTipPresetId, "custom">
-): ArrowTipSetPropertyMutation {
-  const nextStartRaw = side === "start" ? arrowPresetSideRaw(value, "start") : context.startRaw;
-  const nextEndRaw = side === "end" ? arrowPresetSideRaw(value, "end") : context.endRaw;
-  const serialized = serializeArrowSides(nextStartRaw, nextEndRaw);
-
-  return {
-    key: serialized.key,
-    value: serialized.value,
-    clearKeys: uniqueStrings([...ARROW_DEFAULT_CLEAR_KEYS, ...context.clearKeys])
-  };
-}
-
-export function buildDashStyleSetPropertyMutation(
-  value: Exclude<DashStylePresetId, "custom">
-): DashStyleSetPropertyMutation {
-  return {
-    key: value,
-    value: "true",
-    clearKeys: uniqueStrings(DASH_STYLE_PRESET_CLEAR_KEYS)
-  };
-}
-
-export function buildLineCapSetPropertyMutation(
-  value: Exclude<LineCapPresetId, "custom">
-): LineCapSetPropertyMutation {
-  return {
-    key: "line cap",
-    value: value === "square" ? "projecting" : value,
-    clearKeys: []
-  };
-}
-
-export function buildLineJoinSetPropertyMutation(
-  value: Exclude<LineJoinPresetId, "custom">
-): LineJoinSetPropertyMutation {
-  return {
-    key: "line join",
-    value,
-    clearKeys: []
-  };
-}
-
-export function buildFillModeSetPropertyMutations(
-  value: Exclude<FillModePresetId, "custom">,
-  context: Partial<FillModeMutationContext> = {}
-): FillModeSetPropertyMutation[] {
-  const fillColor = normalizeFillMutationColor(context.fillColor, "black");
-  const patternColor = normalizeFillMutationColor(context.patternColor, "black");
-  const nextShading = selectCuratedShadingPreset(context.shading);
-  const nextPattern = selectCuratedPatternPreset(context.pattern);
-
-  if (value === "solid") {
-    return [
-      {
-        key: "fill",
-        value: fillColor,
-        clearKeys: uniqueStrings([...FILL_PATTERN_CLEAR_KEYS, ...FILL_SHADING_CLEAR_KEYS])
-      }
-    ];
-  }
-
-  if (value === "gradient") {
-    const clearKeys = uniqueStrings(FILL_PATTERN_CLEAR_KEYS);
-    return [
-      {
-        key: "shade",
-        value: "true",
-        clearKeys
-      },
-      {
-        key: "shading",
-        value: nextShading,
-        clearKeys
-      }
-    ];
-  }
-
-  const clearKeys = uniqueStrings(FILL_SHADING_CLEAR_KEYS);
-  return [
-    {
-      key: "pattern",
-      value: nextPattern,
-      clearKeys
-    },
-    {
-      key: "pattern color",
-      value: patternColor,
-      clearKeys
-    }
-  ];
-}
-
-export function buildFillShadingSetPropertyMutations(
-  value: Exclude<FillShadingPresetId, "custom">
-): FillShadingSetPropertyMutation[] {
-  const conflictClearKeys = uniqueStrings(
-    value === "axis"
-      ? AXIS_SHADING_CONFLICT_CLEAR_KEYS
-      : value === "radial"
-        ? RADIAL_SHADING_CONFLICT_CLEAR_KEYS
-        : BALL_SHADING_CONFLICT_CLEAR_KEYS
-  );
-
-  return [
-    {
-      key: "shade",
-      value: "true",
-      clearKeys: []
-    },
-    {
-      key: "shading",
-      value,
-      clearKeys: conflictClearKeys
-    }
-  ];
-}
-
-export function buildFillPatternSetPropertyMutation(
-  value: Exclude<FillPatternPresetId, "custom">
-): FillPatternSetPropertyMutation {
-  return {
-    key: "pattern",
-    value,
-    clearKeys: []
-  };
-}
-
-export function buildFillPatternOptionSetPropertyMutation(
-  context: FillPatternOptionMutationContext,
-  option: FillPatternMetaOptionKey,
-  value: number
-): FillPatternOptionSetPropertyMutation {
-  const nextValues = {
-    ...context.values,
-    [fillPatternMetaValueKey(option)]: sanitizeFillPatternMetaOptionValue(option, value, context.values)
-  };
-
-  return {
-    key: "pattern",
-    value: serializeFillPatternMetaPattern(context.family, nextValues),
-    clearKeys: []
-  };
-}
-
-export function buildPathMorphingDecorationSetPropertyMutations(
-  value: Exclude<PathMorphingDecorationPresetId, "custom">
-): PathMorphingDecorationSetPropertyMutation[] {
-  const clearKeys = uniqueStrings(PATH_MORPHING_DECORATION_CLEAR_KEYS);
-  const clearKeysWithoutDecorate = clearKeys.filter((key) => key !== "decorate");
-
-  if (value === "none") {
-    return [
-      {
-        key: "decorate",
-        value: "false",
-        clearKeys: clearKeysWithoutDecorate
-      }
-    ];
-  }
-
-  return [
-    {
-      key: "decorate",
-      value: "true",
-      clearKeys: clearKeysWithoutDecorate
-    },
-    {
-      key: "decoration",
-      value,
-      clearKeys: clearKeysWithoutDecorate
-    }
-  ];
-}
-
-export function buildRoundedCornersSetPropertyMutation(
-  enabled: boolean,
-  radius: number = ROUNDED_CORNERS_DEFAULT_RADIUS,
-  disableRequiresSharpCorners = true
-): RoundedCornersSetPropertyMutation {
-  const safeRadius = Number.isFinite(radius) && radius > 0 ? radius : ROUNDED_CORNERS_DEFAULT_RADIUS;
-  const clearKeys = uniqueStrings(ROUNDED_CORNERS_CLEAR_KEYS);
-
-  if (!enabled) {
-    if (!disableRequiresSharpCorners) {
-      return {
-        key: "rounded corners",
-        value: "",
-        clearKeys
-      };
-    }
-    return {
-      key: "sharp corners",
-      value: "true",
-      clearKeys: clearKeys.filter((key) => key !== "sharp corners")
-    };
-  }
-
-  return {
-    key: "rounded corners",
-    value:
-      Math.abs(safeRadius - ROUNDED_CORNERS_DEFAULT_RADIUS) <= 1e-6
-        ? "true"
-        : `${formatInspectorLength(safeRadius)}pt`,
-    clearKeys: clearKeys.filter((key) => key !== "rounded corners")
-  };
-}
-
-export function buildNodeShapeSetPropertyMutation(
-  value: Exclude<NodeShapePresetId, "custom">
-): NodeShapeSetPropertyMutation {
-  return {
-    key: NODE_SHAPE_KEY,
-    value,
-    clearKeys: uniqueStrings([...NODE_SHAPE_KNOWN_KEYS])
-  };
-}
-
-export function buildNodeInnerSepSetPropertyMutation(value: number): NodeInnerSepSetPropertyMutation {
-  const safe = Number.isFinite(value) && value >= 0 ? value : NODE_INNER_SEP_DEFAULT;
-  return {
-    key: "inner sep",
-    value: `${formatInspectorLength(safe)}pt`,
-    clearKeys: uniqueStrings([...NODE_INNER_SEP_CLEAR_KEYS])
-  };
-}
-
-export function buildNodeMinimumDimensionSetPropertyMutations(
-  context: NodeMinimumDimensionsMutationContext,
-  editedKey: NodeMinimumDimensionKey,
-  nextValue: number
-): NodeMinimumDimensionSetPropertyMutation[] {
-  if (!Number.isFinite(nextValue)) {
-    return [];
-  }
-
-  const safeWidth = Number.isFinite(context.minimumWidth) && context.minimumWidth >= 0
-    ? context.minimumWidth
-    : NODE_MINIMUM_DIMENSION_DEFAULT;
-  const safeHeight = Number.isFinite(context.minimumHeight) && context.minimumHeight >= 0
-    ? context.minimumHeight
-    : NODE_MINIMUM_DIMENSION_DEFAULT;
-  const safeNextValue = Math.max(0, normalizeTinyNumber(nextValue));
-  const nextDimensions = {
-    minimumWidth: safeWidth,
-    minimumHeight: safeHeight
-  };
-  if (editedKey === "minimum width") {
-    nextDimensions.minimumWidth = safeNextValue;
-  } else {
-    nextDimensions.minimumHeight = safeNextValue;
-  }
-
-  const companionKey: NodeMinimumDimensionKey = editedKey === "minimum width" ? "minimum height" : "minimum width";
-  const companionValue = companionKey === "minimum width" ? nextDimensions.minimumWidth : nextDimensions.minimumHeight;
-  const mutations: NodeMinimumDimensionSetPropertyMutation[] = [
-    {
-      key: editedKey,
-      value: `${formatInspectorLength(safeNextValue)}pt`,
-      clearKeys: uniqueStrings([...NODE_MINIMUM_DIMENSION_CLEAR_KEYS])
-    }
-  ];
-
-  if (Math.abs(companionValue - NODE_MINIMUM_DIMENSION_DEFAULT) > 1e-6) {
-    mutations.push({
-      key: companionKey,
-      value: `${formatInspectorLength(companionValue)}pt`,
-      clearKeys: uniqueStrings([...NODE_MINIMUM_DIMENSION_CLEAR_KEYS])
-    });
-  }
-
-  return mutations;
-}
-
-export function buildNodeFontSetPropertyMutation(
-  context: NodeFontMutationContext,
-  values: {
-    family: NodeFontFamilyId;
-    weight: "normal" | "bold";
-    style: "normal" | "italic";
-    sizePreset: NodeFontSizePresetId;
-    customSizePt: number | null;
-  }
-): NodeFontSetPropertyMutation {
-  const preset = values.sizePreset === "custom" ? null : NODE_FONT_PRESET_BY_ID.get(values.sizePreset);
-  const safeCustomSize =
-    Number.isFinite(values.customSizePt) && (values.customSizePt ?? 0) > 0
-      ? (values.customSizePt as number)
-      : context.fallbackCustomSizePt;
-  const commandParts: string[] = [];
-
-  if (preset != null) {
-    if (preset.value !== "normalsize") {
-      commandParts.push(preset.command);
-    }
-  } else {
-    commandParts.push(
-      `\\fontsize{${formatInspectorLength(safeCustomSize)}pt}{${formatInspectorLength(safeCustomSize * 1.2)}pt}\\selectfont`
-    );
-  }
-
-  if (values.family !== "serif") {
-    commandParts.push(NODE_FONT_FAMILY_COMMAND[values.family]);
-  }
-  if (values.weight !== "normal") {
-    commandParts.push(NODE_FONT_WEIGHT_COMMAND[values.weight]);
-  }
-  if (values.style !== "normal") {
-    commandParts.push(NODE_FONT_STYLE_COMMAND[values.style]);
-  }
-
-  return {
-    key: context.key,
-    value: commandParts.join(""),
-    clearKeys: uniqueStrings(context.clearKeys)
-  };
-}
-
-export function resolveTransformInspectorMutationContext(
-  source: string,
-  targetId: string | null,
-  parseOptions: EditParseOptions = {},
-  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
-): TransformInspectorMutationContext {
-  if (!targetId) {
-    return resolveTransformInspectorMutationContextFromOptionEntries(null);
-  }
-
-  const resolved = resolveTarget(targetId);
-  if (resolved.kind === "not-found" || !resolved.target.options) {
-    return resolveTransformInspectorMutationContextFromOptionEntries(null);
-  }
-
-  return resolveTransformInspectorMutationContextFromOptionEntries(resolved.target.options.entries);
-}
-
-export function resolveTransformInspectorMutationContextFromOptionEntries(
-  entries: readonly OptionEntry[] | null | undefined
-): TransformInspectorMutationContext {
-  const values = cloneTransformInspectorValues(DEFAULT_TRANSFORM_INSPECTOR_VALUES);
-  const presence = createEmptyTransformInspectorPresence();
-
-  for (const entry of entries ?? []) {
-    if (entry.kind !== "kv") {
-      continue;
-    }
-
-    const key = normalizeOptionKey(entry.key);
-    if (key === "scale" || key === "/tikz/scale") {
-      presence.scale = true;
-      const parsed = parseTransformScalar(entry.valueRaw);
-      if (parsed != null) {
-        values.xscale = parsed;
-        values.yscale = parsed;
-      }
-      continue;
-    }
-
-    if (key === "xscale" || key === "/tikz/xscale") {
-      presence.xscale = true;
-      const parsed = parseTransformScalar(entry.valueRaw);
-      if (parsed != null) {
-        values.xscale = parsed;
-      }
-      continue;
-    }
-
-    if (key === "yscale" || key === "/tikz/yscale") {
-      presence.yscale = true;
-      const parsed = parseTransformScalar(entry.valueRaw);
-      if (parsed != null) {
-        values.yscale = parsed;
-      }
-      continue;
-    }
-
-    if (key === "shift" || key === "/tikz/shift") {
-      presence.shift = true;
-      const parsed = parseShiftTransformValue(entry.valueRaw);
-      if (parsed) {
-        values.xshift = parsed.x;
-        values.yshift = parsed.y;
-      }
-      continue;
-    }
-
-    if (key === "xshift" || key === "/tikz/xshift") {
-      presence.xshift = true;
-      const parsed = parseLength(entry.valueRaw, "pt");
-      if (parsed != null) {
-        values.xshift = parsed;
-      }
-      continue;
-    }
-
-    if (key === "yshift" || key === "/tikz/yshift") {
-      presence.yshift = true;
-      const parsed = parseLength(entry.valueRaw, "pt");
-      if (parsed != null) {
-        values.yshift = parsed;
-      }
-      continue;
-    }
-
-    if (key === "rotate" || key === "/tikz/rotate") {
-      presence.rotate = true;
-      const parsed = parseTransformScalar(entry.valueRaw);
-      if (parsed != null) {
-        values.rotate = parsed;
-      }
-    }
-  }
-
-  return { values, presence };
-}
-
-export function resolveTransformInspectorValues(
-  source: string,
-  targetId: string | null,
-  parseOptions: EditParseOptions = {},
-  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
-): TransformInspectorValues {
-  return resolveTransformInspectorMutationContext(source, targetId, parseOptions, resolveTarget).values;
-}
-
-export function buildTransformSetPropertyMutations(
-  current: TransformInspectorValues | TransformInspectorMutationContext,
-  editedKey: TransformInspectorKey,
-  nextValue: number
-): TransformSetPropertyMutation[] {
-  if (!Number.isFinite(nextValue)) {
-    return [];
-  }
-
-  const mutationContext = coerceTransformInspectorMutationContext(current);
-  const currentValues = mutationContext.values;
-  const sanitizedCurrent = sanitizeTransformInspectorValues(currentValues);
-  const safeNextValue = normalizeTinyNumber(nextValue);
-
-  if (editedKey === "xshift" || editedKey === "yshift") {
-    const nextValues = {
-      ...sanitizedCurrent,
-      [editedKey]: safeNextValue
-    };
-    const companionKey: "xshift" | "yshift" = editedKey === "xshift" ? "yshift" : "xshift";
-    const mutations: TransformSetPropertyMutation[] = [
-      buildTransformMutation(
-        editedKey,
-        nextValues[editedKey],
-        DEFAULT_TRANSFORM_INSPECTOR_VALUES[editedKey],
-        [...SHIFT_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS[editedKey]]
-      )
-    ];
-
-    const companionValue = nextValues[companionKey];
-    const companionDefault = DEFAULT_TRANSFORM_INSPECTOR_VALUES[companionKey];
-    if (shouldSetTransformCompanion(mutationContext, companionKey, companionValue, companionDefault, "shift")) {
-      mutations.push(
-        buildTransformMutation(
-          companionKey,
-          companionValue,
-          companionDefault,
-          TRANSFORM_KEY_ALIAS_CLEAR_KEYS[companionKey]
-        )
-      );
-    } else if (shouldClearTransformCompanion(mutationContext, companionKey, companionDefault)) {
-      mutations.push(buildTransformMutation(companionKey, companionDefault, companionDefault, TRANSFORM_KEY_ALIAS_CLEAR_KEYS[companionKey]));
-    }
-
-    return mutations;
-  }
-
-  if (editedKey === "xscale" || editedKey === "yscale") {
-    const nextValues = {
-      ...sanitizedCurrent,
-      [editedKey]: safeNextValue
-    };
-    const companionKey: "xscale" | "yscale" = editedKey === "xscale" ? "yscale" : "xscale";
-    const mutations: TransformSetPropertyMutation[] = [
-      buildTransformMutation(
-        editedKey,
-        nextValues[editedKey],
-        DEFAULT_TRANSFORM_INSPECTOR_VALUES[editedKey],
-        [...SCALE_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS[editedKey]]
-      )
-    ];
-
-    const companionValue = nextValues[companionKey];
-    const companionDefault = DEFAULT_TRANSFORM_INSPECTOR_VALUES[companionKey];
-    if (shouldSetTransformCompanion(mutationContext, companionKey, companionValue, companionDefault, "scale")) {
-      mutations.push(
-        buildTransformMutation(
-          companionKey,
-          companionValue,
-          companionDefault,
-          TRANSFORM_KEY_ALIAS_CLEAR_KEYS[companionKey]
-        )
-      );
-    } else if (shouldClearTransformCompanion(mutationContext, companionKey, companionDefault)) {
-      mutations.push(buildTransformMutation(companionKey, companionDefault, companionDefault, TRANSFORM_KEY_ALIAS_CLEAR_KEYS[companionKey]));
-    }
-
-    return mutations;
-  }
-
-  return [
-    buildTransformMutation(
-      "rotate",
-      safeNextValue,
-      DEFAULT_TRANSFORM_INSPECTOR_VALUES.rotate,
-      ROTATE_CLEAR_KEYS
-    )
-  ];
-}
-
-const SHADOW_EPS = 0.001;
-
-export function buildShadowMutationContextForPreset(preset: ShadowPresetId): ShadowMutationContext {
-  if (preset === "none") {
-    return {
-      preset,
-      xshiftPt: 0,
-      yshiftPt: 0,
-      scale: 1,
-      opacity: 1,
-      color: null
-    };
-  }
-
-  const defaults = SHADOW_PRESET_DEFAULTS[preset];
-  return {
-    preset,
-    xshiftPt: defaults.xshiftPt,
-    yshiftPt: defaults.yshiftPt,
-    scale: defaults.scale,
-    opacity: defaults.opacity ?? 1,
-    color: defaults.color
-  };
-}
-
-export function buildShadowSetPropertyMutations(
-  nextContext: ShadowMutationContext
-): ShadowSetPropertyMutation[] {
-  const allKeys = [...SHADOW_ALL_KEYS] as string[];
-
-  if (nextContext.preset === "none") {
-    return [{ key: allKeys[0], value: "", clearKeys: allKeys }];
-  }
-
-  const tikzKey = SHADOW_PRESET_TIKZ_KEY[nextContext.preset];
-  const defaults = SHADOW_PRESET_DEFAULTS[nextContext.preset];
-  const defaultOpacity = defaults.opacity ?? 1;
-  const otherClearKeys = allKeys.filter((k) => k !== tikzKey);
-  const sanitizedColor =
-    nextContext.color === SHADOW_INHERIT_FILL || nextContext.color === SHADOW_INHERIT_STROKE
-      ? defaults.color
-      : nextContext.color;
-
-  const opts: string[] = [];
-
-  if (Math.abs(nextContext.xshiftPt - defaults.xshiftPt) > SHADOW_EPS) {
-    opts.push(`shadow xshift=${formatNumber(nextContext.xshiftPt)}pt`);
-  }
-  if (Math.abs(nextContext.yshiftPt - defaults.yshiftPt) > SHADOW_EPS) {
-    opts.push(`shadow yshift=${formatNumber(nextContext.yshiftPt)}pt`);
-  }
-  if (Math.abs(nextContext.scale - defaults.scale) > SHADOW_EPS) {
-    opts.push(`shadow scale=${formatNumber(nextContext.scale)}`);
-  }
-  if (Math.abs(nextContext.opacity - defaultOpacity) > SHADOW_EPS) {
-    opts.push(`opacity=${formatNumber(nextContext.opacity)}`);
-  }
-  if (defaults.color !== null && sanitizedColor !== null && sanitizedColor !== defaults.color) {
-    opts.push(`fill=${sanitizedColor}`);
-  }
-
-  return [{ key: tikzKey, value: opts.length === 0 ? "true" : `{${opts.join(",")}}`, clearKeys: otherClearKeys }];
 }
 
 function resolveMatrixSpacingPt(options: OptionListAst | undefined, key: "row sep" | "column sep"): number {
@@ -3556,16 +2804,6 @@ function inspectorPropertyCandidateKeys(property: InspectorProperty): string[] {
   return [];
 }
 
-function transformPropertyCandidateKeys(key: TransformInspectorKey): string[] {
-  if (key === "xshift" || key === "yshift") {
-    return uniqueStrings([key, ...SHIFT_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS[key]]);
-  }
-  if (key === "xscale" || key === "yscale") {
-    return uniqueStrings([key, ...SCALE_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS[key]]);
-  }
-  return uniqueStrings([key, ...ROTATE_CLEAR_KEYS]);
-}
-
 function optionEntryContainsForeachVariable(raw: string, foreachVariableSet: ReadonlySet<string>): boolean {
   const controlSequences = raw.match(/\\(?:[A-Za-z@]+|.)/gu) ?? [];
   return controlSequences.some((token) => foreachVariableSet.has(token));
@@ -3974,49 +3212,11 @@ function fillShadingPresetFromActivationKey(key: string): FillShadingPresetId | 
   return null;
 }
 
-function normalizeFillMutationColor(value: string | null | undefined, fallback: string): string {
-  const normalized = value?.trim();
-  return normalized && normalized.length > 0 ? normalized : fallback;
-}
-
-function selectCuratedShadingPreset(value: FillShadingPresetId | undefined): Exclude<FillShadingPresetId, "custom"> {
-  return value === "axis" || value === "radial" || value === "ball" ? value : "axis";
-}
-
-function selectCuratedPatternPreset(value: FillPatternPresetId | undefined): Exclude<FillPatternPresetId, "custom"> {
-  return value && value !== "custom" ? value : "dots";
-}
-
 function fillPatternMetaFamilyFromPreset(preset: FillPatternPresetId): FillPatternMetaFamilyId | null {
   if (preset === "Lines" || preset === "Hatch" || preset === "Dots" || preset === "Stars") {
     return preset;
   }
   return null;
-}
-
-function fillPatternMetaValueKey(option: FillPatternMetaOptionKey): keyof FillPatternMetaValues {
-  if (option === "line width") {
-    return "lineWidth";
-  }
-  return option;
-}
-
-function sanitizeFillPatternMetaOptionValue(
-  option: FillPatternMetaOptionKey,
-  value: number,
-  fallbackValues: FillPatternMetaValues
-): number {
-  if (!Number.isFinite(value)) {
-    return fallbackValues[fillPatternMetaValueKey(option)];
-  }
-
-  if (option === "points") {
-    return Math.max(2, Math.round(value));
-  }
-  if (option === "distance" || option === "line width" || option === "radius") {
-    return Math.max(0, normalizeTinyNumber(value));
-  }
-  return normalizeTinyNumber(value);
 }
 
 function defaultFillPatternMetaValues(
@@ -4041,26 +3241,6 @@ function normalizeFillPatternLineWidthFallback(value: number): number {
     return value;
   }
   return 0.4;
-}
-
-function serializeFillPatternMetaPattern(family: FillPatternMetaFamilyId, values: FillPatternMetaValues): string {
-  const options = [
-    `angle=${formatInspectorLength(values.angle)}`,
-    `distance=${formatInspectorLength(values.distance)}pt`,
-    `xshift=${formatInspectorLength(values.xshift)}pt`,
-    `yshift=${formatInspectorLength(values.yshift)}pt`
-  ];
-
-  if (family === "Lines" || family === "Hatch") {
-    options.push(`line width=${formatInspectorLength(values.lineWidth)}pt`);
-  } else {
-    options.push(`radius=${formatInspectorLength(values.radius)}pt`);
-    if (family === "Stars") {
-      options.push(`points=${Math.max(2, Math.round(values.points))}`);
-    }
-  }
-
-  return `{${family}[${options.join(",")}]}`
 }
 
 function resolvePathMorphingDecorationSuboptionProperties(
@@ -4390,29 +3570,6 @@ function parseDecorationNameFromOptionValue(valueRaw: string): string | null {
     return null;
   }
   return canonicalDecorationName(firstPart);
-}
-
-function serializeArrowSides(startRaw: string, endRaw: string): { key: string; value: string } {
-  const normalizedStart = startRaw.trim();
-  const normalizedEnd = endRaw.trim();
-
-  if (normalizedStart.length === 0 && normalizedEnd.length === 0) {
-    return { key: "-", value: "true" };
-  }
-  if (normalizedStart.length === 0 && normalizedEnd === ">") {
-    return { key: "->", value: "true" };
-  }
-  if (normalizedStart === "<" && normalizedEnd.length === 0) {
-    return { key: "<-", value: "true" };
-  }
-  if (normalizedStart === "<" && normalizedEnd === ">") {
-    return { key: "<->", value: "true" };
-  }
-
-  return {
-    key: ARROW_OPTION_KEY,
-    value: `${startRaw}-${endRaw}`
-  };
 }
 
 function arrowPresetFromMarker(marker: ArrowMarker | null): ArrowTipPresetId {
@@ -5543,106 +4700,6 @@ function computePathStrokeControlVisibility(
   };
 }
 
-function parseTransformScalar(raw: string): number | null {
-  const parsed = Number(stripEnclosingBraces(raw).trim());
-  if (!Number.isFinite(parsed)) {
-    return null;
-  }
-  return normalizeTinyNumber(parsed);
-}
-
-function parseShiftTransformValue(raw: string): { x: number; y: number } | null {
-  const normalized = stripEnclosingBraces(raw).trim();
-  const coordinate = parseCoordinateLike(normalized);
-  if (!coordinate) {
-    return null;
-  }
-
-  const x = parseLength(coordinate.x, "cm");
-  const y = parseLength(coordinate.y, "cm");
-  if (x == null || y == null) {
-    return null;
-  }
-
-  return {
-    x: normalizeTinyNumber(x),
-    y: normalizeTinyNumber(y)
-  };
-}
-
-function cloneTransformInspectorValues(values: TransformInspectorValues): TransformInspectorValues {
-  return {
-    xshift: values.xshift,
-    yshift: values.yshift,
-    xscale: values.xscale,
-    yscale: values.yscale,
-    rotate: values.rotate
-  };
-}
-
-function createEmptyTransformInspectorPresence(): TransformInspectorPresence {
-  return {
-    shift: false,
-    scale: false,
-    xshift: false,
-    yshift: false,
-    xscale: false,
-    yscale: false,
-    rotate: false
-  };
-}
-
-function coerceTransformInspectorMutationContext(
-  current: TransformInspectorValues | TransformInspectorMutationContext
-): TransformInspectorMutationContext {
-  if ("values" in current) {
-    return {
-      values: cloneTransformInspectorValues(current.values),
-      presence: current.presence ? { ...current.presence } : createEmptyTransformInspectorPresence()
-    };
-  }
-  return {
-    values: cloneTransformInspectorValues(current),
-    presence: createEmptyTransformInspectorPresence()
-  };
-}
-
-function shouldSetTransformCompanion(
-  context: TransformInspectorMutationContext,
-  companionKey: "xshift" | "yshift" | "xscale" | "yscale",
-  companionValue: number,
-  companionDefault: number,
-  shorthandKey: "shift" | "scale"
-): boolean {
-  if (Math.abs(companionValue - companionDefault) <= 1e-6) {
-    return false;
-  }
-  const presence = context.presence ?? createEmptyTransformInspectorPresence();
-  return presence[shorthandKey] || !presence[companionKey];
-}
-
-function shouldClearTransformCompanion(
-  context: TransformInspectorMutationContext,
-  companionKey: "xshift" | "yshift" | "xscale" | "yscale",
-  companionDefault: number
-): boolean {
-  const presence = context.presence ?? createEmptyTransformInspectorPresence();
-  if (!presence[companionKey]) {
-    return false;
-  }
-  return Math.abs(context.values[companionKey] - companionDefault) <= 1e-6;
-}
-
-function sanitizeTransformInspectorValues(values: TransformInspectorValues): TransformInspectorValues {
-  return {
-    xshift: Number.isFinite(values.xshift) ? normalizeTinyNumber(values.xshift) : DEFAULT_TRANSFORM_INSPECTOR_VALUES.xshift,
-    yshift: Number.isFinite(values.yshift) ? normalizeTinyNumber(values.yshift) : DEFAULT_TRANSFORM_INSPECTOR_VALUES.yshift,
-    xscale: Number.isFinite(values.xscale) ? normalizeTinyNumber(values.xscale) : DEFAULT_TRANSFORM_INSPECTOR_VALUES.xscale,
-    yscale: Number.isFinite(values.yscale) ? normalizeTinyNumber(values.yscale) : DEFAULT_TRANSFORM_INSPECTOR_VALUES.yscale,
-    rotate: Number.isFinite(values.rotate) ? normalizeTinyNumber(values.rotate) : DEFAULT_TRANSFORM_INSPECTOR_VALUES.rotate
-  };
-}
-
 function normalizeTinyNumber(value: number): number {
   return Math.abs(value) <= 1e-9 ? 0 : value;
 }
@@ -5667,25 +4724,4 @@ function uniqueStrings(values: readonly string[]): string[] {
     unique.push(normalized);
   }
   return unique;
-}
-
-function buildTransformMutation(
-  key: TransformInspectorKey,
-  value: number,
-  defaultValue: number,
-  clearKeys: readonly string[]
-): TransformSetPropertyMutation {
-  const normalizedValue = normalizeTinyNumber(value);
-  const isDefault = Math.abs(normalizedValue - defaultValue) <= 1e-6;
-  return {
-    key,
-    value: isDefault ? "" : formatInspectorLength(normalizedValue) + (key === "xshift" || key === "yshift" ? "pt" : ""),
-    clearKeys: uniqueStrings(isDefault ? [key, ...clearKeys] : clearKeys)
-  };
-}
-
-function formatInspectorLength(value: number): string {
-  const rounded = Math.round(value * 100) / 100;
-  const normalized = Math.abs(rounded) < 1e-9 ? 0 : rounded;
-  return Number(normalized.toFixed(2)).toString();
 }

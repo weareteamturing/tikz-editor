@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import {
+  type InspectorProperty,
+  type SetPropertyWriteTarget
+} from "tikz-editor/edit/inspector";
+import {
   buildDashStyleSetPropertyMutation,
   buildFillModeSetPropertyMutations,
   buildFillPatternSetPropertyMutation,
@@ -9,10 +13,8 @@ import {
   buildNodeInnerSepSetPropertyMutation,
   buildNodeShapeSetPropertyMutation,
   buildRoundedCornersSetPropertyMutation,
-  buildTransformSetPropertyMutations,
-  type InspectorProperty,
-  type SetPropertyWriteTarget
-} from "tikz-editor/edit/inspector";
+  buildTransformSetPropertyMutations
+} from "tikz-editor/edit/property-write-builders";
 import {
   areStylesCascadeModelsIdentical,
   buildSharedStylesCascadeModel,

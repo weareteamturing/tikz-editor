@@ -136,6 +136,7 @@ describe("editor-command-runtime", () => {
         level: "command",
         key: "rotate",
         value: "180",
+        propertyId: "transform.rotate",
         clearKeys: ["/tikz/rotate"]
       }
     }));
