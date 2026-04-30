@@ -14,7 +14,7 @@ import { SnapGuidesCard } from "./cards/SnapGuidesCard";
 import { SelectionAlignCard } from "./cards/SelectionAlignCard";
 import { RotateNodeCard } from "./cards/RotateNodeCard";
 import { LandingLayoutEditor } from "./LandingLayoutEditor";
-import { applyCursorOverlayFrame, CursorOverlay, type CursorStyle } from "./cursor-overlay";
+import { applyCursorOverlayFrame, CursorOverlay } from "./cursor-overlay";
 import { createCursorScript, type CursorFrame } from "./cursor-script";
 import { renderEditHandlesForBounds, type RectBounds } from "./edit-handles";
 import { mountRenderedScene, wrapRenderedElements } from "./animation/rendered-scene";
@@ -570,7 +570,7 @@ function SourceEditDemo() {
         if (cached) {
           return cached;
         }
-        const scratch = document.createElementNS("http://www.w3.org/2000/svg", "g") as SVGGElement;
+        const scratch = document.createElementNS("http://www.w3.org/2000/svg", "g");
         mountRenderedScene(scratch, state.innerSvg);
         const label = scratch.querySelector<SVGImageElement>('[data-source-id="path:1"][data-text-renderer="mathjax"]');
         const circle = scratch.querySelector<SVGCircleElement>('circle[data-source-id="path:1"]');
@@ -629,7 +629,7 @@ function SourceEditDemo() {
       y: cursorStart.y,
       visible: true,
       pressed: false,
-      cursor: "pointer" as CursorStyle
+      cursor: "pointer"
     });
     commitCursorFrame();
     setCaretFrame(null);
@@ -849,7 +849,7 @@ function interpolateSourceEditCursorPath(
   if (points.length === 2) {
     return interpolatePoint(first, last, clamped);
   }
-  const control = points[1]!;
+  const control = points[1];
   const a = interpolatePoint(first, control, clamped);
   const b = interpolatePoint(control, last, clamped);
   return interpolatePoint(a, b, clamped);
@@ -966,7 +966,7 @@ function interpolatePathD(fromD: string, toD: string, progress: number): string 
   }
   let index = 0;
   return fromD.replace(numberRe, () => {
-    const value = fromNumbers[index]! + (toNumbers[index]! - fromNumbers[index]!) * progress;
+    const value = fromNumbers[index] + (toNumbers[index] - fromNumbers[index]) * progress;
     index += 1;
     return formatPathNumber(value);
   });

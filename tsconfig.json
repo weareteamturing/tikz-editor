@@ -10,6 +10,8 @@
     "skipLibCheck": true,
     "types": ["node", "vitest/globals"],
     "paths": {
+      "@tikz-editor/app": ["./packages/app/src/index.ts"],
+      "@tikz-editor/app/landing-assets": ["./packages/app/src/landing-assets.ts"],
       "tikz-editor/*": ["./packages/core/src/*"]
     }
   },

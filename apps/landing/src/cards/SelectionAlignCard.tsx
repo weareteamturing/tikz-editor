@@ -83,7 +83,7 @@ function parseViewBox(viewBox: string): Rect {
   if ([x, y, width, height].some((value) => !Number.isFinite(value))) {
     throw new Error(`Invalid viewBox: ${viewBox}`);
   }
-  return { x: x!, y: y!, width: width!, height: height! };
+  return { x: x, y: y, width: width, height: height };
 }
 
 function formatViewBox(bounds: Rect): string {
