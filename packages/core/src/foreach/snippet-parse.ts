@@ -58,6 +58,15 @@ export function parsePathItemsFromFragment(pathFragmentRaw: string): ForeachSnip
 }
 
 export function parsePathItemsFromFragmentWithMapping(pathFragmentRaw: string, fragmentSpan: Span): PathFragmentParseResult {
+  const parsed = parsePathItemsFromFragmentWithSyntheticMapping(pathFragmentRaw, fragmentSpan);
+  return {
+    value: remapSpansInPathItems(parsed.value, parsed.sourceMapper),
+    hasParseError: parsed.hasParseError,
+    sourceMapper: parsed.sourceMapper
+  };
+}
+
+export function parsePathItemsFromFragmentWithSyntheticMapping(pathFragmentRaw: string, fragmentSpan: Span): PathFragmentParseResult {
   const prepared = preparePathFragmentSnippet(pathFragmentRaw, fragmentSpan);
   const parsed = parseTikz(prepared.syntheticSource, { recover: true });
   const statement = parsed.figure.body.find((entry) => entry.kind === "Path");
@@ -76,7 +85,7 @@ export function parsePathItemsFromFragmentWithMapping(pathFragmentRaw: string, f
   }
 
   return {
-    value: remapSpansInPathItems(statement.items, sourceMapper),
+    value: statement.items,
     hasParseError,
     sourceMapper
   };

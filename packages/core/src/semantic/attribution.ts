@@ -39,6 +39,7 @@ export function finalizeExpandedStatementElements(args: {
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>;
   statementSourceMap: ExpansionSourceMap | undefined;
   pathItemForeachStack: WeakMap<PathItem, ExpansionForeachOriginFrame[]>;
+  pathItemSourceMaps: WeakMap<PathItem, ExpansionSourceMap>;
   statementMacroAttribution: WeakMap<Statement, MacroOriginFrame[]>;
   templateLocalIdByExpandedId: ReadonlyMap<string, string>;
 }): SceneElement[] {
@@ -48,6 +49,7 @@ export function finalizeExpandedStatementElements(args: {
     statementAttribution,
     statementSourceMap,
     pathItemForeachStack,
+    pathItemSourceMaps,
     statementMacroAttribution,
     templateLocalIdByExpandedId
   } = args;
@@ -67,8 +69,14 @@ export function finalizeExpandedStatementElements(args: {
   return elements.map((element) => {
     const itemStack =
       statement.kind === "Path" && pathItemsById
-        ? resolvePathItemForeachStackForElement(element, statement, pathItemsById, pathItemForeachStack)
+        ? resolvePathItemForeachStackForElement(element, statement, pathItemsById.byId, pathItemForeachStack)
         : undefined;
+    const pathItem =
+      statement.kind === "Path" && pathItemsById
+        ? resolvePathItemForElement(element, statement, pathItemsById)
+        : undefined;
+    const itemSourceMap = pathItem ? pathItemSourceMaps.get(pathItem) : undefined;
+    const effectiveSourceMap = composePathItemSourceMap(itemSourceMap, statementSourceMap);
     const fallbackStack =
       (itemStack && itemStack.length > 0
         ? itemStack
@@ -100,16 +108,20 @@ export function finalizeExpandedStatementElements(args: {
           }
         : undefined;
 
-    const identityRef = statementSourceMap
+    const identityRef = effectiveSourceMap
       ? {
-          sourceId: element.sourceRef.sourceId,
+          sourceId: itemSourceMap && pathItem ? pathItem.id : element.sourceRef.sourceId,
           sourceSpan: { ...element.sourceRef.sourceSpan },
           sourceKind: "expanded-element"
         }
       : element.identityRef;
-    const nextSourceId = shouldOverrideSource ? attribution.sourceId : element.sourceRef.sourceId;
-    const nextSourceSpan = statementSourceMap
-      ? mapExpansionSpan(statementSourceMap, element.sourceRef.sourceSpan)
+    const nextSourceId = itemSourceMap && !statementSourceMap
+      ? element.sourceRef.sourceId
+      : shouldOverrideSource
+        ? attribution.sourceId
+        : element.sourceRef.sourceId;
+    const nextSourceSpan = effectiveSourceMap
+      ? mapExpansionSpan(effectiveSourceMap, element.sourceRef.sourceSpan)
       : shouldOverrideSource
         ? attribution.sourceSpan
         : element.sourceRef.sourceSpan;
@@ -121,7 +133,7 @@ export function finalizeExpandedStatementElements(args: {
         sourceSpan: nextSourceSpan
       },
       identityRef,
-      styleChain: remapStyleChainSourceRefs(element.styleChain, statementSourceMap),
+      styleChain: remapStyleChainSourceRefs(element.styleChain, effectiveSourceMap),
       origin: nextOrigin
     };
   });
@@ -133,14 +145,16 @@ export function finalizeExpandedStatementHandles(args: {
   startIndex: number;
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>;
   statementSourceMap: ExpansionSourceMap | undefined;
+  pathItemSourceMaps: WeakMap<PathItem, ExpansionSourceMap>;
   source: string;
 }): void {
-  const { statement, handles, startIndex, statementAttribution, statementSourceMap, source } = args;
+  const { statement, handles, startIndex, statementAttribution, statementSourceMap, pathItemSourceMaps, source } = args;
   const attribution = statementAttribution.get(statement);
   const shouldOverrideSource =
     attribution != null &&
     (attribution.sourceId !== statement.id || attribution.foreachStack.length > 0);
-  if (!shouldOverrideSource || !attribution) {
+  const pathItemsById = statement.kind === "Path" ? buildPathItemLookup(statement) : undefined;
+  if (!shouldOverrideSource && !pathItemsById) {
     return;
   }
 
@@ -149,26 +163,53 @@ export function finalizeExpandedStatementHandles(args: {
     if (!handle) {
       continue;
     }
-    const mappedSpan = statementSourceMap ? mapExpansionSpan(statementSourceMap, handle.sourceRef.sourceSpan) : handle.sourceRef.sourceSpan;
+    const pathItem = pathItemsById ? resolvePathItemForSourceRef(handle.sourceRef.sourceId, handle.sourceRef.sourceSpan, pathItemsById) : undefined;
+    const itemSourceMap = pathItem ? pathItemSourceMaps.get(pathItem) : undefined;
+    const effectiveSourceMap = composePathItemSourceMap(itemSourceMap, statementSourceMap);
+    if (!effectiveSourceMap && (!shouldOverrideSource || !attribution)) {
+      continue;
+    }
+    const mappedSpan = effectiveSourceMap ? mapExpansionSpan(effectiveSourceMap, handle.sourceRef.sourceSpan) : handle.sourceRef.sourceSpan;
     handles[index] = {
       ...handle,
-      identityRef: statementSourceMap
+      identityRef: effectiveSourceMap
         ? {
-            sourceId: handle.sourceRef.sourceId,
+            sourceId: itemSourceMap && pathItem ? pathItem.id : handle.sourceRef.sourceId,
             sourceSpan: { ...handle.sourceRef.sourceSpan },
             sourceKind: "expanded-handle"
           }
         : handle.identityRef,
-      sourceText: statementSourceMap
+      sourceText: effectiveSourceMap
         ? source.slice(mappedSpan.from, mappedSpan.to)
         : handle.sourceText,
       sourceRef: {
         ...handle.sourceRef,
-        sourceId: attribution.sourceId,
+        sourceId: (itemSourceMap && !statementSourceMap) || !attribution ? handle.sourceRef.sourceId : attribution.sourceId,
         sourceSpan: mappedSpan
       }
     };
   }
+}
+
+function composePathItemSourceMap(
+  itemSourceMap: ExpansionSourceMap | undefined,
+  statementSourceMap: ExpansionSourceMap | undefined
+): ExpansionSourceMap | undefined {
+  if (!itemSourceMap) {
+    return statementSourceMap;
+  }
+  if (!statementSourceMap) {
+    return itemSourceMap;
+  }
+  return {
+    sourceId: statementSourceMap.sourceId,
+    sourceSpan: statementSourceMap.sourceSpan,
+    sourceKind: itemSourceMap.sourceKind,
+    mapSpan: (span) => {
+      const itemMapped = itemSourceMap.mapSpan(span);
+      return itemMapped ? statementSourceMap.mapSpan(itemMapped) : null;
+    }
+  };
 }
 
 function remapStyleChainSourceRefs(
@@ -198,10 +239,45 @@ function remapStyleChainSourceRefs(
   });
 }
 
-function buildPathItemLookup(statement: PathStatement): Map<string, PathItem> {
-  const byId = new Map<string, PathItem>();
-  collectPathItemsById(statement.items, byId);
-  return byId;
+type PathItemLookup = {
+  byId: Map<string, PathItem>;
+  items: PathItem[];
+};
+
+function buildPathItemLookup(statement: PathStatement): PathItemLookup {
+  const lookup: PathItemLookup = {
+    byId: new Map<string, PathItem>(),
+    items: []
+  };
+  collectPathItemsById(statement.items, lookup);
+  return lookup;
+}
+
+function resolvePathItemForElement(
+  element: SceneElement,
+  statement: PathStatement,
+  lookup: PathItemLookup
+): PathItem | undefined {
+  const itemPayload = extractElementItemPayload(element.id, statement.id);
+  if (itemPayload) {
+    const matched = resolvePathItemByPayload(itemPayload, lookup.byId);
+    if (matched) {
+      return matched;
+    }
+  }
+  return resolvePathItemForSourceRef(element.sourceRef.sourceId, element.sourceRef.sourceSpan, lookup);
+}
+
+function resolvePathItemForSourceRef(
+  sourceId: string,
+  sourceSpan: Span,
+  lookup: PathItemLookup
+): PathItem | undefined {
+  const bySource = lookup.byId.get(sourceId);
+  if (bySource) {
+    return bySource;
+  }
+  return lookup.items.find((item) => spansEqual(item.span, sourceSpan));
 }
 
 function resolvePathItemForeachStackForElement(
@@ -215,6 +291,14 @@ function resolvePathItemForeachStackForElement(
     return undefined;
   }
 
+  const item = resolvePathItemByPayload(itemPayload, pathItemsById);
+  return item ? pathItemForeachStack.get(item) : undefined;
+}
+
+function resolvePathItemByPayload(
+  itemPayload: string,
+  pathItemsById: Map<string, PathItem>
+): PathItem | undefined {
   let matchedItemId: string | undefined;
   for (const itemId of pathItemsById.keys()) {
     if (itemPayload === itemId || itemPayload.startsWith(`${itemId}:`)) {
@@ -227,12 +311,7 @@ function resolvePathItemForeachStackForElement(
   if (!matchedItemId) {
     return undefined;
   }
-
-  const item = pathItemsById.get(matchedItemId);
-  if (!item) {
-    return undefined;
-  }
-  return pathItemForeachStack.get(item);
+  return pathItemsById.get(matchedItemId);
 }
 
 function resolveFirstPathItemForeachStack(
@@ -254,13 +333,18 @@ function resolveFirstPathItemForeachStack(
   return undefined;
 }
 
-function collectPathItemsById(items: PathItem[], byId: Map<string, PathItem>): void {
+function collectPathItemsById(items: PathItem[], lookup: PathItemLookup): void {
   for (const item of items) {
-    byId.set(item.id, item);
+    lookup.byId.set(item.id, item);
+    lookup.items.push(item);
     if (item.kind === "ChildOperation") {
-      collectPathItemsById(item.body, byId);
+      collectPathItemsById(item.body, lookup);
     }
   }
+}
+
+function spansEqual(left: Span, right: Span): boolean {
+  return left.from === right.from && left.to === right.to;
 }
 
 function extractElementItemPayload(elementId: string, sourceId: string): string | undefined {

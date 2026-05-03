@@ -94,7 +94,7 @@ describe("semantic source attribution invariants", () => {
     }
   });
 
-  it("keeps path foreach source refs within the original source during the transitional mapping", () => {
+  it("maps inline path foreach handles back to the original repeated coordinate", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) foreach \x in {1,2} { -- (\x,0) };
 \end{tikzpicture}`;
@@ -104,6 +104,27 @@ describe("semantic source attribution invariants", () => {
     const path = elementsOfKind(result.scene.elements, "Path")[0];
     expect(path?.origin?.foreachStack.length).toBeGreaterThan(0);
     expect(source.slice(path.sourceRef.sourceSpan.from, path.sourceRef.sourceSpan.to)).toContain("foreach");
+    const generatedHandles = result.editHandles.filter((handle) => handle.identityRef);
+    expect(generatedHandles).toHaveLength(2);
+    expect(new Set(generatedHandles.map((handle) => handle.runtimeId)).size).toBe(generatedHandles.length);
+    for (const handle of generatedHandles) {
+      expect(source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to)).toBe(String.raw`(\x,0)`);
+      expect(handle.identityRef?.sourceId).toContain("coordinate");
+    }
+  });
+
+  it("composes nested inline path foreach source maps", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) foreach \x in {1,2} { foreach \y in {0,1} { -- (\x,\y) } };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+
+    assertOriginalSourceRefInvariants(source, result);
+    const generatedHandles = result.editHandles.filter((handle) => handle.identityRef);
+    expect(generatedHandles).toHaveLength(4);
+    for (const handle of generatedHandles) {
+      expect(source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to)).toBe(String.raw`(\x,\y)`);
+    }
   });
 
   it("keeps node foreach source refs original-facing", () => {
@@ -117,7 +138,28 @@ describe("semantic source attribution invariants", () => {
     expect(labels).toHaveLength(2);
     for (const label of labels) {
       expect(label.origin?.foreachStack.length).toBeGreaterThan(0);
-      expect(source.slice(label.sourceRef.sourceSpan.from, label.sourceRef.sourceSpan.to).length).toBeGreaterThan(0);
+      expect(label.identityRef?.sourceId).toBe("node:0:0");
+      expect(source.slice(label.sourceRef.sourceSpan.from, label.sourceRef.sourceSpan.to)).toBe(String.raw`node foreach \p in {0.25,0.75} [pos=\p] {\p}`);
+    }
+    const nodeHandles = result.editHandles.filter((handle) => handle.identityRef);
+    expect(nodeHandles).toHaveLength(2);
+    for (const handle of nodeHandles) {
+      expect(source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to)).toBe(String.raw`[pos=\p]`);
+    }
+  });
+
+  it("maps chained node foreach clauses to the original node template", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path (0,0) node foreach \x in {0,1} foreach \y in {a,b} [name=n\x\y] {\x\y};
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+
+    assertOriginalSourceRefInvariants(source, result);
+    const labels = elementsOfKind(result.scene.elements, "Text").filter((element) => /^(0|1)(a|b)$/.test(element.text));
+    expect(labels).toHaveLength(4);
+    for (const label of labels) {
+      expect(label.identityRef?.sourceId).toBe("node:0:0");
+      expect(source.slice(label.sourceRef.sourceSpan.from, label.sourceRef.sourceSpan.to)).toBe(String.raw`node foreach \x in {0,1} foreach \y in {a,b} [name=n\x\y] {\x\y}`);
     }
   });
 
@@ -130,6 +172,21 @@ describe("semantic source attribution invariants", () => {
 
     expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
     assertOriginalSourceRefInvariants(source, result);
+  });
+
+  it("falls back to the path foreach operation span when macro-expanded path fragments are not precisely mappable", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \def\seg{-- (1,0)}
+  \draw (0,0) foreach \x in {1,2} { \seg };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+
+    assertOriginalSourceRefInvariants(source, result);
+    const generatedHandles = result.editHandles.filter((handle) => handle.identityRef);
+    expect(generatedHandles).toHaveLength(2);
+    for (const handle of generatedHandles) {
+      expect(source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to)).toBe(String.raw`foreach \x in {1,2} { \seg }`);
+    }
   });
 
   it("maps macro-expanded path statements to invocation source refs with generated identity refs", () => {
@@ -178,6 +235,21 @@ describe("semantic source attribution invariants", () => {
     for (const path of paths) {
       expect(source.slice(path.sourceRef.sourceSpan.from, path.sourceRef.sourceSpan.to).trim()).toBe(String.raw`\twolines`);
       expect(path.identityRef?.sourceId.startsWith("path:")).toBe(true);
+    }
+  });
+
+  it("composes path foreach item maps through macro-expanded path statements", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \newcommand{\mypath}{\draw (0,0) foreach \x in {1,2} { -- (\x,0) };}
+  \mypath
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+
+    assertOriginalSourceRefInvariants(source, result);
+    const generatedHandles = result.editHandles.filter((handle) => handle.identityRef);
+    expect(generatedHandles.length).toBeGreaterThan(0);
+    for (const handle of generatedHandles) {
+      expect(source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to).trim()).toBe(String.raw`\mypath`);
     }
   });
 });

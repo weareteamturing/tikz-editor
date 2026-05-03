@@ -38,6 +38,7 @@ import type {
   MacroCommandDefinitionStatement,
   MacroDefinitionStatement,
   NodeItem,
+  PathForeachItem,
   PathItem,
   PathStatement,
   ScopeStatement,
@@ -49,13 +50,12 @@ import { expandMacroBindings, isControlSequenceToken } from "../macros/expand.js
 import type { MacroBinding, MacroOriginFrame as MacroOriginFrameType } from "../macros/types.js";
 import { buildForeachIterations } from "./options.js";
 import {
-  parseNodeItemsFromTemplate,
-  parsePathItemsFromFragment,
+  parsePathItemsFromFragmentWithSyntheticMapping,
   parseStatementsFromBody,
   parseStatementsFromBodyWithMapping
 } from "./snippet-parse.js";
 import { expandTexConditionals } from "../conditionals/expand.js";
-import { substituteForeachBindings, substituteForeachBindingsWithMap } from "./substitute.js";
+import { substituteForeachBindingsWithMap } from "./substitute.js";
 import type {
   ExpansionSourceMap,
   ForeachExpansionDiagnostic,
@@ -73,6 +73,7 @@ type ExpandContext = {
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>;
   statementSourceMaps: WeakMap<Statement, ExpansionSourceMap>;
   pathItemForeachStack: WeakMap<PathItem, ForeachOriginFrame[]>;
+  pathItemSourceMaps: WeakMap<PathItem, ExpansionSourceMap>;
   statementMacroAttribution: WeakMap<Statement, MacroOriginFrameType[]>;
   macroBindings: Map<string, MacroBinding>;
   breakforeachWarned: Set<string>;
@@ -101,6 +102,7 @@ export function expandForeachFigure(
     statementAttribution: new WeakMap<Statement, ForeachStatementAttribution>(),
     statementSourceMaps: new WeakMap<Statement, ExpansionSourceMap>(),
     pathItemForeachStack: new WeakMap<PathItem, ForeachOriginFrame[]>(),
+    pathItemSourceMaps: new WeakMap<PathItem, ExpansionSourceMap>(),
     statementMacroAttribution: new WeakMap<Statement, MacroOriginFrameType[]>(),
     macroBindings,
     breakforeachWarned: new Set<string>(),
@@ -117,6 +119,7 @@ export function expandForeachFigure(
     statementAttribution: context.statementAttribution,
     statementSourceMaps: context.statementSourceMaps,
     pathItemForeachStack: context.pathItemForeachStack,
+    pathItemSourceMaps: context.pathItemSourceMaps,
     statementMacroAttribution: context.statementMacroAttribution,
     templateLocalIdByExpandedId: context.templateLocalIdByExpandedId
   };
@@ -316,6 +319,20 @@ function recordStatementSourceMaps(
   }
 }
 
+function recordPathItemSourceMaps(
+  items: PathItem[],
+  sourceMap: ExpansionSourceMap,
+  context: ExpandContext
+): void {
+  for (const item of items) {
+    const existing = context.pathItemSourceMaps.get(item);
+    context.pathItemSourceMaps.set(item, existing ? composeExpansionSourceMaps(existing, sourceMap) : sourceMap);
+    if (item.kind === "ChildOperation") {
+      recordPathItemSourceMaps(item.body, sourceMap, context);
+    }
+  }
+}
+
 function composeExpansionSourceMaps(inner: ExpansionSourceMap, outer: ExpansionSourceMap): ExpansionSourceMap {
   return {
     sourceId: outer.sourceId,
@@ -325,6 +342,73 @@ function composeExpansionSourceMaps(inner: ExpansionSourceMap, outer: ExpansionS
       const innerMapped = inner.mapSpan(span);
       return innerMapped ? outer.mapSpan(innerMapped) : null;
     }
+  };
+}
+
+type TemplateSourceMapper = {
+  mapSpan: (span: { from: number; to: number }) => { from: number; to: number } | null;
+};
+
+function mapSubstitutedFragmentSpan(
+  span: { from: number; to: number },
+  mapSubstitutionSpan: (span: { from: number; to: number }) => { from: number; to: number } | null,
+  templateMapper: TemplateSourceMapper
+): { from: number; to: number } | null {
+  const templateSpan = mapSubstitutionSpan(span);
+  return templateSpan ? templateMapper.mapSpan(templateSpan) : null;
+}
+
+function createContiguousTemplateMapper(sourceSpan: { from: number; to: number } | null): TemplateSourceMapper {
+  return {
+    mapSpan: (span) => sourceSpan ? offsetSpan(span, sourceSpan.from) : null
+  };
+}
+
+function createTemplateMapper(item: NodeItem | ChildOperationItem): TemplateSourceMapper {
+  const clauses = item.foreachClauses ?? [];
+  if (clauses.length === 0) {
+    return createContiguousTemplateMapper(item.span);
+  }
+
+  const lastClauseEnd = clauses.reduce((max, clause) => Math.max(max, clause.span.to), clauses[0]?.span.to ?? item.span.from);
+  const suffixLength = item.span.to - lastClauseEnd;
+  const prefixLength = item.templateRaw.length - suffixLength;
+  const prefixSourceSpan = { from: item.span.from, to: item.span.from + prefixLength };
+  const suffixSourceSpan = { from: lastClauseEnd, to: item.span.to };
+
+  return {
+    mapSpan: (span) => {
+      if (span.to <= prefixLength) {
+        return {
+          from: prefixSourceSpan.from + span.from,
+          to: prefixSourceSpan.from + span.to
+        };
+      }
+      if (span.from >= prefixLength) {
+        return {
+          from: suffixSourceSpan.from + (span.from - prefixLength),
+          to: suffixSourceSpan.from + (span.to - prefixLength)
+        };
+      }
+      return {
+        from: prefixSourceSpan.from + span.from,
+        to: suffixSourceSpan.from + (span.to - prefixLength)
+      };
+    }
+  };
+}
+
+function resolvePathForeachBodySpan(item: PathForeachItem): { from: number; to: number } | null {
+  if (item.bodyRaw.length === 0) {
+    return null;
+  }
+  const bodyOffset = item.raw.lastIndexOf(item.bodyRaw);
+  if (bodyOffset < 0) {
+    return null;
+  }
+  return {
+    from: item.span.from + bodyOffset,
+    to: item.span.from + bodyOffset + item.bodyRaw.length
   };
 }
 
@@ -379,13 +463,11 @@ function expandPathItems(
           bindings: { ...iteration.bindings }
         };
         const nextStack = [...stack, frame];
-        const bodyRaw = expandTexConditionals(
-          expandMacroBindings(
-            substituteForeachBindings(item.bodyRaw, combinedBindings),
-            context.macroBindings
-          )
-        );
-        const parsedItems = parsePathItemsFromFragment(bodyRaw);
+        const substituted = substituteForeachBindingsWithMap(item.bodyRaw, combinedBindings);
+        const macroExpandedBodyRaw = expandMacroBindings(substituted.output, context.macroBindings);
+        const bodyRaw = expandTexConditionals(macroExpandedBodyRaw);
+        const canMapBody = bodyRaw === substituted.output;
+        const parsedItems = parsePathItemsFromFragmentWithSyntheticMapping(bodyRaw, { from: 0, to: bodyRaw.length });
         if (parsedItems.hasParseError) {
           context.diagnostics.push({
             severity: "warning",
@@ -396,6 +478,18 @@ function expandPathItems(
         }
 
         const expandedItems = expandPathItems(parsedItems.value, nextStack, combinedBindings, context);
+        recordPathItemSourceMaps(expandedItems, {
+          sourceId: item.id,
+          sourceSpan: item.span,
+          sourceKind: "foreach",
+          mapSpan: (span) => {
+            const generatedSpan = parsedItems.sourceMapper.mapSpan(span);
+            if (!generatedSpan || !canMapBody) {
+              return null;
+            }
+            return mapSubstitutedFragmentSpan(generatedSpan, substituted.mapSpan, createContiguousTemplateMapper(resolvePathForeachBodySpan(item)));
+          }
+        }, context);
         for (const expandedItem of expandedItems) {
           markPathItemForeachStack(expandedItem, nextStack, context);
         }
@@ -501,13 +595,11 @@ function expandChildOperationItem(
 
   const expanded: PathItem[] = [];
   for (const variant of variants) {
-    const childRaw = expandTexConditionals(
-      expandMacroBindings(
-        substituteForeachBindings(item.templateRaw, variant.bindings),
-        context.macroBindings
-      )
-    );
-    const parsed = parsePathItemsFromFragment(childRaw);
+    const substituted = substituteForeachBindingsWithMap(item.templateRaw, variant.bindings);
+    const macroExpandedChildRaw = expandMacroBindings(substituted.output, context.macroBindings);
+    const childRaw = expandTexConditionals(macroExpandedChildRaw);
+    const canMapChild = childRaw === substituted.output;
+    const parsed = parsePathItemsFromFragmentWithSyntheticMapping(childRaw, { from: 0, to: childRaw.length });
     if (parsed.hasParseError) {
       context.diagnostics.push({
         severity: "warning",
@@ -528,6 +620,19 @@ function expandChildOperationItem(
         ...expandedChildItem,
         body: expandedBody
       };
+      const sourceMap: ExpansionSourceMap = {
+        sourceId: item.id,
+        sourceSpan: item.span,
+        sourceKind: "foreach",
+        mapSpan: (span) => {
+          const generatedSpan = parsed.sourceMapper.mapSpan(span);
+          if (!generatedSpan || !canMapChild) {
+            return null;
+          }
+          return mapSubstitutedFragmentSpan(generatedSpan, substituted.mapSpan, createTemplateMapper(item));
+        }
+      };
+      recordPathItemSourceMaps([expandedChild], sourceMap, context);
       markPathItemForeachStack(expandedChild, variant.stack, context);
       expanded.push(expandedChild);
     }
@@ -625,13 +730,11 @@ function expandNodeForeachItem(
 
   const expanded: PathItem[] = [];
   for (const variant of variants) {
-    const nodeRaw = expandTexConditionals(
-      expandMacroBindings(
-        substituteForeachBindings(item.templateRaw, variant.bindings),
-        context.macroBindings
-      )
-    );
-    const parsed = parseNodeItemsFromTemplate(nodeRaw);
+    const substituted = substituteForeachBindingsWithMap(item.templateRaw, variant.bindings);
+    const macroExpandedNodeRaw = expandMacroBindings(substituted.output, context.macroBindings);
+    const nodeRaw = expandTexConditionals(macroExpandedNodeRaw);
+    const canMapNode = nodeRaw === substituted.output;
+    const parsed = parsePathItemsFromFragmentWithSyntheticMapping(nodeRaw, { from: 0, to: nodeRaw.length });
     if (parsed.hasParseError) {
       context.diagnostics.push({
         severity: "warning",
@@ -642,6 +745,18 @@ function expandNodeForeachItem(
     }
 
     const expandedItems = expandPathItems(parsed.value, variant.stack, variant.bindings, context);
+    recordPathItemSourceMaps(expandedItems, {
+      sourceId: item.id,
+      sourceSpan: item.span,
+      sourceKind: "foreach",
+      mapSpan: (span) => {
+        const generatedSpan = parsed.sourceMapper.mapSpan(span);
+        if (!generatedSpan || !canMapNode) {
+          return null;
+        }
+        return mapSubstitutedFragmentSpan(generatedSpan, substituted.mapSpan, createTemplateMapper(item));
+      }
+    }, context);
     for (const expandedItem of expandedItems) {
       markPathItemForeachStack(expandedItem, variant.stack, context);
     }

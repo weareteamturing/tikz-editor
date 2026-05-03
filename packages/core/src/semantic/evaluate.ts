@@ -132,6 +132,7 @@ export type SemanticEvaluationRun = {
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>;
   statementSourceMaps: WeakMap<Statement, ExpansionSourceMap>;
   pathItemForeachStack: WeakMap<PathItem, ExpansionForeachOriginFrame[]>;
+  pathItemSourceMaps: WeakMap<PathItem, ExpansionSourceMap>;
   statementMacroAttribution: WeakMap<Statement, MacroOriginFrame[]>;
   templateLocalIdByExpandedId: Map<string, string>;
   rootFramePushed: boolean;
@@ -288,6 +289,7 @@ export function createSemanticEvaluationRun(
     statementAttribution: expanded.statementAttribution,
     statementSourceMaps: expanded.statementSourceMaps,
     pathItemForeachStack: expanded.pathItemForeachStack,
+    pathItemSourceMaps: expanded.pathItemSourceMaps,
     statementMacroAttribution: expanded.statementMacroAttribution,
     templateLocalIdByExpandedId: expanded.templateLocalIdByExpandedId,
     rootFramePushed,
@@ -326,6 +328,7 @@ export function evaluateSemanticStatementByIndex(
       statementAttribution: run.statementAttribution,
       statementSourceMap,
       pathItemForeachStack: run.pathItemForeachStack,
+      pathItemSourceMaps: run.pathItemSourceMaps,
       statementMacroAttribution: run.statementMacroAttribution,
       templateLocalIdByExpandedId: run.templateLocalIdByExpandedId
     }),
@@ -337,6 +340,7 @@ export function evaluateSemanticStatementByIndex(
     startIndex: handleStart,
     statementAttribution: run.statementAttribution,
     statementSourceMap,
+    pathItemSourceMaps: run.pathItemSourceMaps,
     source: run.context.source
   });
   const editHandles = finalizeStatementEditHandles(
