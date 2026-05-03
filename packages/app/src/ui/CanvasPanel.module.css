@@ -323,11 +323,11 @@
 }
 
 :global([data-color-scheme="dark"]) .gridMinor {
-  stroke: rgba(255, 255, 255, 0.1);
+  stroke: rgba(85, 82, 76, 0.16);
 }
 
 :global([data-color-scheme="dark"]) .gridMajor {
-  stroke: rgba(255, 255, 255, 0.2);
+  stroke: rgba(69, 65, 59, 0.26);
 }
 
 .hitRegions {
@@ -534,8 +534,16 @@
   stroke: var(--accent-dark);
 }
 
+:global([data-color-scheme="dark"]) .handle {
+  fill: #f7fbff;
+}
+
 .handleControl {
   fill: var(--bg-pane);
+}
+
+:global([data-color-scheme="dark"]) .handleControl {
+  fill: #f7fbff;
 }
 
 .rotateHandleStem {
