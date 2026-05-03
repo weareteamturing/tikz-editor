@@ -36,6 +36,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
     renderSingleTextField,
     renderSingleNumberField,
     renderSingleOptionalLengthField,
+    renderReadOnlyReasonNote,
     renderNodeTextAlignToolbar,
     renderScrubbableNumberLabel,
     applySingleLengthValue,
@@ -121,7 +122,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             />,
             true
           )}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -147,7 +148,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             />
             <span className={withValueProvenanceClass(css.checkboxLabel, provenance)}>{property.label}</span>
           </label>
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -201,7 +202,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
               ))}
             </datalist>
           ) : null}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -239,7 +240,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             <span className={css.unitLabel}>{property.unit}</span>
           </div>
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -270,7 +271,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             ),
             true
           )}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -305,7 +306,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             true
           )}
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -388,7 +389,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             true
           )}
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -421,7 +422,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             />,
             true
           )}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -449,7 +450,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             ),
             true
           )}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -475,7 +476,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             true
           )}
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -501,7 +502,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             true
           )}
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -538,7 +539,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             )}
             {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
           </div>
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -645,7 +646,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
               }}
             />
           ) : null}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -680,7 +681,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             ),
             true
           )}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -715,7 +716,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             ),
             true
           )}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -750,7 +751,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             ),
             true
           )}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -785,7 +786,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             ),
             true
           )}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -836,7 +837,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
               <span className={css.roundedCornersValue}>{`${formatNumber(currentRadius)}pt`}</span>
             </div>
           ) : null}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -861,7 +862,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             ),
             true
           )}
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderReadOnlyReasonNote(readOnlyReason)}
         </div>
       );
     }
@@ -897,7 +898,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
           ),
           true
         )}
-        {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        {renderReadOnlyReasonNote(readOnlyReason)}
       </div>
     );
   }

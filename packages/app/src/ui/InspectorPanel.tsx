@@ -248,7 +248,7 @@ export function InspectorPanel() {
         <div className={css.controlRow}>
           {maybeWrapWithProvenanceTooltip(provenance, textInput, true)}
         </div>
-        {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        {renderReadOnlyReasonNote(readOnlyReason)}
       </div>
     );
   }
@@ -708,7 +708,7 @@ export function InspectorPanel() {
           {maybeWrapWithProvenanceTooltip(provenance, input, true)}
           {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
         </div>
-        {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        {renderReadOnlyReasonNote(readOnlyReason)}
       </div>
     );
   }
@@ -746,7 +746,7 @@ export function InspectorPanel() {
           {maybeWrapWithProvenanceTooltip(provenance, input, true)}
           {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
         </div>
-        {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        {renderReadOnlyReasonNote(property.readOnlyReason)}
       </div>
     );
   }
@@ -791,7 +791,7 @@ export function InspectorPanel() {
           <span className={css.unitLabel}>{property.unit}</span>
         </div>
         {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
-        {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        {renderReadOnlyReasonNote(readOnlyReason)}
       </div>
     );
   }
@@ -832,7 +832,7 @@ export function InspectorPanel() {
           <span className={css.unitLabel}>{property.unit}</span>
         </div>
         {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
-        {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        {renderReadOnlyReasonNote(property.readOnlyReason)}
       </div>
     );
   }
@@ -902,7 +902,7 @@ export function InspectorPanel() {
           <span className={css.unitLabel}>{property.unit}</span>
         </div>
         {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
-        {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        {renderReadOnlyReasonNote(readOnlyReason)}
       </div>
     );
   }
@@ -968,7 +968,7 @@ export function InspectorPanel() {
           <span className={css.unitLabel}>{property.unit}</span>
         </div>
         {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
-        {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        {renderReadOnlyReasonNote(property.readOnlyReason)}
       </div>
     );
   }
@@ -1200,11 +1200,19 @@ export function InspectorPanel() {
     );
   }
 
+  function renderReadOnlyReasonNote(reason: string | null | undefined): JSX.Element | null {
+    if (!reason || reason === renderedDescriptor?.readOnlyReason) {
+      return null;
+    }
+    return <div className={css.propertyNote}>{reason}</div>;
+  }
+
   const propertyRendererApi = {
     renderedSinglePropertyProvenance,
     renderedMultiPropertyProvenance,
     implicitDefaultProvenance,
     withValueProvenanceClass,
+    renderReadOnlyReasonNote,
     renderSingleTextField,
     renderSingleNumberField,
     renderSingleOptionalLengthField,

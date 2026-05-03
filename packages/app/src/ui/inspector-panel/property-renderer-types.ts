@@ -12,6 +12,7 @@ export type RenderPropertyApi = {
   implicitDefaultProvenance(this: void, property: InspectorProperty | MultiInspectorProperty): InspectorPropertyProvenance | null;
   withValueProvenanceClass(this: void, className: string | undefined, provenance: InspectorPropertyProvenance | null): string | undefined;
   maybeWrapWithProvenanceTooltip(this: void, provenance: InspectorPropertyProvenance | null, child: JSX.Element, block?: boolean): JSX.Element;
+  renderReadOnlyReasonNote(this: void, reason: string | null | undefined): JSX.Element | null;
 
   renderSingleTextField(this: void, property: Extract<InspectorProperty, { kind: "text" }>, provenance: InspectorPropertyProvenance | null): JSX.Element;
   renderSingleNumberField(this: void, property: Extract<InspectorProperty, { kind: "number" }>, compact: boolean, provenance: InspectorPropertyProvenance | null): JSX.Element;
