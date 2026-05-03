@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { RiAddLine, RiSendPlane2Line, RiStopMiniLine } from "@remixicon/react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getActiveEditorPlatform } from "../platform/current";
@@ -336,7 +337,10 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: A
 
   const running = doc.assistantTurnStatus === "starting" || doc.assistantTurnStatus === "inProgress";
   const hasPromptText = prompt.trim().length > 0;
-  const composerAction = running && !hasPromptText ? "interrupt" : "send";
+  const composerAction = running && !hasPromptText ? "stop" : "send";
+  const workingIndicatorLabel = doc.assistantTurnStatus === "starting"
+    ? "Setting up conversation..."
+    : "Assistant is working...";
 
   async function handleLogin(): Promise<void> {
     if (pendingLoginId) {
@@ -395,7 +399,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: A
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (composerAction === "interrupt") {
+    if (composerAction === "stop") {
       void onInterruptTurn();
       return;
     }
@@ -446,10 +450,6 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: A
       <SidePanel.Header className={css.header}>
         <div>
           <div className={css.title}>Assistant</div>
-          <div className={css.meta}>
-            {doc.assistantTurnStatus}
-            {doc.assistantThreadId ? ` · ${doc.assistantThreadId}` : ""}
-          </div>
         </div>
         <button
           type="button"
@@ -458,7 +458,8 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: A
           disabled={running}
           data-testid="assistant-new-chat"
         >
-          New chat
+          <RiAddLine size={14} aria-hidden="true" />
+          <span>New chat</span>
         </button>
       </SidePanel.Header>
 
@@ -495,6 +496,12 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: A
 
       <SidePanel.Footer>
         <form className={css.composer} onSubmit={handleSubmit}>
+          {running ? (
+            <div className={css.workingIndicator} data-select="text">
+              <div className={css.spinnerInline} />
+              <span>{workingIndicatorLabel}</span>
+            </div>
+          ) : null}
           {pendingImageAttachments.length > 0 ? (
             <div className={css.attachments} data-testid="assistant-attachments">
               {pendingImageAttachments.map((attachment) => (
@@ -623,11 +630,18 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: A
               />
             </div>
             <button
+              className={css.composerAction}
               type="submit"
               disabled={submitting || (composerAction === "send" && !hasPromptText)}
+              aria-label={composerAction === "stop" ? "Stop assistant" : "Send message"}
+              title={composerAction === "stop" ? "Stop" : "Send"}
               data-testid="assistant-send"
             >
-              {composerAction === "interrupt" ? "Interrupt" : "Send"}
+              {composerAction === "stop" ? (
+                <RiStopMiniLine size={15} aria-hidden="true" />
+              ) : (
+                <RiSendPlane2Line size={15} aria-hidden="true" />
+              )}
             </button>
           </div>
         </form>
@@ -1112,8 +1126,8 @@ function countDiffStats(diff: string): { added: number; removed: number } {
 function approvalActions(approval: AssistantPendingApproval): Array<{ value: string; label: string }> {
   if (approval.kind !== "command") {
     return [
-      { value: "accept", label: "Accept" },
-      { value: "decline", label: "Decline" },
+      { value: "accept", label: "Allow" },
+      { value: "decline", label: "Deny" },
       { value: "cancel", label: "Cancel" }
     ];
   }
@@ -1134,8 +1148,8 @@ function approvalActions(approval: AssistantPendingApproval): Array<{ value: str
     : [];
   if (offered.length === 0) {
     return [
-      { value: "accept", label: "Accept" },
-      { value: "decline", label: "Decline" },
+      { value: "accept", label: "Allow" },
+      { value: "decline", label: "Deny" },
       { value: "cancel", label: "Cancel" }
     ];
   }
@@ -1148,15 +1162,15 @@ function approvalActions(approval: AssistantPendingApproval): Array<{ value: str
 function humanizeDecision(value: string): string {
   switch (value) {
     case "accept":
-      return "Accept";
+      return "Allow";
     case "acceptForSession":
-      return "Accept for Session";
+      return "Allow this session";
     case "decline":
-      return "Decline";
+      return "Deny";
     case "cancel":
       return "Cancel";
     case "acceptWithExecpolicyAmendment":
-      return "Accept with Amendment";
+      return "Allow with changes";
     default:
       return value;
   }

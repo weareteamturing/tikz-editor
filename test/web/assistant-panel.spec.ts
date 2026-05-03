@@ -276,7 +276,7 @@ describe("AssistantPanel image paste", () => {
     expect(summary).toBeDefined();
   });
 
-  it("uses the composer button as interrupt while running with an empty prompt", async () => {
+  it("uses the composer button as stop while running with an empty prompt", async () => {
     const onInterruptTurn = vi.fn(async () => undefined);
     const state = useEditorStore.getState();
     const docId = state.activeDocumentId;
@@ -302,13 +302,42 @@ describe("AssistantPanel image paste", () => {
     });
 
     const sendButton = container.querySelector('[data-testid="assistant-send"]') as HTMLButtonElement;
-    expect(sendButton.textContent).toBe("Interrupt");
+    expect(sendButton.getAttribute("aria-label")).toBe("Stop assistant");
     expect(sendButton.disabled).toBe(false);
+    expect(container.textContent).toContain("Assistant is working...");
     await act(async () => {
       sendButton.click();
       await Promise.resolve();
     });
     expect(onInterruptTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows setup copy before the assistant turn starts streaming", async () => {
+    const state = useEditorStore.getState();
+    const docId = state.activeDocumentId;
+    const doc = state.documents[docId];
+    await act(async () => {
+      useEditorStore.setState({
+        ...state,
+        documents: {
+          ...state.documents,
+          [docId]: {
+            ...doc,
+            assistantTurnStatus: "starting"
+          }
+        }
+      });
+      root.render(
+        React.createElement(AssistantPanel, {
+          onSubmitPrompt: async () => undefined,
+          onInterruptTurn: async () => undefined,
+          onNewChat: () => undefined
+        })
+      );
+    });
+
+    expect(container.textContent).toContain("Setting up conversation...");
+    expect(container.textContent).not.toContain("Assistant is working...");
   });
 
   it("uses the composer button as send while running with a nonempty prompt", async () => {
@@ -343,7 +372,7 @@ describe("AssistantPanel image paste", () => {
     });
 
     const sendButton = container.querySelector('[data-testid="assistant-send"]') as HTMLButtonElement;
-    expect(sendButton.textContent).toBe("Send");
+    expect(sendButton.getAttribute("aria-label")).toBe("Send message");
     expect(sendButton.disabled).toBe(false);
     await act(async () => {
       sendButton.click();

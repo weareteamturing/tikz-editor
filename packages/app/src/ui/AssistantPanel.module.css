@@ -12,17 +12,14 @@
   font-weight: 700;
 }
 
-.meta {
-  font-size: calc(var(--app-ui-scale, 1) * 9px);
-  color: var(--text-faint);
-  margin-top: 1px;
-}
-
 .headerButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   border: 1px solid var(--border-light);
   border-radius: 4px;
   background: var(--bg-pane);
-  padding: 2px 8px;
+  padding: 2px 7px 2px 5px;
   font-size: calc(var(--app-ui-scale, 1) * 10px);
   color: var(--text);
   cursor: pointer;
@@ -211,6 +208,15 @@
   flex-direction: column;
   gap: 6px;
   padding: 8px;
+}
+
+.workingIndicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 16px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  color: var(--text-faint);
 }
 
 .composer textarea {
@@ -410,18 +416,26 @@
   background: color-mix(in srgb, var(--accent-btn-bg) 68%, white);
 }
 
-.composer button[type="submit"] {
+.composerAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 24px;
   border: 1px solid var(--border-light);
   border-radius: 3px;
   background: var(--bg-header);
-  padding: 3px 12px;
-  font-size: calc(var(--app-ui-scale, 1) * 11px);
-  font-weight: 600;
+  padding: 0;
   color: var(--text);
   cursor: pointer;
 }
 
-.composer button[type="submit"]:disabled {
+.composerAction:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.composerAction:disabled {
   opacity: 0.5;
   cursor: default;
 }
