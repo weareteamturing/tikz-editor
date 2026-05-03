@@ -231,6 +231,28 @@ describe("getEditActionAvailability", () => {
     expect(parseSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("enables delete point for closed explicit path anchors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0) -- (1,1) -- cycle;
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const activeHandleId = rendered.semantic.editHandles.find(
+      (handle) => source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to) === "(0,0)"
+    )?.id ?? null;
+
+    const availability = getEditActionAvailability({
+      source,
+      activeFigureId: "figure:0",
+      snapshotSource: source,
+      selectedSourceIds: ["path:0"],
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      activeHandleId
+    });
+
+    expect(availability["path-delete-point"].enabled).toBe(true);
+  });
+
   it("enables group for same-parent multi-statement selections and gates mixed parents", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);

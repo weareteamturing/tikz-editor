@@ -210,7 +210,7 @@ export function analyzeExplicitPathStatement(source: string, statement: PathStat
     if (operator.keyword === "..") {
       const parsedCurve = parseCurvePattern(statement.items, cursor + 1);
       if (!parsedCurve) {
-        return { kind: "ineligible", reason: "Only explicit `.. controls ... ..` cubic segments are editable in v1." };
+        return { kind: "ineligible", reason: "Only explicit `.. controls ... ..` cubic segments can be edited." };
       }
       if (parsedCurve.target.kind === "PathKeyword") {
         if (parsedCurve.target.keyword !== "cycle" || parsedCurve.targetIndex !== statement.items.length - 1) {

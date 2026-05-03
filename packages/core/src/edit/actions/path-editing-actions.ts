@@ -151,7 +151,7 @@ export function applyJoinPathsAction(
     return { kind: "unsupported", reason: secondResolved.reason };
   }
   if (firstResolved.analysis.closed || secondResolved.analysis.closed) {
-    return { kind: "unsupported", reason: "Only open paths can be joined in v1." };
+    return { kind: "unsupported", reason: "Only open explicit paths can be joined." };
   }
 
   const firstBody = buildPathBodyFromSegments(
@@ -289,35 +289,40 @@ export function applyDeletePathPointAction(
     return { kind: "unsupported", reason: handleResolution.reason };
   }
   const anchorIndex = handleResolution.anchorIndex;
-  if (analysis.closed || anchorIndex <= 0 || anchorIndex >= analysis.anchors.length - 1) {
-    return { kind: "unsupported", reason: "Delete point only supports interior anchors on open paths in v1." };
+  if (analysis.closed) {
+    if (analysis.anchors.length <= 2) {
+      return { kind: "unsupported", reason: "Deleting this point would leave too few anchors." };
+    }
+  } else if (anchorIndex <= 0 || anchorIndex >= analysis.anchors.length - 1) {
+    return { kind: "unsupported", reason: "Choose an interior path point to delete." };
   }
 
-  const previousSegment = analysis.segments.find((segment) => segment.endAnchorIndex === anchorIndex && !segment.closesPath) ?? null;
-  const nextSegment = analysis.segments.find((segment) => segment.startAnchorIndex === anchorIndex && !segment.closesPath) ?? null;
+  const previousSegment = analysis.segments.find((segment) => segment.endAnchorIndex === anchorIndex && (analysis.closed || !segment.closesPath)) ?? null;
+  const nextSegment = analysis.segments.find((segment) => segment.startAnchorIndex === anchorIndex && (analysis.closed || !segment.closesPath)) ?? null;
   if (!previousSegment || !nextSegment) {
     return { kind: "unsupported", reason: "Could not resolve the segments around the selected point." };
   }
-  const replacementSegment = buildDeletedWorldPointReplacement(source, analysis, previousSegment, nextSegment);
+  const replacementSegment = buildDeletedWorldPointReplacement(
+    source,
+    analysis,
+    previousSegment,
+    nextSegment,
+    nextSegment.closesPath || (analysis.closed && anchorIndex === 0) ? "cycle" : undefined
+  );
   if (!replacementSegment) {
     return { kind: "unsupported", reason: "Deleting this point would require unsupported segment conversion." };
   }
 
-  const bodyParts = [analysis.anchors[0].raw];
-  for (const segment of analysis.segments) {
-    if (segment === previousSegment) {
-      bodyParts.push(replacementSegment);
-      continue;
-    }
-    if (segment === nextSegment || segment.closesPath) {
-      continue;
-    }
-    bodyParts.push(segment.raw);
+  const body = analysis.closed
+    ? buildClosedPathBodyAfterDeletedPoint(analysis, anchorIndex, previousSegment, nextSegment, replacementSegment)
+    : buildOpenPathBodyAfterDeletedPoint(analysis, previousSegment, nextSegment, replacementSegment);
+  if (!body) {
+    return { kind: "unsupported", reason: "Deleting this point would leave too few anchors." };
   }
   const rewritten = replaceSourceSpan(
     source,
     analysis.statement.span,
-    buildStatementText(source, analysis, bodyParts.join(" "))
+    buildStatementText(source, analysis, body)
   );
   if (!rewritten) {
     return { kind: "unsupported", reason: "Delete point would not change the source." };
@@ -572,10 +577,12 @@ function buildDeletedWorldPointReplacement(
   source: string,
   analysis: ExplicitPathAnalysis,
   previousSegment: ExplicitPathAnalysis["segments"][number],
-  nextSegment: ExplicitPathAnalysis["segments"][number]
+  nextSegment: ExplicitPathAnalysis["segments"][number],
+  targetRawOverride?: string
 ): string | null {
+  const targetRaw = targetRawOverride ?? analysis.anchors[nextSegment.endAnchorIndex].raw;
   if (previousSegment.kind === "line" && nextSegment.kind === "line") {
-    return `-- ${analysis.anchors[nextSegment.endAnchorIndex].raw}`;
+    return `-- ${targetRaw}`;
   }
   if (
     previousSegment.kind === "cubic" &&
@@ -588,15 +595,74 @@ function buildDeletedWorldPointReplacement(
     if (!control1 || !control2 || control1.kind !== "Coordinate" || control2.kind !== "Coordinate") {
       return null;
     }
-    const target = analysis.anchors[nextSegment.endAnchorIndex].raw;
     const control1Raw = sourceSliceForItem(source, analysis, previousSegment.control1Index);
     const control2Raw = sourceSliceForItem(source, analysis, nextSegment.control2Index);
     if (!control1Raw || !control2Raw) {
       return null;
     }
-    return `.. controls ${control1Raw} and ${control2Raw} .. ${target}`;
+    return `.. controls ${control1Raw} and ${control2Raw} .. ${targetRaw}`;
   }
   return null;
+}
+
+function buildOpenPathBodyAfterDeletedPoint(
+  analysis: ExplicitPathAnalysis,
+  previousSegment: ExplicitPathAnalysis["segments"][number],
+  nextSegment: ExplicitPathAnalysis["segments"][number],
+  replacementSegment: string
+): string {
+  const bodyParts = [analysis.anchors[0].raw];
+  for (const segment of analysis.segments) {
+    if (segment === previousSegment) {
+      bodyParts.push(replacementSegment);
+      continue;
+    }
+    if (segment === nextSegment || segment.closesPath) {
+      continue;
+    }
+    bodyParts.push(segment.raw);
+  }
+  return bodyParts.join(" ");
+}
+
+function buildClosedPathBodyAfterDeletedPoint(
+  analysis: ExplicitPathAnalysis,
+  anchorIndex: number,
+  previousSegment: ExplicitPathAnalysis["segments"][number],
+  nextSegment: ExplicitPathAnalysis["segments"][number],
+  replacementSegment: string
+): string | null {
+  if (analysis.anchors.length <= 2) {
+    return null;
+  }
+  if (anchorIndex !== 0) {
+    const bodyParts = [analysis.anchors[0].raw];
+    for (const segment of analysis.segments) {
+      if (segment === previousSegment) {
+        bodyParts.push(replacementSegment);
+        continue;
+      }
+      if (segment === nextSegment) {
+        continue;
+      }
+      bodyParts.push(segment.raw);
+    }
+    return bodyParts.join(" ");
+  }
+
+  const firstRemainingAnchor = analysis.anchors[1];
+  if (!firstRemainingAnchor) {
+    return null;
+  }
+  const bodyParts = [firstRemainingAnchor.raw];
+  for (const segment of analysis.segments) {
+    if (segment === previousSegment || segment === nextSegment) {
+      continue;
+    }
+    bodyParts.push(segment.raw);
+  }
+  bodyParts.push(replacementSegment);
+  return bodyParts.join(" ");
 }
 
 function buildLineSegmentsSmoothReplacement(

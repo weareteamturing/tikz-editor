@@ -54,7 +54,7 @@ export function evaluatePgfMathExpression(input: string, options: EvaluatePgfMat
     return {
       ok: false,
       code: "unsupported-syntax",
-      message: "Array and quoted-string syntax are not supported by the v1 pgfmath evaluator."
+      message: "Array and quoted-string pgfmath expressions are not supported yet."
     };
   }
 

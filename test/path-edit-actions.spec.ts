@@ -181,6 +181,59 @@ describe("path edit actions", () => {
     expect(result.newSource).toContain("\\draw (0,0) .. controls (1,0) and (5,0) .. (6,0);");
   });
 
+  it("deletes a point from a closed polygon while preserving the cycle", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0) -- (1,1) -- cycle;
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const result = applyEditAction(source, rendered.semantic.editHandles, {
+      kind: "deletePathPoint",
+      elementId: "path:0",
+      handleId: handleIdFor(source, rendered, "(1,0)")
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw (0,0) -- (1,1) -- cycle;");
+  });
+
+  it("deletes the start point from a closed polygon by rotating the path start", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0) -- (1,1) -- cycle;
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const result = applyEditAction(source, rendered.semantic.editHandles, {
+      kind: "deletePathPoint",
+      elementId: "path:0",
+      handleId: handleIdFor(source, rendered, "(0,0)")
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw (1,0) -- (1,1) -- cycle;");
+  });
+
+  it("deletes a point from a closed cubic path", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) .. controls (1,0) and (2,1) .. (3,1) .. controls (4,1) and (5,0) .. (6,0) .. controls (5,-1) and (1,-1) .. cycle;
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const result = applyEditAction(source, rendered.semantic.editHandles, {
+      kind: "deletePathPoint",
+      elementId: "path:0",
+      handleId: handleIdFor(source, rendered, "(3,1)")
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(
+      "\\draw (0,0) .. controls (1,0) and (5,0) .. (6,0) .. controls (5,-1) and (1,-1) .. cycle;"
+    );
+  });
+
   it("converts a cubic anchor to corner", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) .. controls (1,0) and (2,1) .. (3,1) .. controls (4,1) and (5,0) .. (6,0);

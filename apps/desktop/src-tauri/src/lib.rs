@@ -824,7 +824,7 @@ fn desktop_check_latex_available(app: AppHandle) -> LatexAvailabilityStatus {
         .unwrap_or_else(|| "dvisvgm".to_string());
     let working_dir = latex_compile_working_dir();
     let details = format!(
-        "latex: {latex_cmd}\ndvisvgm: {dvisvgm_cmd}\nworking_dir: {}\nPATH={}\ncompile_timeout_secs={}\nbuild_marker=native-timeout-v2\n\nCommands used by the app:\ncd \"{}\"\n\"{latex_cmd}\" -interaction=batchmode -file-line-error -halt-on-error input.tex\n\"{dvisvgm_cmd}\" --page=1 --bbox=min --exact --font-format=woff2 -o output.svg input.dvi",
+        "latex: {latex_cmd}\ndvisvgm: {dvisvgm_cmd}\nworking_dir: {}\nPATH={}\ncompile_timeout_secs={}\n\nCommands used by the app:\ncd \"{}\"\n\"{latex_cmd}\" -interaction=batchmode -file-line-error -halt-on-error input.tex\n\"{dvisvgm_cmd}\" --page=1 --bbox=min --exact --font-format=woff2 -o output.svg input.dvi",
         working_dir.to_string_lossy(),
         env::var("PATH").unwrap_or_else(|_| "<unavailable>".to_string()),
         LATEX_COMMAND_TIMEOUT_SECS,

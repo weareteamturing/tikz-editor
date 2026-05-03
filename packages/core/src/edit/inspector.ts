@@ -4210,7 +4210,7 @@ function resolveInlineWriteTarget(
       targetId: null,
       targetKind: null,
       writable: false,
-      reason: "This element comes from a macro expansion and is read-only in the Phase 2 inspector."
+      reason: "This element comes from a macro expansion and cannot be edited directly."
     };
   }
 
@@ -4222,7 +4222,7 @@ function resolveInlineWriteTarget(
         targetId: null,
         targetKind: null,
         writable: false,
-        reason: "Adornment selections from \\foreach expansions are read-only in the Phase 2 inspector.",
+        reason: "This adornment comes from a \\foreach expansion and cannot be edited directly.",
         foreachVariableNames
       };
     }
@@ -4248,7 +4248,7 @@ function resolveInlineWriteTarget(
       targetId: null,
       targetKind: null,
       writable: false,
-      reason: "This element comes from a \\foreach expansion and is read-only in the Phase 2 inspector.",
+      reason: "This \\foreach expansion cannot be edited from the inspector.",
       foreachVariableNames
     };
   }

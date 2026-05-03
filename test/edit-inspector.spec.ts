@@ -673,7 +673,7 @@ describe("getInspectorDescriptor", () => {
       editHandles: rendered.semantic.editHandles
     });
 
-    expect(descriptor.readOnlyReason?.toLowerCase()).toContain("foreach");
+    expect(descriptor.readOnlyReason).toBe("This \\foreach expansion cannot be edited from the inspector.");
   });
 
   it("keeps statements after foreach editable in inspector", () => {

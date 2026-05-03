@@ -419,8 +419,13 @@ function makePathRule(
     }
     if (mode === "delete-point") {
       const anchorIndex = handleResolution.anchorIndex;
-      return eligible.analysis.closed || anchorIndex <= 0 || anchorIndex >= eligible.analysis.anchors.length - 1
-        ? "Delete point only supports interior anchors on open paths in v1."
+      if (eligible.analysis.closed) {
+        return eligible.analysis.anchors.length > 2
+          ? null
+          : "Deleting this point would leave too few anchors.";
+      }
+      return anchorIndex <= 0 || anchorIndex >= eligible.analysis.anchors.length - 1
+        ? "Choose an interior path point to delete."
         : null;
     }
 
