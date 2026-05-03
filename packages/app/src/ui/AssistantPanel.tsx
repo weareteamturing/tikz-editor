@@ -25,6 +25,7 @@ type AssistantPanelProps = {
     attachments: AssistantComposerImageAttachment[]
   ) => Promise<void>;
   onInterruptTurn: () => Promise<void>;
+  onNewChat: () => void;
 };
 
 const AUTO_MODEL_VALUE = "__auto__";
@@ -40,7 +41,7 @@ function logAssistantDebug(message: string, error?: unknown): void {
   console.info(`[tikz-editor] ${message}`);
 }
 
-export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPanelProps) {
+export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: AssistantPanelProps) {
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
   const assistantApi = getActiveEditorPlatform().assistant;
   const assistantAvailable = typeof assistantApi?.startTurn === "function";
@@ -334,6 +335,8 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
   }
 
   const running = doc.assistantTurnStatus === "starting" || doc.assistantTurnStatus === "inProgress";
+  const hasPromptText = prompt.trim().length > 0;
+  const composerAction = running && !hasPromptText ? "interrupt" : "send";
 
   async function handleLogin(): Promise<void> {
     if (pendingLoginId) {
@@ -392,6 +395,10 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (composerAction === "interrupt") {
+      void onInterruptTurn();
+      return;
+    }
     void submitPrompt();
   }
 
@@ -446,12 +453,12 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
         </div>
         <button
           type="button"
-          className={css.interrupt}
-          onClick={() => void onInterruptTurn()}
-          disabled={!running}
-          data-testid="assistant-interrupt"
+          className={css.headerButton}
+          onClick={onNewChat}
+          disabled={running}
+          data-testid="assistant-new-chat"
         >
-          Interrupt
+          New chat
         </button>
       </SidePanel.Header>
 
@@ -556,7 +563,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
               })();
             }}
             placeholder="Ask Codex to edit the current figure..."
-            disabled={submitting || running}
+            disabled={submitting}
             rows={4}
             data-testid="assistant-prompt"
           />
@@ -615,8 +622,12 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
                 optionSelectedClassName={css.modelOptionSelected}
               />
             </div>
-            <button type="submit" disabled={submitting || running || prompt.trim().length === 0} data-testid="assistant-send">
-              Send
+            <button
+              type="submit"
+              disabled={submitting || (composerAction === "send" && !hasPromptText)}
+              data-testid="assistant-send"
+            >
+              {composerAction === "interrupt" ? "Interrupt" : "Send"}
             </button>
           </div>
         </form>

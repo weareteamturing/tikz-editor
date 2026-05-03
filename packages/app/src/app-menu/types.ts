@@ -95,7 +95,6 @@ export const APP_MENU_COMMAND_IDS = {
   TOGGLE_STYLES_PANEL: "view.toggle-styles-panel",
   TOGGLE_FIGURES_PANEL: "view.toggle-figures-panel",
   TOGGLE_ASSISTANT_PANEL: "view.toggle-assistant-panel",
-  INTERRUPT_ASSISTANT_TURN: "view.interrupt-assistant-turn",
   TOGGLE_DEV_PANEL: "view.toggle-dev-panel",
   SAVE_WORKSPACE_AS: "view.save-workspace-as",
   MANAGE_WORKSPACES: "view.manage-workspaces",

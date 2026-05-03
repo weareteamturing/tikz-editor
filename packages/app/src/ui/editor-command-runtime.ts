@@ -108,7 +108,6 @@ type RuntimeInput = {
   showAssistantPanel: boolean;
   rightSidebarTab: "inspector" | "objects" | "styles" | "assistant";
   assistantAvailable: boolean;
-  assistantRunning: boolean;
   showDevPanel: boolean;
   indentSize?: 2 | 4;
   updateCanvasSettings: (patch: Partial<AppSettings["canvas"]>) => void;
@@ -122,7 +121,6 @@ type RuntimeInput = {
   onShowCompiledPicture?: () => void;
   onOpenSettings?: () => void;
   onFocusAssistant?: () => void;
-  onInterruptAssistant?: () => void;
   onOpenInsertEquation?: () => void;
   onOpenEditEquation?: (target: EquationNodeTarget) => void;
   onOpenRepeat?: () => void;
@@ -165,7 +163,6 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     showAssistantPanel,
     rightSidebarTab,
     assistantAvailable,
-    assistantRunning,
     showDevPanel,
     indentSize,
     updateCanvasSettings,
@@ -179,7 +176,6 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     onShowCompiledPicture,
     onOpenSettings,
     onFocusAssistant,
-    onInterruptAssistant,
     onOpenInsertEquation,
     onOpenEditEquation,
     onOpenRepeat,
@@ -928,10 +924,6 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
         });
       }
     },
-    [APP_MENU_COMMAND_IDS.INTERRUPT_ASSISTANT_TURN]: {
-      enabled: assistantAvailable && assistantRunning,
-      run: () => onInterruptAssistant?.()
-    },
     [APP_MENU_COMMAND_IDS.TOGGLE_DEV_PANEL]: {
       enabled: true,
       checked: showDevPanel,
@@ -985,7 +977,6 @@ export function useEditorCommandRuntime(
     onShowCompiledPicture?: () => void;
     onOpenSettings?: () => void;
     onFocusAssistant?: () => void;
-    onInterruptAssistant?: () => void;
     onOpenInsertEquation?: () => void;
     onOpenEditEquation?: (target: EquationNodeTarget) => void;
     onOpenRepeat?: () => void;
@@ -1022,10 +1013,6 @@ export function useEditorCommandRuntime(
   const showFiguresPanel = useEditorStore((s) => s.showFiguresPanel);
   const showAssistantPanel = useEditorStore((s) => s.showAssistantPanel);
   const rightSidebarTab = useEditorStore((s) => s.rightSidebarTab);
-  const assistantRunning = useEditorStore((s) => {
-    const doc = s.documents[s.activeDocumentId];
-    return doc?.assistantTurnStatus === "starting" || doc?.assistantTurnStatus === "inProgress";
-  });
   const showDevPanel = useEditorStore((s) => s.showDevPanel);
   const indentSize = useSettingsStore((s) => s.settings.editor.indentSize);
   const updateCanvasSettings = useSettingsStore((s) => s.updateCanvasSettings);
@@ -1101,7 +1088,6 @@ export function useEditorCommandRuntime(
         showAssistantPanel,
         rightSidebarTab,
         assistantAvailable,
-        assistantRunning,
         showDevPanel,
         indentSize,
         updateCanvasSettings,
@@ -1115,7 +1101,6 @@ export function useEditorCommandRuntime(
         onShowCompiledPicture: options.onShowCompiledPicture,
         onOpenSettings: options.onOpenSettings,
         onFocusAssistant: options.onFocusAssistant,
-        onInterruptAssistant: options.onInterruptAssistant,
         onOpenInsertEquation: options.onOpenInsertEquation,
         onOpenEditEquation: options.onOpenEditEquation,
         onOpenRepeat: options.onOpenRepeat,
@@ -1147,7 +1132,6 @@ export function useEditorCommandRuntime(
       showAssistantPanel,
       rightSidebarTab,
       assistantAvailable,
-      assistantRunning,
       showDevPanel,
       indentSize,
       updateCanvasSettings,
@@ -1161,7 +1145,6 @@ export function useEditorCommandRuntime(
       options.onShowCompiledPicture,
       options.onOpenSettings,
       options.onFocusAssistant,
-      options.onInterruptAssistant,
       options.onOpenInsertEquation,
       options.onOpenEditEquation,
       options.onOpenManageWorkspaces,

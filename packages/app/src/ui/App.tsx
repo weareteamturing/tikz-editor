@@ -323,9 +323,6 @@ export function App() {
     onFocusAssistant: () => {
       dispatch({ type: "SET_RIGHT_SIDEBAR_TAB", tab: "assistant" });
     },
-    onInterruptAssistant: () => {
-      void platform.assistant?.interruptTurn?.({ documentId: activeDocumentId });
-    },
     onRequestCloseDocument: (documentId) => {
       requestCloseIntent({ kind: "close-document", documentId });
     },
@@ -819,7 +816,11 @@ export function App() {
       url: `data:${image.mimeType};base64,${image.base64}`
     }));
     dispatch({ type: "SET_RIGHT_SIDEBAR_TAB", tab: "assistant" });
-    dispatch({ type: "ASSISTANT_TURN_STATUS", documentId, status: "starting", turnId: null });
+    const isSteeringActiveTurn =
+      currentDocument?.assistantTurnStatus === "starting" || currentDocument?.assistantTurnStatus === "inProgress";
+    if (!isSteeringActiveTurn) {
+      dispatch({ type: "ASSISTANT_TURN_STATUS", documentId, status: "starting", turnId: null });
+    }
     dispatch({
       type: "ASSISTANT_ITEM_STARTED",
       documentId,
@@ -834,6 +835,14 @@ export function App() {
     });
     try {
       const assistant = platform.assistant;
+      if (isSteeringActiveTurn) {
+        await assistant?.steerTurn?.({
+          documentId,
+          prompt,
+          pastedImages: pastedImages.length > 0 ? pastedImages : undefined
+        });
+        return;
+      }
       const thread = await assistant?.ensureDocumentThread?.({
         documentId,
         source: currentSource,
@@ -868,13 +877,15 @@ export function App() {
         diagnosticsText
       });
     } catch (error) {
-      dispatch({
-        type: "ASSISTANT_TURN_STATUS",
-        documentId,
-        status: "failed",
-        turnId: null,
-        error: error instanceof Error ? error.message : String(error)
-      });
+      if (!isSteeringActiveTurn) {
+        dispatch({
+          type: "ASSISTANT_TURN_STATUS",
+          documentId,
+          status: "failed",
+          turnId: null,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
       dispatch({
         type: "ASSISTANT_SET_ERROR",
         documentId,
@@ -893,6 +904,10 @@ export function App() {
         message: error instanceof Error ? error.message : String(error)
       });
     }
+  }
+
+  function handleAssistantNewChat(): void {
+    dispatch({ type: "ASSISTANT_NEW_CHAT", documentId: activeDocumentId });
   }
 
   useEffect(() => {
@@ -1438,6 +1453,7 @@ export function App() {
           repeatPreviewModel={repeatPreviewModel}
           onSubmitPrompt={handleAssistantPrompt}
           onInterruptTurn={handleInterruptAssistantTurn}
+          onNewChat={handleAssistantNewChat}
         />
       </div>
       <StatusBar />

@@ -34,8 +34,8 @@ const TEST_MENU: AppMenuDefinition = [
       },
       {
         kind: "command",
-        commandId: "view.interrupt-assistant-turn",
-        label: "Interrupt",
+        commandId: "view.toggle-dev-panel",
+        label: "Developer",
         platforms: ["web"]
       }
     ]

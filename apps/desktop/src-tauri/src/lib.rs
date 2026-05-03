@@ -1499,6 +1499,18 @@ fn desktop_assistant_interrupt_turn(
 
 #[tauri::command]
 #[allow(non_snake_case)]
+fn desktop_assistant_steer_turn(
+    documentId: String,
+    prompt: String,
+    pastedImages: Option<Vec<assistant::AssistantPastedImageInput>>,
+    assistant: tauri::State<'_, AssistantState>,
+) -> Result<serde_json::Value, String> {
+    let turn_id = assistant.steer_turn(documentId, prompt, pastedImages)?;
+    Ok(serde_json::json!({ "turnId": turn_id }))
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
 fn desktop_assistant_sync_source(
     documentId: String,
     source: String,
@@ -1678,6 +1690,7 @@ pub fn run() {
             desktop_assistant_ensure_document_thread,
             desktop_assistant_start_turn,
             desktop_assistant_interrupt_turn,
+            desktop_assistant_steer_turn,
             desktop_assistant_sync_source,
             desktop_assistant_respond_to_approval,
             desktop_assistant_respond_to_dynamic_tool_call,

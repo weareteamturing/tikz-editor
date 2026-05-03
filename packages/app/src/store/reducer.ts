@@ -705,6 +705,25 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       break;
     }
 
+    case "ASSISTANT_NEW_CHAT": {
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      workspace = updateDocument(workspace, documentId, (doc) => ({
+        ...doc,
+        assistantThreadId: null,
+        assistantWorkspacePath: null,
+        assistantFigurePath: null,
+        assistantPreviewPath: null,
+        assistantItems: [],
+        assistantPendingApprovals: [],
+        assistantTurnStatus: "idle",
+        assistantCurrentTurnId: null,
+        assistantLockReason: null,
+        assistantLastSourceRevision: null,
+        assistantError: null
+      }));
+      break;
+    }
+
     case "ASSISTANT_TURN_STATUS": {
       const documentId = activeDocumentIdFromAction(state, action.documentId);
       workspace = updateDocument(workspace, documentId, (doc) => ({

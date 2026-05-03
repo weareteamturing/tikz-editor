@@ -116,6 +116,11 @@ type DesktopBridge = {
     figureContext?: string | null;
     diagnosticsText?: string | null;
   }) => Promise<{ turnId: string | null }>;
+  assistantSteerTurn?: (params: {
+    documentId: string;
+    prompt: string;
+    pastedImages?: Array<{ base64: string; mimeType: string; fileName: string }>;
+  }) => Promise<{ turnId: string | null }>;
   assistantInterruptTurn?: (params: { documentId: string }) => Promise<void>;
   assistantSyncSource?: (params: { documentId: string; source: string }) => Promise<void>;
   assistantRespondToApproval?: (params: {
@@ -816,6 +821,14 @@ function createDefaultBridge(): DesktopBridge {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("desktop_assistant_interrupt_turn", { documentId });
     },
+    assistantSteerTurn: async ({ documentId, prompt, pastedImages }) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<{ turnId: string | null }>("desktop_assistant_steer_turn", {
+        documentId,
+        prompt,
+        pastedImages
+      });
+    },
     assistantSyncSource: async ({ documentId, source }) => {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("desktop_assistant_sync_source", { documentId, source });
@@ -1223,6 +1236,8 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       ensureDocumentThread: async (params) => await getBridge().assistantEnsureDocumentThread?.(params)
         ?? Promise.reject(new Error("Assistant bridge unavailable.")),
       startTurn: async (params) => await getBridge().assistantStartTurn?.(params)
+        ?? Promise.reject(new Error("Assistant bridge unavailable.")),
+      steerTurn: async (params) => await getBridge().assistantSteerTurn?.(params)
         ?? Promise.reject(new Error("Assistant bridge unavailable.")),
       interruptTurn: async (params) => {
         await getBridge().assistantInterruptTurn?.(params);

@@ -366,6 +366,7 @@ export type DockLayoutProps = {
     attachments: AssistantComposerImageAttachment[]
   ) => Promise<void>;
   onInterruptTurn: () => Promise<void>;
+  onNewChat: () => void;
 };
 
 /** Ref handle exposed to allow external code to manipulate the layout model. */
@@ -403,7 +404,7 @@ function createInitialModel(): Model {
   }
 }
 
-export function DockLayout({ repeatPreviewModel, onSubmitPrompt, onInterruptTurn }: DockLayoutProps) {
+export function DockLayout({ repeatPreviewModel, onSubmitPrompt, onInterruptTurn, onNewChat }: DockLayoutProps) {
   const dispatch = useEditorStore((s) => s.dispatch);
   const [model, setModel] = useState(createInitialModel);
 
@@ -437,14 +438,14 @@ export function DockLayout({ repeatPreviewModel, onSubmitPrompt, onInterruptTurn
         case "styles":
           return <MemoStylesPanel />;
         case "assistant":
-          return <MemoAssistantPanel onSubmitPrompt={onSubmitPrompt} onInterruptTurn={onInterruptTurn} />;
+          return <MemoAssistantPanel onSubmitPrompt={onSubmitPrompt} onInterruptTurn={onInterruptTurn} onNewChat={onNewChat} />;
         case undefined:
           return <div>Unknown panel</div>;
         default:
           return <div>Unknown panel: {component}</div>;
       }
     },
-    [repeatPreviewModel, onSubmitPrompt, onInterruptTurn]
+    [repeatPreviewModel, onSubmitPrompt, onInterruptTurn, onNewChat]
   );
 
   // On model change: persist + sync to Zustand

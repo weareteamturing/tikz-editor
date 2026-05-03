@@ -940,6 +940,54 @@ impl AssistantState {
         Ok(())
     }
 
+    pub fn steer_turn(
+        &self,
+        document_id: String,
+        prompt: String,
+        pasted_images: Option<Vec<AssistantPastedImageInput>>,
+    ) -> Result<Option<String>, String> {
+        let session = self
+            .inner
+            .documents
+            .lock()
+            .map_err(|_| "documents lock unavailable".to_string())?
+            .get(&document_id)
+            .cloned()
+            .ok_or_else(|| "Assistant thread not initialized for document".to_string())?;
+        let turn_id = session
+            .current_turn_id
+            .clone()
+            .ok_or_else(|| "No active assistant turn to steer".to_string())?;
+        let pasted_image_paths = persist_pasted_images(
+            Path::new(&session.workspace_path),
+            pasted_images.unwrap_or_default(),
+        )?;
+        let mut input = vec![json!({
+          "type": "text",
+          "text": prompt
+        })];
+        for pasted_image_path in pasted_image_paths {
+            if Path::new(&pasted_image_path).exists() {
+                input.push(json!({
+                  "type": "localImage",
+                  "path": pasted_image_path
+                }));
+            }
+        }
+        let result = self.request(
+            "turn/steer",
+            json!({
+                "threadId": session.thread_id,
+                "input": input,
+                "expectedTurnId": turn_id
+            }),
+        )?;
+        Ok(result
+            .get("turnId")
+            .and_then(Value::as_str)
+            .map(str::to_string))
+    }
+
     pub fn sync_source(&self, document_id: String, source: String) -> Result<(), String> {
         let mut docs = self
             .inner

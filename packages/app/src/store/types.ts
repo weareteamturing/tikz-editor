@@ -266,6 +266,7 @@ export type EditorAction =
       previewPath: string;
     }
   | { type: "ASSISTANT_THREAD_LOADED"; documentId?: string; state: AssistantThreadState }
+  | { type: "ASSISTANT_NEW_CHAT"; documentId?: string }
   | { type: "ASSISTANT_TURN_STATUS"; documentId?: string; status: AssistantTurnStatus; turnId?: string | null; error?: string | null }
   | { type: "ASSISTANT_ITEM_STARTED"; documentId?: string; item: AssistantItem }
   | { type: "ASSISTANT_ITEM_UPDATED"; documentId?: string; item: AssistantItem }

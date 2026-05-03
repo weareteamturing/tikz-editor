@@ -243,6 +243,11 @@ export type AssistantApi = {
     figureContext?: string | null;
     diagnosticsText?: string | null;
   }) => Promise<{ turnId: string | null }>;
+  steerTurn?: (params: {
+    documentId: string;
+    prompt: string;
+    pastedImages?: AssistantPastedImage[];
+  }) => Promise<{ turnId: string | null }>;
   interruptTurn?: (params: { documentId: string }) => Promise<void>;
   syncSource?: (params: { documentId: string; source: string }) => Promise<void>;
   respondToApproval?: (params: { documentId: string; requestId: string; decision: string }) => Promise<void>;

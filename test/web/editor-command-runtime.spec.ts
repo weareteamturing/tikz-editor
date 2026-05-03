@@ -1203,7 +1203,6 @@ function makeInput({
     fileRef: null,
     rightSidebarTab: "inspector" as const,
     assistantAvailable: true,
-    assistantRunning: false,
     showGrid,
     showTransparencyGrid,
     snapModes,

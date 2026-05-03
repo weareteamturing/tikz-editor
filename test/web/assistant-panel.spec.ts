@@ -27,6 +27,12 @@ function dispatchPaste(target: HTMLElement, items: Array<{ kind: string; type: s
   target.dispatchEvent(event);
 }
 
+function updateTextareaValue(textarea: HTMLTextAreaElement, value: string): void {
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+  descriptor?.set?.call(textarea, value);
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 describe("AssistantPanel image paste", () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -86,7 +92,8 @@ describe("AssistantPanel image paste", () => {
       root.render(
         React.createElement(AssistantPanel, {
           onSubmitPrompt: async () => undefined,
-          onInterruptTurn: async () => undefined
+          onInterruptTurn: async () => undefined,
+          onNewChat: () => undefined
         })
       );
     });
@@ -154,7 +161,8 @@ describe("AssistantPanel image paste", () => {
       root.render(
         React.createElement(AssistantPanel, {
           onSubmitPrompt: async () => undefined,
-          onInterruptTurn: async () => undefined
+          onInterruptTurn: async () => undefined,
+          onNewChat: () => undefined
         })
       );
     });
@@ -222,7 +230,8 @@ describe("AssistantPanel image paste", () => {
       root.render(
         React.createElement(AssistantPanel, {
           onSubmitPrompt: async () => undefined,
-          onInterruptTurn: async () => undefined
+          onInterruptTurn: async () => undefined,
+          onNewChat: () => undefined
         })
       );
     });
@@ -256,7 +265,8 @@ describe("AssistantPanel image paste", () => {
       root.render(
         React.createElement(AssistantPanel, {
           onSubmitPrompt: async () => undefined,
-          onInterruptTurn: async () => undefined
+          onInterruptTurn: async () => undefined,
+          onNewChat: () => undefined
         })
       );
     });
@@ -264,5 +274,81 @@ describe("AssistantPanel image paste", () => {
     const summary = Array.from(container.querySelectorAll("summary"))
       .find((node) => (node.textContent ?? "").includes("Read the code"));
     expect(summary).toBeDefined();
+  });
+
+  it("uses the composer button as interrupt while running with an empty prompt", async () => {
+    const onInterruptTurn = vi.fn(async () => undefined);
+    const state = useEditorStore.getState();
+    const docId = state.activeDocumentId;
+    const doc = state.documents[docId];
+    await act(async () => {
+      useEditorStore.setState({
+        ...state,
+        documents: {
+          ...state.documents,
+          [docId]: {
+            ...doc,
+            assistantTurnStatus: "inProgress"
+          }
+        }
+      });
+      root.render(
+        React.createElement(AssistantPanel, {
+          onSubmitPrompt: async () => undefined,
+          onInterruptTurn,
+          onNewChat: () => undefined
+        })
+      );
+    });
+
+    const sendButton = container.querySelector('[data-testid="assistant-send"]') as HTMLButtonElement;
+    expect(sendButton.textContent).toBe("Interrupt");
+    expect(sendButton.disabled).toBe(false);
+    await act(async () => {
+      sendButton.click();
+      await Promise.resolve();
+    });
+    expect(onInterruptTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the composer button as send while running with a nonempty prompt", async () => {
+    const onSubmitPrompt = vi.fn(async () => undefined);
+    const state = useEditorStore.getState();
+    const docId = state.activeDocumentId;
+    const doc = state.documents[docId];
+    await act(async () => {
+      useEditorStore.setState({
+        ...state,
+        documents: {
+          ...state.documents,
+          [docId]: {
+            ...doc,
+            assistantTurnStatus: "inProgress"
+          }
+        }
+      });
+      root.render(
+        React.createElement(AssistantPanel, {
+          onSubmitPrompt,
+          onInterruptTurn: async () => undefined,
+          onNewChat: () => undefined
+        })
+      );
+    });
+
+    const textarea = container.querySelector('[data-testid="assistant-prompt"]') as HTMLTextAreaElement;
+    await act(async () => {
+      updateTextareaValue(textarea, "Actually focus on the labels.");
+      await Promise.resolve();
+    });
+
+    const sendButton = container.querySelector('[data-testid="assistant-send"]') as HTMLButtonElement;
+    expect(sendButton.textContent).toBe("Send");
+    expect(sendButton.disabled).toBe(false);
+    await act(async () => {
+      sendButton.click();
+      await Promise.resolve();
+    });
+    expect(onSubmitPrompt).toHaveBeenCalledWith("Actually focus on the labels.", null, []);
   });
 });

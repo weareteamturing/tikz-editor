@@ -547,12 +547,6 @@ export const APP_MENU_DEFINITION = [
         label: "Assistant Panel",
         platforms: ["desktop"]
       },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.INTERRUPT_ASSISTANT_TURN,
-        label: "Interrupt Assistant",
-        platforms: ["desktop"]
-      },
       { kind: "separator" },
       {
         kind: "submenu",

@@ -18,7 +18,7 @@
   margin-top: 1px;
 }
 
-.interrupt {
+.headerButton {
   border: 1px solid var(--border-light);
   border-radius: 4px;
   background: var(--bg-pane);
@@ -28,7 +28,7 @@
   cursor: pointer;
 }
 
-.interrupt:disabled {
+.headerButton:disabled {
   opacity: 0.5;
   cursor: default;
 }
