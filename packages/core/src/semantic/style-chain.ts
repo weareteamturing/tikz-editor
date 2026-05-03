@@ -1,7 +1,7 @@
 import type { WorldTransform } from "../coords/transforms.js";
 import type { Span } from "../ast/types.js";
 import type { OptionListAst } from "../options/types.js";
-import type { ResolvedStyle } from "./types.js";
+import type { GeneratedSourceRef, ResolvedStyle } from "./types.js";
 
 export type StyleChainKind = "global" | "named-style" | "every-node" | "every-shape" | "scope" | "command";
 
@@ -10,11 +10,7 @@ export type StyleSourceRef = {
   sourceSpan?: Span;
   sourceKind: string;
   label?: string;
-  identityRef?: {
-    sourceId: string;
-    sourceSpan?: Span;
-    sourceKind?: string;
-  };
+  identityRef?: GeneratedSourceRef;
 };
 
 type StyleChainEntryBase = {

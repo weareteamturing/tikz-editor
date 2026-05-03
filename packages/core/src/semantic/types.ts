@@ -139,11 +139,15 @@ export type SourceRef = {
   sourceFingerprint: string;
 };
 
-export type IdentitySourceRef = {
+export type GeneratedSourceRef = {
   sourceId: string;
-  sourceSpan: Span;
+  sourceSpan?: Span;
   sourceFingerprint?: string;
   sourceKind?: string;
+};
+
+export type IdentitySourceRef = GeneratedSourceRef & {
+  sourceSpan: Span;
 };
 
 export type MatrixCellInfo = {
