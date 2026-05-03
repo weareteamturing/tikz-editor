@@ -351,7 +351,10 @@ export function evaluateSemanticStatementByIndex(
   for (let index = 0; index < editHandles.length; index += 1) {
     run.context.editHandles[handleStart + index] = editHandles[index];
   }
-  remapDiagnostics(run.diagnostics, diagnosticsStart, statementSourceMap);
+  remapDiagnostics(run.diagnostics, diagnosticsStart, statementSourceMap, {
+    statement,
+    pathItemSourceMaps: run.pathItemSourceMaps
+  });
   const diagnostics = run.diagnostics.slice(diagnosticsStart);
   const statementMacroStack = run.statementMacroAttribution.get(statement);
   if (statementMacroStack && statementMacroStack.length > 0) {

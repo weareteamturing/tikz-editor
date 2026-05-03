@@ -26,6 +26,7 @@ import {
 } from "./inspector.js";
 import { resolveTransformInspectorValues } from "./property-write-builders.js";
 import {
+  FOREACH_TEMPLATE_TARGET_PREFIX,
   makeStyleSourceTargetId,
   resolvePropertyTarget,
   type PropertyTargetResolution
@@ -795,6 +796,8 @@ function resolveSectionWriteTarget(
       readOnlyReason: "No editable source information is available for this style layer."
     };
   }
+
+  const isForeachTemplateTarget = targetId?.includes(FOREACH_TEMPLATE_TARGET_PREFIX) ?? false;
   if (
     sourceRef.sourceKind === "command-default"
     || sourceRef.sourceKind === "builtin-style"
@@ -804,6 +807,21 @@ function resolveSectionWriteTarget(
       writeTarget: { mode: "setProperty", elementId: "", level: mapStyleLevel(entry), key: "", writable: false, reason: "This default style layer is shown for reference only." },
       readOnly: true,
       readOnlyReason: "This default style layer is shown for reference only."
+    };
+  }
+
+  if (sourceRef.identityRef && targetId != null && !isForeachTemplateTarget) {
+    return {
+      writeTarget: {
+        mode: "setProperty",
+        elementId: targetId,
+        level: mapStyleLevel(entry),
+        key: "",
+        writable: false,
+        reason: "Generated style layers cannot be edited directly."
+      },
+      readOnly: true,
+      readOnlyReason: "Generated style layers cannot be edited directly."
     };
   }
 
@@ -833,6 +851,9 @@ function resolveSectionWriteTarget(
 }
 
 function sourceTargetIdForEntry(entry: StyleChainEntry, sourceRef: StyleSourceRef): string {
+  if (sourceRef.identityRef && sourceRef.sourceId.startsWith("foreach:")) {
+    return sourceRef.sourceId;
+  }
   if (entry.kind === "command" || sourceRef.sourceKind === "path-statement" || sourceRef.sourceKind === "scope-statement") {
     return sourceRef.sourceId;
   }

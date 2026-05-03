@@ -16,9 +16,14 @@ export function mapExpansionSpan(sourceMap: ExpansionSourceMap, span: Span): Spa
 export function remapDiagnostics(
   diagnostics: Diagnostic[],
   fromIndex: number,
-  sourceMap: ExpansionSourceMap | undefined
+  sourceMap: ExpansionSourceMap | undefined,
+  args: {
+    statement?: Statement;
+    pathItemSourceMaps?: WeakMap<PathItem, ExpansionSourceMap>;
+  } = {}
 ): void {
-  if (!sourceMap) {
+  const pathItemLookup = args.statement?.kind === "Path" ? buildPathItemLookup(args.statement) : undefined;
+  if (!sourceMap && !pathItemLookup) {
     return;
   }
   for (let index = fromIndex; index < diagnostics.length; index += 1) {
@@ -26,9 +31,20 @@ export function remapDiagnostics(
     if (!diagnostic) {
       continue;
     }
+    const itemSourceMap =
+      pathItemLookup && args.pathItemSourceMaps
+        ? resolvePathItemForSourceRef("", diagnostic.span, pathItemLookup, { allowSpanContainment: true })
+        : undefined;
+    const effectiveSourceMap = composePathItemSourceMap(
+      itemSourceMap && args.pathItemSourceMaps ? args.pathItemSourceMaps.get(itemSourceMap) : undefined,
+      sourceMap
+    );
+    if (!effectiveSourceMap) {
+      continue;
+    }
     diagnostics[index] = {
       ...diagnostic,
-      span: mapExpansionSpan(sourceMap, diagnostic.span)
+      span: mapExpansionSpan(effectiveSourceMap, diagnostic.span)
     };
   }
 }
@@ -271,13 +287,28 @@ function resolvePathItemForElement(
 function resolvePathItemForSourceRef(
   sourceId: string,
   sourceSpan: Span,
-  lookup: PathItemLookup
+  lookup: PathItemLookup,
+  options: { allowSpanContainment?: boolean } = {}
 ): PathItem | undefined {
   const bySource = lookup.byId.get(sourceId);
   if (bySource) {
     return bySource;
   }
-  return lookup.items.find((item) => spansEqual(item.span, sourceSpan));
+  return lookup.items.find((item) => spansEqual(item.span, sourceSpan))
+    ?? (options.allowSpanContainment ? findSmallestContainingItem(sourceSpan, lookup.items) : undefined);
+}
+
+function findSmallestContainingItem(sourceSpan: Span, items: PathItem[]): PathItem | undefined {
+  let best: PathItem | undefined;
+  for (const item of items) {
+    if (item.span.from > sourceSpan.from || item.span.to < sourceSpan.to) {
+      continue;
+    }
+    if (!best || (item.span.to - item.span.from) < (best.span.to - best.span.from)) {
+      best = item;
+    }
+  }
+  return best;
 }
 
 function resolvePathItemForeachStackForElement(

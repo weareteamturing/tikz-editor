@@ -767,4 +767,24 @@ describe("styles cascade integration edits", () => {
 
     expect((updated.match(/% draw=red,/g) ?? []).length).toBe(2);
   });
+
+  it("keeps generated node foreach style layers read-only", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path (0,0) node foreach \p in {0.25,0.75} [pos=\p,fill=red] {\p};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text" && entry.text === "0.25");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected generated node foreach text");
+    }
+
+    const model = buildStylesCascadeModel(text, { source, editHandles: rendered.semantic.editHandles });
+    const command = model.sections.find((section) => section.kind === "command");
+    expect(command?.writable).toBe(false);
+    expect(command?.readOnlyReason).toContain("Generated style layers");
+    const fill = command?.declarations.find((declaration) => declaration.propertyId === "fill-color");
+    expect(fill?.sourceText).toBe("fill=red");
+    expect(fill?.writeTargets).toHaveLength(0);
+  });
 });

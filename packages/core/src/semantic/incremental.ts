@@ -854,11 +854,16 @@ function shiftSpanObjectsInPlace(
     return;
   }
   for (const [key, entry] of Object.entries(value)) {
-    if (key === "identityRef") {
+    if (key === "identityRef" || (key === "rawOptions" && hasGeneratedStyleSourceRef(value))) {
       continue;
     }
     shiftSpanObjectsInPlace(entry, delta, visited);
   }
+}
+
+function hasGeneratedStyleSourceRef(value: object): boolean {
+  const sourceRef = (value as { sourceRef?: { identityRef?: unknown } }).sourceRef;
+  return sourceRef?.identityRef != null;
 }
 
 function isSpanLike(value: object): value is Span {

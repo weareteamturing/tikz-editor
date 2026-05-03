@@ -428,7 +428,89 @@ describe("semantic incremental evaluation", () => {
     expect(evaluated.stats.strategy).toBe("full");
     expect(evaluated.stats.fallbackReason).toBe("unmapped-affected-source");
   });
+
+  it("matches full evaluation when normal edits occur beside generated content", () => {
+    const sources = [
+      String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \foreach \x in {0,1} \draw[red] (\x,1) -- ++(1,0);
+\end{tikzpicture}`,
+      String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) foreach \x in {1,2} { -- (\x,1) };
+\end{tikzpicture}`,
+      String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \newcommand{\mypath}{\draw (0,1) foreach \x in {1,2} { -- (\x,1) };}
+  \mypath
+\end{tikzpicture}`
+    ];
+
+    for (const source of sources) {
+      expectFullAndIncrementalEqualAfterMove(source);
+    }
+  });
+
+  it("does not shift generated identity spans when original source moves before generated content", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x in {0,1} \draw[red] (\x,0) -- ++(1,0);
+  \draw (0,1) foreach \x in {1,2} { -- (\x,1) };
+\end{tikzpicture}`;
+    const movedSource = source.replace("\\begin{tikzpicture}\n", "\\begin{tikzpicture}\n  % inserted prefix\n");
+    const before = evaluateFull(source).semantic;
+    const after = evaluateFull(movedSource).semantic;
+
+    const beforeIdentitySpans = [
+      ...before.scene.elements.map((element) => element.identityRef?.sourceSpan),
+      ...before.editHandles.map((handle) => handle.identityRef?.sourceSpan)
+    ].filter(Boolean);
+    const afterIdentitySpans = [
+      ...after.scene.elements.map((element) => element.identityRef?.sourceSpan),
+      ...after.editHandles.map((handle) => handle.identityRef?.sourceSpan)
+    ].filter(Boolean);
+
+    expect(afterIdentitySpans).toEqual(beforeIdentitySpans);
+  });
 });
+
+function expectFullAndIncrementalEqualAfterMove(source: string): void {
+  const session = createIncrementalSemanticSession();
+  session.evaluate({
+    figure: parseTikz(source, { recover: true }).figure,
+    source,
+    hints: { trigger: "other" }
+  });
+
+  const current = evaluateFull(source);
+  const handle = current.semantic.editHandles.find((candidate) => !candidate.identityRef && candidate.rewriteMode !== "unsupported");
+  expect(handle).toBeDefined();
+  if (!handle) {
+    return;
+  }
+
+  const actionResult = applyEditAction(source, current.semantic.editHandles, {
+    kind: "moveHandle",
+    handleId: handle.id,
+    newWorld: wp(handle.world.x + 2, handle.world.y + 1)
+  });
+  expect(actionResult.kind === "success" || actionResult.kind === "partial").toBe(true);
+  if (!(actionResult.kind === "success" || actionResult.kind === "partial")) {
+    return;
+  }
+
+  const parsed = parseTikz(actionResult.newSource, { recover: true });
+  const incremental = session.evaluate({
+    figure: parsed.figure,
+    source: actionResult.newSource,
+    hints: {
+      trigger: "drag-handle",
+      changedSourceIds: actionResult.changedSourceIds ?? [handle.sourceRef.sourceId]
+    }
+  });
+  const full = evaluateTikzFigure(parsed.figure, actionResult.newSource);
+  expect(incremental.semantic).toEqual(full);
+  expect(incremental.stats.strategy).toBe("incremental");
+}
 
 function evaluateFull(
   source: string,

@@ -142,4 +142,23 @@ describe("inspector property provenance", () => {
       .filter((id) => id.startsWith("node-shape-star-") || id.startsWith("node-shape-trapezium-"));
     expect(adaptiveIds).toHaveLength(0);
   });
+
+  it("uses original source provenance for generated node foreach styles", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path (0,0) node foreach \p in {0.25,0.75} [pos=\p,fill=red] {\p};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text" && entry.text === "0.25");
+    expect(element).toBeDefined();
+    if (!element) return;
+
+    const descriptor = getInspectorDescriptor(element, { source, editHandles: rendered.semantic.editHandles });
+    const model = buildStylesCascadeModel(element, { source, editHandles: rendered.semantic.editHandles }, descriptor);
+    const commandSection = model.sections.find((section) => section.kind === "command");
+    expect(commandSection?.sourceLocation).toContain("line");
+    expect(commandSection?.sourceLocation).not.toContain("node:0:0");
+
+    const fill = commandSection?.declarations.find((declaration) => declaration.propertyId === "fill-color");
+    expect(fill?.sourceText).toBe("fill=red");
+  });
 });

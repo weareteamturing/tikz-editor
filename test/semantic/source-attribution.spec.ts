@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { applyEditAction } from "../../packages/core/src/edit/actions.js";
 import type { EvaluateTikzResult } from "../../packages/core/src/semantic/evaluate.js";
-import type { SceneElement } from "../../packages/core/src/semantic/types.js";
+import type { EditHandle, SceneElement } from "../../packages/core/src/semantic/types.js";
+import { wp } from "../coords-helpers.js";
 import { evaluateSemantic, elementsOfKind } from "./helpers.js";
 
 function assertOriginalSourceRefInvariants(source: string, result: EvaluateTikzResult): void {
@@ -58,6 +60,21 @@ function isStatementExpandedElement(element: SceneElement): boolean {
   return element.sourceRef.sourceId.startsWith("foreach:")
     || element.sourceRef.sourceId.startsWith("unknown-statement:")
     || (element.origin?.macroStack?.length ?? 0) > 0;
+}
+
+function generatedElements(result: EvaluateTikzResult): SceneElement[] {
+  return result.scene.elements.filter(
+    (element) =>
+      element.identityRef ||
+      element.sourceRef.sourceId.startsWith("foreach:") ||
+      element.sourceRef.sourceId.startsWith("unknown-statement:") ||
+      (element.origin?.foreachStack.length ?? 0) > 0 ||
+      (element.origin?.macroStack?.length ?? 0) > 0
+  );
+}
+
+function generatedHandles(result: EvaluateTikzResult): EditHandle[] {
+  return result.editHandles.filter((handle) => handle.identityRef);
 }
 
 describe("semantic source attribution invariants", () => {
@@ -250,6 +267,141 @@ describe("semantic source attribution invariants", () => {
     expect(generatedHandles.length).toBeGreaterThan(0);
     for (const handle of generatedHandles) {
       expect(source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to).trim()).toBe(String.raw`\mypath`);
+    }
+  });
+
+  it("keeps global attribution invariants across a generated-source mini corpus", () => {
+    const sources = [
+      String.raw`\begin{tikzpicture}
+  \foreach \x in {0,1} \draw[red] (\x,0) -- ++(1,0);
+\end{tikzpicture}`,
+      String.raw`\begin{tikzpicture}
+  \draw (0,0) foreach \x in {1,2} { -- (\x,0) };
+\end{tikzpicture}`,
+      String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node foreach \p in {0.25,0.75} [pos=\p,fill=red] {\p};
+\end{tikzpicture}`,
+      String.raw`\begin{tikzpicture}
+  \newcommand{\twolines}{\foreach \x in {0,1} \draw[blue] (\x,0) -- ++(1,0);}
+  \twolines
+\end{tikzpicture}`,
+      String.raw`\begin{tikzpicture}
+  \newcommand{\mypath}{\draw (0,0) foreach \x in {1,2} { -- (\x,0) };}
+  \mypath
+\end{tikzpicture}`,
+      String.raw`\begin{tikzpicture}
+  \def\seg{-- (1,0)}
+  \draw (0,0) foreach \x in {1,2} { \seg };
+\end{tikzpicture}`
+    ];
+
+    for (const source of sources) {
+      const result = evaluateSemantic(source);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+      assertOriginalSourceRefInvariants(source, result);
+      expect(generatedElements(result).length + generatedHandles(result).length).toBeGreaterThan(0);
+      const handles = generatedHandles(result);
+      expect(new Set(handles.map((handle) => handle.runtimeId)).size).toBe(handles.length);
+    }
+  });
+
+  it("preserves style provenance identity for generated statement, macro, and node foreach content", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \tikzset{marked/.style={draw=green,fill=yellow}}
+  \foreach \x in {0,1} \node[marked] at (\x,0) {\x};
+  \newcommand{\myline}{\draw[marked] (0,1) -- (1,1);}
+  \myline
+  \path (0,2) node foreach \p in {0.25,0.75} [pos=\p,marked] {\p};
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+
+    assertOriginalSourceRefInvariants(source, result);
+    const generated = generatedElements(result).filter((element) => element.styleChain.length > 0);
+    expect(generated.length).toBeGreaterThan(0);
+    for (const element of generated) {
+      const remappedEntries = element.styleChain.filter((entry) => entry.sourceRef?.sourceSpan && entry.sourceRef.identityRef);
+      expect(remappedEntries.length).toBeGreaterThan(0);
+      for (const entry of remappedEntries) {
+        expect(entry.sourceRef?.identityRef?.sourceId).toBeTruthy();
+        const span = entry.sourceRef?.sourceSpan;
+        expect(span ? source.slice(span.from, span.to).length : 0).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("rejects direct edits to repeated generated handles that share an original template span", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) foreach \x in {1,2} { -- (\x,0) };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+    const handles = generatedHandles(result).filter((handle) => handle.sourceText === String.raw`(\x,0)`);
+
+    expect(handles).toHaveLength(2);
+    expect(handles[0]?.sourceRef.sourceSpan).toEqual(handles[1]?.sourceRef.sourceSpan);
+    const target = handles[0];
+    if (!target) {
+      return;
+    }
+
+    const edit = applyEditAction(source, result.editHandles, {
+      kind: "moveHandle",
+      handleId: target.id,
+      newWorld: wp(target.world.x + 10, target.world.y + 10)
+    });
+    expect(edit.kind).toBe("unsupported");
+    if (edit.kind === "unsupported") {
+      expect(edit.reason).toContain("shared source span");
+    }
+  });
+
+  it("maps diagnostics from generated content back to original source slices", () => {
+    const cases = [
+      {
+        source: String.raw`\begin{tikzpicture}
+  \foreach \x in {0,1} \draw[definitely unsupported key] (\x,0) -- ++(1,0);
+\end{tikzpicture}`,
+        codePrefix: "unsupported-option-flag:definitely unsupported key",
+        slice: String.raw`\draw[definitely unsupported key] (\x,0) -- ++(1,0);`
+      },
+      {
+        source: String.raw`\begin{tikzpicture}
+  \draw (0,0) foreach \x in {1,2} { -- (bad\x) };
+\end{tikzpicture}`,
+        codePrefix: "unknown-named-coordinate:",
+        slice: String.raw`(bad\x)`
+      },
+      {
+        source: String.raw`\begin{tikzpicture}
+  \draw (0,0) foreach \x in {1,2} { foreach \y in {0,1} { -- (bad\x\y) } };
+\end{tikzpicture}`,
+        codePrefix: "unknown-named-coordinate:",
+        slice: String.raw`(bad\x\y)`
+      },
+      {
+        source: String.raw`\begin{tikzpicture}
+  \def\seg{-- (bad)}
+  \draw (0,0) foreach \x in {1,2} { \seg };
+\end{tikzpicture}`,
+        codePrefix: "unknown-named-coordinate:",
+        slice: String.raw`foreach \x in {1,2} { \seg }`
+      },
+      {
+        source: String.raw`\begin{tikzpicture}
+  \newcommand{\badforeach}{\foreach \x in {0,1} \draw[definitely unsupported key] (\x,0) -- ++(1,0);}
+  \badforeach
+\end{tikzpicture}`,
+        codePrefix: "unsupported-option-flag:definitely unsupported key",
+        slice: String.raw`\badforeach`
+      }
+    ];
+
+    for (const testCase of cases) {
+      const result = evaluateSemantic(testCase.source);
+      const diagnostics = result.diagnostics.filter((diagnostic) => diagnostic.code?.startsWith(testCase.codePrefix));
+      expect(diagnostics.length).toBeGreaterThan(0);
+      for (const diagnostic of diagnostics) {
+        expect(testCase.source.slice(diagnostic.span.from, diagnostic.span.to).trim()).toBe(testCase.slice);
+      }
     }
   });
 });
