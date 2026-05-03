@@ -5,12 +5,9 @@ import { CustomDropdown } from "../../CustomDropdown";
 import css from "../../InspectorPanel.module.css";
 import { getInspectorPropertyCapabilityStatus } from "../../capabilities";
 import {
-LINE_WIDTH_ALL_OPTION_KEYS,
 LINE_WIDTH_CUSTOM_OPTION_VALUE,
 LINE_WIDTH_DROPDOWN_OPTIONS,
-LINE_WIDTH_NUMERIC_KEY,
 LINE_WIDTH_PRESET_BY_LABEL,
-LINE_WIDTH_PRESET_KEYS,
 LineWidthPreview,
 clampNumber,
 isPathMorphingSuboptionPropertyId,
@@ -582,7 +579,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                   disableManualCustomLineWidth(lineWidthKey);
                   applySetProperty(property.write, "true", {
                     key: nextValue,
-                    clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue)
+                    propertyId: "line-width"
                   });
                 });
               }}
@@ -598,7 +595,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                 applyHoverPreview(previewOwnerKey, () => {
                   applySetProperty(property.write, "true", {
                     key: nextValue,
-                    clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue),
+                    propertyId: "line-width",
                     recordInHistory: false
                   });
                 });
@@ -642,8 +639,8 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                 const next = Number(event.currentTarget.value);
                 if (!Number.isFinite(next)) return;
                 applySetProperty(property.write, `${formatNumber(next)}pt`, {
-                  key: LINE_WIDTH_NUMERIC_KEY,
-                  clearKeys: LINE_WIDTH_PRESET_KEYS
+                  key: "line width",
+                  propertyId: "line-width"
                 });
               }}
             />
@@ -904,4 +901,3 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
       </div>
     );
   }
-

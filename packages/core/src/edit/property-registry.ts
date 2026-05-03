@@ -16,6 +16,33 @@ import {
   ROUNDED_CORNERS_CLEAR_KEYS,
   SHADOW_ALL_KEYS
 } from "./inspector/presets.js";
+import {
+  LINE_WIDTH_NUMERIC_KEY,
+  LINE_WIDTH_PRESET_KEYS as BUILDER_LINE_WIDTH_PRESET_KEYS,
+  buildDashStyleSetPropertyMutation,
+  buildFillModeSetPropertyMutations,
+  buildFillPatternSetPropertyMutation,
+  buildFillShadingSetPropertyMutations,
+  buildLineCapSetPropertyMutation,
+  buildLineJoinSetPropertyMutation,
+  buildNodeInnerSepSetPropertyMutation,
+  buildNodeShapeSetPropertyMutation,
+  buildLineWidthPresetSetPropertyMutation,
+  buildLineWidthValueSetPropertyMutation,
+  buildRoundedCornersSetPropertyMutation,
+  buildTransformSetPropertyMutations,
+  type DashStylePresetId,
+  type FillModeMutationContext,
+  type FillModePresetId,
+  type FillPatternPresetId,
+  type FillShadingPresetId,
+  type LineCapPresetId,
+  type LineJoinPresetId,
+  type NodeShapePresetId,
+  type TransformInspectorKey,
+  type TransformInspectorMutationContext,
+  type TransformInspectorValues
+} from "./property-write-builders.js";
 
 export type SemanticPropertyId =
   | "adornment-text-color"
@@ -112,6 +139,25 @@ export type RegistrySetPropertyAction = {
   clearKeys?: string[];
 };
 
+export type PropertyMutationRequest =
+  | { kind: "dash-style"; value: Exclude<DashStylePresetId, "custom"> }
+  | { kind: "fill-mode"; value: Exclude<FillModePresetId, "custom">; context?: Partial<FillModeMutationContext> }
+  | { kind: "fill-pattern"; value: Exclude<FillPatternPresetId, "custom"> }
+  | { kind: "fill-shading"; value: Exclude<FillShadingPresetId, "custom"> }
+  | { kind: "line-cap"; value: Exclude<LineCapPresetId, "custom"> }
+  | { kind: "line-join"; value: Exclude<LineJoinPresetId, "custom"> }
+  | { kind: "line-width-preset"; key: string }
+  | { kind: "line-width-value"; value: string }
+  | { kind: "node-inner-sep"; value: number }
+  | { kind: "node-shape"; value: Exclude<NodeShapePresetId, "custom"> }
+  | { kind: "rounded-corners"; enabled: boolean; radius?: number; disableRequiresSharpCorners?: boolean }
+  | {
+      kind: "transform";
+      current: TransformInspectorValues | TransformInspectorMutationContext;
+      key: TransformInspectorKey;
+      value: number;
+    };
+
 const SHIFT_CLEAR_KEYS = ["shift", "/tikz/shift"] as const;
 const SCALE_CLEAR_KEYS = ["scale", "/tikz/scale"] as const;
 const ROTATE_CLEAR_KEYS = ["/tikz/rotate"] as const;
@@ -145,7 +191,13 @@ const PROPERTY_DEFINITIONS = [
   }),
   property("node-text-color", "Text color", "text", { candidateKeys: ["text", "text color"], addable: true, addableKind: "color", defaultOmission: "certified" }),
   property("adornment-text-color", "Text color", "text", { candidateKeys: ["text"], addable: true, addableKind: "color", defaultOmission: "certified" }),
-  property("line-width", "Line width", "line width", { candidateKeys: LINE_WIDTH_ALL_KEYS, addable: true, addableKind: "lineWidth", defaultOmission: "certified" }),
+  property("line-width", "Line width", "line width", {
+    candidateKeys: LINE_WIDTH_ALL_KEYS,
+    addable: true,
+    addableKind: "lineWidth",
+    defaultOmission: "certified",
+    buildMutations: buildLineWidthPropertyMutations
+  }),
   property("dash-style", "Dash style", "solid", { candidateKeys: DASH_STYLE_PRESET_CLEAR_KEYS, addable: true, addableKind: "dashStyle", defaultOmission: "certified" }),
   property("line-cap", "Line cap", "line cap", { addable: true, addableKind: "lineCap", defaultOmission: "certified" }),
   property("line-join", "Line join", "line join", { addable: true, addableKind: "lineJoin", defaultOmission: "certified" }),
@@ -275,6 +327,10 @@ export function propertyIdForOptionEntry(
   const normalizedKey = normalizeOptionKey(key);
   const available = normalizeAvailablePropertyIds(availablePropertyIds);
   const firstAvailable = (...ids: SemanticPropertyId[]) => ids.find((id) => available == null || available.has(id)) ?? null;
+
+  if ((BUILDER_LINE_WIDTH_PRESET_KEYS as readonly string[]).includes(normalizedKey)) {
+    return firstAvailable("line-width");
+  }
 
   switch (normalizedKey) {
     case "xshift":
@@ -426,6 +482,43 @@ export function buildPropertyMutations(context: PropertyWriteContext): PropertyW
   ];
 }
 
+export function buildPropertyMutationsFromRequest(request: PropertyMutationRequest): PropertyWriteMutation[] {
+  const mutations = (() => {
+    switch (request.kind) {
+      case "dash-style":
+        return [buildDashStyleSetPropertyMutation(request.value)];
+      case "fill-mode":
+        return buildFillModeSetPropertyMutations(request.value, request.context);
+      case "fill-pattern":
+        return [buildFillPatternSetPropertyMutation(request.value)];
+      case "fill-shading":
+        return buildFillShadingSetPropertyMutations(request.value);
+      case "line-cap":
+        return [buildLineCapSetPropertyMutation(request.value)];
+      case "line-join":
+        return [buildLineJoinSetPropertyMutation(request.value)];
+      case "line-width-preset":
+        return [buildLineWidthPresetSetPropertyMutation(request.key)];
+      case "line-width-value":
+        return [buildLineWidthValueSetPropertyMutation(request.value)];
+      case "node-inner-sep":
+        return [buildNodeInnerSepSetPropertyMutation(request.value)];
+      case "node-shape":
+        return [buildNodeShapeSetPropertyMutation(request.value)];
+      case "rounded-corners":
+        return [buildRoundedCornersSetPropertyMutation(request.enabled, request.radius, request.disableRequiresSharpCorners)];
+      case "transform":
+        return buildTransformSetPropertyMutations(request.current, request.key, request.value);
+    }
+  })();
+  const propertyId = propertyIdForMutationRequest(request);
+  return mutations.map((mutation) => ({
+    ...mutation,
+    propertyId: propertyId ?? propertyIdForWriteKey(mutation.key) ?? undefined,
+    clearKeys: mutation.clearKeys ? uniqueStrings(mutation.clearKeys) : undefined
+  }));
+}
+
 export function buildSetPropertyActionsForTargets(
   targets: readonly SetPropertyActionTarget[],
   context: PropertyWriteContext
@@ -500,4 +593,54 @@ function resolvePropertySemantics(propertyIdOrKey: string | null | undefined): P
   }
   const resolvedId = propertyIdForWriteKey(propertyIdOrKey);
   return resolvedId ? getPropertySemantics(resolvedId) : null;
+}
+
+function buildLineWidthPropertyMutations(context: PropertyWriteContext): PropertyWriteMutation[] {
+  const normalizedKey = normalizeOptionKey(context.key ?? LINE_WIDTH_NUMERIC_KEY);
+  if (normalizedKey === LINE_WIDTH_NUMERIC_KEY) {
+    return [buildLineWidthValueSetPropertyMutation(context.value)];
+  }
+  if ((BUILDER_LINE_WIDTH_PRESET_KEYS as readonly string[]).includes(normalizedKey)) {
+    return [buildLineWidthPresetSetPropertyMutation(normalizedKey)];
+  }
+  return [];
+}
+
+function propertyIdForMutationRequest(request: PropertyMutationRequest): SemanticPropertyId | null {
+  switch (request.kind) {
+    case "dash-style":
+      return "dash-style";
+    case "fill-mode":
+      return "fill-mode";
+    case "fill-pattern":
+      return "fill-pattern";
+    case "fill-shading":
+      return "fill-shading";
+    case "line-cap":
+      return "line-cap";
+    case "line-join":
+      return "line-join";
+    case "line-width-preset":
+    case "line-width-value":
+      return "line-width";
+    case "node-inner-sep":
+      return "node-inner-sep";
+    case "node-shape":
+      return "node-shape";
+    case "rounded-corners":
+      return "rounded-corners";
+    case "transform":
+      switch (request.key) {
+        case "rotate":
+          return "transform.rotate";
+        case "xscale":
+          return "transform.xscale";
+        case "xshift":
+          return "transform.xshift";
+        case "yscale":
+          return "transform.yscale";
+        case "yshift":
+          return "transform.yshift";
+      }
+  }
 }

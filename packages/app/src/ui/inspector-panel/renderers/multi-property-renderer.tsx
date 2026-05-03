@@ -11,13 +11,10 @@ FILL_PATTERN_MIXED_OPTION_VALUE,
 FILL_SHADING_MIXED_OPTION_VALUE,
 LINE_CAP_MIXED_OPTION_VALUE,
 LINE_JOIN_MIXED_OPTION_VALUE,
-LINE_WIDTH_ALL_OPTION_KEYS,
 LINE_WIDTH_CUSTOM_OPTION_VALUE,
 LINE_WIDTH_DROPDOWN_OPTIONS,
 LINE_WIDTH_MIXED_OPTION_VALUE,
-LINE_WIDTH_NUMERIC_KEY,
 LINE_WIDTH_PRESET_BY_LABEL,
-LINE_WIDTH_PRESET_KEYS,
 LineWidthPreview,
 NODE_SHAPE_MIXED_OPTION_VALUE,
 PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE,
@@ -550,7 +547,7 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
                   disableManualCustomLineWidth(lineWidthKey);
                   applySetPropertyMany(property.writes, "true", {
                     key: nextValue,
-                    clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue)
+                    propertyId: "line-width"
                   });
                 });
               }}
@@ -566,7 +563,7 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
                 applyHoverPreview(previewOwnerKey, () => {
                   applySetPropertyMany(property.writes, "true", {
                     key: nextValue,
-                    clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue),
+                    propertyId: "line-width",
                     recordInHistory: false
                   });
                 });
@@ -614,8 +611,8 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
                   const next = Number(event.currentTarget.value);
                   if (!Number.isFinite(next)) return;
                   applySetPropertyMany(property.writes, `${formatNumber(next)}pt`, {
-                    key: LINE_WIDTH_NUMERIC_KEY,
-                    clearKeys: LINE_WIDTH_PRESET_KEYS
+                    key: "line width",
+                    propertyId: "line-width"
                   });
                 }}
               />

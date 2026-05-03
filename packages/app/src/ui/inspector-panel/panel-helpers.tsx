@@ -489,10 +489,6 @@ export const LINE_WIDTH_DROPDOWN_OPTIONS: Array<CustomDropdownOption<LineWidthDr
     label: "Custom line width"
   }
 ];
-export const LINE_WIDTH_NUMERIC_KEY = "line width";
-export const LINE_WIDTH_PRESET_KEYS = LINE_WIDTH_PRESETS.map((preset) => preset.label);
-export const LINE_WIDTH_ALL_OPTION_KEYS = [LINE_WIDTH_NUMERIC_KEY, ...LINE_WIDTH_PRESET_KEYS];
-
 export function isStrokeMoreOptionsPropertyId(propertyId: string): boolean {
   return STROKE_MORE_OPTIONS_PROPERTY_IDS.has(propertyId);
 }

@@ -3,18 +3,7 @@ import {
   type InspectorProperty,
   type SetPropertyWriteTarget
 } from "tikz-editor/edit/inspector";
-import {
-  buildDashStyleSetPropertyMutation,
-  buildFillModeSetPropertyMutations,
-  buildFillPatternSetPropertyMutation,
-  buildFillShadingSetPropertyMutations,
-  buildLineCapSetPropertyMutation,
-  buildLineJoinSetPropertyMutation,
-  buildNodeInnerSepSetPropertyMutation,
-  buildNodeShapeSetPropertyMutation,
-  buildRoundedCornersSetPropertyMutation,
-  buildTransformSetPropertyMutations
-} from "tikz-editor/edit/property-write-builders";
+import { buildPropertyMutationsFromRequest } from "tikz-editor/edit/property-registry";
 import {
   areStylesCascadeModelsIdentical,
   buildSharedStylesCascadeModel,
@@ -159,6 +148,18 @@ export function StylesPanel() {
     [dispatchActions]
   );
 
+  const applyRegistryMutations = useCallback(
+    (
+      writeTargets: readonly SetPropertyWriteTarget[],
+      mutations: ReturnType<typeof buildPropertyMutationsFromRequest>
+    ) => {
+      for (const mutation of mutations) {
+        dispatchActions(planStylesSetPropertyActions(writeTargets, mutation));
+      }
+    },
+    [dispatchActions]
+  );
+
   const applyPropertyChange = useCallback(
     (declaration: StylesCascadeDeclaration, property: InspectorProperty, nextValue: string | number | boolean) => {
       const writeTargets = declaration.writeTargets;
@@ -173,10 +174,12 @@ export function StylesPanel() {
         case "number": {
           const writes = property.write ? writeTargets.map((target) => ({ ...target, key: property.write!.key, transformContext: property.write!.transformContext })) : [];
           if (property.write?.transformContext) {
-            const mutations = buildTransformSetPropertyMutations(property.write.transformContext, property.write.transformContext.key, Number(nextValue));
-            for (const mutation of mutations) {
-              dispatchActions(planStylesSetPropertyActions(writes, mutation));
-            }
+            applyRegistryMutations(writes, buildPropertyMutationsFromRequest({
+              kind: "transform",
+              current: property.write.transformContext,
+              key: property.write.transformContext.key,
+              value: Number(nextValue)
+            }));
             return;
           }
           const key = property.write?.key ?? "";
@@ -187,61 +190,49 @@ export function StylesPanel() {
         }
         case "length":
           if (property.id === "node-inner-sep") {
-            const mutation = buildNodeInnerSepSetPropertyMutation(Number(nextValue));
-            applySimpleMutation(writeTargets, mutation.key, mutation.value, mutation.clearKeys);
+            applyRegistryMutations(writeTargets, buildPropertyMutationsFromRequest({ kind: "node-inner-sep", value: Number(nextValue) }));
             return;
           }
           applySimpleMutation(writeTargets, property.write.key, `${nextValue}${property.unit}`);
           return;
         case "lineWidth":
-          applySimpleMutation(writeTargets, property.write.key, `${nextValue}pt`);
+          applyRegistryMutations(writeTargets, buildPropertyMutationsFromRequest({ kind: "line-width-value", value: `${nextValue}pt` }));
           return;
         case "dashStyle": {
-          const mutation = buildDashStyleSetPropertyMutation(String(nextValue) as Exclude<typeof property.value, "custom">);
-          applySimpleMutation(writeTargets, mutation.key, mutation.value, mutation.clearKeys);
+          applyRegistryMutations(writeTargets, buildPropertyMutationsFromRequest({ kind: "dash-style", value: String(nextValue) as Exclude<typeof property.value, "custom"> }));
           return;
         }
         case "lineCap": {
-          const mutation = buildLineCapSetPropertyMutation(String(nextValue) as Exclude<typeof property.value, "custom">);
-          applySimpleMutation(writeTargets, mutation.key, mutation.value, mutation.clearKeys);
+          applyRegistryMutations(writeTargets, buildPropertyMutationsFromRequest({ kind: "line-cap", value: String(nextValue) as Exclude<typeof property.value, "custom"> }));
           return;
         }
         case "lineJoin": {
-          const mutation = buildLineJoinSetPropertyMutation(String(nextValue) as Exclude<typeof property.value, "custom">);
-          applySimpleMutation(writeTargets, mutation.key, mutation.value, mutation.clearKeys);
+          applyRegistryMutations(writeTargets, buildPropertyMutationsFromRequest({ kind: "line-join", value: String(nextValue) as Exclude<typeof property.value, "custom"> }));
           return;
         }
         case "fillMode": {
-          const mutations = buildFillModeSetPropertyMutations(String(nextValue) as Exclude<typeof property.value, "custom">, property.context);
-          for (const mutation of mutations) {
-            applySimpleMutation(writeTargets, mutation.key, mutation.value, mutation.clearKeys);
-          }
+          applyRegistryMutations(writeTargets, buildPropertyMutationsFromRequest({ kind: "fill-mode", value: String(nextValue) as Exclude<typeof property.value, "custom">, context: property.context }));
           return;
         }
         case "fillShading": {
-          const mutations = buildFillShadingSetPropertyMutations(String(nextValue) as Exclude<typeof property.value, "custom">);
-          for (const mutation of mutations) {
-            applySimpleMutation(writeTargets, mutation.key, mutation.value, mutation.clearKeys);
-          }
+          applyRegistryMutations(writeTargets, buildPropertyMutationsFromRequest({ kind: "fill-shading", value: String(nextValue) as Exclude<typeof property.value, "custom"> }));
           return;
         }
         case "fillPattern": {
-          const mutation = buildFillPatternSetPropertyMutation(String(nextValue) as Exclude<typeof property.value, "custom">);
-          applySimpleMutation(writeTargets, mutation.key, mutation.value, mutation.clearKeys);
+          applyRegistryMutations(writeTargets, buildPropertyMutationsFromRequest({ kind: "fill-pattern", value: String(nextValue) as Exclude<typeof property.value, "custom"> }));
           return;
         }
         case "roundedCorners": {
-          const mutation = buildRoundedCornersSetPropertyMutation(
-            Boolean(nextValue),
-            property.radius,
-            property.disableRequiresSharpCorners
-          );
-          applySimpleMutation(writeTargets, mutation.key, mutation.value, mutation.clearKeys);
+          applyRegistryMutations(writeTargets, buildPropertyMutationsFromRequest({
+            kind: "rounded-corners",
+            enabled: Boolean(nextValue),
+            radius: property.radius,
+            disableRequiresSharpCorners: property.disableRequiresSharpCorners
+          }));
           return;
         }
         case "nodeShape": {
-          const mutation = buildNodeShapeSetPropertyMutation(String(nextValue) as Exclude<typeof property.value, "custom">);
-          applySimpleMutation(writeTargets, mutation.key, mutation.value, mutation.clearKeys);
+          applyRegistryMutations(writeTargets, buildPropertyMutationsFromRequest({ kind: "node-shape", value: String(nextValue) as Exclude<typeof property.value, "custom"> }));
           return;
         }
         case "arrowTip":
@@ -259,7 +250,7 @@ export function StylesPanel() {
           return;
       }
     },
-    [applySimpleMutation, dispatchActions]
+    [applyRegistryMutations, applySimpleMutation]
   );
 
   const handleDeleteProperty = useCallback(

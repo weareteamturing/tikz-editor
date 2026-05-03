@@ -9,7 +9,9 @@ import {
   isDefaultOmissionEligible,
   propertyCleanupKinds,
   propertyIdForOptionEntry,
-  propertyIdForStyleContribution
+  propertyIdForStyleContribution,
+  buildPropertyMutations,
+  buildPropertyMutationsFromRequest
 } from "../packages/core/src/edit/property-registry.js";
 
 describe("property registry", () => {
@@ -64,5 +66,37 @@ describe("property registry", () => {
     expect("buildTransformSetPropertyMutations" in inspectorModule).toBe(false);
     expect("buildFillModeSetPropertyMutations" in inspectorModule).toBe(false);
     expect("buildRoundedCornersSetPropertyMutation" in inspectorModule).toBe(false);
+  });
+
+  it("builds line-width mutations through registry-owned writer logic", () => {
+    expect(buildPropertyMutations({ propertyId: "line-width", key: "thick", value: "true" })).toEqual([
+      {
+        key: "thick",
+        value: "true",
+        propertyId: "line-width",
+        clearKeys: ["line width", "ultra thin", "very thin", "thin", "semithick", "very thick", "ultra thick"]
+      }
+    ]);
+    expect(buildPropertyMutations({ propertyId: "line-width", key: "line width", value: "1.7pt" })).toEqual([
+      {
+        key: "line width",
+        value: "1.7pt",
+        propertyId: "line-width",
+        clearKeys: ["ultra thin", "very thin", "thin", "semithick", "thick", "very thick", "ultra thick"]
+      }
+    ]);
+  });
+
+  it("builds typed style-panel mutation requests through the registry", () => {
+    expect(buildPropertyMutationsFromRequest({ kind: "dash-style", value: "dashed" })).toEqual([
+      {
+        key: "dashed",
+        value: "true",
+        propertyId: "dash-style",
+        clearKeys: ["solid", "dashed", "densely dashed", "loosely dashed", "dotted", "densely dotted", "loosely dotted", "dash pattern", "dash phase", "dash"]
+      }
+    ]);
+    expect(buildPropertyMutationsFromRequest({ kind: "fill-mode", value: "solid", context: { fillColor: "red" } })[0]?.propertyId).toBe("fill-mode");
+    expect(buildPropertyMutationsFromRequest({ kind: "line-width-preset", key: "thick" })[0]?.propertyId).toBe("line-width");
   });
 });

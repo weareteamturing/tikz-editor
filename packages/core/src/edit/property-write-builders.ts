@@ -16,6 +16,7 @@ import {
   DASH_STYLE_PRESET_CLEAR_KEYS,
   FILL_PATTERN_CLEAR_KEYS,
   FILL_SHADING_CLEAR_KEYS,
+  LINE_WIDTH_PRESETS,
   NODE_FONT_FAMILY_COMMAND,
   NODE_FONT_PRESET_BY_ID,
   NODE_FONT_STYLE_COMMAND,
@@ -51,6 +52,16 @@ import type {
   NodeShapePresetId,
   PathMorphingDecorationPresetId,
   ShadowPresetId
+} from "./inspector/presets.js";
+
+export type {
+  DashStylePresetId,
+  FillModePresetId,
+  FillPatternPresetId,
+  FillShadingPresetId,
+  LineCapPresetId,
+  LineJoinPresetId,
+  NodeShapePresetId
 } from "./inspector/presets.js";
 
 type PropertyTargetResolver = (targetId: string) => PropertyTargetResolution;
@@ -94,6 +105,12 @@ export type LineCapSetPropertyMutation = {
 };
 
 export type LineJoinSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
+
+export type LineWidthSetPropertyMutation = {
   key: string;
   value: string;
   clearKeys: string[];
@@ -241,6 +258,9 @@ export const DEFAULT_TRANSFORM_INSPECTOR_VALUES: TransformInspectorValues = {
 export const SHIFT_CLEAR_KEYS = ["shift", "/tikz/shift"] as const;
 export const SCALE_CLEAR_KEYS = ["scale", "/tikz/scale"] as const;
 export const ROTATE_CLEAR_KEYS = ["/tikz/rotate"] as const;
+export const LINE_WIDTH_NUMERIC_KEY = "line width";
+export const LINE_WIDTH_PRESET_KEYS = LINE_WIDTH_PRESETS.map((preset) => preset.label);
+export const LINE_WIDTH_ALL_OPTION_KEYS = [LINE_WIDTH_NUMERIC_KEY, ...LINE_WIDTH_PRESET_KEYS];
 
 export const TRANSFORM_KEY_ALIAS_CLEAR_KEYS: Record<TransformInspectorKey, readonly string[]> = {
   xshift: ["/tikz/xshift"],
@@ -293,6 +313,22 @@ export function buildLineJoinSetPropertyMutation(
     key: "line join",
     value,
     clearKeys: []
+  };
+}
+
+export function buildLineWidthPresetSetPropertyMutation(presetKey: string): LineWidthSetPropertyMutation {
+  return {
+    key: presetKey,
+    value: "true",
+    clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== presetKey)
+  };
+}
+
+export function buildLineWidthValueSetPropertyMutation(value: string): LineWidthSetPropertyMutation {
+  return {
+    key: LINE_WIDTH_NUMERIC_KEY,
+    value,
+    clearKeys: LINE_WIDTH_PRESET_KEYS
   };
 }
 
