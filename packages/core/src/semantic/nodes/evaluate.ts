@@ -1834,6 +1834,7 @@ function applyNodeTransformScale(style: ResolvedStyle, transformScale: number): 
     ...style,
     lineWidth: style.lineWidth * transformScale,
     doubleDistance: style.doubleDistance * transformScale,
+    doubleLineCenterDistance: style.doubleLineCenterDistance == null ? null : style.doubleLineCenterDistance * transformScale,
     fontSize: style.fontSize * transformScale
   };
 }

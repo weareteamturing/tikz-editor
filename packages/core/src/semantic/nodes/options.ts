@@ -105,6 +105,8 @@ export function resolveNodeStyle(
     ...resolvedStyle,
     lineWidth: resolvedStyle.lineWidth * transformScale,
     doubleDistance: resolvedStyle.doubleDistance * transformScale,
+    doubleLineCenterDistance:
+      resolvedStyle.doubleLineCenterDistance == null ? null : resolvedStyle.doubleLineCenterDistance * transformScale,
     fontSize: resolvedStyle.fontSize * transformScale
   };
 }

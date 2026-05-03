@@ -30,6 +30,8 @@ type ShadowRenderableStyle = Pick<
   | "fillRule"
   | "doubleStroke"
   | "doubleDistance"
+  | "doubleLineCenterDistance"
+  | "doubleColor"
   | "lineWidth"
   | "dashArray"
   | "dashOffset"
@@ -366,7 +368,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
           if (shouldEmitDoubleStroke(element.style)) {
             const outerFill = resolveFillPaint(element.style, element.sourceRef.sourceId, pathBounds);
             const outerAttrs = styleAttributes(element.style, false, {
-              lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
+              lineWidth: doubleOuterLineWidth(element.style),
               fill: outerFill ?? undefined
             });
             if (svgElementTransform) {
@@ -379,9 +381,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
               `<path data-source-id="${escapeAttr(element.sourceRef.sourceId)}" d="${escapeAttr(d)}" ${outerAttrs.join(" ")} />`
             );
             const innerAttrs = styleAttributes(element.style, false, {
-              stroke: "#ffffff",
+              stroke: element.style.doubleColor,
               fill: "none",
-              lineWidth: element.style.doubleDistance
+              lineWidth: doubleInnerLineWidth(element.style)
             });
             if (svgElementTransform) {
               innerAttrs.push(`transform="${formatMatrix(svgElementTransform)}"`);
@@ -458,7 +460,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
       if (shouldEmitDoubleStroke(element.style)) {
         const outerFill = resolveFillPaint(element.style, element.sourceRef.sourceId, transformedCircleBounds);
         const outerAttrs = styleAttributes(element.style, false, {
-          lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
+          lineWidth: doubleOuterLineWidth(element.style),
           fill: outerFill ?? undefined
         });
         if (svgElementTransform) {
@@ -471,9 +473,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
           `<circle data-source-id="${escapeAttr(element.sourceRef.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${outerAttrs.join(" ")} />`
         );
         const innerAttrs = styleAttributes(element.style, false, {
-          stroke: "#ffffff",
+          stroke: element.style.doubleColor,
           fill: "none",
-          lineWidth: element.style.doubleDistance
+          lineWidth: doubleInnerLineWidth(element.style)
         });
         if (svgElementTransform) {
           innerAttrs.push(`transform="${formatMatrix(svgElementTransform)}"`);
@@ -525,7 +527,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
       if (shouldEmitDoubleStroke(element.style)) {
         const outerFill = resolveFillPaint(element.style, element.sourceRef.sourceId, transformedEllipseBounds);
         const outerAttrs = styleAttributes(element.style, false, {
-          lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
+          lineWidth: doubleOuterLineWidth(element.style),
           fill: outerFill ?? undefined
         });
         const outerTransforms: string[] = [];
@@ -541,9 +543,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
           `<ellipse data-source-id="${escapeAttr(element.sourceRef.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" rx="${fmt(element.rx)}" ry="${fmt(element.ry)}" ${outerAttrs.join(" ")} />`
         );
         const innerAttrs = styleAttributes(element.style, false, {
-          stroke: "#ffffff",
+          stroke: element.style.doubleColor,
           fill: "none",
-          lineWidth: element.style.doubleDistance
+          lineWidth: doubleInnerLineWidth(element.style)
         });
         const innerTransforms: string[] = [];
         if (svgElementTransform) innerTransforms.push(formatMatrix(svgElementTransform));
@@ -730,14 +732,14 @@ function emitShadowPathPart(args: {
     if (shouldEmitDoubleStroke(layerStyle)) {
       const outerFill = args.resolveFillPaint(layerStyle, args.sourceId, args.bounds);
       const outerAttrs = styleAttributes(layerStyle, false, {
-        lineWidth: layerStyle.lineWidth * 2 + layerStyle.doubleDistance,
+        lineWidth: doubleOuterLineWidth(layerStyle),
         fill: outerFill ?? undefined
       });
       shapes.push(`<path data-source-id="${escapeAttr(args.sourceId)}" d="${escapeAttr(args.d)}" ${outerAttrs.join(" ")} />`);
       const innerAttrs = styleAttributes(layerStyle, false, {
-        stroke: "#ffffff",
+        stroke: layerStyle.doubleColor,
         fill: "none",
-        lineWidth: layerStyle.doubleDistance
+        lineWidth: doubleInnerLineWidth(layerStyle)
       });
       shapes.push(`<path data-source-id="${escapeAttr(args.sourceId)}" d="${escapeAttr(args.d)}" ${innerAttrs.join(" ")} />`);
     } else {
@@ -781,16 +783,16 @@ function emitShadowCircle(args: {
     if (shouldEmitDoubleStroke(layerStyle)) {
       const outerFill = args.resolveFillPaint(layerStyle, args.sourceId, args.bounds);
       const outerAttrs = styleAttributes(layerStyle, false, {
-        lineWidth: layerStyle.lineWidth * 2 + layerStyle.doubleDistance,
+        lineWidth: doubleOuterLineWidth(layerStyle),
         fill: outerFill ?? undefined
       });
       shapes.push(
         `<circle data-source-id="${escapeAttr(args.sourceId)}" cx="${fmt(args.cx)}" cy="${fmt(args.cy)}" r="${fmt(args.radius)}" ${outerAttrs.join(" ")} />`
       );
       const innerAttrs = styleAttributes(layerStyle, false, {
-        stroke: "#ffffff",
+        stroke: layerStyle.doubleColor,
         fill: "none",
-        lineWidth: layerStyle.doubleDistance
+        lineWidth: doubleInnerLineWidth(layerStyle)
       });
       shapes.push(
         `<circle data-source-id="${escapeAttr(args.sourceId)}" cx="${fmt(args.cx)}" cy="${fmt(args.cy)}" r="${fmt(args.radius)}" ${innerAttrs.join(" ")} />`
@@ -840,7 +842,7 @@ function emitShadowEllipse(args: {
     if (shouldEmitDoubleStroke(layerStyle)) {
       const outerFill = args.resolveFillPaint(layerStyle, args.sourceId, args.bounds);
       const outerAttrs = styleAttributes(layerStyle, false, {
-        lineWidth: layerStyle.lineWidth * 2 + layerStyle.doubleDistance,
+        lineWidth: doubleOuterLineWidth(layerStyle),
         fill: outerFill ?? undefined
       });
       if (Math.abs(args.rotation) > 1e-6) {
@@ -850,9 +852,9 @@ function emitShadowEllipse(args: {
         `<ellipse data-source-id="${escapeAttr(args.sourceId)}" cx="${fmt(args.cx)}" cy="${fmt(args.cy)}" rx="${fmt(args.rx)}" ry="${fmt(args.ry)}" ${outerAttrs.join(" ")} />`
       );
       const innerAttrs = styleAttributes(layerStyle, false, {
-        stroke: "#ffffff",
+        stroke: layerStyle.doubleColor,
         fill: "none",
-        lineWidth: layerStyle.doubleDistance
+        lineWidth: doubleInnerLineWidth(layerStyle)
       });
       if (Math.abs(args.rotation) > 1e-6) {
         innerAttrs.push(`transform="rotate(${fmt(-args.rotation)} ${fmt(args.cx)} ${fmt(args.cy)})"`);
@@ -1488,10 +1490,21 @@ function styleAttributes(
 
 function shouldEmitDoubleStroke(style: {
   stroke: string | null;
+  lineWidth: number;
   doubleStroke: boolean;
   doubleDistance: number;
+  doubleLineCenterDistance: number | null;
+  doubleColor: string;
 }): boolean {
-  return style.doubleStroke && style.stroke != null && style.stroke !== "none" && style.doubleDistance > 0;
+  return style.doubleStroke && style.stroke != null && style.stroke !== "none" && doubleInnerLineWidth(style) > 0;
+}
+
+function doubleInnerLineWidth(style: { lineWidth: number; doubleDistance: number; doubleLineCenterDistance: number | null }): number {
+  return style.doubleLineCenterDistance == null ? style.doubleDistance : Math.max(0, style.doubleLineCenterDistance - style.lineWidth);
+}
+
+function doubleOuterLineWidth(style: { lineWidth: number; doubleDistance: number; doubleLineCenterDistance: number | null }): number {
+  return style.doubleLineCenterDistance == null ? style.lineWidth * 2 + style.doubleDistance : style.lineWidth + style.doubleLineCenterDistance;
 }
 
 function toSvgPoint(point: WorldPoint, viewBox: Pick<SvgViewBox, "y" | "height">): SvgPoint {

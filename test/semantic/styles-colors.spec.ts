@@ -611,6 +611,51 @@ describe("semantic evaluator / styles and colors", () => {
       }
     });
 
+    it("uses key-value double options as the double-stroke color", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[draw=red,double=blue] (-2.5,2.5) -- (2.5,2.5);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:double")).toBe(false);
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.style.stroke).toBe("#ff0000");
+        expect(path.style.doubleStroke).toBe(true);
+        expect(path.style.doubleColor).toBe("#0000ff");
+      }
+    });
+
+    it("supports center-to-center double line distances independently of line width order", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[double distance between line centers=3pt,line width=2pt] (0,0) -- (1,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:double distance between line centers")).toBe(false);
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.style.lineWidth).toBeCloseTo(2);
+        expect(path.style.doubleStroke).toBe(true);
+        expect(path.style.doubleLineCenterDistance).toBeCloseTo(3);
+      }
+    });
+
+    it("supports double=none and double equal sign distance", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[double,double=none] (0,0) -- (1,0);
+    \draw[line width=1pt,double equal sign distance] (0,1) -- (1,1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+      const paths = elementsOfKind(result.scene.elements, "Path");
+
+      expect(paths[0]?.style.doubleStroke).toBe(false);
+      expect(paths[1]?.style.doubleStroke).toBe(true);
+      expect(paths[1]?.style.doubleLineCenterDistance).toBeCloseTo(0.45 * 4.3);
+    });
+
     it("applies scope/statement precedence and fill command defaults", () => {
       const source = String.raw`\begin{tikzpicture}[blue,line width=1pt]
     \begin{scope}[red,line width=2pt]

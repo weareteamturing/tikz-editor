@@ -32,6 +32,8 @@ export function defaultStyle(): ResolvedStyle {
     fontFamily: "serif",
     doubleStroke: false,
     doubleDistance: DEFAULT_DOUBLE_DISTANCE,
+    doubleLineCenterDistance: null,
+    doubleColor: "#ffffff",
     textAlign: "center",
     drawExplicit: false,
     radius: null,

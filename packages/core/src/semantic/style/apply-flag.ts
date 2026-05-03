@@ -148,6 +148,18 @@ export function applyFlagEntry(
   if (key === "double") {
     return { style: { ...style, doubleStroke: true }, transform, diagnostics: [] };
   }
+  if (key === "double equal sign distance") {
+    const length = parseLength("0.45ex", "pt");
+    return {
+      style: {
+        ...style,
+        doubleStroke: true,
+        doubleLineCenterDistance: length ?? style.doubleLineCenterDistance
+      },
+      transform,
+      diagnostics: []
+    };
+  }
   if (key === "decorate") {
     return {
       style: {

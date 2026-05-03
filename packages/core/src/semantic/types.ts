@@ -296,6 +296,8 @@ export type ShadowPaintStyle = {
   fillRule: "nonzero" | "evenodd";
   doubleStroke: boolean;
   doubleDistance: number;
+  doubleLineCenterDistance: number | null;
+  doubleColor: string;
   lineWidth: number;
   dashArray: number[] | null;
   dashOffset: number;
@@ -418,6 +420,8 @@ export type ResolvedStyle = {
   fontFamily: "serif" | "sans" | "monospace";
   doubleStroke: boolean;
   doubleDistance: number;
+  doubleLineCenterDistance: number | null;
+  doubleColor: string;
   textAlign: "left" | "flush left" | "right" | "flush right" | "center" | "flush center" | "justify" | "none";
   // Whether draw mode was explicitly enabled via options (for example `draw`).
   drawExplicit: boolean;

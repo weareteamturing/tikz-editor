@@ -552,7 +552,28 @@ export function applyKvEntry(
     if (length == null || length < 0) {
       return { style, transform, diagnostics: [`invalid-double-distance:${valueRaw}`] };
     }
-    return { style: { ...style, doubleStroke: true, doubleDistance: length }, transform, diagnostics: [] };
+    return { style: { ...style, doubleStroke: true, doubleDistance: length, doubleLineCenterDistance: null }, transform, diagnostics: [] };
+  }
+  if (key === "double distance between line centers") {
+    const length = parseLength(valueRaw, "pt");
+    if (length == null || length < 0) {
+      return { style, transform, diagnostics: [`invalid-double-distance-between-line-centers:${valueRaw}`] };
+    }
+    return { style: { ...style, doubleStroke: true, doubleLineCenterDistance: length }, transform, diagnostics: [] };
+  }
+  if (key === "double") {
+    if (valueRaw.trim().toLowerCase() === "none") {
+      return { style: { ...style, doubleStroke: false }, transform, diagnostics: [] };
+    }
+    return {
+      style: {
+        ...style,
+        doubleStroke: true,
+        doubleColor: normalizeOptionColor(valueRaw, style, resolveColorAlias)
+      },
+      transform,
+      diagnostics: []
+    };
   }
   if (key === "node font" || key === "font") {
     const parsed = parseFontStyle(valueRaw);
@@ -973,6 +994,8 @@ function extractShadowPaintStyle(style: ResolvedStyle): ShadowPaintStyle {
     fillRule: style.fillRule,
     doubleStroke: style.doubleStroke,
     doubleDistance: style.doubleDistance,
+    doubleLineCenterDistance: style.doubleLineCenterDistance,
+    doubleColor: style.doubleColor,
     lineWidth: style.lineWidth,
     dashArray: style.dashArray ? [...style.dashArray] : null,
     dashOffset: style.dashOffset,

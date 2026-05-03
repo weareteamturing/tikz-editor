@@ -725,6 +725,33 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain('stroke="#ffffff"');
   });
 
+  it("emits key-value double color as the inner stroke", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[draw=red,double=blue] (-2.5,2.5) -- (2.5,2.5);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(parsed.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+    expect(semantic.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:double")).toBe(false);
+    expect(emitted.svg).toContain('stroke="#ff0000"');
+    expect(emitted.svg).toContain('stroke="#0000ff"');
+  });
+
+  it("emits center-to-center double line distances using the final line width", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[double distance between line centers=3pt,line width=2pt] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(semantic.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:double distance between line centers")).toBe(false);
+    expect(emitted.svg).toContain('stroke-width="5"');
+    expect(emitted.svg).toContain('stroke-width="1"');
+  });
+
   it("emits italic font style and scaled font size for transform-shaped nodes", () => {
     const source = String.raw`\begin{tikzpicture}[scale=3,transform shape]
   \draw[node font=\itshape] (1,0) -- +(1,1) node[above] {italic};
