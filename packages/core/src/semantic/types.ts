@@ -139,6 +139,13 @@ export type SourceRef = {
   sourceFingerprint: string;
 };
 
+export type IdentitySourceRef = {
+  sourceId: string;
+  sourceSpan: Span;
+  sourceFingerprint?: string;
+  sourceKind?: string;
+};
+
 export type MatrixCellInfo = {
   matrixSourceId: string;
   cellSourceId: string;
@@ -182,6 +189,7 @@ export type ScenePath = {
   id: string;
   runtimeId: string;
   sourceRef: SourceRef;
+  identityRef?: IdentitySourceRef;
   matrixCell?: MatrixCellInfo;
   treeChild?: TreeChildInfo;
   adornment?: SceneAdornment;
@@ -201,6 +209,7 @@ export type SceneCircle = {
   id: string;
   runtimeId: string;
   sourceRef: SourceRef;
+  identityRef?: IdentitySourceRef;
   matrixCell?: MatrixCellInfo;
   treeChild?: TreeChildInfo;
   adornment?: SceneAdornment;
@@ -219,6 +228,7 @@ export type SceneEllipse = {
   id: string;
   runtimeId: string;
   sourceRef: SourceRef;
+  identityRef?: IdentitySourceRef;
   matrixCell?: MatrixCellInfo;
   treeChild?: TreeChildInfo;
   adornment?: SceneAdornment;
@@ -239,6 +249,7 @@ export type SceneText = {
   id: string;
   runtimeId: string;
   sourceRef: SourceRef;
+  identityRef?: IdentitySourceRef;
   matrixCell?: MatrixCellInfo;
   treeChild?: TreeChildInfo;
   adornment?: SceneAdornment;
@@ -495,6 +506,7 @@ type EditHandleBase = {
   id: string;
   runtimeId: string;
   sourceRef: SourceRef;
+  identityRef?: IdentitySourceRef;
   world: WorldPoint;
   transform: WorldTransform;
   sourceText: string;

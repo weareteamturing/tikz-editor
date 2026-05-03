@@ -48,10 +48,16 @@ import type {
 import { expandMacroBindings, isControlSequenceToken } from "../macros/expand.js";
 import type { MacroBinding, MacroOriginFrame as MacroOriginFrameType } from "../macros/types.js";
 import { buildForeachIterations } from "./options.js";
-import { parseNodeItemsFromTemplate, parsePathItemsFromFragment, parseStatementsFromBody } from "./snippet-parse.js";
+import {
+  parseNodeItemsFromTemplate,
+  parsePathItemsFromFragment,
+  parseStatementsFromBody,
+  parseStatementsFromBodyWithMapping
+} from "./snippet-parse.js";
 import { expandTexConditionals } from "../conditionals/expand.js";
-import { substituteForeachBindings } from "./substitute.js";
+import { substituteForeachBindings, substituteForeachBindingsWithMap } from "./substitute.js";
 import type {
+  ExpansionSourceMap,
   ForeachExpansionDiagnostic,
   ForeachExpansionResult,
   ForeachOriginFrame,
@@ -65,6 +71,7 @@ type ExpandContext = {
   maxMacroStatementExpansions: number;
   diagnostics: ForeachExpansionDiagnostic[];
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>;
+  statementSourceMaps: WeakMap<Statement, ExpansionSourceMap>;
   pathItemForeachStack: WeakMap<PathItem, ForeachOriginFrame[]>;
   statementMacroAttribution: WeakMap<Statement, MacroOriginFrameType[]>;
   macroBindings: Map<string, MacroBinding>;
@@ -92,6 +99,7 @@ export function expandForeachFigure(
     maxMacroStatementExpansions: 1_000,
     diagnostics: [],
     statementAttribution: new WeakMap<Statement, ForeachStatementAttribution>(),
+    statementSourceMaps: new WeakMap<Statement, ExpansionSourceMap>(),
     pathItemForeachStack: new WeakMap<PathItem, ForeachOriginFrame[]>(),
     statementMacroAttribution: new WeakMap<Statement, MacroOriginFrameType[]>(),
     macroBindings,
@@ -107,6 +115,7 @@ export function expandForeachFigure(
     figureBody: expandedBody,
     diagnostics: context.diagnostics,
     statementAttribution: context.statementAttribution,
+    statementSourceMaps: context.statementSourceMaps,
     pathItemForeachStack: context.pathItemForeachStack,
     statementMacroAttribution: context.statementMacroAttribution,
     templateLocalIdByExpandedId: context.templateLocalIdByExpandedId
@@ -239,13 +248,11 @@ function expandForeachStatement(
     };
     const nextStack = [...stack, frame];
 
-    const substitutedBodyRaw = expandTexConditionals(
-      expandMacroBindings(
-        substituteForeachBindings(statement.bodyRaw, combinedBindings),
-        context.macroBindings
-      )
-    );
-    const parsedBody = parseStatementsFromBody(substitutedBodyRaw);
+    const substituted = substituteForeachBindingsWithMap(statement.bodyRaw, combinedBindings);
+    const macroExpandedBodyRaw = expandMacroBindings(substituted.output, context.macroBindings);
+    const substitutedBodyRaw = expandTexConditionals(macroExpandedBodyRaw);
+    const canMapSubstitutedBody = substitutedBodyRaw === substituted.output;
+    const parsedBody = parseStatementsFromBodyWithMapping(substitutedBodyRaw, { from: 0, to: substitutedBodyRaw.length });
     if (parsedBody.hasParseError) {
       context.diagnostics.push({
         severity: "warning",
@@ -256,12 +263,26 @@ function expandForeachStatement(
     }
 
     const expandedIteration = expandStatements(
-      parsedBody.value,
+      parsedBody.parseResult.figure.body,
       nextStack,
       combinedBindings,
       context,
       { sourceId: statement.id, sourceSpan: statement.span }
     );
+    recordStatementSourceMaps(expandedIteration, {
+      sourceId: statement.id,
+      sourceSpan: statement.span,
+      sourceKind: "foreach",
+      mapSpan: (span) => {
+        const generatedSpan = parsedBody.sourceMapper.mapSpan(span);
+        if (!generatedSpan) {
+          return null;
+        }
+        return canMapSubstitutedBody && statement.bodySpan
+          ? offsetSpan(substituted.mapSpan(generatedSpan), statement.bodySpan.from)
+          : null;
+      }
+    }, context);
     expanded.push(...expandedIteration);
   }
 
@@ -279,6 +300,36 @@ function expandPathStatement(
     ...statement,
     items: expandedItems
   };
+}
+
+function recordStatementSourceMaps(
+  statements: Statement[],
+  sourceMap: ExpansionSourceMap,
+  context: ExpandContext
+): void {
+  for (const statement of statements) {
+    const existing = context.statementSourceMaps.get(statement);
+    context.statementSourceMaps.set(statement, existing ? composeExpansionSourceMaps(existing, sourceMap) : sourceMap);
+    if (statement.kind === "Scope") {
+      recordStatementSourceMaps(statement.body, sourceMap, context);
+    }
+  }
+}
+
+function composeExpansionSourceMaps(inner: ExpansionSourceMap, outer: ExpansionSourceMap): ExpansionSourceMap {
+  return {
+    sourceId: outer.sourceId,
+    sourceSpan: outer.sourceSpan,
+    sourceKind: inner.sourceKind,
+    mapSpan: (span) => {
+      const innerMapped = inner.mapSpan(span);
+      return innerMapped ? outer.mapSpan(innerMapped) : null;
+    }
+  };
+}
+
+function offsetSpan(span: { from: number; to: number } | null, offset: number): { from: number; to: number } | null {
+  return span ? { from: span.from + offset, to: span.to + offset } : null;
 }
 
 function expandPathItems(
@@ -801,6 +852,12 @@ function tryExpandMacroStatement(
     sourceId: statement.id,
     sourceSpan: statement.span
   });
+  recordStatementSourceMaps(result, {
+    sourceId: statement.id,
+    sourceSpan: statement.span,
+    sourceKind: "macro",
+    mapSpan: () => ({ ...statement.span })
+  }, context);
 
   // Record macro attribution on all expanded statements
   if (macroProvenance.length > 0) {

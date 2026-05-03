@@ -84,6 +84,7 @@ type SemanticStatementFragment = {
   statementId: string;
   sourceId: string;
   sourceSpan: Span;
+  sourceFingerprint: string;
   elements: SceneElement[];
   editHandles: EditHandle[];
   diagnostics: Diagnostic[];
@@ -91,6 +92,7 @@ type SemanticStatementFragment = {
 };
 
 type CachedSemanticRun = {
+  source: string;
   statementIds: string[];
   statementFragments: SemanticStatementFragment[];
   editHandles: readonly EditHandle[];
@@ -278,6 +280,7 @@ function evaluateFullyAndCache(
     statementFragments.map((fragment) => fragment.elements)
   );
   const nextCached: CachedSemanticRun = {
+    source: run.source,
     statementIds,
     statementFragments,
     editHandles: semantic.editHandles,
@@ -386,6 +389,7 @@ function evaluateIncrementalSuffix(args: {
       }
     },
     cached: {
+      source: run.source,
       statementIds,
       statementFragments: nextFragments,
       editHandles: semantic.editHandles,
@@ -456,6 +460,7 @@ function evaluateSelectively(args: {
 
   const semantic = assembleSelectiveSemanticResult({
     run,
+    previousSource: previous.source,
     fragments: nextFragments,
     featureUsage: previous.finalFeatureUsage,
     dependencies: previous.dependencies,
@@ -478,12 +483,13 @@ function evaluateSelectively(args: {
 
 function assembleSelectiveSemanticResult(args: {
   run: ReturnType<typeof createSemanticEvaluationRun>;
+  previousSource: string;
   fragments: readonly SemanticStatementFragment[];
   featureUsage: FeatureUsage;
   dependencies: EvaluateTikzResult["dependencies"];
   sourceStatementFirstIndexBySourceId: ReadonlyMap<string, number>;
 }): EvaluateTikzResult {
-  const { run, fragments, featureUsage, dependencies, sourceStatementFirstIndexBySourceId } = args;
+  const { run, previousSource, fragments, featureUsage, dependencies, sourceStatementFirstIndexBySourceId } = args;
   const sourceFingerprint = run.context.sourceFingerprint;
   const elements: SceneElement[] = [];
   const editHandles: EditHandle[] = [];
@@ -492,7 +498,9 @@ function assembleSelectiveSemanticResult(args: {
   for (let index = 0; index < fragments.length; index += 1) {
     const fragment = fragments[index];
     const currentSourceSpan =
-      run.sourceStatementSpanById.get(fragment.sourceId) ?? fragment.sourceSpan;
+      locateCurrentSpan(previousSource, run.source, fragment.sourceSpan)
+      ?? run.sourceStatementSpanById.get(fragment.sourceId)
+      ?? fragment.sourceSpan;
     const materialized = materializeFragmentForCurrentSource(
       fragment,
       currentSourceSpan,
@@ -544,6 +552,7 @@ function createStatementFragment(
     statementId: evaluated.statementId,
     sourceId: evaluated.sourceId,
     sourceSpan: { ...evaluated.sourceSpan },
+    sourceFingerprint: evaluated.elements[0]?.sourceRef.sourceFingerprint ?? evaluated.editHandles[0]?.sourceRef.sourceFingerprint ?? "",
     elements: evaluated.elements,
     editHandles: evaluated.editHandles,
     diagnostics: evaluated.diagnostics,
@@ -769,16 +778,10 @@ function materializeFragmentForCurrentSource(
   source: string,
   sourceFingerprint: string
 ): Pick<SemanticStatementFragment, "elements" | "editHandles"> {
-  if (fragment.effectSummary.suffixSkipKind === "foreach-origin-safe") {
-    const elements = structuredClone(fragment.elements);
-    rebaseForeachOriginElements(elements, fragment.sourceId, currentSourceSpan);
-    retargetElementsSourceFingerprint(elements, sourceFingerprint);
-
-    const editHandles = structuredClone(fragment.editHandles);
-    retargetHandlesSourceFingerprint(editHandles, sourceFingerprint);
+  if (fragment.sourceFingerprint === sourceFingerprint) {
     return {
-      elements,
-      editHandles
+      elements: fragment.elements,
+      editHandles: fragment.editHandles
     };
   }
 
@@ -804,6 +807,19 @@ function materializeFragmentForCurrentSource(
     elements,
     editHandles
   };
+}
+
+function locateCurrentSpan(previousSource: string, currentSource: string, previousSpan: Span): Span | null {
+  const text = previousSource.slice(previousSpan.from, previousSpan.to);
+  if (text.length === 0) {
+    return null;
+  }
+  const exact = currentSource.indexOf(text, Math.max(0, previousSpan.from - 32));
+  if (exact >= 0) {
+    return { from: exact, to: exact + text.length };
+  }
+  const fallback = currentSource.indexOf(text);
+  return fallback >= 0 ? { from: fallback, to: fallback + text.length } : null;
 }
 
 function shiftSpansDeep<T>(value: T, delta: number): T {
@@ -837,7 +853,10 @@ function shiftSpanObjectsInPlace(
     value.to += delta;
     return;
   }
-  for (const entry of Object.values(value)) {
+  for (const [key, entry] of Object.entries(value)) {
+    if (key === "identityRef") {
+      continue;
+    }
     shiftSpanObjectsInPlace(entry, delta, visited);
   }
 }
@@ -850,34 +869,4 @@ function isSpanLike(value: object): value is Span {
     typeof (value as { to?: unknown }).to === "number" &&
     Object.keys(value).every((key) => key === "from" || key === "to")
   );
-}
-
-function rebaseForeachOriginElements(
-  elements: SceneElement[],
-  sourceId: string,
-  currentSourceSpan: Span
-): SceneElement[] {
-  for (const element of elements) {
-    if (element.sourceRef.sourceId === sourceId) {
-      element.sourceRef = {
-        ...element.sourceRef,
-        sourceSpan: { ...currentSourceSpan }
-      };
-    }
-    const foreachStack = element.origin?.foreachStack;
-    if (!foreachStack) {
-      continue;
-    }
-    for (let index = 0; index < foreachStack.length; index += 1) {
-      const frame = foreachStack[index];
-      if (frame?.loopId !== sourceId) {
-        continue;
-      }
-      foreachStack[index] = {
-        ...frame,
-        loopSpan: { ...currentSourceSpan }
-      };
-    }
-  }
-  return elements;
 }

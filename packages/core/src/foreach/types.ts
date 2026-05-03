@@ -25,6 +25,13 @@ export type ForeachStatementAttribution = {
   foreachStack: ForeachOriginFrame[];
 };
 
+export type ExpansionSourceMap = {
+  sourceId: string;
+  sourceSpan: Span;
+  sourceKind: "foreach" | "macro";
+  mapSpan: (span: Span) => Span | null;
+};
+
 export type ForeachExpansionDiagnostic = {
   code: string;
   message: string;
@@ -36,6 +43,7 @@ export type ForeachExpansionResult = {
   figureBody: Statement[];
   diagnostics: ForeachExpansionDiagnostic[];
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>;
+  statementSourceMaps: WeakMap<Statement, ExpansionSourceMap>;
   pathItemForeachStack: WeakMap<PathItem, ForeachOriginFrame[]>;
   statementMacroAttribution: WeakMap<Statement, MacroOriginFrame[]>;
   templateLocalIdByExpandedId: Map<string, string>;

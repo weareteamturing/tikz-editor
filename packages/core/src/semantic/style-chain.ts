@@ -10,6 +10,11 @@ export type StyleSourceRef = {
   sourceSpan?: Span;
   sourceKind: string;
   label?: string;
+  identityRef?: {
+    sourceId: string;
+    sourceSpan?: Span;
+    sourceKind?: string;
+  };
 };
 
 type StyleChainEntryBase = {
@@ -74,7 +79,19 @@ export function cloneStyleSourceRef(sourceRef: StyleSourceRef | undefined): Styl
         }
       : undefined,
     sourceKind: sourceRef.sourceKind,
-    label: sourceRef.label
+    label: sourceRef.label,
+    identityRef: sourceRef.identityRef
+      ? {
+          sourceId: sourceRef.identityRef.sourceId,
+          sourceSpan: sourceRef.identityRef.sourceSpan
+            ? {
+                from: sourceRef.identityRef.sourceSpan.from,
+                to: sourceRef.identityRef.sourceSpan.to
+              }
+            : undefined,
+          sourceKind: sourceRef.identityRef.sourceKind
+        }
+      : undefined
   };
 }
 

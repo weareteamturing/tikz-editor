@@ -47,6 +47,55 @@ describe("semantic evaluator / macros and foreach", () => {
       }
     });
 
+    it("separates original source refs from generated identity refs for statement foreach", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \foreach \x in {0,1}
+      \draw (\x,0) -- ++(1,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const paths = elementsOfKind(result.scene.elements, "Path");
+      expect(paths).toHaveLength(2);
+      for (const path of paths) {
+        expect(path.sourceRef.sourceId.startsWith("foreach:")).toBe(true);
+        expect(source.slice(path.sourceRef.sourceSpan.from, path.sourceRef.sourceSpan.to)).toBe(String.raw`\draw (\x,0) -- ++(1,0);`);
+        expect(path.identityRef?.sourceId.startsWith("path:")).toBe(true);
+      }
+    });
+
+    it("maps nested foreach source refs back to the original template body", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \foreach \x in {0,1}
+      \foreach \y in {0,1}
+        \draw (\x,\y) -- ++(1,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const paths = elementsOfKind(result.scene.elements, "Path");
+      expect(paths).toHaveLength(4);
+      for (const path of paths) {
+        expect(path.origin?.foreachStack).toHaveLength(2);
+        expect(source.slice(path.sourceRef.sourceSpan.from, path.sourceRef.sourceSpan.to)).toBe(String.raw`\draw (\x,\y) -- ++(1,0);`);
+        expect(path.identityRef?.sourceId.startsWith("path:")).toBe(true);
+      }
+    });
+
+    it("maps diagnostics from expanded foreach statements back to the original source", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \foreach \x in {0,1}
+      \draw[definitely unsupported key] (\x,0) -- ++(1,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const diagnostics = result.diagnostics.filter(
+        (entry) => entry.code === "unsupported-option-flag:definitely unsupported key"
+      );
+      expect(diagnostics.length).toBeGreaterThan(0);
+      for (const diagnostic of diagnostics) {
+        expect(source.slice(diagnostic.span.from, diagnostic.span.to)).toBe(String.raw`\draw[definitely unsupported key] (\x,0) -- ++(1,0);`);
+      }
+    });
+
     it("supports nested foreach loops with braced bodies", () => {
       const source = String.raw`\begin{tikzpicture}
     \foreach \x in {3,4,5}
@@ -109,6 +158,7 @@ describe("semantic evaluator / macros and foreach", () => {
         expect(lineCount).toBe(3);
         expect(path.origin?.foreachStack.length).toBeGreaterThan(0);
         expect(path.origin?.foreachStack[0]?.bindings["\\x"]).toBe("1");
+        expect(source.slice(path.sourceRef.sourceSpan.from, path.sourceRef.sourceSpan.to)).toContain("foreach");
       }
     });
 

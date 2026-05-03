@@ -30,6 +30,22 @@ describe("statement-level macro expansion", () => {
       expect(svg).toContain("<path");
     });
 
+    it("macro-expanded elements keep invocation source refs and generated identity refs", () => {
+      const source = String.raw`\begin{tikzpicture}
+        \newcommand{\myline}{\draw (0,0) -- (1,0);}
+        \myline
+      \end{tikzpicture}`;
+
+      const { scene } = renderSvg(source);
+      const path = scene.elements.find((element) => element.kind === "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(source.slice(path.sourceRef.sourceSpan.from, path.sourceRef.sourceSpan.to).trim()).toBe(String.raw`\myline`);
+        expect(path.identityRef?.sourceId.startsWith("path:")).toBe(true);
+        expect(path.origin?.macroStack?.[0]?.macroName).toBe(String.raw`\myline`);
+      }
+    });
+
     it("macro expanding to multiple statements", () => {
       const source = String.raw`\begin{tikzpicture}
         \newcommand{\axes}{

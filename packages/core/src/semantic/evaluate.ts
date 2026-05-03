@@ -27,6 +27,7 @@ import {
   type MacroOriginFrame
 } from "../macros/index.js";
 import type {
+  ExpansionSourceMap,
   ForeachOriginFrame as ExpansionForeachOriginFrame,
   ForeachStatementAttribution
 } from "../foreach/types.js";
@@ -69,7 +70,7 @@ import { expandOptionListMacros } from "./style/macro-options.js";
 import { FONT_SIZE_COMMAND_FACTORS } from "./style/constants.js";
 import { resolveDefineColorModel } from "./style/colors.js";
 import { applyMatrix, identityMatrix } from "./transform.js";
-import { cloneResolvedStyle, cloneStyleChain, diffResolvedStyle, type StyleSourceRef } from "./style-chain.js";
+import { cloneResolvedStyle, cloneStyleChain, diffResolvedStyle, type StyleChainEntry, type StyleSourceRef } from "./style-chain.js";
 import { inferRequiredTikzLibraries } from "./required-tikz-libraries.js";
 import { parseBooleanishNormalized } from "../utils/booleanish.js";
 import { stripWrappingBraces } from "../utils/braces.js";
@@ -124,6 +125,7 @@ export type SemanticEvaluationRun = {
   expandedFigureBody: Statement[];
   sourceStatementSpanById: Map<string, { from: number; to: number }>;
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>;
+  statementSourceMaps: WeakMap<Statement, ExpansionSourceMap>;
   pathItemForeachStack: WeakMap<PathItem, ExpansionForeachOriginFrame[]>;
   statementMacroAttribution: WeakMap<Statement, MacroOriginFrame[]>;
   templateLocalIdByExpandedId: Map<string, string>;
@@ -279,6 +281,7 @@ export function createSemanticEvaluationRun(
     expandedFigureBody: expanded.figureBody,
     sourceStatementSpanById: buildSourceStatementSpanById(figure.body),
     statementAttribution: expanded.statementAttribution,
+    statementSourceMaps: expanded.statementSourceMaps,
     pathItemForeachStack: expanded.pathItemForeachStack,
     statementMacroAttribution: expanded.statementMacroAttribution,
     templateLocalIdByExpandedId: expanded.templateLocalIdByExpandedId,
@@ -307,19 +310,23 @@ export function evaluateSemanticStatementByIndex(
     )
   );
   const sourceId = run.statementAttribution.get(statement)?.sourceId ?? statement.id;
-  const sourceSpan = run.sourceStatementSpanById.get(sourceId) ?? statement.span;
+  const statementSourceMap = run.statementSourceMaps.get(statement);
+  const sourceSpan = statementSourceMap
+    ? mapExpansionSpan(statementSourceMap, statement.span)
+    : run.sourceStatementSpanById.get(sourceId) ?? statement.span;
   const elements = finalizeStatementElements(
     applyForeachAttributionToElements(
       statement,
       statementElements,
       run.statementAttribution,
+      statementSourceMap,
       run.pathItemForeachStack,
       run.statementMacroAttribution,
       run.templateLocalIdByExpandedId
     ),
     run.context.sourceFingerprint
   );
-  applyForeachAttributionToHandles(statement, run.context.editHandles, handleStart, run.statementAttribution);
+  applyForeachAttributionToHandles(statement, run.context.editHandles, handleStart, run.statementAttribution, statementSourceMap, run.context.source);
   const editHandles = finalizeStatementEditHandles(
     run.context.editHandles.slice(handleStart),
     run.context.sourceFingerprint
@@ -327,6 +334,7 @@ export function evaluateSemanticStatementByIndex(
   for (let index = 0; index < editHandles.length; index += 1) {
     run.context.editHandles[handleStart + index] = editHandles[index];
   }
+  remapDiagnostics(run.diagnostics, diagnosticsStart, statementSourceMap);
   const diagnostics = run.diagnostics.slice(diagnosticsStart);
   const statementMacroStack = run.statementMacroAttribution.get(statement);
   if (statementMacroStack && statementMacroStack.length > 0) {
@@ -491,6 +499,57 @@ function finalizeStatementEditHandles(
       sourceFingerprint
     }
   }));
+}
+
+function mapExpansionSpan(sourceMap: ExpansionSourceMap, span: { from: number; to: number }): { from: number; to: number } {
+  return sourceMap.mapSpan(span) ?? sourceMap.sourceSpan;
+}
+
+function remapDiagnostics(
+  diagnostics: Diagnostic[],
+  fromIndex: number,
+  sourceMap: ExpansionSourceMap | undefined
+): void {
+  if (!sourceMap) {
+    return;
+  }
+  for (let index = fromIndex; index < diagnostics.length; index += 1) {
+    const diagnostic = diagnostics[index];
+    if (!diagnostic) {
+      continue;
+    }
+    diagnostics[index] = {
+      ...diagnostic,
+      span: mapExpansionSpan(sourceMap, diagnostic.span)
+    };
+  }
+}
+
+function remapStyleChainSourceRefs(
+  styleChain: StyleChainEntry[],
+  sourceMap: ExpansionSourceMap | undefined
+): StyleChainEntry[] {
+  if (!sourceMap || styleChain.length === 0) {
+    return styleChain;
+  }
+  return styleChain.map((entry) => {
+    if (!entry.sourceRef?.sourceSpan) {
+      return entry;
+    }
+    return {
+      ...entry,
+      sourceRef: {
+        ...entry.sourceRef,
+        sourceId: sourceMap.sourceId,
+        sourceSpan: mapExpansionSpan(sourceMap, entry.sourceRef.sourceSpan),
+        identityRef: {
+          sourceId: entry.sourceRef.sourceId,
+          sourceSpan: { ...entry.sourceRef.sourceSpan },
+          sourceKind: entry.sourceRef.sourceKind
+        }
+      }
+    };
+  });
 }
 
 function extractElementOpaqueReasons(
@@ -2300,6 +2359,7 @@ function applyForeachAttributionToElements(
   statement: Statement,
   elements: SceneElement[],
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>,
+  statementSourceMap: ExpansionSourceMap | undefined,
   pathItemForeachStack: WeakMap<PathItem, ExpansionForeachOriginFrame[]>,
   statementMacroAttribution: WeakMap<Statement, MacroOriginFrame[]>,
   templateLocalIdByExpandedId: ReadonlyMap<string, string>
@@ -2353,8 +2413,19 @@ function applyForeachAttributionToElements(
           }
         : undefined;
 
+    const identityRef = statementSourceMap
+      ? {
+          sourceId: element.sourceRef.sourceId,
+          sourceSpan: { ...element.sourceRef.sourceSpan },
+          sourceKind: "expanded-element"
+        }
+      : element.identityRef;
     const nextSourceId = shouldOverrideSource ? attribution.sourceId : element.sourceRef.sourceId;
-    const nextSourceSpan = shouldOverrideSource ? attribution.sourceSpan : element.sourceRef.sourceSpan;
+    const nextSourceSpan = statementSourceMap
+      ? mapExpansionSpan(statementSourceMap, element.sourceRef.sourceSpan)
+      : shouldOverrideSource
+        ? attribution.sourceSpan
+        : element.sourceRef.sourceSpan;
     return {
       ...element,
       sourceRef: {
@@ -2362,6 +2433,8 @@ function applyForeachAttributionToElements(
         sourceId: nextSourceId,
         sourceSpan: nextSourceSpan
       },
+      identityRef,
+      styleChain: remapStyleChainSourceRefs(element.styleChain, statementSourceMap),
       origin: nextOrigin
     };
   });
@@ -2371,7 +2444,9 @@ function applyForeachAttributionToHandles(
   statement: Statement,
   handles: EditHandle[],
   startIndex: number,
-  statementAttribution: WeakMap<Statement, ForeachStatementAttribution>
+  statementAttribution: WeakMap<Statement, ForeachStatementAttribution>,
+  statementSourceMap: ExpansionSourceMap | undefined,
+  source: string
 ): void {
   const attribution = statementAttribution.get(statement);
   const shouldOverrideSource =
@@ -2388,9 +2463,20 @@ function applyForeachAttributionToHandles(
     }
     handles[index] = {
       ...handle,
+      identityRef: statementSourceMap
+        ? {
+            sourceId: handle.sourceRef.sourceId,
+            sourceSpan: { ...handle.sourceRef.sourceSpan },
+            sourceKind: "expanded-handle"
+          }
+        : handle.identityRef,
+      sourceText: statementSourceMap
+        ? source.slice(mapExpansionSpan(statementSourceMap, handle.sourceRef.sourceSpan).from, mapExpansionSpan(statementSourceMap, handle.sourceRef.sourceSpan).to)
+        : handle.sourceText,
       sourceRef: {
         ...handle.sourceRef,
-        sourceId: attribution.sourceId
+        sourceId: attribution.sourceId,
+        sourceSpan: statementSourceMap ? mapExpansionSpan(statementSourceMap, handle.sourceRef.sourceSpan) : handle.sourceRef.sourceSpan
       }
     };
   }

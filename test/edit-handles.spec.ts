@@ -384,6 +384,22 @@ describe("edit handles", () => {
     expect(uniqueIds.size).toBe(ids.length);
   });
 
+  it("maps foreach-generated handle source refs to the original template coordinate", () => {
+    const source = String.raw`\begin{tikzpicture}
+\foreach \x in {0,1,2} { \draw (\x,0) -- ++(1,0); }
+\end{tikzpicture}`;
+    const result = evaluate(source);
+
+    const variableHandles = result.editHandles.filter(
+      (handle) => source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to) === String.raw`(\x,0)`
+    );
+    expect(variableHandles).toHaveLength(3);
+    for (const handle of variableHandles) {
+      expect(handle.sourceText).toBe(String.raw`(\x,0)`);
+      expect(handle.identityRef?.sourceId.startsWith("path:")).toBe(true);
+    }
+  });
+
   it("aligns handle source ids with emitted element source ids", () => {
     const source = String.raw`\begin{tikzpicture}
 \draw (-3,-3) rectangle (3,3);
