@@ -229,6 +229,24 @@ describe("svg emitter", () => {
     expect(emitted.svg).not.toContain("invalid-dash-pattern");
   });
 
+  it("shortens open path geometry for shorten start/end options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[shorten >=10pt,shorten <=5pt] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const linePath = emitted.svg.match(/d="M ([0-9.-]+) [0-9.-]+ L ([0-9.-]+) [0-9.-]+"/);
+    expect(linePath).not.toBeNull();
+    if (!linePath) {
+      return;
+    }
+
+    expect(Number(linePath[1])).toBeCloseTo(5, 2);
+    expect(Number(linePath[2])).toBeCloseTo(46.91, 2);
+  });
+
   it("emits SVG gradients for axis/radial/ball shading options", () => {
     const source = String.raw`\begin{tikzpicture}
   \shade[top color=red,bottom color=blue,shading angle=45] (0,0) rectangle (1,1);

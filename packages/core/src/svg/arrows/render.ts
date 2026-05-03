@@ -30,24 +30,36 @@ export function renderPathWithArrows(path: ScenePath): RenderedArrowPath {
   const markerColor = resolveMarkerColor(path);
   const startTips = normalizeMarkerTips(path.style.markerStart, path.style.lineWidth, markerColor);
   const endTips = normalizeMarkerTips(path.style.markerEnd, path.style.lineWidth, markerColor);
-  if (!shouldEmitPathTips(path, subpaths, startTips.length > 0 || endTips.length > 0)) {
+  const shouldEmitTips = shouldEmitPathTips(path, subpaths, startTips.length > 0 || endTips.length > 0);
+  const styleStartShortening = Math.max(0, path.style.shortenStart);
+  const styleEndShortening = Math.max(0, path.style.shortenEnd);
+  const hasStyleShortening = styleStartShortening > 0 || styleEndShortening > 0;
+  if (!shouldEmitTips && !hasStyleShortening) {
     return { shaftCommands: clonedCommands, tipPaths: [] };
   }
 
   const lastSubpath = subpaths[subpaths.length - 1] ?? [];
-  if (!hasDrawablePathCommands(lastSubpath)) {
-    return { shaftCommands: clonedCommands, tipPaths: [] };
+  if (shouldEmitTips && !hasDrawablePathCommands(lastSubpath)) {
+    return { shaftCommands: shortenSubpathsForStyle(subpaths, styleStartShortening, styleEndShortening), tipPaths: [] };
   }
 
-  const startShortening = computeArrowShortening("start", startTips, path.style.lineWidth);
-  const endShortening = computeArrowShortening("end", endTips, path.style.lineWidth);
-  const shortenedLastSubpath = shortenOpenSubpath(lastSubpath, startShortening.lineEndShortening, endShortening.lineEndShortening);
+  const startShortening = shouldEmitTips ? computeArrowShortening("start", startTips, path.style.lineWidth) : { lineEndShortening: 0, totalLength: 0, plans: [] };
+  const endShortening = shouldEmitTips ? computeArrowShortening("end", endTips, path.style.lineWidth) : { lineEndShortening: 0, totalLength: 0, plans: [] };
+  const lastSubpathStartShortening = styleStartShortening + startShortening.lineEndShortening;
+  const lastSubpathEndShortening = styleEndShortening + endShortening.lineEndShortening;
+  const shortenedLastSubpath = shortenOpenSubpath(lastSubpath, lastSubpathStartShortening, lastSubpathEndShortening);
 
-  const shaftSubpaths = [...subpaths.slice(0, -1).map((subpath) => subpath.map((command) => clonePathCommand(command)))];
+  const shaftSubpaths = [
+    ...subpaths.slice(0, -1).map((subpath) => shortenSubpathForStyle(subpath, styleStartShortening, styleEndShortening))
+  ];
   shaftSubpaths.push(shortenedLastSubpath.commands.map((command) => clonePathCommand(command)));
   const shaftCommands = flattenSubpaths(shaftSubpaths);
 
   const tipPaths: RenderedArrowTipPath[] = [];
+  if (!shouldEmitTips) {
+    return { shaftCommands, tipPaths };
+  }
+
   const originalSegments = commandsToSegments(lastSubpath);
   const shortenedSegments = commandsToSegments(shortenedLastSubpath.commands);
   if (originalSegments.length === 0 || shortenedSegments.length === 0) {
@@ -68,7 +80,7 @@ export function renderPathWithArrows(path: ScenePath): RenderedArrowPath {
       contextLineWidth: path.style.lineWidth,
       frameForwardAtLineEnd: startFrameForward,
       originalSegments,
-      requestedShortening: startShortening.lineEndShortening,
+      requestedShortening: lastSubpathStartShortening,
       appliedShortening: shortenedLastSubpath.appliedStartShortening
     })
   );
@@ -80,12 +92,31 @@ export function renderPathWithArrows(path: ScenePath): RenderedArrowPath {
       contextLineWidth: path.style.lineWidth,
       frameForwardAtLineEnd: endFrameForward,
       originalSegments,
-      requestedShortening: endShortening.lineEndShortening,
+      requestedShortening: lastSubpathEndShortening,
       appliedShortening: shortenedLastSubpath.appliedEndShortening
     })
   );
 
   return { shaftCommands, tipPaths };
+}
+
+function shortenSubpathsForStyle(
+  subpaths: ScenePathCommand[][],
+  startShortening: number,
+  endShortening: number
+): ScenePathCommand[] {
+  return flattenSubpaths(subpaths.map((subpath) => shortenSubpathForStyle(subpath, startShortening, endShortening)));
+}
+
+function shortenSubpathForStyle(
+  subpath: ScenePathCommand[],
+  startShortening: number,
+  endShortening: number
+): ScenePathCommand[] {
+  if ((startShortening <= 0 && endShortening <= 0) || subpath.some((command) => command.kind === "Z")) {
+    return subpath.map((command) => clonePathCommand(command));
+  }
+  return shortenOpenSubpath(subpath, startShortening, endShortening).commands;
 }
 
 function renderSideTips(args: {

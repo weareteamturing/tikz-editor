@@ -641,7 +641,7 @@ export function applyKvEntry(
     }
     return { style, transform, diagnostics: [`invalid-fill-opacity:${valueRaw}`] };
   }
-  if (key === "line cap") {
+  if (key === "line cap" || key === "cap") {
     const normalized = valueRaw.trim().toLowerCase();
     if (normalized === "round" || normalized === "butt") {
       return { style: { ...style, lineCap: normalized }, transform, diagnostics: [] };
@@ -651,12 +651,26 @@ export function applyKvEntry(
     }
     return { style, transform, diagnostics: [`invalid-line-cap:${valueRaw}`] };
   }
-  if (key === "line join") {
+  if (key === "line join" || key === "join") {
     const normalized = valueRaw.trim().toLowerCase();
     if (normalized === "round" || normalized === "bevel" || normalized === "miter") {
       return { style: { ...style, lineJoin: normalized }, transform, diagnostics: [] };
     }
     return { style, transform, diagnostics: [`invalid-line-join:${valueRaw}`] };
+  }
+  if (key === "shorten <" || key === "shorten <=") {
+    const length = parseLength(valueRaw, "pt");
+    if (length == null) {
+      return { style, transform, diagnostics: [`invalid-shorten-start:${valueRaw}`] };
+    }
+    return { style: { ...style, shortenStart: length }, transform, diagnostics: [] };
+  }
+  if (key === "shorten >" || key === "shorten >=") {
+    const length = parseLength(valueRaw, "pt");
+    if (length == null) {
+      return { style, transform, diagnostics: [`invalid-shorten-end:${valueRaw}`] };
+    }
+    return { style: { ...style, shortenEnd: length }, transform, diagnostics: [] };
   }
   if (key === "dash pattern") {
     const parsed = parseDashPattern(valueRaw);

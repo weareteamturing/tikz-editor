@@ -415,6 +415,8 @@ export type ResolvedStyle = {
   dashOffset: number;
   lineCap: "butt" | "round" | "square";
   lineJoin: "miter" | "round" | "bevel";
+  shortenStart: number;
+  shortenEnd: number;
   markerStart: ArrowMarker | null;
   markerEnd: ArrowMarker | null;
   arrowShorthandStart: ArrowMarker;

@@ -395,6 +395,22 @@ describe("semantic evaluator / coordinates and path ops", () => {
       expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:shorten <")).toBe(false);
     });
 
+    it("resolves path shortening and cap/join aliases into path style", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[shorten >=2pt,shorten <=1pt,cap=round,join=bevel] (0,0) -- (1,0) -- (1,1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+      const path = elementsOfKind(result.scene.elements, "Path")[0];
+
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.style.shortenEnd).toBeCloseTo(2);
+        expect(path.style.shortenStart).toBeCloseTo(1);
+        expect(path.style.lineCap).toBe("round");
+        expect(path.style.lineJoin).toBe("bevel");
+      }
+    });
+
     it("supports smooth and smooth-cycle plot handlers", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw plot[smooth,tension=1] coordinates {(0,0) (1,1) (2,0) (3,1)};

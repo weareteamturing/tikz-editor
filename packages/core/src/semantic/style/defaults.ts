@@ -43,6 +43,8 @@ export function defaultStyle(): ResolvedStyle {
     dashOffset: 0,
     lineCap: "butt",
     lineJoin: "miter",
+    shortenStart: 0,
+    shortenEnd: 0,
     markerStart: null,
     markerEnd: null,
     arrowShorthandStart: { tips: [] },
