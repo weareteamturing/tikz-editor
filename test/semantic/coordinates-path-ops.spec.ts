@@ -385,6 +385,16 @@ describe("semantic evaluator / coordinates and path ops", () => {
       expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:mark")).toBe(false);
     });
 
+    it("does not emit unsupported-option-key diagnostics for path shortening keys", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[->,shorten >=1.7pt,shorten <=0.5pt] (0,0) -- (1,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:shorten >")).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:shorten <")).toBe(false);
+    });
+
     it("supports smooth and smooth-cycle plot handlers", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw plot[smooth,tension=1] coordinates {(0,0) (1,1) (2,0) (3,1)};
