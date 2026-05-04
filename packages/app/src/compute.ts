@@ -164,7 +164,9 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
         changedSourceCount: changedSourceIds.length,
         incremental: true,
         parseStrategy: result.parseStats.strategy,
+        parseFallbackReason: result.parseStats.fallbackReason ?? null,
         semanticStrategy: result.semanticStats.strategy,
+        semanticFallbackReason: result.semanticStats.fallbackReason ?? null,
         recomputedStatementCount: result.semanticStats.recomputedStatementCount,
         reusedStatementCount: result.semanticStats.reusedStatementCount
       });

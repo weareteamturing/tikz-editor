@@ -13,7 +13,9 @@ export type TikzEditorProfilingComputeTiming = {
   changedSourceCount?: number;
   incremental?: boolean;
   parseStrategy?: string | null;
+  parseFallbackReason?: string | null;
   semanticStrategy?: string | null;
+  semanticFallbackReason?: string | null;
   recomputedStatementCount?: number | null;
   reusedStatementCount?: number | null;
 };

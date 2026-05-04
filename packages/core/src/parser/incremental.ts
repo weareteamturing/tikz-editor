@@ -107,8 +107,17 @@ export function createIncrementalParseSession(): IncrementalParseSession {
     const activeFigureId = input.activeFigureId;
     const includeContextDefinitions = input.includeContextDefinitions ?? false;
     const trigger = input.trigger ?? "other";
-    const patches = normalizePatches(input.patches ?? []);
+    let patches = normalizePatches(input.patches ?? []);
     const changedSourceIds = normalizeSourceIds(input.changedSourceIds ?? []);
+    if (cached && patches.length > 0) {
+      const currentCache = cached;
+      if (
+        !patches.some((patch) => isWholeStatementPatch(currentCache, patch)) &&
+        applyPatchesToSource(currentCache.source, patches) !== input.source
+      ) {
+        patches = deriveSingleSourcePatch(currentCache.source, input.source);
+      }
+    }
 
     if (
       cached &&
@@ -209,7 +218,7 @@ export function createIncrementalParseSession(): IncrementalParseSession {
         return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "active-figure-unresolved");
       }
 
-      const nextFigure = shiftSpansDeep(cached.figure, patches);
+      const nextFigure = shiftSpansDeep(structuredClone(cached.figure), patches);
       const changedSourceIdSet = new Set(changedSourceIds);
       const statementReplacementDiagnostics = new Map<string, Diagnostic[]>();
 
@@ -813,6 +822,61 @@ function normalizePatches(patches: readonly SourcePatch[]): SourcePatch[] {
   return [...patches]
     .filter((patch) => patch.oldSpan.from <= patch.oldSpan.to && patch.newSpan.from <= patch.newSpan.to)
     .sort((left, right) => left.oldSpan.from - right.oldSpan.from);
+}
+
+function applyPatchesToSource(source: string, patches: readonly SourcePatch[]): string | null {
+  let cursor = 0;
+  let output = "";
+  for (const patch of patches) {
+    if (patch.oldSpan.from < cursor || patch.oldSpan.to > source.length) {
+      return null;
+    }
+    output += source.slice(cursor, patch.oldSpan.from);
+    output += patch.replacement;
+    cursor = patch.oldSpan.to;
+  }
+  output += source.slice(cursor);
+  return output;
+}
+
+function deriveSingleSourcePatch(previous: string, next: string): SourcePatch[] {
+  if (previous === next) {
+    return [];
+  }
+
+  let prefix = 0;
+  const limit = Math.min(previous.length, next.length);
+  while (prefix < limit && previous.charCodeAt(prefix) === next.charCodeAt(prefix)) {
+    prefix += 1;
+  }
+
+  let previousSuffix = previous.length;
+  let nextSuffix = next.length;
+  while (
+    previousSuffix > prefix &&
+    nextSuffix > prefix &&
+    previous.charCodeAt(previousSuffix - 1) === next.charCodeAt(nextSuffix - 1)
+  ) {
+    previousSuffix -= 1;
+    nextSuffix -= 1;
+  }
+
+  return [
+    {
+      oldSpan: { from: prefix, to: previousSuffix },
+      newSpan: { from: prefix, to: nextSuffix },
+      replacement: next.slice(prefix, nextSuffix)
+    }
+  ];
+}
+
+function isWholeStatementPatch(cache: CachedIncrementalParseState, patch: SourcePatch): boolean {
+  for (const ref of cache.statementRefsBySourceId.values()) {
+    if (ref.span.from === patch.oldSpan.from && ref.span.to === patch.oldSpan.to) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function countStatements(statements: readonly Statement[]): number {

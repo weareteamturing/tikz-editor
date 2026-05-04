@@ -38,6 +38,71 @@ describe("incremental parser session", () => {
     expect(incremental.parse.diagnostics).toEqual(full.diagnostics);
   });
 
+  it("rebases a coalesced drag patch against the cached source", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,1) -- (1,2.4);
+\end{tikzpicture}`;
+    const skippedSource = source.replace("(1,2.4)", "(1.07,2.4)");
+    const nextSource = skippedSource.replace("(1.07,2.4)", "(1.14,2.4)");
+    const seeded = parseWithContext(source);
+    const full = parseWithContext(nextSource);
+    const session = createIncrementalParseSession();
+    session.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true });
+
+    const statementId = seeded.figure.body[0]?.id;
+    expect(statementId).toBeTruthy();
+    if (!statementId) {
+      throw new Error("Expected a statement to patch");
+    }
+
+    const incremental = session.evaluate({
+      source: nextSource,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: true,
+      patches: [computeSinglePatch(skippedSource, nextSource)],
+      changedSourceIds: [statementId],
+      trigger: "drag-handle"
+    });
+
+    expect(incremental.stats.strategy).toBe("incremental");
+    expect(normalizeFigureForComparison(incremental.parse.figure)).toEqual(normalizeFigureForComparison(full.figure));
+    expect(incremental.parse.diagnostics).toEqual(full.diagnostics);
+  });
+
+  it("keeps statement spans stable when snapped coordinates shorten", () => {
+    const coordinates = ["(1,2.4)", "(1.03,2.4)", "(1.04,2.4)", "(1.05,2.4)", "(1.06,2.4)", "(1.1,2.4)"];
+    const sourceForCoordinate = (coordinate: string) => String.raw`\begin{tikzpicture}
+  \draw (0,1) -- ${coordinate};
+\end{tikzpicture}`;
+    const seeded = parseWithContext(sourceForCoordinate(coordinates[0] ?? "(1,2.4)"));
+    const session = createIncrementalParseSession();
+    session.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true });
+
+    const statementId = seeded.figure.body[0]?.id;
+    expect(statementId).toBeTruthy();
+    if (!statementId) {
+      throw new Error("Expected a statement to patch");
+    }
+
+    let previousSource = sourceForCoordinate(coordinates[0] ?? "(1,2.4)");
+    for (const coordinate of coordinates.slice(1)) {
+      const nextSource = sourceForCoordinate(coordinate);
+      const full = parseWithContext(nextSource);
+      const incremental = session.evaluate({
+        source: nextSource,
+        activeFigureId: seeded.activeFigureId,
+        includeContextDefinitions: true,
+        patches: [computeSinglePatch(previousSource, nextSource)],
+        changedSourceIds: [statementId],
+        trigger: "drag-handle"
+      });
+
+      expect(incremental.stats.strategy).toBe("incremental");
+      expect(normalizeFigureForComparison(incremental.parse.figure)).toEqual(normalizeFigureForComparison(full.figure));
+      previousSource = nextSource;
+    }
+  });
+
   it("patches multiple changed statements with stable source ids", () => {
     const source = String.raw`\begin{tikzpicture}
   \coordinate (A) at (0,0);
