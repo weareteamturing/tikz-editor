@@ -133,6 +133,20 @@ test("cmd/ctrl+a selects all canvas elements for delete", async ({ page }) => {
   await expect.poll(async () => readSource(page)).not.toContain("\\draw (3,0) rectangle (4,1);");
 });
 
+test("foreach element click remains selected after mouseup", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\foreach \x in {0,...,4}
+  \foreach \y in {0,...,4}
+    \fill[gray!45] (\x,\y) circle (1.25pt);
+\end{tikzpicture}`);
+
+  await waitForHitRegions(page, 25);
+  await clickHitRegionByTargetId(page, "foreach:0");
+
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["foreach:0"]);
+});
+
 test("clipped geometry only targets the visible clipped area on canvas", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}

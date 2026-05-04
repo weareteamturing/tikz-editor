@@ -2757,6 +2757,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     svgResult,
     toolMode,
     selectedElementIds,
+    suppressNextBackgroundClickRef,
     viewportRef,
     beginCanvasTextInteraction,
     closeTextEditingSession,

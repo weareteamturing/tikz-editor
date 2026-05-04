@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { clientPoint, px, pt, worldBounds, worldVector } from "tikz-editor/coords/index";
 import { buildSnapContext, collectSelectionGeometryFromBounds, collectSourceWorldBounds, type SnapBounds, type SnapGuideInput, type SnapLine, type SnapSettingsPatch } from "tikz-editor/edit/snapping";
 import type { EditHandle, SceneElement } from "tikz-editor/semantic/types";
@@ -32,6 +32,7 @@ export type UseCanvasElementInteractionsArgs = {
   svgResult: CanvasSnapshot["svg"];
   toolMode: ToolMode;
   selectedElementIds: ReadonlySet<string>;
+  suppressNextBackgroundClickRef: MutableRefObject<boolean>;
   viewportRef: RefObject<HTMLDivElement | null>;
   beginCanvasTextInteraction: (event: ReactPointerEvent<SVGElement>, target: EditableTextTarget) => void;
   closeTextEditingSession: () => void;
@@ -70,6 +71,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     svgResult,
     toolMode,
     selectedElementIds,
+    suppressNextBackgroundClickRef,
     viewportRef,
     beginCanvasTextInteraction,
     closeTextEditingSession,
@@ -420,6 +422,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
 
       event.preventDefault();
       event.stopPropagation();
+      suppressNextBackgroundClickRef.current = true;
 
       if (!additiveSelection && matrixEdgeSelection && event.button === 0) {
         closeTextEditingSession();
@@ -549,6 +552,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       expandedDensePathSourceId,
       resolveEditableTextTarget,
       selectedElementIds,
+      suppressNextBackgroundClickRef,
       setExpandedDensePathSourceId,
       setSnapLines,
       closeTextEditingSession,
