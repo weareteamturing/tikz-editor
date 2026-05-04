@@ -125,8 +125,14 @@ describe("editorReducer – CODE_EDITED", () => {
   });
 
   it("records changed source ids and patches while source scrubbing is active", () => {
-    const initial = applyActions([{ type: "SET_ACTIVE_SOURCE_SCRUB", sourceId: "path:0" }]);
-    const nextSource = DEFAULT_SOURCE.replace("(1.5, -0.5)", "(1.75, -0.5)");
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1.5, -0.5);
+\end{tikzpicture}`;
+    const initial = applyActions([
+      { type: "CODE_EDITED", source },
+      { type: "SET_ACTIVE_SOURCE_SCRUB", sourceId: "path:0" }
+    ]);
+    const nextSource = source.replace("(1.5, -0.5)", "(1.75, -0.5)");
     const next = editorReducer(initial, {
       type: "CODE_EDITED",
       source: nextSource
@@ -137,7 +143,7 @@ describe("editorReducer – CODE_EDITED", () => {
     expect(next.lastEditPatches).toHaveLength(1);
     const patch = next.lastEditPatches?.[0];
     expect(patch?.replacement.length).toBeGreaterThan(0);
-    expect(applySourcePatches(DEFAULT_SOURCE, next.lastEditPatches ?? [])).toBe(nextSource);
+    expect(applySourcePatches(source, next.lastEditPatches ?? [])).toBe(nextSource);
   });
 
   it("increments sourceRevision only when the source text changes", () => {

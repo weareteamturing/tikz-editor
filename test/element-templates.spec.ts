@@ -230,6 +230,20 @@ describe("insertElementIntoSource", () => {
     expect(next).toBe("\\draw (0,0) -- (1,0);\n\\node at (0,0) {n};");
   });
 
+  it("creates a tikzpicture environment when inserting into blank source", () => {
+    const next = insertElementIntoSource("", "\\draw (0,0) -- (1,0);");
+    expect(next).toBe(String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`);
+  });
+
+  it("creates a tikzpicture environment when inserting into whitespace-only source", () => {
+    const next = insertElementIntoSource("  \n\t", "\\node at (0,0) {n};");
+    expect(next).toBe(String.raw`\begin{tikzpicture}
+  \node at (0,0) {n};
+\end{tikzpicture}`);
+  });
+
   it("generates segment-only source without draw prefix", () => {
     const segments = [
       { kind: "line" as const, to: wp(cm(1), cm(0)) },

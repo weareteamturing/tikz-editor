@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editorReducer, makeInitialState } from "../packages/app/src/store/reducer.js";
+import { DEFAULT_SOURCE, editorReducer, makeInitialState } from "../packages/app/src/store/reducer.js";
 
 describe("workspace model", () => {
   it("initializes one active document session", () => {
@@ -7,8 +7,21 @@ describe("workspace model", () => {
     expect(state.tabOrder).toHaveLength(1);
     expect(state.documents[state.activeDocumentId]).toBeDefined();
     expect(state.source).toBe(state.documents[state.activeDocumentId]?.source);
+    expect(state.source).toBe(DEFAULT_SOURCE);
     expect(state.workspaceVersion).toBe(3);
     expect(state.recentDocumentIds).toEqual([state.activeDocumentId]);
+  });
+
+  it("uses the default source for fresh documents and fallback sessions", () => {
+    const initial = makeInitialState();
+    const fresh = editorReducer(initial, { type: "NEW_DOCUMENT" });
+    expect(fresh.source).toBe(DEFAULT_SOURCE);
+
+    const closedAll = editorReducer(fresh, { type: "CLOSE_ALL_DOCUMENTS" });
+    expect(closedAll.source).toBe(DEFAULT_SOURCE);
+
+    const closedOnlyTab = editorReducer(makeInitialState(), { type: "CLOSE_DOCUMENT" });
+    expect(closedOnlyTab.source).toBe(DEFAULT_SOURCE);
   });
 
   it("creates and switches documents", () => {

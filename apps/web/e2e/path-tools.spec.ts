@@ -336,6 +336,23 @@ test("rectangle and grid creation show tooltips and keep tooltip in viewport bou
   await page.mouse.up();
 });
 
+test("line creation from empty source creates a tikzpicture environment", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, "");
+
+  await toolbarButton(page, "Line").click();
+  const layer = interactionLayer(page);
+  await dragBetweenPoints(page, layer, { x: 120, y: 120 }, { x: 280, y: 180 });
+  await page.mouse.up();
+
+  await expect.poll(async () => readSource(page)).toContain("\\begin{tikzpicture}");
+  const source = await readSource(page);
+  expect(source).toContain("\\draw");
+  expect(source).toContain("\\end{tikzpicture}");
+  expect(normalizeSourceWhitespace(source)).toMatch(/^\\begin\{tikzpicture\}\\draw.+\\end\{tikzpicture\}$/);
+  await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0);
+});
+
 test("insert menu commands switch tool modes and expose checked state", async ({ page }) => {
   await gotoApp(page);
   const insertCommands = [

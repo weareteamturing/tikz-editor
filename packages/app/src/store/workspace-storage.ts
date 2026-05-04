@@ -1,6 +1,6 @@
 import { getActiveEditorPlatform } from "../platform/current";
 import type { DocumentFileRef } from "./types";
-import { WORKSPACE_VERSION, type WorkspaceSeed } from "./reducer";
+import { WORKSPACE_VERSION, type WorkspaceSeed } from "./workspace-state";
 import type { IJsonModel } from "flexlayout-react";
 
 const WORKSPACE_STORAGE_KEY = "tikz-editor:workspace";
@@ -18,7 +18,7 @@ function logStorageDebug(message: string, error?: unknown): void {
   console.info(`[tikz-editor] ${message}`);
 }
 
-type PersistedWorkspaceV1 = {
+type PersistedWorkspace = {
   workspaceVersion: number;
   documents: Array<{
     id: string;
@@ -37,16 +37,13 @@ type PersistedWorkspaceV1 = {
   recentDocumentIds: string[];
 };
 
-type PersistedWorkspaceV2 = PersistedWorkspaceV1;
-type PersistedWorkspaceV3 = PersistedWorkspaceV2;
-
 export function loadWorkspaceSeed(): WorkspaceSeed | null {
   try {
     const raw = getActiveEditorPlatform().persistence.load(WORKSPACE_STORAGE_KEY);
     if (!raw) {
       return null;
     }
-    const parsed = JSON.parse(raw) as Partial<PersistedWorkspaceV1    >;
+    const parsed = JSON.parse(raw) as Partial<PersistedWorkspace>;
     const migrated = migrateWorkspace(parsed);
     if (!migrated) {
       return null;
@@ -84,14 +81,14 @@ function normalizeFileRef(raw: unknown): DocumentFileRef | null {
   };
 }
 
-function migrateWorkspace(parsed: Partial<PersistedWorkspaceV1    >): WorkspaceSeed | null {
+function migrateWorkspace(parsed: Partial<PersistedWorkspace>): WorkspaceSeed | null {
   const version = typeof parsed.workspaceVersion === "number" ? parsed.workspaceVersion : 1;
-  if (version !== 1 && version !== 2 && version !== 3) {
+  if (version !== 1 && version !== WORKSPACE_VERSION) {
     return null;
   }
   const docs = Array.isArray(parsed.documents)
     ? parsed.documents
-        .filter((doc): doc is NonNullable<PersistedWorkspaceV1["documents"]>[number] =>
+        .filter((doc): doc is NonNullable<PersistedWorkspace["documents"]>[number] =>
           Boolean(doc && typeof doc.id === "string" && typeof doc.source === "string"))
         .map((doc) => ({
           id: doc.id,
@@ -148,7 +145,7 @@ export function saveWorkspace(state: {
   activeDocumentId: string;
   recentDocumentIds: string[];
 }): void {
-  const payload: PersistedWorkspaceV3 = {
+  const payload: PersistedWorkspace = {
     workspaceVersion: WORKSPACE_VERSION,
     documents: state.tabOrder
       .map((id) => state.documents[id])

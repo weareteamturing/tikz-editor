@@ -75,7 +75,7 @@ export function fromCst(tree: Tree, source: string, opts: CstToAstOptions = {}):
     }
   }
   if (!activeFigureEntry) {
-    if (figureEntries.length === 0) {
+    if (figureEntries.length === 0 && source.trim().length > 0) {
       diagnostics.push({
         severity: "warning",
         message: "No TikZ figure command found.",

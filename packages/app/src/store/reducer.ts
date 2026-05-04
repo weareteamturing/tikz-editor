@@ -1,8 +1,6 @@
 import { applyEditAction, PROPERTY_WRITE_CLEANUP_NOOP_REASON } from "tikz-editor/edit/actions";
 import type { EditActionResult } from "tikz-editor/edit/actions";
 import type {
-  CanvasTransform,
-  DocumentFileRef,
   DocumentSession,
   EditorAction,
   EditorState,
@@ -10,25 +8,21 @@ import type {
   WorkspaceEphemeralState,
   WorkspacePersistedState
 } from "./types";
-import { makeEmptySnapshot } from "../compute";
 import type { AssistantItem } from "../platform/types";
 import { deriveSingleSourcePatch } from "./source-patch-diff";
-
-export const DEFAULT_SOURCE = String.raw`\begin{tikzpicture}[every node/.style={fill=blue!10}]
-  \draw (-3,-3) rectangle (3,3);
-
-  \draw (-2.5, 2.5) -- (2.5, 2.5);
-
-  \node[draw] (A) at (-1, -1) {A};
-  \node[draw] (B) at (1.5, -0.5) {B};
-  \node[draw] (C) at (0, 1.5) {C};
-  \draw (A) edge (B)
-        (B) edge (C)
-        (C) edge (A);
-\end{tikzpicture}`;
-
-const WORKSPACE_VERSION = 3;
-export { WORKSPACE_VERSION };
+import {
+  createDocumentSession,
+  createInitialWorkspaceState,
+  createUntitledDocumentSession,
+  DEFAULT_CANVAS_TRANSFORM,
+  DEFAULT_SOURCE,
+  hydrateWorkspaceStateFromSeed,
+  projectState,
+  uiStateFromEditorState,
+  workspaceStateFromEditorState,
+  type WorkspaceSeed
+} from "./workspace-state";
+export { DEFAULT_SOURCE, WORKSPACE_VERSION } from "./workspace-state";
 const FREEHAND_SMOOTHING_MIN_PX = 4;
 const FREEHAND_SMOOTHING_MAX_PX = 32;
 const DEFAULT_FREEHAND_SMOOTHING_PX = 16;
@@ -38,66 +32,6 @@ const DEFAULT_ADD_MATRIX_ROWS = 2;
 const DEFAULT_ADD_MATRIX_COLUMNS = 2;
 const DEFAULT_CREATION_STROKE_COLOR = "black";
 const DEFAULT_CREATION_FILL_COLOR = "none";
-
-export const DEFAULT_CANVAS_TRANSFORM: CanvasTransform = {
-  translateX: 0,
-  translateY: 0,
-  scale: 1
-};
-
-function createDocumentId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `doc-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
-}
-
-function createDocumentSession(params: {
-  source: string;
-  title?: string;
-  activeFigureId?: string | null;
-  fileRef?: DocumentFileRef | null;
-  assistantThreadId?: string | null;
-  assistantWorkspacePath?: string | null;
-  assistantFigurePath?: string | null;
-  assistantPreviewPath?: string | null;
-}): DocumentSession {
-  const title = params.title?.trim() || "Untitled";
-  return {
-    id: createDocumentId(),
-    title,
-    source: params.source,
-    sourceRevision: 0,
-    activeFigureId: params.activeFigureId ?? null,
-    hasInitializedFigureSelection: false,
-    snapshot: makeEmptySnapshot(params.source),
-    pendingRequestId: null,
-    lastEditChangedSourceIds: null,
-    lastEditChangeToken: 0,
-    lastEditPatches: null,
-    lastEditWarningMessage: null,
-    lastEditWarningToken: 0,
-    history: [],
-    historyIndex: -1,
-    selectedElementIds: new Set(),
-    focusedScopeId: null,
-    activeHandleId: null,
-    fileRef: params.fileRef ?? null,
-    savedSource: params.source,
-    dirty: false,
-    assistantThreadId: params.assistantThreadId ?? null,
-    assistantWorkspacePath: params.assistantWorkspacePath ?? null,
-    assistantFigurePath: params.assistantFigurePath ?? null,
-    assistantPreviewPath: params.assistantPreviewPath ?? null,
-    assistantItems: [],
-    assistantPendingApprovals: [],
-    assistantTurnStatus: "idle",
-    assistantCurrentTurnId: null,
-    assistantLockReason: null,
-    assistantLastSourceRevision: null,
-    assistantError: null
-  };
-}
 
 function initialUiState(): WorkspaceEphemeralState {
   return {
@@ -135,189 +69,6 @@ function initialUiState(): WorkspaceEphemeralState {
     showAssistantPanel: false,
     rightSidebarTab: "inspector",
     showDevPanel: false
-  };
-}
-
-function initialWorkspaceState(): WorkspacePersistedState {
-  const first = createDocumentSession({ source: DEFAULT_SOURCE, title: "Untitled 1" });
-  return {
-    workspaceVersion: WORKSPACE_VERSION,
-    documents: { [first.id]: first },
-    tabOrder: [first.id],
-    activeDocumentId: first.id,
-    recentDocumentIds: [first.id]
-  };
-}
-
-export type WorkspaceSeedDocument = {
-  id: string;
-  title: string;
-  source: string;
-  activeFigureId?: string | null;
-  savedSource?: string;
-  fileRef?: DocumentFileRef | null;
-  assistantThreadId?: string | null;
-  assistantWorkspacePath?: string | null;
-  assistantFigurePath?: string | null;
-  assistantPreviewPath?: string | null;
-};
-
-export type WorkspaceSeed = {
-  workspaceVersion: number;
-  documents: WorkspaceSeedDocument[];
-  tabOrder: string[];
-  activeDocumentId: string;
-  recentDocumentIds: string[];
-};
-
-function initialWorkspaceStateFromSeed(seed: WorkspaceSeed): WorkspacePersistedState {
-  const docs: Record<string, DocumentSession> = {};
-  for (const raw of seed.documents) {
-    const doc = createDocumentSession({
-      source: raw.source,
-      title: raw.title,
-      activeFigureId: raw.activeFigureId ?? null,
-      fileRef: raw.fileRef ?? null,
-      assistantThreadId: raw.assistantThreadId ?? null,
-      assistantWorkspacePath: raw.assistantWorkspacePath ?? null,
-      assistantFigurePath: raw.assistantFigurePath ?? null,
-      assistantPreviewPath: raw.assistantPreviewPath ?? null
-    });
-    doc.id = raw.id;
-    doc.savedSource = raw.savedSource ?? raw.source;
-    doc.dirty = doc.source !== doc.savedSource;
-    docs[doc.id] = doc;
-  }
-
-  const tabOrder = seed.tabOrder.filter((id) => docs[id]);
-  const fallbackOrder = tabOrder.length > 0 ? tabOrder : Object.keys(docs);
-  if (fallbackOrder.length === 0) {
-    return initialWorkspaceState();
-  }
-  const activeDocumentId = docs[seed.activeDocumentId] ? seed.activeDocumentId : fallbackOrder[0];
-  const seededRecents = seed.recentDocumentIds.filter((id) => docs[id]);
-  const normalizedRecents = seededRecents.length > 0 ? seededRecents : [activeDocumentId];
-  return {
-    workspaceVersion: WORKSPACE_VERSION,
-    documents: docs,
-    tabOrder: fallbackOrder,
-    activeDocumentId,
-    recentDocumentIds: normalizedRecents
-  };
-}
-
-function resolveActiveDocument(workspace: WorkspacePersistedState): DocumentSession {
-  const active = workspace.documents[workspace.activeDocumentId];
-  if (active) {
-    return active;
-  }
-  const fallbackId = workspace.tabOrder[0];
-  if (fallbackId && workspace.documents[fallbackId]) {
-    return workspace.documents[fallbackId];
-  }
-  const created = createDocumentSession({ source: DEFAULT_SOURCE, title: "Untitled 1" });
-  workspace.documents[created.id] = created;
-  workspace.tabOrder = [created.id];
-  workspace.activeDocumentId = created.id;
-  return created;
-}
-
-function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeralState): EditorState {
-  const active = resolveActiveDocument(workspace);
-  return {
-    source: active.source,
-    sourceRevision: active.sourceRevision,
-    activeFigureId: active.activeFigureId,
-    snapshot: active.snapshot,
-    pendingRequestId: active.pendingRequestId,
-    lastEditChangedSourceIds: active.lastEditChangedSourceIds,
-    lastEditChangeToken: active.lastEditChangeToken,
-    lastEditPatches: active.lastEditPatches,
-    lastEditWarningMessage: active.lastEditWarningMessage,
-    lastEditWarningToken: active.lastEditWarningToken,
-    history: active.history,
-    historyIndex: active.historyIndex,
-    selectedElementIds: active.selectedElementIds,
-    focusedScopeId: active.focusedScopeId,
-    activeHandleId: active.activeHandleId,
-    activeDocumentId: workspace.activeDocumentId,
-    tabOrder: workspace.tabOrder,
-    documents: workspace.documents,
-    workspaceVersion: workspace.workspaceVersion,
-    recentDocumentIds: workspace.recentDocumentIds,
-    toolMode: ui.toolMode,
-    canvasTransform: ui.canvasTransform,
-    hoveredElementId: ui.hoveredElementId,
-    activeCanvasDragKind: ui.activeCanvasDragKind,
-    activeSourceScrubSourceId: ui.activeSourceScrubSourceId,
-    showGrid: ui.showGrid,
-    showTransparencyGrid: ui.showTransparencyGrid,
-    snapModes: ui.snapModes,
-    showRulers: ui.showRulers,
-    showGuides: ui.showGuides,
-    showDocumentBounds: ui.showDocumentBounds,
-    freehandSmoothingPx: ui.freehandSmoothingPx,
-    bucketFillColor: ui.bucketFillColor,
-    selectedAddShape: ui.selectedAddShape,
-    selectedAddMatrixRows: ui.selectedAddMatrixRows,
-    selectedAddMatrixColumns: ui.selectedAddMatrixColumns,
-    creationStrokeColor: ui.creationStrokeColor,
-    creationFillColor: ui.creationFillColor,
-    fitToContentRequestToken: ui.fitToContentRequestToken,
-    zoomRequestToken: ui.zoomRequestToken,
-    zoomRequestDirection: ui.zoomRequestDirection,
-    showSourcePanel: ui.showSourcePanel,
-    showInspectorPanel: ui.showInspectorPanel,
-    showObjectsPanel: ui.showObjectsPanel,
-    showStylesPanel: ui.showStylesPanel,
-    showFiguresPanel: ui.showFiguresPanel,
-    showAssistantPanel: ui.showAssistantPanel,
-    rightSidebarTab: ui.rightSidebarTab,
-    showDevPanel: ui.showDevPanel
-  };
-}
-
-function workspaceStateFromEditorState(state: EditorState): WorkspacePersistedState {
-  return {
-    workspaceVersion: state.workspaceVersion,
-    documents: state.documents,
-    tabOrder: state.tabOrder,
-    activeDocumentId: state.activeDocumentId,
-    recentDocumentIds: state.recentDocumentIds
-  };
-}
-
-function uiStateFromEditorState(state: EditorState): WorkspaceEphemeralState {
-  return {
-    toolMode: state.toolMode,
-    canvasTransform: state.canvasTransform,
-    hoveredElementId: state.hoveredElementId,
-    activeCanvasDragKind: state.activeCanvasDragKind,
-    activeSourceScrubSourceId: state.activeSourceScrubSourceId,
-    showGrid: state.showGrid,
-    showTransparencyGrid: state.showTransparencyGrid,
-    snapModes: state.snapModes,
-    showRulers: state.showRulers,
-    showGuides: state.showGuides,
-    showDocumentBounds: state.showDocumentBounds,
-    freehandSmoothingPx: state.freehandSmoothingPx,
-    bucketFillColor: state.bucketFillColor,
-    selectedAddShape: state.selectedAddShape,
-    selectedAddMatrixRows: state.selectedAddMatrixRows,
-    selectedAddMatrixColumns: state.selectedAddMatrixColumns,
-    creationStrokeColor: state.creationStrokeColor,
-    creationFillColor: state.creationFillColor,
-    fitToContentRequestToken: state.fitToContentRequestToken,
-    zoomRequestToken: state.zoomRequestToken,
-    zoomRequestDirection: state.zoomRequestDirection,
-    showSourcePanel: state.showSourcePanel,
-    showInspectorPanel: state.showInspectorPanel,
-    showObjectsPanel: state.showObjectsPanel,
-    showStylesPanel: state.showStylesPanel,
-    showFiguresPanel: state.showFiguresPanel,
-    showAssistantPanel: state.showAssistantPanel,
-    rightSidebarTab: state.rightSidebarTab,
-    showDevPanel: state.showDevPanel
   };
 }
 
@@ -425,7 +176,7 @@ function readAssistantText(value: unknown): string {
 }
 
 export function makeInitialState(seed?: WorkspaceSeed): EditorState {
-  const workspace = seed ? initialWorkspaceStateFromSeed(seed) : initialWorkspaceState();
+  const workspace = seed ? hydrateWorkspaceStateFromSeed(seed) : createInitialWorkspaceState();
   return projectState(workspace, initialUiState());
 }
 
@@ -538,7 +289,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const nextDocs = { ...workspace.documents };
       delete nextDocs[closeId];
       if (nextOrder.length === 0) {
-        const replacement = createDocumentSession({ source: DEFAULT_SOURCE, title: "Untitled 1" });
+        const replacement = createUntitledDocumentSession();
         workspace = {
           ...workspace,
           documents: { [replacement.id]: replacement },
@@ -564,7 +315,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     case "CLOSE_ALL_DOCUMENTS": {
-      const replacement = createDocumentSession({ source: DEFAULT_SOURCE, title: "Untitled 1" });
+      const replacement = createUntitledDocumentSession();
       workspace = {
         ...workspace,
         documents: { [replacement.id]: replacement },

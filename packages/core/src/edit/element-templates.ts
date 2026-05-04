@@ -141,8 +141,8 @@ export function insertElementIntoSource(source: string, snippet: string): string
   const endToken = "\\end{tikzpicture}";
   const endIndex = source.lastIndexOf(endToken);
   if (endIndex < 0) {
-    if (source.length === 0) {
-      return normalizedSnippet;
+    if (source.trim().length === 0) {
+      return `\\begin{tikzpicture}\n  ${normalizedSnippet}\n\\end{tikzpicture}`;
     }
     return source.endsWith("\n")
       ? `${source}${normalizedSnippet}`
