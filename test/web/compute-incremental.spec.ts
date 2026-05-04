@@ -101,6 +101,44 @@ describe("computeSnapshot incremental parser integration", () => {
     );
   });
 
+  it("rebases coalesced drag patches and reports patch application", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,1) -- (1,2.4);
+\end{tikzpicture}`;
+    const skippedSource = source.replace("(1,2.4)", "(1.07,2.4)");
+    const nextSource = skippedSource.replace("(1.07,2.4)", "(1.14,2.4)");
+
+    const seeded = await computeSnapshot({
+      id: "coalesced-drag-seed",
+      kind: "render",
+      source,
+      activeFigureId: "figure:0"
+    });
+    const incremental = await computeSnapshot({
+      id: "coalesced-drag-incremental",
+      kind: "render",
+      source: nextSource,
+      activeFigureId: seeded.snapshot.activeFigureId,
+      changedSourceIds: ["path:0"],
+      patches: [computeSinglePatch(skippedSource, nextSource)],
+      trigger: "drag-handle"
+    });
+    const canonical = await computeSnapshot({
+      id: "coalesced-drag-canonical",
+      kind: "render",
+      source: nextSource,
+      activeFigureId: "figure:0"
+    });
+
+    expect(incremental.snapshot.incremental?.parseStrategy).toBe("incremental");
+    expect(incremental.snapshot.incremental?.parsePatchApplication).toBe("rebased");
+    expect(incremental.snapshot.incremental?.parseFallbackReason).toBeUndefined();
+    expect(incremental.snapshot.incremental?.fallbackReason).toBeUndefined();
+    expect(normalizeForSceneComparison(incremental.snapshot.scene)).toEqual(
+      normalizeForSceneComparison(canonical.snapshot.scene)
+    );
+  });
+
   it("reports selective semantic replay for a small dependency closure with a long suffix", async () => {
     const source = makeClosureFigureWithLongTail(200);
     const nextSource = source.replace("(1.5, -0.5)", "(2.1, -0.1)");

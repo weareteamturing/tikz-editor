@@ -169,6 +169,72 @@ describe("semantic incremental evaluation", () => {
     expect(incremental.stats.reusedStatementCount).toBe(200);
   });
 
+  it("advances the semantic cache after repeated selective replays", () => {
+    let source = makeClosureFigureWithLongTail(80);
+    const session = createIncrementalSemanticSession();
+    const seededParsed = parseTikz(source, { recover: true });
+    session.evaluate({
+      figure: seededParsed.figure,
+      source,
+      hints: { trigger: "other" }
+    });
+
+    const changedSourceId = seededParsed.figure.body[1]?.id;
+    expect(changedSourceId).toBeDefined();
+    if (!changedSourceId) {
+      throw new Error("Expected the B node statement");
+    }
+
+    for (const coordinate of ["(2.1, -0.1)", "(2.25, -0.2)", "(2.4, -0.35)"]) {
+      source = source.replace(/\([^)]*, -?0\.[^)]+\)|\(1\.5, -0\.5\)/, coordinate);
+      const parsed = parseTikz(source, { recover: true });
+      const incremental = session.evaluate({
+        figure: parsed.figure,
+        source,
+        hints: {
+          trigger: "drag-element",
+          changedSourceIds: [changedSourceId]
+        }
+      });
+      const full = evaluateTikzFigure(parsed.figure, source);
+
+      expect(incremental.semantic).toEqual(full);
+      expect(incremental.stats.strategy).toBe("incremental");
+      expect(incremental.stats.replayMode).toBe("selective");
+      expect(incremental.stats.fallbackReason).toBeUndefined();
+    }
+  });
+
+  it("refreshes dependency state after selective replay changes a producer name", () => {
+    const source = makeClosureFigureWithLongTail(80);
+    const session = createIncrementalSemanticSession();
+    const seededParsed = parseTikz(source, { recover: true });
+    session.evaluate({
+      figure: seededParsed.figure,
+      source,
+      hints: { trigger: "other" }
+    });
+
+    const changedSourceId = findStatementIdBySourceSnippet(seededParsed.figure.body, source, "\\node[draw] (B)");
+    const nextSource = source.replace("\\node[draw] (B)", "\\node[draw] (D)");
+    const parsed = parseTikz(nextSource, { recover: true });
+    const incremental = session.evaluate({
+      figure: parsed.figure,
+      source: nextSource,
+      hints: {
+        trigger: "drag-element",
+        changedSourceIds: [changedSourceId]
+      }
+    });
+    const full = evaluateTikzFigure(parsed.figure, nextSource);
+
+    expect(incremental.semantic).toEqual(full);
+    expect(incremental.stats.strategy).toBe("incremental");
+    expect(incremental.stats.replayMode).toBe("suffix");
+    expect(incremental.stats.fallbackReason).toBe("selective-replay-error");
+    expect(incremental.semantic.dependencies).toEqual(full.dependencies);
+  });
+
   it("uses a one-statement selective corridor for an isolated supported node", () => {
     const source = makeIsolatedNodeFigure();
     const session = createIncrementalSemanticSession();

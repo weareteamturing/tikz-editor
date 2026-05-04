@@ -32,6 +32,7 @@ describe("incremental parser session", () => {
     });
 
     expect(incremental.stats.strategy).toBe("incremental");
+    expect(incremental.stats.patchApplication).toBe("direct");
     expect(incremental.stats.reparsedStatementCount).toBe(1);
     expect(normalizeFigureForComparison(incremental.parse.figure)).toEqual(normalizeFigureForComparison(full.figure));
     expect(incremental.parse.figures).toEqual(full.figures);
@@ -65,6 +66,8 @@ describe("incremental parser session", () => {
     });
 
     expect(incremental.stats.strategy).toBe("incremental");
+    expect(incremental.stats.patchApplication).toBe("rebased");
+    expect(incremental.stats.fallbackReason).toBeUndefined();
     expect(normalizeFigureForComparison(incremental.parse.figure)).toEqual(normalizeFigureForComparison(full.figure));
     expect(incremental.parse.diagnostics).toEqual(full.diagnostics);
   });
@@ -98,6 +101,7 @@ describe("incremental parser session", () => {
       });
 
       expect(incremental.stats.strategy).toBe("incremental");
+      expect(incremental.stats.fallbackReason).toBeUndefined();
       expect(normalizeFigureForComparison(incremental.parse.figure)).toEqual(normalizeFigureForComparison(full.figure));
       previousSource = nextSource;
     }

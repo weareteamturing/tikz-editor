@@ -34,6 +34,7 @@ export type IncrementalParseFallbackReason =
 export type IncrementalParseStats = {
   strategy: "full" | "incremental" | "reused";
   fallbackReason?: IncrementalParseFallbackReason;
+  patchApplication?: "direct" | "rebased" | "discarded";
   reparsedStatementCount: number;
   reusedStatementCount: number;
 };
@@ -108,6 +109,8 @@ export function createIncrementalParseSession(): IncrementalParseSession {
     const includeContextDefinitions = input.includeContextDefinitions ?? false;
     const trigger = input.trigger ?? "other";
     let patches = normalizePatches(input.patches ?? []);
+    let patchApplication: IncrementalParseStats["patchApplication"] =
+      patches.length > 0 ? "direct" : undefined;
     const changedSourceIds = normalizeSourceIds(input.changedSourceIds ?? []);
     if (cached && patches.length > 0) {
       const currentCache = cached;
@@ -116,6 +119,7 @@ export function createIncrementalParseSession(): IncrementalParseSession {
         applyPatchesToSource(currentCache.source, patches) !== input.source
       ) {
         patches = deriveSingleSourcePatch(currentCache.source, input.source);
+        patchApplication = patches.length > 0 ? "rebased" : "discarded";
       }
     }
 
@@ -161,6 +165,7 @@ export function createIncrementalParseSession(): IncrementalParseSession {
         stats: {
           strategy: "full",
           fallbackReason: fallback,
+          patchApplication,
           reparsedStatementCount: countStatements(parse.figure.body),
           reusedStatementCount: 0
         }
@@ -183,6 +188,7 @@ export function createIncrementalParseSession(): IncrementalParseSession {
         stats: {
           strategy: "full",
           fallbackReason: "no-previous-cache",
+          patchApplication,
           reparsedStatementCount: countStatements(parse.figure.body),
           reusedStatementCount: 0
         }
@@ -194,7 +200,7 @@ export function createIncrementalParseSession(): IncrementalParseSession {
       for (const sourceId of changedSourceIds) {
         const ref = cached.statementRefsBySourceId.get(sourceId);
         if (!ref) {
-          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "patch-source-id-mismatch");
+          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "patch-source-id-mismatch", patchApplication);
         }
         changedRefs.set(sourceId, ref);
       }
@@ -202,10 +208,10 @@ export function createIncrementalParseSession(): IncrementalParseSession {
       for (const patch of patches) {
         const owner = findContainingStatementRef(cached.statementRefsBySourceId, patch.oldSpan);
         if (!owner) {
-          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "patch-overlaps-unknown-statement");
+          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "patch-overlaps-unknown-statement", patchApplication);
         }
         if (!changedRefs.has(owner.sourceId)) {
-          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "patch-source-id-mismatch");
+          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "patch-source-id-mismatch", patchApplication);
         }
       }
 
@@ -215,7 +221,7 @@ export function createIncrementalParseSession(): IncrementalParseSession {
         activeFigureId ?? cached.activeFigureId
       );
       if (!nextActiveFigureSpan) {
-        return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "active-figure-unresolved");
+        return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "active-figure-unresolved", patchApplication);
       }
 
       const nextFigure = shiftSpansDeep(structuredClone(cached.figure), patches);
@@ -225,22 +231,22 @@ export function createIncrementalParseSession(): IncrementalParseSession {
       for (const sourceId of changedSourceIds) {
         const previousRef = cached.statementRefsBySourceId.get(sourceId);
         if (!previousRef) {
-          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "patch-source-id-mismatch");
+          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "patch-source-id-mismatch", patchApplication);
         }
         const nextSpan = shiftSpanThroughPatches(previousRef.span, patches);
         const snippet = input.source.slice(nextSpan.from, nextSpan.to);
         const parsedSnippet = parseStatementSnippet(snippet);
         if (parsedSnippet.parse.figure.body.length !== 1) {
-          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "statement-structure-changed");
+          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "statement-structure-changed", patchApplication);
         }
         if (parsedSnippet.hasParseError) {
-          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "statement-parse-error");
+          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "statement-parse-error", patchApplication);
         }
 
         const replacement = parsedSnippet.parse.figure.body[0];
         const previousStatement = getStatementAtPath(nextFigure, previousRef.parentPath, previousRef.index);
         if (!replacement || replacement.kind !== previousStatement?.kind) {
-          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "statement-structure-changed");
+          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "statement-structure-changed", patchApplication);
         }
 
         const rebasedStatement = shiftSpansDeep(replacement, nextSpan.from - SNIPPET_PREFIX.length);
@@ -253,7 +259,7 @@ export function createIncrementalParseSession(): IncrementalParseSession {
 
         const partition = partitionDiagnostics(parsedSnippet.parse.diagnostics, parsedSnippet.parse.figure.body);
         if (partition.global.length > 0) {
-          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "statement-global-diagnostics");
+          return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "statement-global-diagnostics", patchApplication);
         }
         const localDiagnostics = partition.localBySourceId.get(replacement.id) ?? [];
         for (const diagnostic of localDiagnostics) {
@@ -291,12 +297,13 @@ export function createIncrementalParseSession(): IncrementalParseSession {
         parse: createParseResultFromCache(nextCache, input.source),
         stats: {
           strategy: "incremental",
+          patchApplication,
           reparsedStatementCount: changedSourceIds.length,
           reusedStatementCount: Math.max(0, nextIndex.size - changedSourceIds.length)
         }
       };
     } catch {
-      return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "runtime-error");
+      return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "runtime-error", patchApplication);
     }
   };
 
@@ -304,7 +311,8 @@ export function createIncrementalParseSession(): IncrementalParseSession {
     source: string,
     activeFigureId: string | null | undefined,
     includeContextDefinitions: boolean,
-    reason: IncrementalParseFallbackReason
+    reason: IncrementalParseFallbackReason,
+    patchApplication: IncrementalParseStats["patchApplication"]
   ): IncrementalParseEvaluateResult {
     const parse = parseTikz(source, {
       recover: true,
@@ -321,6 +329,7 @@ export function createIncrementalParseSession(): IncrementalParseSession {
       stats: {
         strategy: "full",
         fallbackReason: reason,
+        patchApplication,
         reparsedStatementCount: countStatements(parse.figure.body),
         reusedStatementCount: 0
       }
@@ -606,7 +615,7 @@ function shiftFigureInventory(
   figures: readonly TikzFigureInventoryItem[],
   patches: readonly SourcePatch[]
 ): TikzFigureInventoryItem[] {
-  return figures.map((figure) => shiftSpansDeep(figure, patches));
+  return figures.map((figure) => shiftSpansDeep(structuredClone(figure), patches));
 }
 
 function shiftDiagnosticPartition(
@@ -618,20 +627,22 @@ function shiftDiagnosticPartition(
   const localBySourceId = new Map<string, Diagnostic[]>();
   for (const [sourceId, diagnostics] of partition.localBySourceId) {
     if (changedSourceIds.has(sourceId)) {
-      localBySourceId.set(sourceId, replacements.get(sourceId) ?? []);
+      localBySourceId.set(sourceId, structuredClone(replacements.get(sourceId) ?? []));
       continue;
     }
-    for (const diagnostic of diagnostics) {
+    const nextDiagnostics = structuredClone(diagnostics);
+    for (const diagnostic of nextDiagnostics) {
       shiftDiagnosticThroughPatchesInPlace(diagnostic, patches);
     }
-    localBySourceId.set(sourceId, diagnostics);
+    localBySourceId.set(sourceId, nextDiagnostics);
   }
-  for (const diagnostic of partition.global) {
+  const global = structuredClone(partition.global);
+  for (const diagnostic of global) {
     shiftDiagnosticThroughPatchesInPlace(diagnostic, patches);
   }
   return {
     localBySourceId,
-    global: partition.global
+    global
   };
 }
 

@@ -41,6 +41,7 @@ export type SessionSnapshotIncrementalInfo = {
   changedSourceIds: string[];
   parseStrategy: IncrementalParseStats["strategy"];
   parseFallbackReason: IncrementalParseStats["fallbackReason"];
+  parsePatchApplication: IncrementalParseStats["patchApplication"];
   reparsedStatementCount: number;
   parserReusedStatementCount: number;
   strategy: IncrementalSemanticStats["strategy"];
@@ -144,6 +145,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
           changedSourceIds,
           parseStrategy: result.parseStats.strategy,
           parseFallbackReason: result.parseStats.fallbackReason,
+          parsePatchApplication: result.parseStats.patchApplication,
           reparsedStatementCount: result.parseStats.reparsedStatementCount,
           parserReusedStatementCount: result.parseStats.reusedStatementCount,
           strategy: result.semanticStats.strategy,
@@ -165,6 +167,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
         incremental: true,
         parseStrategy: result.parseStats.strategy,
         parseFallbackReason: result.parseStats.fallbackReason ?? null,
+        parsePatchApplication: result.parseStats.patchApplication ?? null,
         semanticStrategy: result.semanticStats.strategy,
         semanticFallbackReason: result.semanticStats.fallbackReason ?? null,
         recomputedStatementCount: result.semanticStats.recomputedStatementCount,

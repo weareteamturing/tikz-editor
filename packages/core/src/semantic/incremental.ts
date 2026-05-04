@@ -50,6 +50,7 @@ export type IncrementalSemanticFallbackReason =
   | "checkpoint-missing"
   | "feature-checkpoint-missing"
   | "restore-failed"
+  | "selective-replay-error"
   | "runtime-error";
 
 export type IncrementalSemanticStats = {
@@ -199,6 +200,7 @@ export function createIncrementalSemanticSession(
         const selective = evaluateSelectively({
           run,
           previous,
+          statementIds,
           restoreIndex,
           corridorEndIndex: selectivePlan.corridorEndIndex,
           affectedStatementCount: selectivePlan.affectedStatementCount,
@@ -206,9 +208,32 @@ export function createIncrementalSemanticSession(
           startCheckpoint,
           startFeatureUsage
         });
-        return selective;
+        cached = selective.cached;
+        return selective.output;
       } catch {
-        // Fall through to the suffix replay path.
+        try {
+          const suffix = evaluateIncrementalSuffix({
+            run: createSemanticEvaluationRun(input.figure, input.source, options),
+            previous,
+            statementIds,
+            restoreIndex,
+            checkpointInterval,
+            startCheckpoint,
+            startFeatureUsage,
+            affectedStatementCount: new Set(affectedStatementIndices).size,
+            fallbackReason: "selective-replay-error"
+          });
+          cached = suffix.cached;
+          return suffix.output;
+        } catch {
+          const full = evaluateFullyAndCache(
+            createSemanticEvaluationRun(input.figure, input.source, options),
+            statementIds,
+            "runtime-error"
+          );
+          cached = full.cached;
+          return full.output;
+        }
       }
     }
 
@@ -318,6 +343,7 @@ function evaluateIncrementalSuffix(args: {
   startCheckpoint: SemanticContextSnapshot;
   startFeatureUsage: FeatureUsage;
   affectedStatementCount: number;
+  fallbackReason?: IncrementalSemanticFallbackReason;
 }): {
   output: IncrementalSemanticEvaluateResult;
   cached: CachedSemanticRun;
@@ -330,7 +356,8 @@ function evaluateIncrementalSuffix(args: {
     checkpointInterval,
     startCheckpoint,
     startFeatureUsage,
-    affectedStatementCount
+    affectedStatementCount,
+    fallbackReason
   } = args;
   const statementCount = run.expandedFigureBody.length;
 
@@ -385,7 +412,8 @@ function evaluateIncrementalSuffix(args: {
         recomputedStatementCount: statementCount - restoreIndex,
         reusedStatementCount: restoreIndex,
         corridorEndStatementIndex: statementCount - 1,
-        affectedStatementCount
+        affectedStatementCount,
+        fallbackReason
       }
     },
     cached: {
@@ -406,16 +434,21 @@ function evaluateIncrementalSuffix(args: {
 function evaluateSelectively(args: {
   run: ReturnType<typeof createSemanticEvaluationRun>;
   previous: CachedSemanticRun;
+  statementIds: string[];
   restoreIndex: number;
   corridorEndIndex: number;
   affectedStatementCount: number;
   checkpointInterval: number;
   startCheckpoint: SemanticContextSnapshot;
   startFeatureUsage: FeatureUsage;
-}): IncrementalSemanticEvaluateResult {
+}): {
+  output: IncrementalSemanticEvaluateResult;
+  cached: CachedSemanticRun;
+} {
   const {
     run,
     previous,
+    statementIds,
     restoreIndex,
     corridorEndIndex,
     affectedStatementCount,
@@ -453,30 +486,94 @@ function evaluateSelectively(args: {
     const evaluated = evaluateSemanticStatementByIndex(run, statementIndex);
     nextFragments[statementIndex] = createStatementFragment(evaluated);
   }
+  const previousCorridorHandleCount = countFragmentEditHandles(
+    previous.statementFragments,
+    0,
+    corridorEndIndex + 1
+  );
+  if (run.context.editHandles.length !== previousCorridorHandleCount) {
+    throw new Error("Selective replay changed the edit-handle count before the reused suffix");
+  }
 
   for (let statementIndex = corridorEndIndex + 1; statementIndex < statementCount; statementIndex += 1) {
-    applyStatementEffectSummary(run.context, previous.statementFragments[statementIndex].effectSummary);
+    const fragment = previous.statementFragments[statementIndex];
+    if (shouldCaptureCheckpoint(statementIndex, checkpointInterval)) {
+      checkpointsBeforeStatement.set(
+        statementIndex,
+        snapshotSemanticContext(run.context, { editHandlesMode: "length" })
+      );
+      featureUsageBeforeStatement.set(
+        statementIndex,
+        cloneFeatureUsage(previous.featureUsageBeforeStatement.get(statementIndex) ?? previous.finalFeatureUsage)
+      );
+    }
+    applyStatementEffectSummary(run.context, fragment.effectSummary, {
+      sourceId: fragment.sourceId
+    });
   }
+  const finalFeatureUsage = mergeFeatureUsageAfterSelectiveReplay(
+    previous.finalFeatureUsage,
+    startFeatureUsage,
+    run.featureUsage
+  );
+  checkpointsBeforeStatement.set(
+    statementCount,
+    snapshotSemanticContext(run.context, { editHandlesMode: "length" })
+  );
+  featureUsageBeforeStatement.set(statementCount, cloneFeatureUsage(finalFeatureUsage));
+
+  const currentFragments = materializeFragmentsForCache(
+    previous.source,
+    run.source,
+    nextFragments,
+    run.context.sourceFingerprint
+  );
+  const suffixSourceIds = currentFragments
+    .slice(corridorEndIndex + 1)
+    .map((fragment) => fragment.sourceId);
+  const recomputedSourceIds = currentFragments
+    .slice(restoreIndex, corridorEndIndex + 1)
+    .map((fragment) => fragment.sourceId);
+  const dependencies = mergeSelectiveDependencies(
+    run.context.dependencyBuilder.build(),
+    previous.dependencies,
+    suffixSourceIds,
+    recomputedSourceIds
+  );
 
   const semantic = assembleSelectiveSemanticResult({
     run,
-    previousSource: previous.source,
-    fragments: nextFragments,
-    featureUsage: previous.finalFeatureUsage,
-    dependencies: previous.dependencies,
+    previousSource: run.source,
+    fragments: currentFragments,
+    featureUsage: finalFeatureUsage,
+    dependencies,
     sourceStatementFirstIndexBySourceId: previous.sourceStatementFirstIndexBySourceId
   });
 
   return {
-    semantic,
-    stats: {
-      strategy: "incremental",
-      replayMode: "selective",
-      recomputeFromStatementIndex: restoreIndex,
-      recomputedStatementCount: corridorEndIndex - restoreIndex + 1,
-      reusedStatementCount: statementCount - (corridorEndIndex - restoreIndex + 1),
-      corridorEndStatementIndex: corridorEndIndex,
-      affectedStatementCount
+    output: {
+      semantic,
+      stats: {
+        strategy: "incremental",
+        replayMode: "selective",
+        recomputeFromStatementIndex: restoreIndex,
+        recomputedStatementCount: corridorEndIndex - restoreIndex + 1,
+        reusedStatementCount: statementCount - (corridorEndIndex - restoreIndex + 1),
+        corridorEndStatementIndex: corridorEndIndex,
+        affectedStatementCount
+      }
+    },
+    cached: {
+      source: run.source,
+      statementIds,
+      statementFragments: currentFragments,
+      editHandles: semantic.editHandles,
+      checkpointInterval,
+      checkpointsBeforeStatement,
+      featureUsageBeforeStatement,
+      dependencies: semantic.dependencies,
+      sourceStatementFirstIndexBySourceId: mapSourceStatementFirstIndices(semantic.sourceStatementFirstIndexBySourceId),
+      finalFeatureUsage: cloneFeatureUsage(semantic.featureUsage)
     }
   };
 }
@@ -600,6 +697,18 @@ function isSuffixFragmentSelectiveSafe(
   );
 }
 
+function countFragmentEditHandles(
+  fragments: readonly SemanticStatementFragment[],
+  fromIndex: number,
+  toIndex: number
+): number {
+  let count = 0;
+  for (let index = fromIndex; index < toIndex; index += 1) {
+    count += fragments[index]?.editHandles.length ?? 0;
+  }
+  return count;
+}
+
 function decideFallbackReason(
   hints: IncrementalSemanticHints,
   cached: CachedSemanticRun | null,
@@ -697,6 +806,79 @@ function assignFeatureUsage(target: FeatureUsage, source: FeatureUsage): void {
   for (const key of Object.keys(target)) {
     target[key] = source[key] ?? target[key];
   }
+}
+
+function mergeFeatureUsageAfterSelectiveReplay(
+  previousFinal: FeatureUsage,
+  replayStart: FeatureUsage,
+  replayCurrent: FeatureUsage
+): FeatureUsage {
+  const merged = cloneFeatureUsage(previousFinal);
+  for (const key of Object.keys(merged)) {
+    const current = replayCurrent[key];
+    if (current == null || current === replayStart[key]) {
+      continue;
+    }
+    merged[key] = current;
+  }
+  return merged;
+}
+
+function mergeSelectiveDependencies(
+  rebuilt: EvaluateTikzResult["dependencies"],
+  previous: EvaluateTikzResult["dependencies"],
+  suffixSourceIds: readonly string[],
+  recomputedSourceIds: readonly string[]
+): EvaluateTikzResult["dependencies"] {
+  const recomputedSourceIdSet = new Set(recomputedSourceIds);
+  if (suffixSourceIds.length === 0 && previous.nodes.length === 0) {
+    return rebuilt;
+  }
+
+  const nodesById = new Map(rebuilt.nodes.map((node) => [node.id, node]));
+  const edgesByKey = new Map(rebuilt.edges.map((edge) => [dependencyEdgeKey(edge), edge]));
+  const previousNodeById = new Map(previous.nodes.map((node) => [node.id, node]));
+
+  for (const node of previous.nodes) {
+    if (node.kind === "source" && !recomputedSourceIdSet.has(node.sourceId)) {
+      nodesById.set(node.id, node);
+    }
+  }
+
+  for (const edge of previous.edges) {
+    const fromNode = previousNodeById.get(edge.from);
+    const toNode = previousNodeById.get(edge.to);
+    const touchesRecomputedSource =
+      (fromNode?.kind === "source" && recomputedSourceIdSet.has(fromNode.sourceId)) ||
+      (toNode?.kind === "source" && recomputedSourceIdSet.has(toNode.sourceId));
+    if (touchesRecomputedSource) {
+      continue;
+    }
+    const touchesSuffixSource =
+      (fromNode?.kind === "source" && !recomputedSourceIdSet.has(fromNode.sourceId)) ||
+      (toNode?.kind === "source" && !recomputedSourceIdSet.has(toNode.sourceId));
+    if (!touchesSuffixSource) {
+      continue;
+    }
+    const resourceNode = fromNode?.kind === "resource" ? fromNode : toNode?.kind === "resource" ? toNode : null;
+    if (resourceNode) {
+      nodesById.set(resourceNode.id, resourceNode);
+    }
+    edgesByKey.set(dependencyEdgeKey(edge), edge);
+  }
+
+  return {
+    nodes: [...nodesById.values()].sort((left, right) => left.id.localeCompare(right.id)),
+    edges: [...edgesByKey.values()].sort((left, right) => {
+      const leftKey = dependencyEdgeKey(left);
+      const rightKey = dependencyEdgeKey(right);
+      return leftKey.localeCompare(rightKey);
+    })
+  };
+}
+
+function dependencyEdgeKey(edge: EvaluateTikzResult["dependencies"]["edges"][number]): string {
+  return `${edge.category}\u0000${edge.relation}\u0000${edge.from}\u0000${edge.to}`;
 }
 
 function mapSourceStatementFirstIndices(
@@ -807,6 +989,42 @@ function materializeFragmentForCurrentSource(
     elements,
     editHandles
   };
+}
+
+function materializeFragmentsForCache(
+  previousSource: string,
+  currentSource: string,
+  fragments: readonly SemanticStatementFragment[],
+  sourceFingerprint: string
+): SemanticStatementFragment[] {
+  return fragments.map((fragment) => {
+    const currentSourceSpan =
+      locateCurrentSpan(previousSource, currentSource, fragment.sourceSpan)
+      ?? fragment.sourceSpan;
+    if (fragment.sourceFingerprint === sourceFingerprint) {
+      return {
+        ...fragment,
+        sourceSpan: { ...currentSourceSpan }
+      };
+    }
+
+    const materialized = materializeFragmentForCurrentSource(
+      fragment,
+      currentSourceSpan,
+      currentSource,
+      sourceFingerprint
+    );
+    const diagnostics = structuredClone(fragment.diagnostics);
+    shiftSpansDeep(diagnostics, currentSourceSpan.from - fragment.sourceSpan.from);
+    return {
+      ...fragment,
+      sourceSpan: { ...currentSourceSpan },
+      sourceFingerprint,
+      elements: materialized.elements,
+      editHandles: materialized.editHandles,
+      diagnostics
+    };
+  });
 }
 
 function locateCurrentSpan(previousSource: string, currentSource: string, previousSpan: Span): Span | null {

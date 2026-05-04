@@ -827,13 +827,31 @@ export function endStatementEffectTracking(
 
 export function applyStatementEffectSummary(
   context: SemanticContext,
-  summary: SemanticStatementEffectSummary
+  summary: SemanticStatementEffectSummary,
+  options: { sourceId?: string } = {}
 ): void {
+  const sourceId = options.sourceId;
+  if (sourceId) {
+    context.dependencyBuilder.ensureSourceNode(sourceId);
+  }
   for (const produced of summary.producesNamedCoordinates) {
     context.namedCoordinates.set(produced.key, { ...produced.point });
+    recordDependencyProducer(context, "named-coordinate", produced.key, sourceId);
   }
   for (const produced of summary.producesNamedNodeGeometries) {
     context.namedNodeGeometries.set(produced.key, structuredClone(produced.geometry));
+    recordDependencyProducer(context, "named-node-geometry", produced.key, sourceId);
+  }
+  for (const producedPath of summary.producesNamedPaths) {
+    recordDependencyProducer(context, "named-path", producedPath, sourceId);
+  }
+  for (const consumed of summary.consumesNamedResources) {
+    recordDependencyConsumer(context, consumed.kind, consumed.key, sourceId);
+  }
+  if (sourceId) {
+    for (const reason of summary.opaqueReasons) {
+      markDependencyOpaque(context, sourceId, reason);
+    }
   }
   context.currentPoint = summary.nextCurrentPoint ? { ...summary.nextCurrentPoint } : null;
   context.pathStartPoint = summary.nextPathStartPoint ? { ...summary.nextPathStartPoint } : null;

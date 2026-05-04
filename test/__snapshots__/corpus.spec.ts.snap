@@ -30,10 +30,10 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     "semanticEmptySceneSnippets": 724,
     "semanticErrorRate": 0.0498,
     "semanticErrorSnippets": 109,
-    "semanticUnsupportedRate": 0.4819,
-    "semanticUnsupportedSnippets": 1054,
-    "semanticWarningRate": 0.4902,
-    "semanticWarningSnippets": 1072,
+    "semanticUnsupportedRate": 0.4806,
+    "semanticUnsupportedSnippets": 1051,
+    "semanticWarningRate": 0.4888,
+    "semanticWarningSnippets": 1069,
   },
   "semanticCoverage": {
     "allUnknownSnippetRate": 0.2108,
@@ -269,12 +269,12 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "filePath": "pgfmanual-en-library-decorations.tex",
     },
     {
-      "count": 24,
-      "filePath": "pgfmanual-en-tikz-arrows.tex",
+      "count": 23,
+      "filePath": "pgfmanual-en-library-plot-handlers.tex",
     },
     {
       "count": 23,
-      "filePath": "pgfmanual-en-library-plot-handlers.tex",
+      "filePath": "pgfmanual-en-tikz-arrows.tex",
     },
     {
       "count": 23,
