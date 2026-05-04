@@ -178,6 +178,7 @@ type RepeatModalState = {
 export function App() {
   const {
     source,
+    sourceRevision,
     snapshot,
     activeFigureId,
     selectedElementIds,
@@ -188,12 +189,14 @@ export function App() {
     toolMode,
     lastEditChangedSourceIds,
     lastEditPatches,
+    lastEditPatchBaseRevision,
     activeCanvasDragKind,
     activeSourceScrubSourceId,
     hoveredElementId,
     dispatch
   } = useEditorStore(useShallow((s) => ({
     source: s.source,
+    sourceRevision: s.sourceRevision,
     snapshot: s.snapshot,
     activeFigureId: s.activeFigureId,
     selectedElementIds: s.selectedElementIds,
@@ -204,6 +207,7 @@ export function App() {
     toolMode: s.toolMode,
     lastEditChangedSourceIds: s.lastEditChangedSourceIds,
     lastEditPatches: s.lastEditPatches,
+    lastEditPatchBaseRevision: s.lastEditPatchBaseRevision,
     activeCanvasDragKind: s.activeCanvasDragKind,
     activeSourceScrubSourceId: s.activeSourceScrubSourceId,
     hoveredElementId: s.hoveredElementId,
@@ -508,12 +512,14 @@ export function App() {
       documentId: activeDocumentId,
       kind: "render",
       source,
+      sourceRevision,
       activeFigureId,
       changedSourceIds,
       patches: lastEditPatches ? [...lastEditPatches] : null,
+      patchBaseRevision: lastEditPatchBaseRevision,
       trigger
     });
-  }, [activeDocumentId, activeFigureId, changedSourceIds, dispatch, lastEditPatches, mathJaxFont, source, trigger, typingComputeDelay]);
+  }, [activeDocumentId, activeFigureId, changedSourceIds, dispatch, lastEditPatchBaseRevision, lastEditPatches, mathJaxFont, source, sourceRevision, trigger, typingComputeDelay]);
 
   useDebouncedEffect(() => {
     const scheduler = computeSchedulerRef.current;
@@ -526,12 +532,14 @@ export function App() {
       documentId: activeDocumentId,
       kind: "render",
       source,
+      sourceRevision,
       activeFigureId,
       changedSourceIds,
       patches: lastEditPatches ? [...lastEditPatches] : null,
+      patchBaseRevision: lastEditPatchBaseRevision,
       trigger
     });
-  }, typingComputeDelay, [activeDocumentId, activeFigureId, changedSourceIds, dispatch, lastEditPatches, mathJaxFont, source, trigger, typingComputeDelay]);
+  }, typingComputeDelay, [activeDocumentId, activeFigureId, changedSourceIds, dispatch, lastEditPatchBaseRevision, lastEditPatches, mathJaxFont, source, sourceRevision, trigger, typingComputeDelay]);
 
   const prewarmDelay = activeCanvasDragKind || activeSourceScrubSourceId || pendingRequestId != null || !hoveredElementId || snapshot.source !== source
     ? null

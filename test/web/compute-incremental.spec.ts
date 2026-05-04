@@ -112,15 +112,18 @@ describe("computeSnapshot incremental parser integration", () => {
       id: "coalesced-drag-seed",
       kind: "render",
       source,
+      sourceRevision: 0,
       activeFigureId: "figure:0"
     });
     const incremental = await computeSnapshot({
       id: "coalesced-drag-incremental",
       kind: "render",
       source: nextSource,
+      sourceRevision: 2,
       activeFigureId: seeded.snapshot.activeFigureId,
       changedSourceIds: ["path:0"],
       patches: [computeSinglePatch(skippedSource, nextSource)],
+      patchBaseRevision: 1,
       trigger: "drag-handle"
     });
     const canonical = await computeSnapshot({

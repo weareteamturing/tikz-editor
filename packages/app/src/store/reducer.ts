@@ -192,12 +192,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     projectedActive &&
     (
       projectedActive.source !== state.source ||
+      projectedActive.sourceRevision !== state.sourceRevision ||
       projectedActive.activeFigureId !== state.activeFigureId ||
       projectedActive.snapshot !== state.snapshot ||
       projectedActive.pendingRequestId !== state.pendingRequestId ||
       projectedActive.lastEditChangedSourceIds !== state.lastEditChangedSourceIds ||
       projectedActive.lastEditChangeToken !== state.lastEditChangeToken ||
       projectedActive.lastEditPatches !== state.lastEditPatches ||
+      projectedActive.lastEditPatchBaseRevision !== state.lastEditPatchBaseRevision ||
       projectedActive.lastEditWarningMessage !== state.lastEditWarningMessage ||
       projectedActive.lastEditWarningToken !== state.lastEditWarningToken ||
       projectedActive.history !== state.history ||
@@ -210,12 +212,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     workspace = updateDocument(workspace, activeId, (doc) => ({
       ...doc,
       source: state.source,
+      sourceRevision: state.sourceRevision,
       activeFigureId: state.activeFigureId,
       snapshot: state.snapshot,
       pendingRequestId: state.pendingRequestId,
       lastEditChangedSourceIds: state.lastEditChangedSourceIds,
       lastEditChangeToken: state.lastEditChangeToken,
       lastEditPatches: state.lastEditPatches,
+      lastEditPatchBaseRevision: state.lastEditPatchBaseRevision,
       lastEditWarningMessage: state.lastEditWarningMessage,
       lastEditWarningToken: state.lastEditWarningToken,
       history: state.history,
@@ -359,6 +363,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangedSourceIds: scrubChangedSourceIds,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: scrubPatches,
+          lastEditPatchBaseRevision: scrubPatches ? doc.sourceRevision : null,
           lastEditWarningMessage: null,
           lastEditWarningToken:
             doc.lastEditWarningMessage != null
@@ -578,6 +583,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangedSourceIds: null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: null,
+          lastEditPatchBaseRevision: null,
           lastEditWarningMessage: null,
           lastEditWarningToken:
             doc.lastEditWarningMessage != null
@@ -686,6 +692,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangedSourceIds: incrementalChangedSourceIds,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: incrementalPatches,
+          lastEditPatchBaseRevision: incrementalPatches ? doc.sourceRevision : null,
           lastEditWarningMessage: actionWarning,
           lastEditWarningToken:
             actionWarning != null || doc.lastEditWarningMessage != null
@@ -740,6 +747,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangedSourceIds: incrementalChangedSourceIds,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: incrementalPatches,
+          lastEditPatchBaseRevision: incrementalPatches ? doc.sourceRevision : null,
           lastEditWarningMessage: actionWarning,
           lastEditWarningToken:
             actionWarning != null || doc.lastEditWarningMessage != null
@@ -772,6 +780,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         lastEditChangedSourceIds: incrementalChangedSourceIds,
         lastEditChangeToken: doc.lastEditChangeToken + 1,
         lastEditPatches: incrementalPatches,
+        lastEditPatchBaseRevision: incrementalPatches ? doc.sourceRevision : null,
         lastEditWarningMessage: actionWarning,
         lastEditWarningToken:
           actionWarning != null || doc.lastEditWarningMessage != null
@@ -802,6 +811,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangedSourceIds: action.changedSourceIds ?? null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: null,
+          lastEditPatchBaseRevision: null,
           lastEditWarningMessage: null,
           lastEditWarningToken:
             doc.lastEditWarningMessage != null
@@ -830,6 +840,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         lastEditChangedSourceIds: null,
         lastEditChangeToken: current.lastEditChangeToken + 1,
         lastEditPatches: null,
+        lastEditPatchBaseRevision: null,
         lastEditWarningMessage: null,
         lastEditWarningToken:
           current.lastEditWarningMessage != null
@@ -857,6 +868,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         lastEditChangedSourceIds: null,
         lastEditChangeToken: current.lastEditChangeToken + 1,
         lastEditPatches: null,
+        lastEditPatchBaseRevision: null,
         lastEditWarningMessage: null,
         lastEditWarningToken:
           current.lastEditWarningMessage != null

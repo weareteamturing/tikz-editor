@@ -15,6 +15,8 @@ export type TikzEditorProfilingComputeTiming = {
   parseStrategy?: string | null;
   parseFallbackReason?: string | null;
   parsePatchApplication?: string | null;
+  parsePatchBaseRevision?: number | null;
+  sourceRevision?: number | null;
   semanticStrategy?: string | null;
   semanticFallbackReason?: string | null;
   recomputedStatementCount?: number | null;

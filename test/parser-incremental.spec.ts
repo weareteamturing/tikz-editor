@@ -14,7 +14,7 @@ describe("incremental parser session", () => {
     const seeded = parseWithContext(source);
     const full = parseWithContext(nextSource);
     const session = createIncrementalParseSession();
-    session.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true });
+    session.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true, sourceRevision: 0 });
 
     const statementId = seeded.figure.body[1]?.id;
     expect(statementId).toBeTruthy();
@@ -24,9 +24,11 @@ describe("incremental parser session", () => {
 
     const incremental = session.evaluate({
       source: nextSource,
+      sourceRevision: 1,
       activeFigureId: seeded.activeFigureId,
       includeContextDefinitions: true,
       patches: [computeSinglePatch(source, nextSource)],
+      patchBaseRevision: 0,
       changedSourceIds: [statementId],
       trigger: "drag-element"
     });
@@ -48,7 +50,7 @@ describe("incremental parser session", () => {
     const seeded = parseWithContext(source);
     const full = parseWithContext(nextSource);
     const session = createIncrementalParseSession();
-    session.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true });
+    session.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true, sourceRevision: 0 });
 
     const statementId = seeded.figure.body[0]?.id;
     expect(statementId).toBeTruthy();
@@ -58,9 +60,11 @@ describe("incremental parser session", () => {
 
     const incremental = session.evaluate({
       source: nextSource,
+      sourceRevision: 2,
       activeFigureId: seeded.activeFigureId,
       includeContextDefinitions: true,
       patches: [computeSinglePatch(skippedSource, nextSource)],
+      patchBaseRevision: 1,
       changedSourceIds: [statementId],
       trigger: "drag-handle"
     });

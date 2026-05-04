@@ -141,6 +141,7 @@ describe("editorReducer – CODE_EDITED", () => {
     expect(next.lastEditChangedSourceIds).toEqual(["path:0"]);
     expect(next.lastEditPatches).not.toBeNull();
     expect(next.lastEditPatches).toHaveLength(1);
+    expect(next.lastEditPatchBaseRevision).toBe(initial.sourceRevision);
     const patch = next.lastEditPatches?.[0];
     expect(patch?.replacement.length).toBeGreaterThan(0);
     expect(applySourcePatches(source, next.lastEditPatches ?? [])).toBe(nextSource);

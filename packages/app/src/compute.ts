@@ -59,9 +59,11 @@ export type ComputeRequest = {
   id: string;
   documentId?: string;
   source: string;
+  sourceRevision?: number | null;
   activeFigureId?: string | null;
   changedSourceIds?: string[] | null;
   patches?: SourcePatch[] | null;
+  patchBaseRevision?: number | null;
   trigger?: IncrementalSemanticTrigger;
   kind?: "render" | "prewarm";
 };
@@ -124,9 +126,11 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     if (isDragTrigger && changedSourceIds.length > 0) {
       const result = await computeSnapshotIncremental(
         request.source,
+        request.sourceRevision ?? null,
         request.activeFigureId,
         changedSourceIds,
         patches,
+        request.patchBaseRevision ?? null,
         trigger
       );
       const snapshot: SessionSnapshot = {
@@ -166,8 +170,10 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
         changedSourceCount: changedSourceIds.length,
         incremental: true,
         parseStrategy: result.parseStats.strategy,
-        parseFallbackReason: result.parseStats.fallbackReason ?? null,
-        parsePatchApplication: result.parseStats.patchApplication ?? null,
+      parseFallbackReason: result.parseStats.fallbackReason ?? null,
+      parsePatchApplication: result.parseStats.patchApplication ?? null,
+      parsePatchBaseRevision: request.patchBaseRevision ?? null,
+      sourceRevision: request.sourceRevision ?? null,
         semanticStrategy: result.semanticStats.strategy,
         semanticFallbackReason: result.semanticStats.fallbackReason ?? null,
         recomputedStatementCount: result.semanticStats.recomputedStatementCount,
@@ -199,7 +205,8 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     const parseSession = await getIncrementalParseSession();
     parseSession.prime(result.parse, {
       activeFigureId: request.activeFigureId ?? result.parse.activeFigureId,
-      includeContextDefinitions: true
+      includeContextDefinitions: true,
+      sourceRevision: request.sourceRevision ?? null
     });
     const semanticSession = await getIncrementalSemanticSession();
     semanticSession.evaluate({
@@ -274,9 +281,11 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
 
 async function computeSnapshotIncremental(
   source: string,
+  sourceRevision: number | null,
   activeFigureId: string | null | undefined,
   changedSourceIds: string[],
   patches: SourcePatch[],
+  patchBaseRevision: number | null,
   trigger: Extract<IncrementalSemanticTrigger, "drag-element" | "drag-handle">
 ): Promise<{
   parse: ParseTikzResult;
@@ -294,9 +303,11 @@ async function computeSnapshotIncremental(
   const parseSession = await getIncrementalParseSession();
   const parseIncremental = parseSession.evaluate({
     source,
+    sourceRevision,
     activeFigureId,
     includeContextDefinitions: true,
     patches,
+    patchBaseRevision,
     changedSourceIds,
     trigger
   });

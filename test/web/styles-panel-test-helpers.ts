@@ -50,6 +50,7 @@ export function seedStylesPanelState(source: string, selectedSourceIds: string[]
         history: [],
         historyIndex: -1,
         lastEditPatches: null,
+        lastEditPatchBaseRevision: null,
         lastEditChangedSourceIds: null,
         lastEditWarningMessage: null,
         dirty: true
