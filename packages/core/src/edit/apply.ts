@@ -6,7 +6,7 @@ import type { ApplyEditResult, EditIntent, EditIntentResult, TikzEdit } from "./
 import { replaceSpan } from "./patch.js";
 import { formatCoordinate } from "./style.js";
 import { rewriteCoordinate, supportsUnsupportedCoordinateDetach } from "./rewrite.js";
-import { computeSourceFingerprint } from "../utils/source-fingerprint.js";
+import { sourceFingerprintForEdit } from "./parse-options.js";
 import { formatNumber } from "./format.js";
 import { resolvePropertyTarget } from "./property-target.js";
 import { applyOptionMutationsToTarget, normalizeOptionKey, type OptionMutation } from "./option-mutations.js";
@@ -91,7 +91,7 @@ function applyMoveIntent(
     return { kind: "error", message: `Handle not found: ${intent.handleId}` };
   }
 
-  const sourceFingerprint = computeSourceFingerprint(source);
+  const sourceFingerprint = sourceFingerprintForEdit(source, parseOptions);
   if (handle.sourceRef.sourceFingerprint !== sourceFingerprint) {
     return { kind: "error", message: "Handle does not match current source (stale handle)." };
   }

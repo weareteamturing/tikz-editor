@@ -475,6 +475,7 @@ export type FeatureUsage = Record<string, FeatureUsageState>;
 export type EvaluateOptions = {
   defaultLengthUnit?: "cm" | "pt";
   maxForeachExpansions?: number;
+  sourceFingerprint?: string;
   textEngine?: NodeTextEngine | null;
 };
 

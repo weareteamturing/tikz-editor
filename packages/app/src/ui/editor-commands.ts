@@ -265,7 +265,10 @@ function runPasteFromPayload(context: PasteCommandContext, payload: TikzClipboar
   };
   const parseActiveFigureId = resolvedContextActiveFigureId(context);
   const precomputedResult = applyEditAction(context.source, context.editHandles as EditHandle[], action, {
-    parseOptions: { activeFigureId: parseActiveFigureId }
+    parseOptions: {
+      activeFigureId: parseActiveFigureId,
+      sourceFingerprint: context.parseOptions?.sourceFingerprint
+    }
   });
   if (precomputedResult.kind !== "success" && precomputedResult.kind !== "partial") {
     return false;
@@ -1491,7 +1494,8 @@ function parseOptionsForContext(context: SelectionCommandContext): EditParseOpti
     activeFigureId: resolvedContextActiveFigureId(context),
     analysisView: context.parseOptions?.analysisView,
     analysisSession: context.parseOptions?.analysisSession,
-    indentSize: context.parseOptions?.indentSize
+    indentSize: context.parseOptions?.indentSize,
+    sourceFingerprint: context.parseOptions?.sourceFingerprint
   };
 }
 

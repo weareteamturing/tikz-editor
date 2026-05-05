@@ -53,6 +53,7 @@ import { getSharedEditAnalysisSession,getSharedEditAnalysisView } from "../edit-
 import { getActiveEditorPlatform } from "../platform/current";
 import { GRID_SIZE_MINOR_TARGET_PX } from "../settings/types";
 import { useSettingsStore } from "../settings/useSettingsStore";
+import { buildSnapshotEditSourceFingerprint } from "../source-identity";
 import { useEditorStore } from "../store/store";
 import type { CanvasDragKind,CanvasTransform } from "../store/types";
 import { resolveBucketFillEdit } from "./canvas-panel/bucket-fill";
@@ -1869,9 +1870,15 @@ export const CanvasPanel = memo(function CanvasPanel({
 
   const applyActionWithFeedback = useCallback(
     (action: EditAction, historyMergeKey?: string): ApplyActionFeedback => {
+      const sourceFingerprint = buildSnapshotEditSourceFingerprint({
+        documentId: activeDocumentId,
+        sourceRevision,
+        sourceLength: source.length,
+        sourceRefs: snapshot.editHandles.map((handle) => handle.sourceRef)
+      });
       const result = applyEditAction(source, snapshot.editHandles, action, {
-        evaluateOptions: { textEngine: textEngineRef.current },
-        parseOptions: { ...editParseOptions, propertyWriteMode: "drag-frame" }
+        evaluateOptions: { sourceFingerprint, textEngine: textEngineRef.current },
+        parseOptions: { ...editParseOptions, propertyWriteMode: "drag-frame", sourceFingerprint }
       });
 
       if (result.kind === "success" || result.kind === "partial") {
@@ -1913,7 +1920,7 @@ export const CanvasPanel = memo(function CanvasPanel({
 
       return { sourceChanged: false };
     },
-    [dispatch, editParseOptions, source, snapshot.editHandles]
+    [activeDocumentId, dispatch, editParseOptions, source, sourceRevision, snapshot.editHandles]
   );
 
   const queueSelectionForAddedElement = useCallback(

@@ -259,7 +259,8 @@ export function createSemanticContext(
   initialStyle: ResolvedStyle,
   initialTransform: WorldTransform,
   textEngine: NodeTextEngine | null = null,
-  source = ""
+  source = "",
+  sourceFingerprint = computeSourceFingerprint(source)
 ): SemanticContext {
   const defaultNodeDistance = 28.4527559055;
   const defaultTreeDistance = 15 * 2.84527559055;
@@ -346,7 +347,7 @@ export function createSemanticContext(
       }
     ],
     source,
-    sourceFingerprint: computeSourceFingerprint(source),
+    sourceFingerprint,
     pictureBounds: null,
     namedCoordinates: new PersistentMap<string, WorldPoint>(),
     namedNodeSets: new PersistentMap<string, Set<string>>(),

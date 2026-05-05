@@ -8,9 +8,12 @@ import type { EditHandle, SceneFigure } from "../semantic/types.js";
 import type { EditIntent, EditIntentResult } from "./types.js";
 import { applyEditIntent } from "./apply.js";
 
+let nextEditorSessionId = 1;
+
 export class EditorSession {
   private _source: string;
   private _revision = 0;
+  private readonly _sessionId = nextEditorSessionId++;
   private _parseResult: ParseTikzResult | null = null;
   private _semanticResult: EvaluateTikzResult | null = null;
   private _svgResult: EmitSvgResult | null = null;
@@ -58,7 +61,9 @@ export class EditorSession {
   }
 
   applyIntent(intent: EditIntent): EditIntentResult {
-    const result = applyEditIntent(this._source, this.editHandles, intent);
+    const result = applyEditIntent(this._source, this.editHandles, intent, {
+      sourceFingerprint: this.sourceFingerprint()
+    });
     if (result.kind === "success") {
       this._source = result.newSource;
       this._revision += 1;
@@ -71,8 +76,13 @@ export class EditorSession {
     this._parseResult = parseTikz(this._source);
     this._semanticResult = evaluateTikzFigure(
       this._parseResult.figure,
-      this._source
+      this._source,
+      { sourceFingerprint: this.sourceFingerprint() }
     );
     this._svgResult = emitSvg(this._semanticResult.scene);
+  }
+
+  private sourceFingerprint(): string {
+    return `editor-session:${this._sessionId}:${this._revision}:${this._source.length}`;
   }
 }

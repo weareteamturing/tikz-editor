@@ -14,7 +14,6 @@ import {
   type ElementTemplate
 } from "./element-templates.js";
 import { resolvePropertyTarget } from "./property-target.js";
-import { computeSourceFingerprint } from "../utils/source-fingerprint.js";
 import { type AlignMode, type DistributeAxis } from "./arrange.js";
 import {
   applyTextReplacements,
@@ -73,7 +72,7 @@ import {
   applyRemoveMatrixRowAction,
   applyTransposeMatrixAction
 } from "./actions/matrix-structure-actions.js";
-import { parseTikzForEdit, type EditParseOptions } from "./parse-options.js";
+import { parseTikzForEdit, sourceFingerprintForEdit, type EditParseOptions } from "./parse-options.js";
 import { patchesMatchSourceTransition } from "./source-patches.js";
 import type { SemanticPropertyId } from "./property-registry.js";
 
@@ -334,7 +333,7 @@ function applyConnectHandle(
     return { kind: "error", message: `Handle not found: ${handleId}` };
   }
 
-  const sourceFingerprint = computeSourceFingerprint(source);
+  const sourceFingerprint = sourceFingerprintForEdit(source, parseOptions);
   if (handle.sourceRef.sourceFingerprint !== sourceFingerprint) {
     return { kind: "error", message: "Handle does not match current source (stale handle)." };
   }

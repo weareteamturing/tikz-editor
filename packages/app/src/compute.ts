@@ -17,6 +17,7 @@ import type {
   IncrementalSemanticTrigger
 } from "tikz-editor/semantic/index";
 import { recordProfilingComputeTiming } from "tikz-editor/profiling";
+import { buildSourceRevisionFingerprint } from "./source-identity";
 
 /**
  * A plain-data snapshot of a fully evaluated TikZ document.
@@ -115,6 +116,11 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     const changedSourceIds = normalizeChangedSourceIds(request.changedSourceIds ?? []);
     const patches = normalizePatches(request.patches ?? []);
     const isDragTrigger = trigger === "drag-element" || trigger === "drag-handle";
+    const sourceFingerprint = buildSourceRevisionFingerprint({
+      documentId: request.documentId,
+      sourceRevision: request.sourceRevision,
+      sourceLength: request.source.length
+    });
     if (requestKind === "prewarm" && incrementalWarmSource === request.source) {
       return {
         id: request.id,
@@ -131,7 +137,8 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
         changedSourceIds,
         patches,
         request.patchBaseRevision ?? null,
-        trigger
+        trigger,
+        sourceFingerprint
       );
       const snapshot: SessionSnapshot = {
         source: request.source,
@@ -170,10 +177,10 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
         changedSourceCount: changedSourceIds.length,
         incremental: true,
         parseStrategy: result.parseStats.strategy,
-      parseFallbackReason: result.parseStats.fallbackReason ?? null,
-      parsePatchApplication: result.parseStats.patchApplication ?? null,
-      parsePatchBaseRevision: request.patchBaseRevision ?? null,
-      sourceRevision: request.sourceRevision ?? null,
+        parseFallbackReason: result.parseStats.fallbackReason ?? null,
+        parsePatchApplication: result.parseStats.patchApplication ?? null,
+        parsePatchBaseRevision: request.patchBaseRevision ?? null,
+        sourceRevision: request.sourceRevision ?? null,
         semanticStrategy: result.semanticStats.strategy,
         semanticFallbackReason: result.semanticStats.fallbackReason ?? null,
         recomputedStatementCount: result.semanticStats.recomputedStatementCount,
@@ -195,6 +202,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
         activeFigureId: request.activeFigureId,
         includeContextDefinitions: true
       },
+      evaluate: { sourceFingerprint },
       svg: { padding: 18 },
       textEngine
     });
@@ -212,7 +220,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     semanticSession.evaluate({
       figure: result.parse.figure,
       source: request.source,
-      options: { textEngine },
+      options: { sourceFingerprint, textEngine },
       hints: { trigger: "other" }
     });
     previousSvgModel = result.svg.model;
@@ -286,7 +294,8 @@ async function computeSnapshotIncremental(
   changedSourceIds: string[],
   patches: SourcePatch[],
   patchBaseRevision: number | null,
-  trigger: Extract<IncrementalSemanticTrigger, "drag-element" | "drag-handle">
+  trigger: Extract<IncrementalSemanticTrigger, "drag-element" | "drag-handle">,
+  sourceFingerprint: string | undefined
 ): Promise<{
   parse: ParseTikzResult;
   semantic: EvaluateTikzResult;
@@ -318,7 +327,7 @@ async function computeSnapshotIncremental(
   let incremental = session.evaluate({
     figure: parseResult.figure,
     source: parseResult.source,
-    options: { textEngine },
+    options: { sourceFingerprint, textEngine },
     hints: {
       changedSourceIds,
       sourcePatches: patches,
@@ -346,7 +355,7 @@ async function computeSnapshotIncremental(
     incremental = session.evaluate({
       figure: parseResult.figure,
       source: parseResult.source,
-      options: { textEngine },
+      options: { sourceFingerprint, textEngine },
       hints: {
         changedSourceIds,
         sourcePatches: patches,

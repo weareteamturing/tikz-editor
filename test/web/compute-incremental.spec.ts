@@ -17,6 +17,24 @@ function normalizeForSceneComparison<T>(value: T): T {
 }
 
 describe("computeSnapshot incremental parser integration", () => {
+  it("uses revision source fingerprints when document identity is available", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,1);
+\end{tikzpicture}`;
+    const result = await computeSnapshot({
+      id: "source-identity",
+      documentId: "doc-a",
+      kind: "render",
+      source,
+      sourceRevision: 7,
+      activeFigureId: "figure:0"
+    });
+    const expected = `source-revision:doc-a:7:${source.length}`;
+
+    expect(result.snapshot.editHandles.length).toBeGreaterThan(0);
+    expect(result.snapshot.editHandles.every((handle) => handle.sourceRef.sourceFingerprint === expected)).toBe(true);
+  });
+
   it("uses parser and semantic incremental paths for move drags and keeps dependent edges correct", async () => {
     const source = String.raw`\begin{tikzpicture}
   \node[draw] (A) at (0,0) {A};

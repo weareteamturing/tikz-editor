@@ -157,7 +157,13 @@ export function createSemanticEvaluationRun(
   const diagnostics: Diagnostic[] = [];
   const featureUsage = initializeFeatureUsage();
   markForeachFeaturesFromFigure(figure, featureUsage);
-  const context = createSemanticContext(defaultStyle(), identityMatrix(), opts.textEngine ?? null, source);
+  const context = createSemanticContext(
+    defaultStyle(),
+    identityMatrix(),
+    opts.textEngine ?? null,
+    source,
+    opts.sourceFingerprint
+  );
   const expanded = withPgfMathRuntime(
     { rng: context.mathRandom },
     () => expandForeachFigure(figure, source, opts.maxForeachExpansions ?? 10_000)

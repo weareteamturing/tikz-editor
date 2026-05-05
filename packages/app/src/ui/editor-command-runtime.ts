@@ -9,6 +9,7 @@ import { getSharedEditAnalysisView } from "../edit-analysis-manager";
 import { getActiveEditorPlatform } from "../platform/current";
 import type { AppSettings } from "../settings/types";
 import { useSettingsStore } from "../settings/useSettingsStore";
+import { buildSnapshotEditSourceFingerprint } from "../source-identity";
 import { useEditorStore } from "../store/store";
 import type { DocumentFileRef, EditorAction, SnapModes, ToolMode } from "../store/types";
 import { getToolCapabilityStatus } from "./capabilities";
@@ -82,6 +83,7 @@ type Dispatch = (action: EditorAction) => void;
 type RuntimeInput = {
   source: string;
   activeFigureId: string | null;
+  sourceRevision?: number;
   editAnalysisView: EditAnalysisView | null;
   snapshot: SessionSnapshot;
   toolMode: ToolMode;
@@ -137,6 +139,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const {
     source,
     activeFigureId,
+    sourceRevision,
     editAnalysisView,
     snapshot,
     toolMode,
@@ -185,7 +188,13 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const parseOptions = {
     activeFigureId,
     analysisView: editAnalysisView,
-    indentSize: indentSize ?? 2
+    indentSize: indentSize ?? 2,
+    sourceFingerprint: buildSnapshotEditSourceFingerprint({
+      documentId: activeDocumentId,
+      sourceRevision,
+      sourceLength: source.length,
+      sourceRefs: snapshot.editHandles.map((handle) => handle.sourceRef)
+    })
   };
 
   const commandContext = {
@@ -1063,6 +1072,7 @@ export function useEditorCommandRuntime(
       createEditorCommandRuntime({
         source: effectiveCommandInputs.source,
         activeFigureId: effectiveCommandInputs.activeFigureId,
+        sourceRevision: effectiveCommandInputs.sourceRevision,
         editAnalysisView,
         snapshot: effectiveCommandInputs.snapshot,
         toolMode,

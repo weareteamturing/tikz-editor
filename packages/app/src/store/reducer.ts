@@ -9,6 +9,7 @@ import type {
   WorkspacePersistedState
 } from "./types";
 import type { AssistantItem } from "../platform/types";
+import { buildSnapshotEditSourceFingerprint } from "../source-identity";
 import { deriveSingleSourcePatch } from "./source-patch-diff";
 import {
   createDocumentSession,
@@ -626,18 +627,26 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       ) {
         result = action.precomputedResult;
       } else {
+        const sourceFingerprint = buildSnapshotEditSourceFingerprint({
+          documentId,
+          sourceRevision: activeDoc.sourceRevision,
+          sourceLength: activeDoc.source.length,
+          sourceRefs: activeDoc.snapshot.editHandles.map((handle) => handle.sourceRef)
+        });
         result = applyEditAction(
           activeDoc.source,
           activeDoc.snapshot.editHandles,
           action.action,
           {
+            evaluateOptions: { sourceFingerprint },
             parseOptions: {
               activeFigureId:
                 activeDoc.activeFigureId == null
                   ? (activeDoc.snapshot.figures.length > 1 ? null : undefined)
                   : activeDoc.activeFigureId,
               indentSize: action.parseOptions?.indentSize,
-              propertyWriteMode: action.parseOptions?.propertyWriteMode ?? (action.recordInHistory === false ? "preview" : "commit")
+              propertyWriteMode: action.parseOptions?.propertyWriteMode ?? (action.recordInHistory === false ? "preview" : "commit"),
+              sourceFingerprint
             }
           }
         );

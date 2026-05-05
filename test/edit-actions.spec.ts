@@ -122,6 +122,61 @@ describe("applyEditAction – moveHandle", () => {
     }
   });
 
+  it("accepts opaque source identities for stale-handle checks", () => {
+    const source = "\\draw (1,2) -- (3,4);";
+    const sourceFingerprint = `source-revision:doc-a:7:${source.length}`;
+    const sourceSpan = { from: 6, to: 11 };
+    const handle = makeHandle(source, {
+      world: wp(cm(1), cm(2)),
+      sourceSpan,
+      sourceRef: {
+        sourceId: "path:0",
+        sourceSpan,
+        sourceFingerprint
+      }
+    });
+
+    const result = applyEditAction(
+      source,
+      [handle],
+      {
+        kind: "moveHandle",
+        handleId: handle.id,
+        newWorld: wp(cm(5), cm(6))
+      },
+      { parseOptions: { sourceFingerprint } }
+    );
+
+    expect(result.kind).toBe("success");
+  });
+
+  it("rejects stale handles when opaque source identities differ", () => {
+    const source = "\\draw (1,2) -- (3,4);";
+    const sourceSpan = { from: 6, to: 11 };
+    const handle = makeHandle(source, {
+      world: wp(cm(1), cm(2)),
+      sourceSpan,
+      sourceRef: {
+        sourceId: "path:0",
+        sourceSpan,
+        sourceFingerprint: `source-revision:doc-a:7:${source.length}`
+      }
+    });
+
+    const result = applyEditAction(
+      source,
+      [handle],
+      {
+        kind: "moveHandle",
+        handleId: handle.id,
+        newWorld: wp(cm(5), cm(6))
+      },
+      { parseOptions: { sourceFingerprint: `source-revision:doc-b:7:${source.length}` } }
+    );
+
+    expect(result.kind).toBe("error");
+  });
+
   it("returns unsupported for unknown handle id", () => {
     const source = "\\draw (1,2) -- (3,4);";
     const result = applyEditAction(source, [], {

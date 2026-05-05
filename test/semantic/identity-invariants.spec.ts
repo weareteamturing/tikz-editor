@@ -39,5 +39,20 @@ describe("identity invariants", () => {
     }
     expect([...bySourceId.values()].some((count) => count > 1)).toBe(true);
   });
-});
 
+  it("uses caller-provided source fingerprints for semantic source refs", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,1);
+\end{tikzpicture}`;
+    const sourceFingerprint = `source-revision:doc-a:3:${source.length}`;
+    const rendered = renderTikzToSvg(source, {
+      evaluate: { sourceFingerprint }
+    });
+
+    expect(rendered.semantic.editHandles.length).toBeGreaterThan(0);
+    expect(rendered.semantic.editHandles.every((handle) => handle.sourceRef.sourceFingerprint === sourceFingerprint)).toBe(true);
+    expect(
+      rendered.semantic.scene.elements.every((element) => element.sourceRef.sourceFingerprint === sourceFingerprint)
+    ).toBe(true);
+  });
+});
