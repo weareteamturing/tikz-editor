@@ -25,6 +25,7 @@ if (!MANIFEST) {
 }
 
 const DRAG_STEP_DELAY_MS = 16;
+const LARGE_DOCUMENT_COMMENT_LINE_COUNT = 3000;
 
 type ProbeRecord = {
   t: number;
@@ -40,6 +41,19 @@ type BasicDragProbeSnapshot = {
   hitRegionCount: number;
   frameDurations: number[];
 };
+
+function buildLargeDragSource(commentLineCount = LARGE_DOCUMENT_COMMENT_LINE_COUNT): string {
+  const lines = [
+    String.raw`\begin{tikzpicture}`,
+    String.raw`\filldraw[fill=blue!20] (0,0) rectangle (4,2);`
+  ];
+  for (let index = 0; index < commentLineCount; index += 1) {
+    const section = Math.floor(index / 50) + 1;
+    lines.push(`  % paper section ${section}: explanatory source line ${index + 1} with references, formulas, and TikZ notes`);
+  }
+  lines.push(String.raw`\end{tikzpicture}`);
+  return lines.join("\n");
+}
 
 test.beforeEach(async ({ page }) => {
   await resetStorageBeforeNavigation(page);
@@ -251,6 +265,49 @@ test("profile basic canvas drags", async ({ page }, testInfo) => {
     },
     run: async () => {
       await resetProbe(page, "move-element");
+      const sourceRevisionBefore = await readSourceRevision(page);
+      const hitRegion = page.locator("[data-hit-region-target-id]").first();
+      const box = await hitRegion.boundingBox();
+      expect(box).toBeTruthy();
+      const startX = box!.x + box!.width / 2;
+      const startY = box!.y + box!.height / 2;
+      await performPacedMouseDrag(
+        page,
+        buildPolylineDragPath(
+          { x: startX, y: startY },
+          [
+            { dx: 80, dy: 10 },
+            { dx: -15, dy: 50 },
+            { dx: 55, dy: -20 }
+          ],
+          12
+        ),
+        DRAG_STEP_DELAY_MS
+      );
+      await page.waitForTimeout(300);
+      return summarizeProbe(await readProbe(page), sourceRevisionBefore);
+    }
+  }));
+
+  const largeDragSource = buildLargeDragSource();
+  await gotoApp(page, "/editor/");
+  await setSource(page, largeDragSource);
+  await installProbe(page);
+  await page.getByRole("button", { name: "Select" }).click();
+  await clickHitRegion(page, 0);
+  await waitForHitRegions(page);
+  variants.push(await captureProfileVariant({
+    page,
+    scenarioId: MANIFEST.id,
+    variantId: "large-source-move-element",
+    label: "Large Source Move Element Drag",
+    dimensions: {
+      interaction: "drag-element",
+      documentLines: largeDragSource.split("\n").length,
+      documentLength: largeDragSource.length
+    },
+    run: async () => {
+      await resetProbe(page, "large-source-move-element");
       const sourceRevisionBefore = await readSourceRevision(page);
       const hitRegion = page.locator("[data-hit-region-target-id]").first();
       const box = await hitRegion.boundingBox();

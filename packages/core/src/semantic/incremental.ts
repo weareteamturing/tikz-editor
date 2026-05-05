@@ -36,6 +36,10 @@ export type IncrementalSemanticReplayMode = "full" | "suffix" | "selective";
 
 export type IncrementalSemanticHints = {
   changedSourceIds?: readonly string[];
+  sourcePatches?: readonly {
+    newSpan?: Span;
+    replacement: string;
+  }[];
   trigger?: IncrementalSemanticTrigger;
 };
 
@@ -94,6 +98,7 @@ type SemanticStatementFragment = {
 
 type CachedSemanticRun = {
   source: string;
+  containsStatefulGraphicsState: boolean;
   statementIds: string[];
   statementFragments: SemanticStatementFragment[];
   editHandles: readonly EditHandle[];
@@ -129,8 +134,9 @@ export function createIncrementalSemanticSession(
     const statementCount = run.expandedFigureBody.length;
     const statementIds = run.expandedFigureBody.map((statement) => statement.id);
     const hints = input.hints ?? {};
+    const statefulGraphicsState = resolveContainsStatefulGraphicsState(input.source, hints, cached);
 
-    if (containsStatefulGraphicsState(input.source)) {
+    if (statefulGraphicsState) {
       const full = evaluateFullyAndCache(run, statementIds, "stateful-graphics-state");
       cached = full.cached;
       return full.output;
@@ -306,6 +312,7 @@ function evaluateFullyAndCache(
   );
   const nextCached: CachedSemanticRun = {
     source: run.source,
+    containsStatefulGraphicsState: containsStatefulGraphicsState(run.source),
     statementIds,
     statementFragments,
     editHandles: semantic.editHandles,
@@ -418,6 +425,7 @@ function evaluateIncrementalSuffix(args: {
     },
     cached: {
       source: run.source,
+      containsStatefulGraphicsState: previous.containsStatefulGraphicsState,
       statementIds,
       statementFragments: nextFragments,
       editHandles: semantic.editHandles,
@@ -565,6 +573,7 @@ function evaluateSelectively(args: {
     },
     cached: {
       source: run.source,
+      containsStatefulGraphicsState: previous.containsStatefulGraphicsState,
       statementIds,
       statementFragments: currentFragments,
       editHandles: semantic.editHandles,
@@ -752,6 +761,35 @@ function containsStatefulGraphicsState(source: string): boolean {
     /\[\s*clip(?:[\],])/m.test(source) ||
     /use as bounding box/.test(source)
   );
+}
+
+function resolveContainsStatefulGraphicsState(
+  source: string,
+  hints: IncrementalSemanticHints,
+  previous: CachedSemanticRun | null
+): boolean {
+  if (!previous || previous.containsStatefulGraphicsState) {
+    return containsStatefulGraphicsState(source);
+  }
+  const patches = hints.sourcePatches;
+  if (!patches || patches.length === 0) {
+    return containsStatefulGraphicsState(source);
+  }
+  return patches.some((patch) => {
+    if (containsStatefulGraphicsStateToken(patch.replacement)) {
+      return true;
+    }
+    if (!patch.newSpan) {
+      return false;
+    }
+    const from = Math.max(0, patch.newSpan.from - 32);
+    const to = Math.min(source.length, patch.newSpan.to + 32);
+    return containsStatefulGraphicsStateToken(source.slice(from, to));
+  });
+}
+
+function containsStatefulGraphicsStateToken(source: string): boolean {
+  return containsStatefulGraphicsState(source);
 }
 
 function shouldCaptureCheckpoint(

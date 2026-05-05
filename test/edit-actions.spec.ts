@@ -3,7 +3,11 @@ import type { WorldPoint } from "../packages/core/src/coords/points.js";
 import type { EditHandle } from "../packages/core/src/semantic/types.js";
 import type { NodeTextEngine } from "../packages/core/src/text/types.js";
 import { identityMatrix } from "../packages/core/src/semantic/transform.js";
-import { applyEditAction, PATH_ATTACHED_NODE_EDIT_NOOP_REASON } from "../packages/core/src/edit/actions.js";
+import {
+  applyEditAction,
+  PATH_ATTACHED_NODE_EDIT_NOOP_REASON,
+  PROPERTY_WRITE_CLEANUP_NOOP_REASON
+} from "../packages/core/src/edit/actions.js";
 import { resolveDraggedPathAttachedNodeDirection } from "../packages/core/src/edit/actions/path-attached-node-actions.js";
 import { PT_PER_CM } from "../packages/core/src/edit/format.js";
 import { TIKZPICTURE_GLOBAL_TARGET_ID } from "../packages/core/src/edit/property-target.js";
@@ -1374,6 +1378,22 @@ describe("applyEditAction – setProperty", () => {
       expect(result.newSource).toContain("\\fill[red] (0,0) rectangle (1,1);");
       expect(result.newSource).toContain("\\draw[draw=none, fill=blue] (2,0) rectangle (3,1);");
     }
+  });
+
+  it("skips cosmetic drag-end paint cleanup for large sources without conservative paint tokens", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \filldraw[fill=blue!20] (0,0) rectangle (1,1);
+${Array.from({ length: 5000 }, (_, index) => `  % large document filler ${index}`).join("\n")}
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "cleanupPropertyWrites",
+      elementIds: ["path:0"]
+    });
+
+    expect(result).toEqual({
+      kind: "unsupported",
+      reason: PROPERTY_WRITE_CLEANUP_NOOP_REASON
+    });
   });
 
   it("omits local default-equivalent properties when certified", () => {

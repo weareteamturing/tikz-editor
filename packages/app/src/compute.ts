@@ -321,6 +321,7 @@ async function computeSnapshotIncremental(
     options: { textEngine },
     hints: {
       changedSourceIds,
+      sourcePatches: patches,
       trigger
     }
   });
@@ -348,6 +349,7 @@ async function computeSnapshotIncremental(
       options: { textEngine },
       hints: {
         changedSourceIds,
+        sourcePatches: patches,
         trigger
       }
     });

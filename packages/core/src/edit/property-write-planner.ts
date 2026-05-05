@@ -73,15 +73,22 @@ export function applyPlannedSetPropertyAction(
 }
 
 export const PROPERTY_WRITE_CLEANUP_NOOP_REASON = "Property write cleanup would not change the source.";
+const LARGE_DRAG_END_CLEANUP_SOURCE_LENGTH = 100_000;
 
 export function cleanupIdiomaticPropertyWrites(
   source: string,
   parseOptions: EditParseOptions = {},
   elementIds?: readonly string[]
 ): EditActionResultLike {
+  if (shouldSkipLargeDragEndPaintCleanup(source, parseOptions)) {
+    return { kind: "unsupported", reason: PROPERTY_WRITE_CLEANUP_NOOP_REASON };
+  }
+
   let current = source;
-  const parsed = parseTikzForEdit(source, parseOptions);
-  const pathIds = filterCleanupPathIds(collectPathStatementIds(parsed.figure.body), elementIds);
+  const requestedElementIds = normalizeCleanupElementIds(elementIds);
+  const pathIds =
+    requestedElementIds ??
+    filterCleanupPathIds(collectPathStatementIds(parseTikzForEdit(source, parseOptions).figure.body), elementIds);
   for (const elementId of pathIds) {
     const candidates = buildPaintCommandCleanupCandidates(
       current,
@@ -112,6 +119,30 @@ export function cleanupIdiomaticPropertyWrites(
     newSource: current,
     patches: deriveSingleSourcePatch(source, current)
   };
+}
+
+function shouldSkipLargeDragEndPaintCleanup(source: string, parseOptions: EditParseOptions): boolean {
+  return (
+    parseOptions.propertyWriteMode === "drag-end" &&
+    source.length > LARGE_DRAG_END_CLEANUP_SOURCE_LENGTH &&
+    !hasConservativePaintCleanupToken(source)
+  );
+}
+
+function hasConservativePaintCleanupToken(source: string): boolean {
+  return (
+    source.includes("draw=none") ||
+    source.includes("fill=none") ||
+    source.includes("decorate=false") ||
+    source.includes("sharp corners")
+  );
+}
+
+function normalizeCleanupElementIds(elementIds: readonly string[] | undefined): string[] | null {
+  if (!elementIds) {
+    return null;
+  }
+  return elementIds.map((id) => id.trim()).filter((id) => id.length > 0);
 }
 
 function filterCleanupPathIds(pathIds: readonly string[], elementIds: readonly string[] | undefined): string[] {
