@@ -357,6 +357,8 @@ test("line creation from empty source creates a tikzpicture environment", async 
   expect(source).toContain("\\end{tikzpicture}");
   expect(normalizeSourceWhitespace(source)).toMatch(/^\\begin\{tikzpicture\}\\draw.+\\end\{tikzpicture\}$/);
   await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0);
+  await expect.poll(async () => page.locator("[data-hit-region-target-id]").count()).toBeGreaterThanOrEqual(1);
+  await expect(page.locator("[data-hit-region-target-id]").first()).toHaveAttribute("data-hit-region-target-id", "path:0");
 });
 
 test("insert menu commands switch tool modes and expose checked state", async ({ page }) => {

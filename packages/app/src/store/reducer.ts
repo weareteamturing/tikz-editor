@@ -407,6 +407,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         }
         const shouldAutoSelectFirst =
           (!hasInitializedFigureSelection && !nextActiveFigureId && action.snapshot.figures.length > 0) ||
+          (!nextActiveFigureId && previousFigureCount === 0 && action.snapshot.figures.length > 0) ||
           (!nextActiveFigureId &&
             action.snapshot.figures.length >= 2 &&
             action.snapshot.figures.length > previousFigureCount);

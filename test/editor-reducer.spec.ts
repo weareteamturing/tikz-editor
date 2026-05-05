@@ -239,6 +239,43 @@ describe("editorReducer – compute lifecycle", () => {
     expect(afterRemoval.activeFigureId).toBeNull();
   });
 
+  it("auto-selects the first figure when source changes from no figures to one figure", () => {
+    const figure = {
+      id: "figure:0",
+      span: { from: 0, to: 10 },
+      beginSpan: { from: 0, to: 5 },
+      endSpan: { from: 5, to: 10 },
+      startLine: 1,
+      endLine: 2
+    };
+    const emptySnapshot = {
+      ...makeEmptySnapshot(""),
+      source: "",
+      figures: [],
+      activeFigureId: null
+    };
+    const emptyState = applyActions([
+      { type: "CODE_EDITED", source: "" },
+      { type: "COMPUTE_REQUESTED", requestId: "req-empty" },
+      { type: "SNAPSHOT_READY", requestId: "req-empty", snapshot: emptySnapshot }
+    ]);
+    expect(emptyState.activeFigureId).toBeNull();
+
+    const lineSnapshot = {
+      ...makeEmptySnapshot("source"),
+      source: "source",
+      figures: [figure],
+      activeFigureId: null
+    };
+    const afterLine = applyActions([
+      { type: "CODE_EDITED", source: "source" },
+      { type: "COMPUTE_REQUESTED", requestId: "req-line" },
+      { type: "SNAPSHOT_READY", requestId: "req-line", snapshot: lineSnapshot }
+    ], emptyState);
+
+    expect(afterLine.activeFigureId).toBe("figure:0");
+  });
+
   it("auto-selects first figure when figure count grows and the previous active figure became invalid", () => {
     const figure0 = {
       id: "figure:0",
