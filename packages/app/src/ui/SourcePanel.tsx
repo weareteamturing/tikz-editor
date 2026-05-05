@@ -372,7 +372,7 @@ class ExternalSourceSyncManager {
     patchChain: readonly SourceSyncPatchStep[] | null,
     coalescedToAnimationFrame: boolean
   ): void {
-    if (sourceRevision === this.lastKnownRevision) {
+    if (sourceRevision === this.lastKnownRevision && nextSource === this.lastKnownSource) {
       return;
     }
     if (nextSource === this.lastKnownSource) {

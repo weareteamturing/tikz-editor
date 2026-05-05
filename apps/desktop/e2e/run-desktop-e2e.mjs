@@ -5,6 +5,21 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { remote } from "webdriverio";
 
+if (shouldRerunUnderXvfb()) {
+  const result = spawnSync("xvfb-run", ["-a", process.execPath, ...process.argv.slice(1)], {
+    env: {
+      ...process.env,
+      TIKZ_DESKTOP_E2E_XVFB: "1"
+    },
+    stdio: "inherit"
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+  process.exit(result.status ?? 1);
+}
+
 const appPath = resolveAppBinary();
 
 if (!fs.existsSync(appPath)) {
@@ -82,6 +97,25 @@ function resolveAppBinary() {
     return path.resolve(root, "src-tauri/target/release/app.exe");
   }
   return plain;
+}
+
+function shouldRerunUnderXvfb() {
+  if (process.platform !== "linux") {
+    return false;
+  }
+  if (process.env.DISPLAY || process.env.WAYLAND_DISPLAY || process.env.TIKZ_DESKTOP_E2E_XVFB === "1") {
+    return false;
+  }
+
+  const probe = spawnSync("xvfb-run", ["--help"], {
+    encoding: "utf8",
+    stdio: "ignore"
+  });
+  if (probe.error) {
+    console.warn("Desktop e2e: DISPLAY is unset and xvfb-run is unavailable; continuing without virtual display.");
+    return false;
+  }
+  return true;
 }
 
 async function waitForDriverReady(driverProcess) {
@@ -375,6 +409,14 @@ async function setSource(browserInstance, value) {
   await browserInstance.execute((nextSource) => {
     window.__TIKZ_EDITOR_APP_TEST_API__.setSource(nextSource);
   }, value);
+  let lastSource = "";
+  await browserInstance.waitUntil(async () => {
+    lastSource = await browserInstance.execute(() => window.__TIKZ_EDITOR_APP_TEST_API__.getSource());
+    return lastSource === value;
+  }, {
+    timeout: 10_000,
+    timeoutMsg: `Expected test API source to update to ${JSON.stringify(value)}; lastSource=${JSON.stringify(lastSource)}`
+  });
 }
 
 async function queueUnsavedDecision(browserInstance, decision) {
@@ -414,12 +456,18 @@ async function count(browserInstance, selector) {
 }
 
 async function expectTextContains(browserInstance, selector, snippet) {
+  let lastText = "";
+  let lastSource = "";
   await browserInstance.waitUntil(async () => {
-    const text = await browserInstance.$(selector).getText();
+    const text = await browserInstance.execute((targetSelector) => {
+      return document.querySelector(targetSelector)?.textContent ?? "";
+    }, selector);
+    lastText = text;
+    lastSource = await browserInstance.execute(() => window.__TIKZ_EDITOR_APP_TEST_API__.getSource());
     return text.includes(snippet);
   }, {
     timeout: 10_000,
-    timeoutMsg: `Expected ${selector} text to include ${snippet}`
+    timeoutMsg: `Expected ${selector} text to include ${snippet}; lastText=${JSON.stringify(lastText)} lastSource=${JSON.stringify(lastSource)}`
   });
 }
 
