@@ -1730,6 +1730,7 @@ function dispatchPatchChainWithStableHorizontalScroll(
 ): void {
   const previousScrollLeft = view.scrollDOM.scrollLeft;
   const specs = patchChain.map((step, index) => ({
+    sequential: index > 0,
     changes: sourcePatchChanges(step.patches),
     annotations: [
       Transaction.addToHistory.of(false),

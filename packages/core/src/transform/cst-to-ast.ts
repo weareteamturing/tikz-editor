@@ -24,7 +24,7 @@ import { findFirstChildByName, findFirstNodeByName, forEachChild, walk } from ".
 import { parseSyntax } from "../syntax/parse.js";
 import { collectParseErrorDiagnostics, collectStructuralDiagnostics } from "../diagnostics/collect.js";
 import { buildLineStarts, lineForOffset } from "../text/line-map.js";
-import { scanTikzFigures } from "../parser/figure-scan.js";
+import { scanTikzFigures, type ScannedFigure } from "../parser/figure-scan.js";
 
 export type CstToAstResult = {
   figure: TikzFigure;
@@ -39,6 +39,7 @@ export type CstToAstOptions = {
   activeFigureId?: string | null;
   includeContextDefinitions?: boolean;
   contextDefinitions?: Statement[];
+  scannedFigures?: readonly ScannedFigure[];
 };
 
 type FigureNodeEntry = {
@@ -51,7 +52,7 @@ export function fromCst(tree: Tree, source: string, opts: CstToAstOptions = {}):
   const diagnostics: Diagnostic[] = [];
   collectParseErrorDiagnostics(tree.topNode, source, diagnostics);
 
-  const figureEntries = collectFigureNodes(tree, source);
+  const figureEntries = collectFigureNodes(tree, source, opts.scannedFigures);
   const activeFigureEntry = resolveActiveFigureEntry(figureEntries, opts.activeFigureId);
   if (figureEntries.length === 0) {
     const inlineNode = findFirstNodeByName(tree.topNode, "TikzInline");
@@ -181,17 +182,21 @@ function findMatchingInlineOptionBracket(source: string, from: number): number {
   return -1;
 }
 
-function collectFigureNodes(tree: Tree, source: string): FigureNodeEntry[] {
+function collectFigureNodes(
+  tree: Tree,
+  source: string,
+  scannedFigures: readonly ScannedFigure[] | undefined
+): FigureNodeEntry[] {
   const nodes: FigureNodeEntry[] = [];
-  const parsedNodes = collectParsedFigureNodes(tree);
-  const lineStarts = buildLineStarts(source);
-  const scanned = scanFigureInventories(source, lineStarts);
+  const scanned = scanFigureInventories(source, scannedFigures);
+  if (scanned.length === 0) {
+    return nodes;
+  }
+  const parsedNodesBySpan = collectParsedFigureNodesBySpan(tree);
   for (let index = 0; index < scanned.length; index += 1) {
     const inventory = scanned[index];
     const id = `figure:${index}`;
-    const parsedNode = parsedNodes.find(
-      (candidate) => candidate.from === inventory.span.from && candidate.to === inventory.span.to
-    ) ?? null;
+    const parsedNode = parsedNodesBySpan.get(spanKey(inventory.span)) ?? null;
     nodes.push({
       id,
       node: parsedNode,
@@ -304,14 +309,18 @@ export function collectContextDefinitions(source: string): Statement[] {
   return dedupedValues;
 }
 
-function collectParsedFigureNodes(tree: Tree): import("@lezer/common").SyntaxNode[] {
-  const nodes: import("@lezer/common").SyntaxNode[] = [];
+function collectParsedFigureNodesBySpan(tree: Tree): Map<string, import("@lezer/common").SyntaxNode> {
+  const nodes = new Map<string, import("@lezer/common").SyntaxNode>();
   walk(tree.topNode, (node) => {
     if (node.type.name === "TikzEnvironment") {
-      nodes.push(node);
+      nodes.set(spanKey(node), node);
     }
   });
   return nodes;
+}
+
+function spanKey(span: { from: number; to: number }): string {
+  return `${span.from}:${span.to}`;
 }
 
 function resolveActiveSyntaxNode(
@@ -345,14 +354,16 @@ function maskSourceToFigure(source: string, from: number, to: number): string {
 
 function scanFigureInventories(
   source: string,
-  lineStarts: number[]
+  scannedFigures: readonly ScannedFigure[] | undefined
 ): Array<Omit<TikzFigureInventoryItem, "id">> {
   const figures: Array<Omit<TikzFigureInventoryItem, "id">> = [];
-  const scanned = scanTikzFigures(source);
+  const scanned = scannedFigures ?? scanTikzFigures(source);
+  let lineStarts: number[] | null = null;
   for (const figure of scanned) {
     if (figure.isTemplate) {
       continue;
     }
+    lineStarts ??= buildLineStarts(source);
     const beginFrom = figure.beginSpan.from;
     const beginTo = figure.beginSpan.to;
     const endFrom = figure.endSpan.from;

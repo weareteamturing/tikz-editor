@@ -24,6 +24,12 @@ function normalizeSourceWhitespace(source: string): string {
   return source.replace(/\s+/g, "");
 }
 
+async function readCodeMirrorText(page: import("@playwright/test").Page): Promise<string> {
+  return await page.locator(".cm-content .cm-line").evaluateAll((lines) =>
+    lines.map((line) => line.textContent ?? "").join("\n")
+  );
+}
+
 async function readRightmostResizeHandleCenter(page: import("@playwright/test").Page): Promise<{ x: number; y: number }> {
   const center = await page.evaluate(() => {
     const handles = Array.from(document.querySelectorAll('[data-handle-kind="resize-element"]'));
@@ -974,6 +980,45 @@ test("live endpoint-anchor drag keeps source well-formed while hovering and on d
   const sourceAfterDrop = await readSource(page);
   expect(sourceAfterDrop).not.toContain(");(");
   expect(sourceAfterDrop).toContain("\\end{tikzpicture}");
+});
+
+test("rapid path endpoint drag keeps CodeMirror synchronized with store source", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \draw (1,2) -- (3,2);
+\end{tikzpicture}`);
+  await page.getByRole("button", { name: "Select" }).click();
+
+  await waitForHitRegions(page, 1);
+  const lineRegion = page.locator('[data-hit-region-target-id="path:0"]').first();
+  const lineTarget = await lineRegion.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  });
+  await page.mouse.click(lineTarget.x, lineTarget.y);
+  const endpointHandle = page.locator('[data-handle-kind="move-handle"][data-source-id="path:0"]').nth(1);
+  await expect(endpointHandle).toBeVisible();
+  const handleBox = await endpointHandle.boundingBox();
+  if (!handleBox) {
+    throw new Error("Endpoint handle bounds missing.");
+  }
+
+  const startX = handleBox.x + handleBox.width / 2;
+  const startY = handleBox.y + handleBox.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX - 20, startY + 15, { steps: 8 });
+  await page.mouse.move(startX - 12, startY + 22, { steps: 8 });
+  await page.mouse.move(startX - 7, startY + 28, { steps: 8 });
+  await page.mouse.move(startX - 4, startY + 34, { steps: 8 });
+  await page.mouse.up();
+
+  await page.waitForTimeout(150);
+  const storeSource = await readSource(page);
+  const editorSource = await readCodeMirrorText(page);
+  expect(editorSource).toBe(storeSource);
+  expect(editorSource).not.toMatch(/\)\s*\(/);
+  expect(editorSource).toContain("\\end{tikzpicture}");
 });
 
 test("dense paths require double click before showing interior edit handles", async ({ page }) => {

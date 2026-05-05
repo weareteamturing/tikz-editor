@@ -5,10 +5,14 @@ export type ScannedFigure = {
   isTemplate: boolean;
 };
 
+type FigureCandidate = Omit<ScannedFigure, "isTemplate"> & {
+  containsUnresolvedPlaceholder: boolean;
+};
+
 export function scanTikzFigures(source: string): ScannedFigure[] {
   const beginPattern = /\\begin\{tikzpicture\*?\}/g;
-  const macroBodySpans = collectMacroDefinitionBodySpans(source);
-  const figures: ScannedFigure[] = [];
+  const candidates: FigureCandidate[] = [];
+  let hasPlaceholderCandidate = false;
   let match = beginPattern.exec(source);
 
   while (match) {
@@ -22,19 +26,31 @@ export function scanTikzFigures(source: string): ScannedFigure[] {
     }
     const endTo = endFrom + endToken.length;
     const inner = source.slice(beginTo, endFrom);
-    const insideMacroBody = isInsideAnySpan(beginFrom, macroBodySpans);
+    const containsUnresolvedPlaceholder = containsUnresolvedMacroPlaceholder(inner);
+    hasPlaceholderCandidate ||= containsUnresolvedPlaceholder;
 
-    figures.push({
+    candidates.push({
       span: { from: beginFrom, to: endTo },
       beginSpan: { from: beginFrom, to: beginTo },
       endSpan: { from: endFrom, to: endTo },
-      isTemplate: insideMacroBody && containsUnresolvedMacroPlaceholder(inner)
+      containsUnresolvedPlaceholder
     });
     beginPattern.lastIndex = endTo;
     match = beginPattern.exec(source);
   }
 
-  return figures;
+  if (!hasPlaceholderCandidate) {
+    return candidates.map(({ containsUnresolvedPlaceholder: _containsUnresolvedPlaceholder, ...figure }) => ({
+      ...figure,
+      isTemplate: false
+    }));
+  }
+
+  const macroBodySpans = collectMacroDefinitionBodySpans(source);
+  return candidates.map(({ containsUnresolvedPlaceholder, ...figure }) => ({
+    ...figure,
+    isTemplate: containsUnresolvedPlaceholder && isInsideAnySpan(figure.beginSpan.from, macroBodySpans)
+  }));
 }
 
 function collectMacroDefinitionBodySpans(source: string): Array<{ from: number; to: number }> {

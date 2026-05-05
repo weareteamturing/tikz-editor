@@ -10,9 +10,9 @@ import { parseSyntax } from "../syntax/parse.js";
 import {
   getCachedContextDefinitions,
   resolveActiveFigureSpan,
-  resolveParseWindowSource,
-  scanFigureSpans
+  resolveParseWindowSource
 } from "./shared.js";
+import { scanTikzFigures } from "./figure-scan.js";
 import { incrementProfilingCounter } from "../profiling.js";
 
 export type NodeTextValidationContext = {
@@ -45,7 +45,10 @@ export type ParseTikzResult = {
 export function parseTikz(input: string, opts: ParseTikzOptions = {}): ParseTikzResult {
   incrementProfilingCounter("parseTikzCalls");
   const recover = opts.recover ?? true;
-  const figureSpans = scanFigureSpans(input);
+  const scannedFigures = scanTikzFigures(input);
+  const figureSpans = scannedFigures
+    .filter((figure) => !figure.isTemplate)
+    .map((figure) => ({ from: figure.span.from, to: figure.span.to }));
   const activeFigureSpan = resolveActiveFigureSpan(figureSpans, opts.activeFigureId);
   const parseSource = resolveParseWindowSource(input, activeFigureSpan);
   const contextDefinitions =
@@ -57,7 +60,8 @@ export function parseTikz(input: string, opts: ParseTikzOptions = {}): ParseTikz
   const mapped = fromCst(tree, input, {
     activeFigureId: opts.activeFigureId,
     includeContextDefinitions: opts.includeContextDefinitions ?? false,
-    contextDefinitions
+    contextDefinitions,
+    scannedFigures
   });
   const diagnostics = [...mapped.diagnostics];
 

@@ -390,6 +390,47 @@ describe("applyEditAction – patch replay invariants", () => {
 // ── moveElement ────────────────────────────────────────────────────────────────
 
 describe("applyEditAction – moveElement", () => {
+  it("rejects stale handles when moving elements with opaque source identities", () => {
+    const source = "\\draw (1,2) -- (3,4);";
+    const sourceFingerprint = `source-revision:doc-a:7:${source.length}`;
+    const nextSourceFingerprint = `source-revision:doc-a:8:${source.length}`;
+    const firstSpan = { from: 6, to: 11 };
+    const secondSpan = { from: 15, to: 20 };
+    const first = makeHandle(source, {
+      world: wp(cm(1), cm(2)),
+      sourceSpan: firstSpan,
+      sourceId: "path:0",
+      sourceRef: {
+        sourceId: "path:0",
+        sourceSpan: firstSpan,
+        sourceFingerprint
+      }
+    });
+    const second = makeHandle(source, {
+      world: wp(cm(3), cm(4)),
+      sourceSpan: secondSpan,
+      sourceId: "path:0",
+      sourceRef: {
+        sourceId: "path:0",
+        sourceSpan: secondSpan,
+        sourceFingerprint
+      }
+    });
+
+    const result = applyEditAction(
+      source,
+      [first, second],
+      {
+        kind: "moveElements",
+        elementIds: ["path:0"],
+        delta: wp(cm(1), cm(1))
+      },
+      { parseOptions: { sourceFingerprint: nextSourceFingerprint } }
+    );
+
+    expect(result.kind).toBe("error");
+  });
+
   it("moves all handles of an element by a delta", () => {
     const source = "\\draw (1,2) -- (3,4);";
     const h1 = makeHandle(source, {

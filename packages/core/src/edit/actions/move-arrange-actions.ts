@@ -19,7 +19,7 @@ import { applyTextReplacements } from "../statement-ops.js";
 import type { SourcePatch } from "../types.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "../arrange.js";
 import { applyOptionMutationsToTarget, rewriteOptionListMutations, type OptionMutation } from "../option-mutations.js";
-import { parseTikzForEdit, type EditParseOptions } from "../parse-options.js";
+import { parseTikzForEdit, sourceFingerprintForEdit, type EditParseOptions } from "../parse-options.js";
 import { normalizeOptionKey } from "../option-key.js";
 import { FIT_DIRECT_MANIPULATION_BLOCK_REASON, sourceUsesFitNodeFromParseResult } from "../fit.js";
 
@@ -99,7 +99,7 @@ export function applyMoveElementsAction(
   let movedAny = false;
 
   if (nonMatrixElementIds.length > 0) {
-    const byHandles = applyMoveElementsUsingHandleRewrites(currentSource, editHandles, nonMatrixElementIds, delta);
+    const byHandles = applyMoveElementsUsingHandleRewrites(currentSource, editHandles, nonMatrixElementIds, delta, parseOptions);
     if (byHandles.kind === "error") {
       return byHandles;
     }
@@ -258,7 +258,8 @@ function applyMoveElementsUsingHandleRewrites(
   source: string,
   editHandles: EditHandle[],
   elementIds: readonly string[],
-  delta: WorldPoint
+  delta: WorldPoint,
+  parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
   const sourceIdSet = new Set(elementIds);
   const elementHandles = editHandles.filter((handle) => sourceIdSet.has(handle.sourceRef.sourceId));
@@ -277,6 +278,11 @@ function applyMoveElementsUsingHandleRewrites(
       kind: "unsupported",
       reason: "All handles for the selected element(s) use unsupported coordinate forms"
     };
+  }
+
+  const sourceFingerprint = sourceFingerprintForEdit(source, parseOptions);
+  if (rewritable.some((handle) => handle.sourceRef.sourceFingerprint !== sourceFingerprint)) {
+    return { kind: "error", message: "Handle does not match current source (stale handle)." };
   }
 
   type PendingReplacement = { span: { from: number; to: number }; text: string };

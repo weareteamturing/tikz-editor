@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { computeSnapshot } from "../../packages/app/src/compute.js";
 import { deriveSingleSourcePatch } from "../../packages/app/src/store/source-patch-diff.js";
 import { applyEditAction } from "../../packages/core/src/edit/actions.js";
+import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
 import { wp } from "../coords-helpers.js";
 
 function normalizeForSceneComparison<T>(value: T): T {
@@ -17,6 +18,78 @@ function normalizeForSceneComparison<T>(value: T): T {
 }
 
 describe("computeSnapshot incremental parser integration", () => {
+  it("keeps path endpoint handles rewritable across consecutive incremental drag frames", async () => {
+    const documentId = "consecutive-handle-drag-doc";
+    const source = String.raw`\begin{tikzpicture}
+  \draw (1,2) -- (3,2);
+\end{tikzpicture}`;
+    const seeded = await computeSnapshot({
+      id: "consecutive-handle-drag-seed",
+      documentId,
+      kind: "render",
+      source,
+      sourceRevision: 0,
+      activeFigureId: "figure:0"
+    });
+    const endpoint = seeded.snapshot.editHandles.find(
+      (handle) => handle.kind === "path-point" && handle.sourceRef.sourceId === "path:0" && handle.sourceText === "(3,2)"
+    );
+    if (!endpoint) {
+      throw new Error("Expected right endpoint handle.");
+    }
+
+    const first = applyEditAction(
+      source,
+      seeded.snapshot.editHandles,
+      {
+        kind: "moveHandle",
+        handleId: endpoint.id,
+        newWorld: wp(2.8 * PT_PER_CM, 1.6 * PT_PER_CM)
+      },
+      { parseOptions: { sourceFingerprint: `source-revision:${documentId}:0:${source.length}` } }
+    );
+    expect(first.kind).toBe("success");
+    if (first.kind !== "success") {
+      throw new Error(`first moveHandle failed: ${first.kind}`);
+    }
+
+    const firstSnapshot = await computeSnapshot({
+      id: "consecutive-handle-drag-first",
+      documentId,
+      kind: "render",
+      source: first.newSource,
+      sourceRevision: 1,
+      activeFigureId: seeded.snapshot.activeFigureId,
+      changedSourceIds: first.changedSourceIds,
+      patches: first.patches,
+      trigger: "drag-handle"
+    });
+    const nextEndpoint = firstSnapshot.snapshot.editHandles.find(
+      (handle) => handle.kind === "path-point" && handle.sourceRef.sourceId === "path:0" && handle.sourceText === "(2.8,1.6)"
+    );
+    if (!nextEndpoint) {
+      throw new Error("Expected updated right endpoint handle after first drag frame.");
+    }
+
+    const second = applyEditAction(
+      first.newSource,
+      firstSnapshot.snapshot.editHandles,
+      {
+        kind: "moveHandle",
+        handleId: nextEndpoint.id,
+        newWorld: wp(2.88 * PT_PER_CM, 1.73 * PT_PER_CM)
+      },
+      { parseOptions: { sourceFingerprint: `source-revision:${documentId}:1:${first.newSource.length}` } }
+    );
+    expect(second.kind).toBe("success");
+    if (second.kind !== "success") {
+      throw new Error(`second moveHandle failed: ${second.kind}`);
+    }
+    expect(second.newSource).toContain("\\draw (1,2) -- (2.88,1.73);");
+    expect(second.newSource).not.toMatch(/\)\s*\(/);
+    expect(second.newSource).toContain("\\end{tikzpicture}");
+  });
+
   it("uses revision source fingerprints when document identity is available", async () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,1);
