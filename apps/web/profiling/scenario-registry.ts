@@ -32,6 +32,12 @@ export const PROFILING_SCENARIOS: ProfilingScenarioManifest[] = [
     specPath: "profiling/profile-paper-color.spec.ts"
   },
   {
+    id: "inspector-controls",
+    category: "canvas-edit",
+    description: "Inspector number input and dropdown property edit profiling.",
+    specPath: "profiling/profile-inspector-controls.spec.ts"
+  },
+  {
     id: "scope-edit",
     category: "canvas-edit",
     description: "Scope drag and resize profiling on nested scope content.",

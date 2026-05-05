@@ -1,8 +1,6 @@
 import type { Tree } from "@lezer/common";
-import { collectContextDefinitions } from "tikz-editor/transform/cst-to-ast";
 import { parseOptionListRaw } from "tikz-editor/options/parse";
 import type { OptionEntry, OptionListAst } from "tikz-editor/options/types";
-import { collectDeclaredColorsFromStatements } from "tikz-editor/semantic/index";
 import { normalizeColor, resolveDefineColorModel } from "tikz-editor/semantic/style/colors";
 import { parseStyleValueAsOptionList, readBalancedBlock } from "tikz-editor/semantic/style/option-utils";
 
@@ -74,8 +72,10 @@ const COLOR_VALUE_KEYS = new Set([
 const DEFINECOLOR_READ_ONLY_REASON = "\\definecolor preview is read-only in source swatches.";
 
 export function collectDeclaredColors(source: string, tree: Tree): ReadonlyMap<string, string> {
-  void tree;
-  return collectDeclaredColorsFromStatements(collectContextDefinitions(source));
+  if (!sourceMayContainDeclaredColors(source)) {
+    return new Map();
+  }
+  return collectDeclaredColorsFromDeclarations(source, collectDeclaredColorStatements(source, tree));
 }
 
 let _cachedDeclaredSignature = "__declared-colors:uninitialized__";
@@ -94,6 +94,17 @@ let _cachedDeclaredAnalysis: DeclaredColorAnalysis = {
  */
 export function resolveDeclaredColorAnalysis(source: string, tree: Tree): DeclaredColorAnalysis {
   if (source === _cachedDeclaredSource && tree === _cachedDeclaredTree) {
+    return _cachedDeclaredAnalysis;
+  }
+  if (!sourceMayContainDeclaredColors(source)) {
+    _cachedDeclaredSignature = "";
+    _cachedDeclaredSource = source;
+    _cachedDeclaredTree = tree;
+    _cachedDeclaredAnalysis = {
+      signature: "",
+      colors: _cachedDeclaredAnalysis.signature === "" ? _cachedDeclaredAnalysis.colors : new Map(),
+      ranges: []
+    };
     return _cachedDeclaredAnalysis;
   }
   const declarations = collectDeclaredColorStatements(source, tree);
@@ -117,7 +128,7 @@ export function resolveDeclaredColorAnalysis(source: string, tree: Tree): Declar
   _cachedDeclaredTree = tree;
   _cachedDeclaredAnalysis = {
     signature,
-    colors: collectDeclaredColors(source, tree),
+    colors: collectDeclaredColorsFromDeclarations(source, declarations),
     ranges
   };
   return _cachedDeclaredAnalysis;
@@ -558,6 +569,56 @@ function collectDeclaredColorStatements(source: string, tree: Tree): DeclaredCol
   });
 
   return declarations;
+}
+
+function sourceMayContainDeclaredColors(source: string): boolean {
+  return source.includes("\\colorlet") || source.includes("\\definecolor");
+}
+
+function collectDeclaredColorsFromDeclarations(
+  source: string,
+  declarations: readonly DeclaredColorStatement[]
+): ReadonlyMap<string, string> {
+  const declaredColors = new Map<string, string>();
+  for (const declaration of declarations) {
+    const groups = readStatementBraceGroups(source, declaration.from, declaration.to);
+    if (declaration.kind === "ColorletStatement") {
+      if (groups.length < 2) {
+        continue;
+      }
+      const name = normalizeDeclaredColorName(groups[0]?.innerRaw ?? "");
+      const value = groups[1]?.innerRaw ?? "";
+      if (!name || value.length === 0) {
+        continue;
+      }
+      const resolved = resolveColorExpression(value, { declaredColors });
+      if (resolved.cssColor != null) {
+        declaredColors.set(name, resolved.cssColor.toLowerCase());
+      }
+      continue;
+    }
+
+    if (groups.length < 3) {
+      continue;
+    }
+    const name = normalizeDeclaredColorName(groups[0]?.innerRaw ?? "");
+    if (!name) {
+      continue;
+    }
+    const css = resolveDefineColorModel(
+      groups[1]?.innerRaw.trim() ?? "",
+      groups[2]?.innerRaw.trim() ?? ""
+    );
+    if (css != null) {
+      declaredColors.set(name, css.toLowerCase());
+    }
+  }
+  return declaredColors;
+}
+
+function normalizeDeclaredColorName(raw: string): string | null {
+  const normalized = raw.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : null;
 }
 
 function buildDeclaredColorSignature(declarations: readonly DeclaredColorStatement[]): string {
