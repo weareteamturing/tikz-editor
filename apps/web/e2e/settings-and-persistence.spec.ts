@@ -108,8 +108,14 @@ test("settings modal controls follow dark theme colors", async ({ page }) => {
     probe.style.borderColor = "var(--border)";
     const borderColor = getComputedStyle(probe).borderColor;
 
+    probe.style.backgroundColor = "var(--scrollbar-track)";
+    const scrollbarTrack = getComputedStyle(probe).backgroundColor;
+
+    probe.style.backgroundColor = "var(--scrollbar-thumb)";
+    const scrollbarThumb = getComputedStyle(probe).backgroundColor;
+
     document.body.removeChild(probe);
-    return { paneBackground, textColor, borderColor };
+    return { paneBackground, textColor, borderColor, scrollbarTrack, scrollbarThumb };
   });
 
   const generalSelectStyles = await page.locator("#setting-color-scheme").evaluate((element) => {
@@ -139,4 +145,17 @@ test("settings modal controls follow dark theme colors", async ({ page }) => {
   expect(numberInputStyles.backgroundColor).toBe(expectedThemeColors.paneBackground);
   expect(numberInputStyles.color).toBe(expectedThemeColors.textColor);
   expect(numberInputStyles.borderColor).toBe(expectedThemeColors.borderColor);
+
+  const rootScrollbarStyles = await page.evaluate(() => {
+    const style = getComputedStyle(document.documentElement);
+    return {
+      colorScheme: style.colorScheme,
+      scrollbarColor: style.scrollbarColor
+    };
+  });
+
+  expect(rootScrollbarStyles.colorScheme).toBe("dark");
+  expect(rootScrollbarStyles.scrollbarColor).toBe(
+    `${expectedThemeColors.scrollbarThumb} ${expectedThemeColors.scrollbarTrack}`
+  );
 });
