@@ -16,8 +16,9 @@ use std::fs;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::Path;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use tauri::{
     menu::{
         CheckMenuItemBuilder, Menu, MenuItemBuilder, MenuItemKind, PredefinedMenuItem,
@@ -26,10 +27,7 @@ use tauri::{
     AppHandle, Emitter, Manager,
 };
 use tauri_plugin_opener::OpenerExt;
-use tauri_plugin_shell::{
-    process::CommandEvent,
-    ShellExt,
-};
+use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 use url::Url;
 
 #[cfg(target_os = "macos")]
@@ -84,6 +82,7 @@ const LATEX_COMMAND_TIMEOUT_SECS: u64 = 20;
 const RECENTS_FILENAME: &str = "recent-files.json";
 const CONTEXT_MENU_EVENT_PREFIX: &str = "ctx::";
 const DESKTOP_OPEN_REQUESTS_CHANGED_EVENT: &str = "desktop-open-requests-changed";
+static NEXT_LATEX_COMPILE_ID: AtomicU64 = AtomicU64::new(1);
 #[cfg(target_os = "macos")]
 const DESKTOP_SVG_CLIPBOARD_FORMATS: [&str; 2] =
     ["public.svg-image", "com.microsoft.image-svg-xml"];
@@ -837,6 +836,54 @@ fn latex_compile_working_dir() -> PathBuf {
     env::temp_dir().join("tikz-editor-native-compile")
 }
 
+fn last_latex_compile_dir() -> PathBuf {
+    latex_compile_working_dir().join("last")
+}
+
+fn create_latex_compile_working_dir() -> Result<PathBuf, String> {
+    let base = latex_compile_working_dir();
+    fs::create_dir_all(&base).map_err(|e| {
+        format!(
+            "Failed to create working dir {}: {e}",
+            base.to_string_lossy()
+        )
+    })?;
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|error| error.to_string())?
+        .as_millis();
+    let id = NEXT_LATEX_COMPILE_ID.fetch_add(1, Ordering::Relaxed);
+    let working_dir = base.join(format!("run-{millis}-{id}"));
+    fs::create_dir_all(&working_dir).map_err(|e| {
+        format!(
+            "Failed to create working dir {}: {e}",
+            working_dir.to_string_lossy()
+        )
+    })?;
+    Ok(working_dir)
+}
+
+fn publish_last_latex_compile_log(working_dir: &Path) {
+    let last_dir = last_latex_compile_dir();
+    if fs::create_dir_all(&last_dir).is_err() {
+        return;
+    }
+    let source = working_dir.join("input.log");
+    let target = last_dir.join("input.log");
+    if source.exists() {
+        let _ = fs::copy(source, target);
+    } else {
+        let _ = fs::write(target, "");
+    }
+}
+
+fn clear_last_latex_compile_log() {
+    let last_dir = last_latex_compile_dir();
+    if fs::create_dir_all(&last_dir).is_ok() {
+        let _ = fs::write(last_dir.join("input.log"), "");
+    }
+}
+
 fn read_text_if_exists(path: &Path) -> String {
     if !path.exists() {
         return String::new();
@@ -900,7 +947,12 @@ async fn run_shell_command(
         .args(args.to_vec())
         .current_dir(working_dir)
         .spawn()
-        .map_err(|e| format!("Failed to spawn `{command}` in {}: {e}", working_dir.to_string_lossy()))?;
+        .map_err(|e| {
+            format!(
+                "Failed to spawn `{command}` in {}: {e}",
+                working_dir.to_string_lossy()
+            )
+        })?;
 
     let mut stdout = Vec::<u8>::new();
     let mut stderr = Vec::<u8>::new();
@@ -911,14 +963,8 @@ async fn run_shell_command(
         let now = Instant::now();
         if now >= deadline {
             let _ = child.kill();
-            let timeout_details = format_command_failure(
-                command,
-                None,
-                &stdout,
-                &stderr,
-                None,
-                working_dir,
-            );
+            let timeout_details =
+                format_command_failure(command, None, &stdout, &stderr, None, working_dir);
             return Err(format!(
                 "Command timed out after {}s.\n{}",
                 LATEX_COMMAND_TIMEOUT_SECS, timeout_details
@@ -929,14 +975,8 @@ async fn run_shell_command(
             Ok(event) => event,
             Err(_) => {
                 let _ = child.kill();
-                let timeout_details = format_command_failure(
-                    command,
-                    None,
-                    &stdout,
-                    &stderr,
-                    None,
-                    working_dir,
-                );
+                let timeout_details =
+                    format_command_failure(command, None, &stdout, &stderr, None, working_dir);
                 return Err(format!(
                     "Command timed out after {}s.\n{}",
                     LATEX_COMMAND_TIMEOUT_SECS, timeout_details
@@ -973,23 +1013,16 @@ async fn run_shell_command(
 }
 
 #[tauri::command]
-async fn desktop_compile_tikz(
-    latex_document: String,
-    app: AppHandle,
-) -> Result<String, String> {
-    let working_dir = latex_compile_working_dir();
-    fs::create_dir_all(&working_dir).map_err(|e| {
+async fn desktop_compile_tikz(latex_document: String, app: AppHandle) -> Result<String, String> {
+    let working_dir = create_latex_compile_working_dir()?;
+    clear_last_latex_compile_log();
+    let tex_path = working_dir.join("input.tex");
+    fs::write(&tex_path, &latex_document).map_err(|e| {
         format!(
-            "Failed to create working dir {}: {e}",
+            "Failed to write .tex in {}: {e}",
             working_dir.to_string_lossy()
         )
     })?;
-    let _ = fs::remove_file(working_dir.join("output.svg"));
-    let _ = fs::remove_file(working_dir.join("input.dvi"));
-    let _ = fs::remove_file(working_dir.join("input.log"));
-    let tex_path = working_dir.join("input.tex");
-    fs::write(&tex_path, &latex_document)
-        .map_err(|e| format!("Failed to write .tex in {}: {e}", working_dir.to_string_lossy()))?;
 
     // Run latex
     let latex_result = run_shell_command(
@@ -1007,14 +1040,17 @@ async fn desktop_compile_tikz(
 
     if latex_result.status_code != Some(0) {
         let latex_log_path = working_dir.join("input.log");
-        return Err(format_command_failure(
+        let message = format_command_failure(
             "latex",
             latex_result.status_code,
             &latex_result.stdout,
             &latex_result.stderr,
             Some(&latex_log_path),
             &working_dir,
-        ));
+        );
+        publish_last_latex_compile_log(&working_dir);
+        let _ = fs::remove_dir_all(&working_dir);
+        return Err(message);
     }
 
     let dvi_path = working_dir.join("input.dvi");
@@ -1029,6 +1065,8 @@ async fn desktop_compile_tikz(
             message.push_str("\n\n--- latex log ---\n");
             message.push_str(&log);
         }
+        publish_last_latex_compile_log(&working_dir);
+        let _ = fs::remove_dir_all(&working_dir);
         return Err(message);
     }
 
@@ -1051,38 +1089,43 @@ async fn desktop_compile_tikz(
     .await?;
 
     if dvisvgm_result.status_code != Some(0) {
-        return Err(format_command_failure(
+        let message = format_command_failure(
             "dvisvgm",
             dvisvgm_result.status_code,
             &dvisvgm_result.stdout,
             &dvisvgm_result.stderr,
             None,
             &working_dir,
-        ));
+        );
+        publish_last_latex_compile_log(&working_dir);
+        let _ = fs::remove_dir_all(&working_dir);
+        return Err(message);
     }
 
     if !svg_path.exists() {
-        return Err(format!(
+        let message = format!(
             "dvisvgm succeeded but SVG was not produced.\nworking_dir: {}",
             working_dir.to_string_lossy()
-        ));
+        );
+        publish_last_latex_compile_log(&working_dir);
+        let _ = fs::remove_dir_all(&working_dir);
+        return Err(message);
     }
 
-    fs::read_to_string(&svg_path).map_err(|e| format!("Failed to read SVG: {e}"))
+    let svg = fs::read_to_string(&svg_path).map_err(|e| format!("Failed to read SVG: {e}"))?;
+    publish_last_latex_compile_log(&working_dir);
+    let _ = fs::remove_dir_all(&working_dir);
+    Ok(svg)
 }
 
 #[tauri::command]
 fn desktop_read_last_compile_log() -> Result<String, String> {
-    let log_path = latex_compile_working_dir().join("input.log");
+    let log_path = last_latex_compile_dir().join("input.log");
     if !log_path.exists() {
         return Ok(String::new());
     }
-    fs::read_to_string(&log_path).map_err(|e| {
-        format!(
-            "Failed to read {}: {e}",
-            log_path.to_string_lossy()
-        )
-    })
+    fs::read_to_string(&log_path)
+        .map_err(|e| format!("Failed to read {}: {e}", log_path.to_string_lossy()))
 }
 
 #[tauri::command]
@@ -1551,9 +1594,7 @@ fn desktop_assistant_load_thread_state(
 }
 
 #[tauri::command]
-fn desktop_assistant_warm_up(
-    assistant: tauri::State<'_, AssistantState>,
-) -> Result<(), String> {
+fn desktop_assistant_warm_up(assistant: tauri::State<'_, AssistantState>) -> Result<(), String> {
     assistant.warm_up()
 }
 
@@ -1605,9 +1646,7 @@ fn desktop_assistant_login_cancel(
 }
 
 #[tauri::command]
-fn desktop_assistant_logout(
-    assistant: tauri::State<'_, AssistantState>,
-) -> Result<(), String> {
+fn desktop_assistant_logout(assistant: tauri::State<'_, AssistantState>) -> Result<(), String> {
     assistant.logout()
 }
 

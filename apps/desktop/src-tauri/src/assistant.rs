@@ -433,13 +433,12 @@ impl AssistantState {
                 cmd
             }
             #[cfg(target_os = "windows")]
-            CodexLaunch::Wsl => {
-                self.inner
-                    .app
-                    .shell()
-                    .command("wsl")
-                    .args(["codex", "app-server"])
-            }
+            CodexLaunch::Wsl => self
+                .inner
+                .app
+                .shell()
+                .command("wsl")
+                .args(["codex", "app-server"]),
         };
         let (receiver, child) = command
             .spawn()
@@ -1579,28 +1578,38 @@ fn spawn_command_event_reader(
     pending: Arc<Mutex<HashMap<String, Sender<Value>>>>,
 ) {
     tauri::async_runtime::spawn(async move {
+        let mut stdout_buffer: Vec<u8> = Vec::new();
         while let Some(event) = receiver.recv().await {
             match event {
                 CommandEvent::Stdout(bytes) => {
-                    let line = String::from_utf8_lossy(&bytes)
-                        .trim_end_matches(['\r', '\n'])
-                        .to_string();
-                    if line.is_empty() {
-                        continue;
-                    }
-                    let Ok(message) = serde_json::from_str::<Value>(&line) else {
-                        let _ = state.emit_event(AssistantEventPayload {
-                            kind: "error".to_string(),
-                            data: json!({ "message": format!("Failed to parse app-server message: {line}") }),
-                        });
-                        continue;
-                    };
-                    if message.get("method").is_some() && message.get("id").is_some() {
-                        state.handle_server_request(message);
-                    } else if message.get("method").is_some() {
-                        state.handle_notification(message);
-                    } else if message.get("id").is_some() {
-                        state.handle_response(message, &pending);
+                    stdout_buffer.extend(bytes);
+                    while let Some(newline_index) =
+                        stdout_buffer.iter().position(|byte| *byte == b'\n')
+                    {
+                        let mut line_bytes =
+                            stdout_buffer.drain(..newline_index).collect::<Vec<_>>();
+                        let _ = stdout_buffer.drain(..1);
+                        if line_bytes.last() == Some(&b'\r') {
+                            line_bytes.pop();
+                        }
+                        let line = String::from_utf8_lossy(&line_bytes).to_string();
+                        if line.is_empty() {
+                            continue;
+                        }
+                        let Ok(message) = serde_json::from_str::<Value>(&line) else {
+                            let _ = state.emit_event(AssistantEventPayload {
+                                kind: "error".to_string(),
+                                data: json!({ "message": format!("Failed to parse app-server message: {line}") }),
+                            });
+                            continue;
+                        };
+                        if message.get("method").is_some() && message.get("id").is_some() {
+                            state.handle_server_request(message);
+                        } else if message.get("method").is_some() {
+                            state.handle_notification(message);
+                        } else if message.get("id").is_some() {
+                            state.handle_response(message, &pending);
+                        }
                     }
                 }
                 CommandEvent::Stderr(bytes) => {
@@ -1618,6 +1627,13 @@ fn spawn_command_event_reader(
                     });
                 }
                 CommandEvent::Terminated(payload) => {
+                    if !stdout_buffer.iter().all(u8::is_ascii_whitespace) {
+                        let buffered = String::from_utf8_lossy(&stdout_buffer);
+                        let _ = state.emit_event(AssistantEventPayload {
+                            kind: "error".to_string(),
+                            data: json!({ "message": format!("Discarding unterminated app-server message: {buffered}") }),
+                        });
+                    }
                     let _ = state.emit_event(AssistantEventPayload {
                         kind: "error".to_string(),
                         data: json!({
