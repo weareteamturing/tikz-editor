@@ -547,7 +547,7 @@ export function App() {
 
   useDebouncedEffect(() => {
     const scheduler = computeSchedulerRef.current;
-    if (!scheduler || !hoveredElementId) {
+    if (!scheduler || prewarmDelay == null || !hoveredElementId) {
       return;
     }
     scheduler.schedule({

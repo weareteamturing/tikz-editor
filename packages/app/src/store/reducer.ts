@@ -40,6 +40,7 @@ function initialUiState(): WorkspaceEphemeralState {
     hoveredElementId: null,
     activeCanvasDragKind: null,
     activeSourceScrubSourceId: null,
+    activeCanvasTextEditSourceId: null,
     showGrid: true,
     showTransparencyGrid: false,
     snapModes: {
@@ -1014,6 +1015,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "SET_ACTIVE_SOURCE_SCRUB":
       if (ui.activeSourceScrubSourceId === action.sourceId) return state;
       ui = { ...ui, activeSourceScrubSourceId: action.sourceId };
+      break;
+
+    case "SET_ACTIVE_CANVAS_TEXT_EDIT":
+      if (ui.activeCanvasTextEditSourceId === action.sourceId) return state;
+      ui = { ...ui, activeCanvasTextEditSourceId: action.sourceId };
       break;
 
     case "TOGGLE_CANVAS_AID":

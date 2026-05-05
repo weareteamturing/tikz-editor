@@ -26,6 +26,9 @@ export function getSharedEditAnalysisView(params: {
   activeFigureId: string | null;
   snapshot: SessionSnapshot;
 }): EditAnalysisView {
+  const analysisSource = params.snapshot.source === params.source
+    ? params.source
+    : params.snapshot.source;
   const key: EditAnalysisKey = {
     documentId: params.documentId,
     sourceRevision: params.sourceRevision,
@@ -48,7 +51,6 @@ export function getSharedEditAnalysisView(params: {
 
   const session = cachedEntry.session;
   if (
-    params.snapshot.source === params.source &&
     params.snapshot.parseResult &&
     params.snapshot.parseResult.activeFigureId === params.activeFigureId &&
     cachedEntry.primedSnapshotRevision !== params.snapshot.revision
@@ -59,7 +61,7 @@ export function getSharedEditAnalysisView(params: {
     cachedEntry.primedSnapshotRevision = params.snapshot.revision;
   }
 
-  return session.ensure(params.source, {
+  return session.ensure(analysisSource, {
     activeFigureId: params.activeFigureId
   });
 }

@@ -14,7 +14,8 @@ export type ProfilingScenarioCategory =
   | "actions"
   | "basic-drag"
   | "paper"
-  | "canvas-edit";
+  | "canvas-edit"
+  | "source-edit";
 
 export type ProfilingScenarioManifest = {
   id: string;
@@ -104,6 +105,64 @@ export function summarizeFrameDurations(frameDurations: readonly number[]): Fram
     maxMs: roundNumber(Math.max(...frameDurations)),
     avgMs: roundNumber(total / frameDurations.length)
   };
+}
+
+export async function performPacedMouseDrag(
+  page: import("@playwright/test").Page,
+  points: ReadonlyArray<{ x: number; y: number }>,
+  delayMs = 16
+): Promise<void> {
+  if (points.length < 2) {
+    throw new Error("A paced mouse drag requires at least two points.");
+  }
+  const [start, ...rest] = points;
+  if (!start) {
+    throw new Error("A paced mouse drag requires a start point.");
+  }
+
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  for (const point of rest) {
+    await page.mouse.move(point.x, point.y);
+    await page.waitForTimeout(delayMs);
+  }
+  await page.mouse.up();
+}
+
+export function buildLinearDragPath(
+  start: { x: number; y: number },
+  dx: number,
+  dy: number,
+  steps: number
+): Array<{ x: number; y: number }> {
+  const safeSteps = Math.max(1, Math.floor(steps));
+  const points: Array<{ x: number; y: number }> = [start];
+  for (let step = 1; step <= safeSteps; step += 1) {
+    const progress = step / safeSteps;
+    points.push({
+      x: start.x + dx * progress,
+      y: start.y + dy * progress
+    });
+  }
+  return points;
+}
+
+export function buildPolylineDragPath(
+  start: { x: number; y: number },
+  deltas: ReadonlyArray<{ dx: number; dy: number }>,
+  stepsPerSegment: number
+): Array<{ x: number; y: number }> {
+  const points: Array<{ x: number; y: number }> = [start];
+  let segmentStart = start;
+  for (const delta of deltas) {
+    const segment = buildLinearDragPath(segmentStart, delta.dx, delta.dy, stepsPerSegment);
+    points.push(...segment.slice(1));
+    segmentStart = {
+      x: segmentStart.x + delta.dx,
+      y: segmentStart.y + delta.dy
+    };
+  }
+  return points;
 }
 
 export function reportPathForScenario(scenarioId: string): string {

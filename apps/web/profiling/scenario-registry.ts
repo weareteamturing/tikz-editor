@@ -46,7 +46,7 @@ export const PROFILING_SCENARIOS: ProfilingScenarioManifest[] = [
   {
     id: "path-tool",
     category: "canvas-edit",
-    description: "Bucket fill and multi-segment path creation profiling.",
+    description: "Bucket fill, multi-segment path creation, and rectangle tool drag profiling.",
     specPath: "profiling/profile-path-tool.spec.ts"
   },
   {
@@ -54,6 +54,12 @@ export const PROFILING_SCENARIOS: ProfilingScenarioManifest[] = [
     category: "canvas-edit",
     description: "Canvas node text editing profiling for single-line, wrapped, explicit multiline, and matrix cell nodes.",
     specPath: "profiling/profile-node-text-edit.spec.ts"
+  },
+  {
+    id: "source-typing",
+    category: "source-edit",
+    description: "Source editor typing profiling with paced keystrokes in small and dense TikZ documents.",
+    specPath: "profiling/profile-source-typing.spec.ts"
   }
 ];
 

@@ -36,6 +36,7 @@ export type TikzEditorProfilingSourcePanelSyncTiming = {
   kind: "externalSyncDispatch";
   durationMs: number;
   mode: "patch" | "replace";
+  trustedPatch?: boolean;
   coalescedToAnimationFrame: boolean;
   patchCount: number;
   docLength: number;

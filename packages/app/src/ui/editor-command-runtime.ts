@@ -1033,10 +1033,11 @@ export function useEditorCommandRuntime(
     [activeFigureId, effectiveActiveHandleId, selectedElementIds, snapshot, source, sourceRevision]
   );
   const frozenCommandInputsRef = useRef(liveCommandInputs);
-  if (!activeCanvasDragKind) {
+  const snapshotMatchesSource = snapshot.source === source;
+  if (!activeCanvasDragKind && snapshotMatchesSource) {
     frozenCommandInputsRef.current = liveCommandInputs;
   }
-  const effectiveCommandInputs = activeCanvasDragKind
+  const effectiveCommandInputs = activeCanvasDragKind || !snapshotMatchesSource
     ? frozenCommandInputsRef.current
     : liveCommandInputs;
   const editAnalysisView = useMemo(

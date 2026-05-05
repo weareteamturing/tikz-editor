@@ -8,7 +8,9 @@ import {
   waitForHitRegions
 } from "../e2e/helpers";
 import {
+  buildLinearDragPath,
   captureProfileVariant,
+  performPacedMouseDrag,
   summarizeFrameDurations,
   writeScenarioReport
 } from "./framework";
@@ -24,6 +26,7 @@ const BUCKET_SOURCE = String.raw`\begin{tikzpicture}
   \draw (0,0) rectangle (2,2);
   \draw (3,0) rectangle (5,2);
 \end{tikzpicture}`;
+const TOOL_DRAG_STEP_DELAY_MS = 16;
 
 type ProbeRecord = {
   t: number;
@@ -34,6 +37,7 @@ type ProbeRecord = {
 type PathToolProbeSnapshot = {
   records: ProbeRecord[];
   sourceRevision: number;
+  activeCanvasDragKind: string | null;
   targetState: string | number | null;
   frameDurations: number[];
 };
@@ -71,12 +75,18 @@ async function installProbe(page: import("@playwright/test").Page): Promise<void
     let targetSelector = "";
     let targetMode: TargetMode = "count";
     let lastSourceRevision = Number.NaN;
+    let lastActiveDragKind: string | null | undefined = undefined;
     let lastTargetState: string | number | null = null;
 
-    const sourceRevision = (): number =>
+    const api = () =>
       (window as typeof window & {
-        __TIKZ_EDITOR_APP_TEST_API__?: { getSourceRevision?: () => number };
-      }).__TIKZ_EDITOR_APP_TEST_API__?.getSourceRevision?.() ?? 0;
+        __TIKZ_EDITOR_APP_TEST_API__?: {
+          getSourceRevision?: () => number;
+          getActiveCanvasDragKind?: () => string | null;
+        };
+      }).__TIKZ_EDITOR_APP_TEST_API__;
+    const sourceRevision = (): number => api()?.getSourceRevision?.() ?? 0;
+    const activeCanvasDragKind = (): string | null => api()?.getActiveCanvasDragKind?.() ?? null;
 
     const targetState = (): string | number | null => {
       if (!targetSelector) {
@@ -97,12 +107,22 @@ async function installProbe(page: import("@playwright/test").Page): Promise<void
       });
     };
 
-    const sample = (reason: string) => {
+    const sample = (reason: string, includeDomMeasurements = true) => {
       const nextRevision = sourceRevision();
       if (nextRevision !== lastSourceRevision) {
         lastSourceRevision = nextRevision;
         record("source-revision", { reason, sourceRevision: nextRevision });
       }
+      const nextActiveDragKind = activeCanvasDragKind();
+      if (nextActiveDragKind !== lastActiveDragKind) {
+        lastActiveDragKind = nextActiveDragKind;
+        record("active-canvas-drag-kind", { reason, activeCanvasDragKind: nextActiveDragKind });
+      }
+
+      if (!includeDomMeasurements) {
+        return;
+      }
+
       const nextTargetState = targetState();
       if (nextTargetState !== lastTargetState) {
         lastTargetState = nextTargetState;
@@ -124,7 +144,7 @@ async function installProbe(page: import("@playwright/test").Page): Promise<void
         frameDurations.push(Math.max(0, now - previousFrameTs));
       }
       previousFrameTs = now;
-      sample("raf");
+      sample("raf", false);
       rafId = window.requestAnimationFrame(step);
     };
     rafId = window.requestAnimationFrame(step);
@@ -140,6 +160,7 @@ async function installProbe(page: import("@playwright/test").Page): Promise<void
         frameDurations.length = 0;
         previousFrameTs = null;
         lastSourceRevision = Number.NaN;
+        lastActiveDragKind = undefined;
         lastTargetState = null;
         record("reset", { label, targetSelector, targetMode });
         sample("reset");
@@ -149,6 +170,7 @@ async function installProbe(page: import("@playwright/test").Page): Promise<void
         return {
           records: [...records],
           sourceRevision: sourceRevision(),
+          activeCanvasDragKind: activeCanvasDragKind(),
           targetState: targetState(),
           frameDurations: [...frameDurations]
         };
@@ -212,11 +234,22 @@ function summarizeProbe(snapshot: PathToolProbeSnapshot) {
     record !== baselineTargetState &&
     record.targetState !== baselineTargetState?.targetState
   );
+  const firstDragStart = snapshot.records.find((record) =>
+    record.type === "active-canvas-drag-kind" && record.activeCanvasDragKind != null
+  );
+  const firstDragEnd = snapshot.records.find((record) =>
+    record.type === "active-canvas-drag-kind" &&
+    record.activeCanvasDragKind == null &&
+    firstDragStart != null &&
+    Number(record.t) > Number(firstDragStart.t)
+  );
 
   return {
     metrics: {
       msToFirstSourceRewrite: firstSourceRewrite ? Number(firstSourceRewrite.t.toFixed(2)) : null,
       msToFirstRenderedUpdate: firstRenderedUpdate ? Number(firstRenderedUpdate.t.toFixed(2)) : null,
+      msToDragStart: firstDragStart ? Number(firstDragStart.t.toFixed(2)) : null,
+      msToDragEnd: firstDragEnd ? Number(firstDragEnd.t.toFixed(2)) : null,
       finalTargetState: snapshot.targetState
     },
     frameStats: summarizeFrameDurations(snapshot.frameDurations),
@@ -312,6 +345,43 @@ test("profile bucket fill and path creation interactions", async ({ page }, test
       await page.mouse.click(box.x + 200, box.y + 120);
       await page.mouse.click(box.x + 200, box.y + 180);
       await page.keyboard.press("Enter");
+      await page.waitForTimeout(300);
+      return summarizeProbe(await readProbe(page));
+    }
+  }));
+
+  await gotoApp(page, "/editor/");
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+  await installProbe(page);
+  await toolbarButton(page, "Rect").click();
+  await configureProbeTarget(page, "[data-hit-region-target-id]", "count");
+  await resetProbe(page, "rect-drag-create-visible");
+  variants.push(await captureProfileVariant({
+    page,
+    scenarioId: MANIFEST.id,
+    variantId: "rect-drag-create-visible",
+    label: "rect-drag-create-visible",
+    dimensions: {
+      interaction: "rectangle-drag-create",
+      sourcePanelVisible: true
+    },
+    run: async () => {
+      const layer = interactionLayer(page);
+      const box = await layer.boundingBox();
+      if (!box) {
+        throw new Error("Canvas interaction layer bounds missing.");
+      }
+      await performPacedMouseDrag(
+        page,
+        buildLinearDragPath(
+          { x: box.x + 120, y: box.y + 120 },
+          180,
+          110,
+          28
+        ),
+        TOOL_DRAG_STEP_DELAY_MS
+      );
       await page.waitForTimeout(300);
       return summarizeProbe(await readProbe(page));
     }

@@ -21,6 +21,7 @@ if (!MANIFEST) {
 }
 
 const APPEND_TEXT = " that will be interesting";
+const MATH_APPEND_TEXT = " $x = y$";
 
 type ProbeRecord = {
   t: number;
@@ -47,6 +48,7 @@ type NodeTextEditVariant = {
   source: string;
   initialText: string;
   expectedInsertedText: string;
+  appendText?: string;
   expectedSourceSubstring?: string;
   expectedSourceSubstringNormalized?: string;
   openEditMode: (page: Page) => Promise<void>;
@@ -115,6 +117,35 @@ const VARIANTS: NodeTextEditVariant[] = [
       }
       await page.mouse.click(box.x + box.width - 1, box.y + box.height / 2);
       await moveTextareaCaretToNaturalEnd(page, "Let me think of something long and fun to write".length);
+    }
+  },
+  {
+    id: "single-line-math-append",
+    label: "Single-line node append with inline math",
+    dimensions: {
+      layout: "single-line",
+      align: null,
+      textWidth: null,
+      explicitLineBreaks: false,
+      containsInlineMath: true
+    },
+    source: String.raw`\begin{tikzpicture}
+  \node[draw] (C) at (0,0) {Hello world};
+\end{tikzpicture}`,
+    initialText: "Hello world",
+    appendText: MATH_APPEND_TEXT,
+    expectedInsertedText: `Hello world${MATH_APPEND_TEXT}`,
+    async openEditMode(page) {
+      const textRegion = page
+        .locator("[data-hit-region-target-id='path:0'][data-hit-region-interaction-mode='text']")
+        .first();
+      await expect(textRegion).toBeVisible();
+      const box = await textRegion.boundingBox();
+      if (!box) {
+        throw new Error("Missing math text hit-region bounds.");
+      }
+      await page.mouse.click(box.x + box.width - 1, box.y + box.height / 2);
+      await moveTextareaCaretToNaturalEnd(page, "Hello world".length);
     }
   },
   {
@@ -272,17 +303,21 @@ async function installProbe(page: Page): Promise<void> {
       });
     };
 
-    const sample = (reason: string) => {
-      const nextPopupVisible = popupVisible();
-      if (nextPopupVisible !== lastPopupVisible) {
-        lastPopupVisible = nextPopupVisible;
-        record("popup-visible", { reason, popupVisible: nextPopupVisible });
-      }
-
+    const sample = (reason: string, includeDomMeasurements = true) => {
       const nextSourceRevision = sourceRevision();
       if (nextSourceRevision !== lastSourceRevision) {
         lastSourceRevision = nextSourceRevision;
         record("source-revision", { reason, sourceRevision: nextSourceRevision });
+      }
+
+      if (!includeDomMeasurements) {
+        return;
+      }
+
+      const nextPopupVisible = popupVisible();
+      if (nextPopupVisible !== lastPopupVisible) {
+        lastPopupVisible = nextPopupVisible;
+        record("popup-visible", { reason, popupVisible: nextPopupVisible });
       }
 
       const nextTextarea = textareaSnapshot();
@@ -331,7 +366,7 @@ async function installProbe(page: Page): Promise<void> {
         frameDurations.push(Math.max(0, now - previousFrameTs));
       }
       previousFrameTs = now;
-      sample("raf");
+      sample("raf", false);
       rafId = window.requestAnimationFrame(step);
     };
     rafId = window.requestAnimationFrame(step);
@@ -396,7 +431,7 @@ async function readProbe(page: Page): Promise<NodeTextEditProbeSnapshot> {
   });
 }
 
-function summarizeProbe(snapshot: NodeTextEditProbeSnapshot) {
+function summarizeProbe(snapshot: NodeTextEditProbeSnapshot, typedCharacters: number) {
   const baselineRevision = snapshot.records.find((record) => record.type === "source-revision");
   const firstPopupVisible = snapshot.records.find(
     (record) => record.type === "popup-visible" && record.popupVisible === true
@@ -422,6 +457,7 @@ function summarizeProbe(snapshot: NodeTextEditProbeSnapshot) {
       msToPopupVisible: firstPopupVisible ? Number(firstPopupVisible.t.toFixed(2)) : null,
       msToTextareaSelectionEvent: firstSelectionAtEnd ? Number(firstSelectionAtEnd.t.toFixed(2)) : null,
       msToFirstSourceRewrite: firstSourceRewrite ? Number(firstSourceRewrite.t.toFixed(2)) : null,
+      typedCharacters,
       finalTextareaValueLength: snapshot.textareaValueLength,
       finalSelectionStart: snapshot.selectionStart,
       finalSelectionEnd: snapshot.selectionEnd,
@@ -462,7 +498,8 @@ async function runVariant(page: Page, variant: NodeTextEditVariant) {
     start: appendStartOffset,
     end: appendStartOffset
   });
-  await pressIndividualKeystrokes(textarea, APPEND_TEXT);
+  const appendText = variant.appendText ?? APPEND_TEXT;
+  await pressIndividualKeystrokes(textarea, appendText);
 
   await expect(textarea).toHaveValue(variant.expectedInsertedText);
   if (variant.expectedSourceSubstringNormalized) {
@@ -474,7 +511,7 @@ async function runVariant(page: Page, variant: NodeTextEditVariant) {
   }
 
   const probe = await readProbe(page);
-  return summarizeProbe(probe);
+  return summarizeProbe(probe, appendText.length);
 }
 
 test("profiles node text editing append variants", async ({ page }, testInfo) => {

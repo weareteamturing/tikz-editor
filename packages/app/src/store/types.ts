@@ -122,6 +122,8 @@ export type WorkspaceEphemeralState = {
   activeCanvasDragKind: CanvasDragKind | null;
   /** Source id currently being edited via source-number scrubbing. */
   activeSourceScrubSourceId: string | null;
+  /** Source id currently being edited through the canvas text popup. */
+  activeCanvasTextEditSourceId: string | null;
   showGrid: boolean;
   showTransparencyGrid: boolean;
   snapModes: SnapModes;
@@ -198,6 +200,8 @@ export type EditorState = {
   activeCanvasDragKind: CanvasDragKind | null;
   /** Source id currently being edited via source-number scrubbing. */
   activeSourceScrubSourceId: string | null;
+  /** Source id currently being edited through the canvas text popup. */
+  activeCanvasTextEditSourceId: string | null;
   showGrid: boolean;
   showTransparencyGrid: boolean;
   snapModes: SnapModes;
@@ -300,6 +304,7 @@ export type EditorAction =
   | { type: "SET_CANVAS_TRANSFORM"; transform: CanvasTransform }
   | { type: "SET_HOVERED_ELEMENT"; id: string | null }
   | { type: "SET_ACTIVE_CANVAS_DRAG"; kind: CanvasDragKind | null }
+  | { type: "SET_ACTIVE_CANVAS_TEXT_EDIT"; sourceId: string | null }
   | { type: "SET_FREEHAND_SMOOTHING"; value: number }
   | { type: "SET_BUCKET_FILL_COLOR"; value: string }
   | { type: "SET_ADD_SHAPE_PRESET"; value: Exclude<NodeShapePresetId, "custom"> }

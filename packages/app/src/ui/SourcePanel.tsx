@@ -112,12 +112,21 @@ function buildHighlightExtension(dark: boolean) {
 const setHighlight = StateEffect.define<[number, number] | null>();
 const setDiagnostics = StateEffect.define<DiagnosticInput[]>();
 const setFigureOverlay = StateEffect.define<DecorationSet>();
-const sourcePanelExternalSyncAnnotation = Annotation.define<{ nextSource: string }>();
+const sourcePanelExternalSyncAnnotation = Annotation.define<{ nextSource: string; sourceRevision: number }>();
 
 type PendingExternalSourceSync = {
   nextSource: string;
+  sourceRevision: number;
   lastEditPatches: readonly SourceSyncPatch[] | null;
+  lastEditPatchBaseRevision: number | null;
+  patchChain: SourceSyncPatchStep[] | null;
   coalescedToAnimationFrame: boolean;
+};
+
+type SourceSyncPatchStep = {
+  baseRevision: number;
+  sourceRevision: number;
+  patches: readonly SourceSyncPatch[];
 };
 
 type DiagnosticSeverity = "error" | "warning";
@@ -136,6 +145,13 @@ type SourceSyncPatch = {
   oldSpan: { from: number; to: number };
   newSpan: { from: number; to: number };
   replacement: string;
+};
+
+type SourceSyncChange = { from: number; to: number; insert: string };
+
+type SourceSyncChanges = {
+  changes: SourceSyncChange | SourceSyncChange[];
+  trustedPatch: boolean;
 };
 
 type SourceSpan = {
@@ -268,7 +284,7 @@ const figureOverlayField = StateField.define<DecorationSet>({
 
 function findExternalSourceSyncAnnotation(
   transactions: readonly Transaction[]
-): { nextSource: string } | null {
+): { nextSource: string; sourceRevision: number } | null {
   for (const transaction of transactions) {
     const annotation = transaction.annotation(sourcePanelExternalSyncAnnotation);
     if (annotation) {
@@ -281,27 +297,53 @@ function findExternalSourceSyncAnnotation(
 function buildExternalSourceSyncChanges(
   currentSource: string,
   nextSource: string,
-  lastEditPatches: readonly SourceSyncPatch[] | null
-): { from: number; to: number; insert: string } | Array<{ from: number; to: number; insert: string }> {
+  lastEditPatches: readonly SourceSyncPatch[] | null,
+  canTrustPatches: boolean,
+  trustedPatchChain: readonly SourceSyncPatchStep[] | null
+): SourceSyncChanges {
+  if (trustedPatchChain && trustedPatchChain.length > 0) {
+    return {
+      changes: trustedPatchChain.flatMap((step) => sourcePatchChanges(step.patches)),
+      trustedPatch: true
+    };
+  }
+  if (canTrustPatches && lastEditPatches && lastEditPatches.length > 0) {
+    return {
+      changes: sourcePatchChanges(lastEditPatches),
+      trustedPatch: true
+    };
+  }
   if (
     lastEditPatches &&
     lastEditPatches.length > 0 &&
     patchesMatchSourceTransition(currentSource, nextSource, lastEditPatches)
   ) {
-    return lastEditPatches.map((patch) => ({
-      from: patch.oldSpan.from,
-      to: patch.oldSpan.to,
-      insert: patch.replacement
-    }));
+    return {
+      changes: sourcePatchChanges(lastEditPatches),
+      trustedPatch: false
+    };
   }
-  return { from: 0, to: currentSource.length, insert: nextSource };
+  return {
+    changes: { from: 0, to: currentSource.length, insert: nextSource },
+    trustedPatch: false
+  };
+}
+
+function sourcePatchChanges(patches: readonly SourceSyncPatch[]): SourceSyncChange[] {
+  return patches.map((patch) => ({
+    from: patch.oldSpan.from,
+    to: patch.oldSpan.to,
+    insert: patch.replacement
+  }));
 }
 
 class ExternalSourceSyncManager {
   private lastKnownSource: string;
+  private lastKnownRevision: number | null;
 
   constructor(private readonly view: EditorView) {
     this.lastKnownSource = view.state.doc.toString();
+    this.lastKnownRevision = null;
   }
 
   update(update: ViewUpdate): void {
@@ -311,9 +353,11 @@ class ExternalSourceSyncManager {
     const annotation = findExternalSourceSyncAnnotation(update.transactions);
     if (annotation) {
       this.lastKnownSource = annotation.nextSource;
+      this.lastKnownRevision = annotation.sourceRevision;
       return;
     }
     this.lastKnownSource = update.state.doc.toString();
+    this.lastKnownRevision = null;
   }
 
   destroy(): void {
@@ -322,38 +366,91 @@ class ExternalSourceSyncManager {
 
   syncExternalSource(
     nextSource: string,
+    sourceRevision: number,
     lastEditPatches: readonly SourceSyncPatch[] | null,
+    lastEditPatchBaseRevision: number | null,
+    patchChain: readonly SourceSyncPatchStep[] | null,
     coalescedToAnimationFrame: boolean
   ): void {
-    if (nextSource === this.lastKnownSource) {
+    if (sourceRevision === this.lastKnownRevision) {
       return;
     }
-    const changes = buildExternalSourceSyncChanges(
+    if (nextSource === this.lastKnownSource) {
+      this.lastKnownRevision = sourceRevision;
+      return;
+    }
+    if (
+      this.lastKnownRevision == null &&
+      lastEditPatchBaseRevision != null &&
+      lastEditPatches != null &&
+      lastEditPatches.length > 0
+    ) {
+      this.lastKnownRevision = lastEditPatchBaseRevision;
+    }
+    const canTrustPatches =
+      lastEditPatches != null &&
+      lastEditPatches.length > 0 &&
+      lastEditPatchBaseRevision != null &&
+      lastEditPatchBaseRevision === this.lastKnownRevision;
+    const trustedPatchChain =
+      patchChain &&
+      patchChain.length > 0 &&
+      patchChain[0]?.baseRevision === this.lastKnownRevision &&
+      patchChain[patchChain.length - 1]?.sourceRevision === sourceRevision
+        ? patchChain
+        : null;
+    if (trustedPatchChain) {
+      const patchCount = trustedPatchChain.reduce((count, step) => count + step.patches.length, 0);
+      const startedAt = performance.now();
+      dispatchPatchChainWithStableHorizontalScroll(
+        this.view,
+        trustedPatchChain,
+        nextSource,
+        sourceRevision
+      );
+      recordProfilingSourcePanelSyncTiming({
+        kind: "externalSyncDispatch",
+        durationMs: performance.now() - startedAt,
+        mode: "patch",
+        trustedPatch: true,
+        coalescedToAnimationFrame,
+        patchCount,
+        docLength: nextSource.length
+      });
+      this.lastKnownSource = nextSource;
+      this.lastKnownRevision = sourceRevision;
+      return;
+    }
+    const syncChanges = buildExternalSourceSyncChanges(
       this.lastKnownSource,
       nextSource,
-      lastEditPatches
+      lastEditPatches,
+      canTrustPatches,
+      null
     );
-    const patchCount = Array.isArray(changes) ? changes.length : 1;
-    const mode = Array.isArray(changes) ? "patch" : "replace";
+    const patchCount = Array.isArray(syncChanges.changes) ? syncChanges.changes.length : 1;
+    const mode = Array.isArray(syncChanges.changes) ? "patch" : "replace";
     const startedAt = performance.now();
     dispatchSelectionWithStableHorizontalScroll(this.view, {
-      changes,
+      changes: syncChanges.changes,
       annotations: [
         Transaction.addToHistory.of(false),
         isolateHistory.of("before"),
         isolateHistory.of("after"),
-        sourcePanelExternalSyncAnnotation.of({ nextSource })
+        sourcePanelExternalSyncAnnotation.of({ nextSource, sourceRevision })
       ]
     });
     recordProfilingSourcePanelSyncTiming({
       kind: "externalSyncDispatch",
       durationMs: performance.now() - startedAt,
       mode,
+      trustedPatch: Array.isArray(syncChanges.changes) && syncChanges.trustedPatch,
       coalescedToAnimationFrame,
       patchCount,
       docLength: nextSource.length
     });
     this.lastKnownSource = nextSource;
+    this.lastKnownRevision = sourceRevision;
   }
 }
 
@@ -362,11 +459,29 @@ const externalSourceSyncPlugin = ViewPlugin.fromClass(ExternalSourceSyncManager)
 function useExternalSourceSync(
   viewRef: RefObject<EditorView | null>,
   source: string,
+  sourceRevision: number,
   lastEditPatches: readonly SourceSyncPatch[] | null,
-  coalesceToAnimationFrame: boolean
+  lastEditPatchBaseRevision: number | null,
+  coalesceToAnimationFrame: boolean,
+  throttleMs = 0
 ) {
   const rafIdRef = useRef<number | null>(null);
+  const throttleIdRef = useRef<number | null>(null);
   const pendingSyncRef = useRef<PendingExternalSourceSync | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current != null) {
+        window.cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      if (throttleIdRef.current != null) {
+        window.clearTimeout(throttleIdRef.current);
+        throttleIdRef.current = null;
+      }
+      pendingSyncRef.current = null;
+    };
+  }, []);
 
   useLayoutEffect(() => {
     const view = viewRef.current;
@@ -383,21 +498,41 @@ function useExternalSourceSync(
         window.cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
       }
+      if (throttleIdRef.current != null) {
+        window.clearTimeout(throttleIdRef.current);
+        throttleIdRef.current = null;
+      }
       pendingSyncRef.current = null;
-      plugin.syncExternalSource(source, lastEditPatches, false);
+      plugin.syncExternalSource(source, sourceRevision, lastEditPatches, lastEditPatchBaseRevision, null, false);
       return;
     }
 
+    const patchStep =
+      lastEditPatchBaseRevision != null && lastEditPatches && lastEditPatches.length > 0
+        ? {
+            baseRevision: lastEditPatchBaseRevision,
+            sourceRevision,
+            patches: lastEditPatches
+          }
+        : null;
+    const previousPending = pendingSyncRef.current;
+    const patchChain =
+      patchStep && previousPending?.patchChain && previousPending.sourceRevision === patchStep.baseRevision
+        ? [...previousPending.patchChain, patchStep]
+        : patchStep
+          ? [patchStep]
+          : null;
     pendingSyncRef.current = {
       nextSource: source,
+      sourceRevision,
       lastEditPatches,
+      lastEditPatchBaseRevision,
+      patchChain,
       coalescedToAnimationFrame: true
     };
-    if (rafIdRef.current != null) {
-      return;
-    }
-    rafIdRef.current = window.requestAnimationFrame(() => {
+    const flushPendingSync = () => {
       rafIdRef.current = null;
+      throttleIdRef.current = null;
       const pending = pendingSyncRef.current;
       pendingSyncRef.current = null;
       if (!pending) {
@@ -405,19 +540,25 @@ function useExternalSourceSync(
       }
       plugin.syncExternalSource(
         pending.nextSource,
+        pending.sourceRevision,
         pending.lastEditPatches,
+        pending.lastEditPatchBaseRevision,
+        pending.patchChain,
         pending.coalescedToAnimationFrame
       );
-    });
-
-    return () => {
-      if (rafIdRef.current != null) {
-        window.cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
-      pendingSyncRef.current = null;
     };
-  }, [coalesceToAnimationFrame, lastEditPatches, source, viewRef]);
+    if (throttleMs > 0) {
+      if (throttleIdRef.current != null) {
+        return;
+      }
+      throttleIdRef.current = window.setTimeout(flushPendingSync, throttleMs);
+      return;
+    }
+    if (rafIdRef.current != null) {
+      return;
+    }
+    rafIdRef.current = window.requestAnimationFrame(flushPendingSync);
+  }, [coalesceToAnimationFrame, lastEditPatchBaseRevision, lastEditPatches, source, sourceRevision, throttleMs, viewRef]);
 }
 
 const diagnosticTooltip = hoverTooltip((view, pos) => {
@@ -558,20 +699,26 @@ const editorKeymap = Prec.highest(
 export function SourcePanel() {
   const {
     source,
+    sourceRevision,
     lastEditPatches,
+    lastEditPatchBaseRevision,
     activeFigureId,
     snapshot,
     activeCanvasDragKind,
+    activeCanvasTextEditSourceId,
     selectedElementIds,
     hoveredElementId,
     assistantLockReason,
     dispatch
   } = useEditorStore(useShallow((s) => ({
     source: s.source,
+    sourceRevision: s.sourceRevision,
     lastEditPatches: s.lastEditPatches,
+    lastEditPatchBaseRevision: s.lastEditPatchBaseRevision,
     activeFigureId: s.activeFigureId,
     snapshot: s.snapshot,
     activeCanvasDragKind: s.activeCanvasDragKind,
+    activeCanvasTextEditSourceId: s.activeCanvasTextEditSourceId,
     selectedElementIds: s.selectedElementIds,
     hoveredElementId: s.hoveredElementId,
     assistantLockReason: s.documents[s.activeDocumentId]?.assistantLockReason ?? null,
@@ -922,8 +1069,11 @@ export function SourcePanel() {
   useExternalSourceSync(
     viewRef,
     source,
+    sourceRevision,
     lastEditPatches,
-    activeCanvasDragKind != null
+    lastEditPatchBaseRevision,
+    activeCanvasDragKind != null || lastEditPatches != null,
+    activeCanvasDragKind != null || activeCanvasTextEditSourceId != null ? 80 : 0
   );
 
   useEffect(() => {
@@ -1563,6 +1713,34 @@ function dispatchSelectionWithStableHorizontalScroll(
 ): void {
   const previousScrollLeft = view.scrollDOM.scrollLeft;
   view.dispatch(spec);
+  if (previousScrollLeft === 0) {
+    return;
+  }
+  if (view.scrollDOM.scrollLeft === previousScrollLeft) {
+    return;
+  }
+  scheduleHorizontalScrollRestore(view, previousScrollLeft);
+}
+
+function dispatchPatchChainWithStableHorizontalScroll(
+  view: EditorView,
+  patchChain: readonly SourceSyncPatchStep[],
+  nextSource: string,
+  sourceRevision: number
+): void {
+  const previousScrollLeft = view.scrollDOM.scrollLeft;
+  const specs = patchChain.map((step, index) => ({
+    changes: sourcePatchChanges(step.patches),
+    annotations: [
+      Transaction.addToHistory.of(false),
+      isolateHistory.of("before"),
+      isolateHistory.of("after"),
+      ...(index === patchChain.length - 1
+        ? [sourcePanelExternalSyncAnnotation.of({ nextSource, sourceRevision })]
+        : [])
+    ]
+  }));
+  view.dispatch(...specs);
   if (previousScrollLeft === 0) {
     return;
   }

@@ -963,6 +963,14 @@ export const CanvasPanel = memo(function CanvasPanel({
     dispatchCanvasTextEditAction({ type: "session_close" });
   }, [dispatchCanvasTextEditAction]);
 
+  const activeCanvasTextEditSourceId = textEditingSession?.sourceId ?? null;
+  useEffect(() => {
+    dispatch({ type: "SET_ACTIVE_CANVAS_TEXT_EDIT", sourceId: activeCanvasTextEditSourceId });
+    return () => {
+      dispatch({ type: "SET_ACTIVE_CANVAS_TEXT_EDIT", sourceId: null });
+    };
+  }, [activeCanvasTextEditSourceId, dispatch]);
+
   const contextMenuHandleIdOverride =
     pendingNativeContextMenuRequest?.clickedHandleId ?? contextMenuState?.handleIdOverride;
   const editParseOptions = useMemo(
@@ -1555,7 +1563,15 @@ export const CanvasPanel = memo(function CanvasPanel({
   }, [densePathSourceIds, expandedDensePathSourceId, selectedElementIds, toolMode]);
 
   const pathSelectionHint = useMemo(() => {
-    if (warning || toolMode !== "select") return null;
+    if (
+      warning ||
+      toolMode !== "select" ||
+      activeCanvasDragKind != null ||
+      activeSourceScrubSourceId != null ||
+      snapshot.source !== source
+    ) {
+      return null;
+    }
     if (selectedElementIds.size !== 1) return null;
     const sourceId = [...selectedElementIds][0];
     const isNodeSource = snapshot.editHandles.some(
@@ -1571,7 +1587,19 @@ export const CanvasPanel = memo(function CanvasPanel({
     if (!hasInsertablePathSegment(snapshot.editHandles, sourceId, resolved.analysis)) return null;
     // dense paths that are expanded are also eligible for add-point hint
     return "Double-click path to add a point.";
-  }, [warning, toolMode, collapsedDensePathSourceIds, selectedElementIds, snapshot.editHandles, snapshot.scene, editParseOptions, source]);
+  }, [
+    warning,
+    toolMode,
+    activeCanvasDragKind,
+    activeSourceScrubSourceId,
+    collapsedDensePathSourceIds,
+    selectedElementIds,
+    snapshot.editHandles,
+    snapshot.scene,
+    snapshot.source,
+    editParseOptions,
+    source
+  ]);
 
   const {
     nodeAnchorTargets,

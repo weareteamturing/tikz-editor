@@ -206,6 +206,9 @@ export function useInspectorModel(args: {
       if (k === "element" || k === "resize" || k === "rotate" || k === "handle") {
         return;
       }
+      if (s.source !== s.snapshot.source) {
+        return;
+      }
       setAnalysisInputs((current) => {
         if (
           current.activeDocumentId === s.activeDocumentId &&
