@@ -57,10 +57,15 @@ try {
   await installDeterministicBridge(browser);
   const scenarios = [
     ["boot and tab lifecycle", scenarioBootAndTabLifecycle],
+    ["native menu dispatch", scenarioNativeMenuDispatch],
     ["isolation and restore", scenarioIsolationAndRestore],
     ["example open", scenarioExampleOpen],
     ["open, save, save as", scenarioOpenSaveSaveAs],
+    ["native open request and save", scenarioNativeOpenRequestAndSave],
+    ["clear recent files", scenarioClearRecentFiles],
+    ["close all dirty documents with save", scenarioCloseAllDirtyDocumentsWithSave],
     ["export smoke", scenarioExportSmoke],
+    ["export payload details", scenarioExportPayloadDetails],
     ["unsaved guard", scenarioUnsavedGuard]
   ];
 
@@ -180,6 +185,9 @@ async function installDeterministicBridge(browserInstance) {
   await browserInstance.execute(() => {
     const writes = [];
     const exports = [];
+    const exportPayloads = [];
+    const clearRecentCalls = [];
+    const windowTitles = [];
     const unsavedDecisions = [];
     const unsavedPrompts = [];
     const warnings = [];
@@ -218,9 +226,13 @@ async function installDeterministicBridge(browserInstance) {
           name: computedPath.split("/").pop() ?? "tikz-document.tex"
         };
       },
-      exportFile: async ({ fileName }) => {
+      exportFile: async ({ fileName, mimeType, bytesBase64 }) => {
         exports.push(fileName);
+        exportPayloads.push({ fileName, mimeType, bytesBase64 });
         return true;
+      },
+      clearRecentFiles: async () => {
+        clearRecentCalls.push(Date.now());
       },
       readClipboard: async () => "",
       writeClipboard: async () => undefined,
@@ -229,6 +241,7 @@ async function installDeterministicBridge(browserInstance) {
       writeClipboardBundle: async () => undefined,
       setWindowTitle: async (title) => {
         window.__DESKTOP_E2E_TITLE__ = title;
+        windowTitles.push(title);
       },
       closeWindow: async () => {
         window.__DESKTOP_E2E_CLOSED__ = true;
@@ -244,6 +257,9 @@ async function installDeterministicBridge(browserInstance) {
     };
     window.__DESKTOP_E2E_WRITES__ = writes;
     window.__DESKTOP_E2E_EXPORTS__ = exports;
+    window.__DESKTOP_E2E_EXPORT_PAYLOADS__ = exportPayloads;
+    window.__DESKTOP_E2E_CLEAR_RECENT_CALLS__ = clearRecentCalls;
+    window.__DESKTOP_E2E_WINDOW_TITLES__ = windowTitles;
     window.__DESKTOP_E2E_UNSAVED_DECISIONS__ = unsavedDecisions;
     window.__DESKTOP_E2E_UNSAVED_PROMPTS__ = unsavedPrompts;
     window.__DESKTOP_E2E_WARNINGS__ = warnings;
@@ -257,6 +273,17 @@ async function scenarioBootAndTabLifecycle(browserInstance) {
   await expectCount(browserInstance, "[data-testid^='tab-switch-']", 1);
   await dispatchCommand(browserInstance, "file.new-document");
   await expectCount(browserInstance, "[data-testid^='tab-switch-']", 2);
+  await dispatchCommand(browserInstance, "file.close-all-documents");
+  await expectCount(browserInstance, "[data-testid^='tab-switch-']", 1);
+}
+
+async function scenarioNativeMenuDispatch(browserInstance) {
+  const before = await count(browserInstance, "[data-testid^='tab-switch-']");
+  const dispatched = await browserInstance.execute(() => {
+    return window.__TIKZ_EDITOR_DESKTOP_TEST_API__.dispatchCommand("file.new-document");
+  });
+  assert.equal(dispatched, true, "expected desktop menu dispatch to reach the app command handler");
+  await expectCount(browserInstance, "[data-testid^='tab-switch-']", before + 1);
   await dispatchCommand(browserInstance, "file.close-all-documents");
   await expectCount(browserInstance, "[data-testid^='tab-switch-']", 1);
 }
@@ -291,6 +318,83 @@ async function scenarioOpenSaveSaveAs(browserInstance) {
   assert.ok(writes >= 2, "expected at least two writes after save and save as");
 }
 
+async function scenarioNativeOpenRequestAndSave(browserInstance) {
+  const beforeTabs = await count(browserInstance, "[data-testid^='tab-switch-']");
+  const beforeWrites = await browserInstance.execute(() => window.__DESKTOP_E2E_WRITES__.length);
+  await browserInstance.execute(() => {
+    window.__TIKZ_EDITOR_DESKTOP_TEST_API__.triggerOpenRequest({
+      source: "\\\\draw (11,11)--(12,12); % native-open-request",
+      path: "/tmp/native-open-request-e2e.tex",
+      name: "native-open-request-e2e.tex"
+    });
+  });
+  await expectCount(browserInstance, "[data-testid^='tab-switch-']", beforeTabs + 1);
+  await expectTextContains(browserInstance, ".cm-content", "native-open-request");
+
+  await setSource(browserInstance, "\\draw (13,13)--(14,14); % native-open-saved");
+  await dispatchCommand(browserInstance, "file.save-document");
+  let lastWrites = [];
+  await browserInstance.waitUntil(async () => {
+    const writes = await browserInstance.execute(() => window.__DESKTOP_E2E_WRITES__);
+    lastWrites = writes;
+    const lastWrite = writes[writes.length - 1];
+    return (
+      writes.length > beforeWrites &&
+      lastWrite?.path === "/tmp/native-open-request-e2e.tex" &&
+      lastWrite.text.includes("native-open-saved")
+    );
+  }, {
+    timeout: 10_000,
+    timeoutMsg: `Expected save after native open request to write the edited source back to the opened file path; writes=${JSON.stringify(lastWrites)}`
+  });
+  const lastWrite = await browserInstance.execute(() => window.__DESKTOP_E2E_WRITES__[window.__DESKTOP_E2E_WRITES__.length - 1]);
+  assert.equal(lastWrite.forceSaveAs, false, "save should not force Save As for a native-opened file");
+}
+
+async function scenarioClearRecentFiles(browserInstance) {
+  const before = await browserInstance.execute(() => window.__DESKTOP_E2E_CLEAR_RECENT_CALLS__.length);
+  await dispatchCommand(browserInstance, "file.clear-recent-files");
+  await browserInstance.waitUntil(async () => {
+    const calls = await browserInstance.execute(() => window.__DESKTOP_E2E_CLEAR_RECENT_CALLS__.length);
+    return calls === before + 1;
+  }, {
+    timeout: 10_000,
+    timeoutMsg: "Expected clear recent files command to reach the desktop bridge"
+  });
+}
+
+async function scenarioCloseAllDirtyDocumentsWithSave(browserInstance) {
+  await closeAllDocumentsDiscardingChanges(browserInstance);
+  await expectCount(browserInstance, "[data-testid^='tab-switch-']", 1);
+
+  await setSource(browserInstance, "\\draw (21,21)--(22,22); % close-all-doc1");
+  await dispatchCommand(browserInstance, "file.new-document");
+  await setSource(browserInstance, "\\draw (23,23)--(24,24); % close-all-doc2");
+
+  const promptCount = await getUnsavedPromptCount(browserInstance);
+  const writesBeforeSave = await browserInstance.execute(() => window.__DESKTOP_E2E_WRITES__.length);
+  await queueUnsavedDecision(browserInstance, "save");
+  await dispatchCommand(browserInstance, "file.close-all-documents");
+  await expectUnsavedPromptCount(browserInstance, promptCount + 1);
+
+  await browserInstance.waitUntil(async () => {
+    const writes = await browserInstance.execute(() => window.__DESKTOP_E2E_WRITES__);
+    const newWrites = writes.slice(writesBeforeSave);
+    return (
+      newWrites.length >= 2 &&
+      newWrites.some((write) => write.text.includes("close-all-doc1")) &&
+      newWrites.some((write) => write.text.includes("close-all-doc2"))
+    );
+  }, {
+    timeout: 10_000,
+    timeoutMsg: "Expected close-all save decision to save both dirty documents"
+  });
+
+  const latestPrompt = await browserInstance.execute(() => window.__DESKTOP_E2E_UNSAVED_PROMPTS__.at(-1));
+  assert.equal(latestPrompt, "2 documents have unsaved changes.", "close-all should summarize multiple dirty documents");
+  await expectCount(browserInstance, "[data-testid^='tab-switch-']", 1);
+}
+
 async function scenarioExportSmoke(browserInstance) {
   await openModalForCommand(browserInstance, "file.export-svg-download", "[data-testid='svg-export-modal']");
   await browserInstance.$("[data-testid='svg-export-cancel']").click();
@@ -317,6 +421,31 @@ async function scenarioExportSmoke(browserInstance) {
   const exports = await browserInstance.execute(() => window.__DESKTOP_E2E_EXPORTS__);
   assert.ok(exports.includes("tikz-export.pdf"), "expected PDF export to run");
   assert.ok(exports.includes("tikz-export.tex"), "expected LaTeX export to run");
+}
+
+async function scenarioExportPayloadDetails(browserInstance) {
+  await setSource(browserInstance, "\\draw (31,31)--(32,32); % export-payload");
+  const before = await browserInstance.execute(() => window.__DESKTOP_E2E_EXPORT_PAYLOADS__.length);
+
+  await dispatchCommand(browserInstance, "file.export-pdf-download");
+  let lastExportPayloads = [];
+  await waitForCommandEffect(browserInstance, "file.export-standalone-latex-download", async () => {
+    const payloads = await browserInstance.execute(() => window.__DESKTOP_E2E_EXPORT_PAYLOADS__);
+    lastExportPayloads = payloads.slice(before);
+    const newPayloads = payloads.slice(before);
+    return (
+      newPayloads.some((payload) => payload.fileName === "tikz-export.pdf" && payload.mimeType === "application/pdf") &&
+      newPayloads.some((payload) => payload.fileName === "tikz-export.tex" && payload.mimeType.startsWith("application/x-tex"))
+    );
+  }, `Expected PDF and LaTeX exports to include desktop payload metadata; payloads=${JSON.stringify(lastExportPayloads)}`);
+
+  const texExportText = await browserInstance.execute((startIndex) => {
+    const payload = window.__DESKTOP_E2E_EXPORT_PAYLOADS__
+      .slice(startIndex)
+      .find((item) => item.fileName === "tikz-export.tex");
+    return payload ? atob(payload.bytesBase64) : "";
+  }, before);
+  assert.ok(texExportText.includes("export-payload"), "LaTeX export payload should contain the current source");
 }
 
 async function scenarioUnsavedGuard(browserInstance) {
@@ -410,12 +539,14 @@ async function setSource(browserInstance, value) {
     window.__TIKZ_EDITOR_APP_TEST_API__.setSource(nextSource);
   }, value);
   let lastSource = "";
+  let lastSnapshotSource = "";
   await browserInstance.waitUntil(async () => {
     lastSource = await browserInstance.execute(() => window.__TIKZ_EDITOR_APP_TEST_API__.getSource());
-    return lastSource === value;
+    lastSnapshotSource = await browserInstance.execute(() => window.__TIKZ_EDITOR_APP_TEST_API__.getSnapshotSource());
+    return lastSource === value && lastSnapshotSource === value;
   }, {
     timeout: 10_000,
-    timeoutMsg: `Expected test API source to update to ${JSON.stringify(value)}; lastSource=${JSON.stringify(lastSource)}`
+    timeoutMsg: `Expected test API source and snapshot to update to ${JSON.stringify(value)}; lastSource=${JSON.stringify(lastSource)} lastSnapshotSource=${JSON.stringify(lastSnapshotSource)}`
   });
 }
 
@@ -423,6 +554,20 @@ async function queueUnsavedDecision(browserInstance, decision) {
   await browserInstance.execute((nextDecision) => {
     window.__DESKTOP_E2E_UNSAVED_DECISIONS__.push(nextDecision);
   }, decision);
+}
+
+async function clearUnsavedDecisions(browserInstance) {
+  await browserInstance.execute(() => {
+    window.__DESKTOP_E2E_UNSAVED_DECISIONS__.length = 0;
+  });
+}
+
+async function closeAllDocumentsDiscardingChanges(browserInstance) {
+  await clearUnsavedDecisions(browserInstance);
+  await queueUnsavedDecision(browserInstance, "discard");
+  await dispatchCommand(browserInstance, "file.close-all-documents");
+  await expectCount(browserInstance, "[data-testid^='tab-switch-']", 1);
+  await clearUnsavedDecisions(browserInstance);
 }
 
 async function getUnsavedPromptCount(browserInstance) {
