@@ -35,7 +35,7 @@ export type UseCanvasViewportEffectsArgs = {
   zoomSpeed: number;
   MIN_SCALE: number;
   MAX_SCALE: number;
-  setFitToContentModeActive: StateSetter<boolean>;
+  setFitToContentModeActive: ValueSetter<boolean>;
 };
 
 export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {

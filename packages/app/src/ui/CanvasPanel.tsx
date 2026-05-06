@@ -749,8 +749,11 @@ export const CanvasPanel = memo(function CanvasPanel({
     lastEditWarningToken,
     canvasTransform,
     fitToContentRequestToken,
+    fitToContentModeActive,
     zoomRequestToken,
     zoomRequestDirection,
+    zoomScaleRequestToken,
+    zoomScaleRequestValue,
     showGrid,
     showTransparencyGrid,
     snapModes,
@@ -786,8 +789,11 @@ export const CanvasPanel = memo(function CanvasPanel({
     lastEditWarningToken: s.documents[s.activeDocumentId]?.lastEditWarningToken ?? 0,
     canvasTransform: s.canvasTransform,
     fitToContentRequestToken: s.fitToContentRequestToken,
+    fitToContentModeActive: s.fitToContentModeActive,
     zoomRequestToken: s.zoomRequestToken,
     zoomRequestDirection: s.zoomRequestDirection,
+    zoomScaleRequestToken: s.zoomScaleRequestToken,
+    zoomScaleRequestValue: s.zoomScaleRequestValue,
     showGrid: s.showGrid,
     showTransparencyGrid: s.showTransparencyGrid,
     snapModes: s.snapModes,
@@ -873,8 +879,13 @@ export const CanvasPanel = memo(function CanvasPanel({
   const [equationModalTarget, setEquationModalTarget] = useState<EquationNodeTarget | null>(null);
   const [pendingNativeContextMenuRequest, setPendingNativeContextMenuRequest] =
     useState<PendingNativeContextMenuRequest | null>(null);
-  const [fitToContentModeActive, setFitToContentModeActive] = useState(true);
   const [expandedDensePathSourceId, setExpandedDensePathSourceId] = useState<string | null>(null);
+  const setFitToContentModeActive = useCallback(
+    (active: boolean) => {
+      dispatch({ type: "SET_FIT_TO_CONTENT_MODE", active });
+    },
+    [dispatch]
+  );
   const bucketPreviewSessionRef = useRef<BucketPreviewSession | null>(null);
   const contextMenuContextRef = useRef<{ clickedTargetId: string | null; clickedWorld: WorldPoint | null }>({
     clickedTargetId: null,
@@ -1786,7 +1797,7 @@ export const CanvasPanel = memo(function CanvasPanel({
 
     pendingFirstVisitAutoFitKeyRef.current = null;
     previousFigureViewportKeyRef.current = activeFigureViewportKey;
-  }, [activeFigureViewportKey, dispatchCanvasTransform, fitToContent]);
+  }, [activeFigureViewportKey, dispatchCanvasTransform, fitToContent, setFitToContentModeActive]);
 
   const handledFitRequestRef = useRef(0);
   useEffect(() => {
@@ -1801,7 +1812,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       setFitToContentModeActive(true);
     }
     fitToContent();
-  }, [fitToContent, fitToContentRequestToken]);
+  }, [fitToContent, fitToContentRequestToken, setFitToContentModeActive]);
 
   const handledZoomRequestRef = useRef(0);
   useEffect(() => {
@@ -1845,6 +1856,49 @@ export const CanvasPanel = memo(function CanvasPanel({
     svgResult,
     zoomRequestDirection,
     zoomRequestToken
+  ]);
+
+  const handledZoomScaleRequestRef = useRef(0);
+  useEffect(() => {
+    if (zoomScaleRequestToken <= 0) {
+      return;
+    }
+    if (zoomScaleRequestToken === handledZoomScaleRequestRef.current) {
+      return;
+    }
+    handledZoomScaleRequestRef.current = zoomScaleRequestToken;
+    if (!svgResult || !viewportRef.current || zoomScaleRequestValue == null) {
+      return;
+    }
+
+    const currentTransform = canvasTransformRef.current;
+    const nextScale = clamp(zoomScaleRequestValue, MIN_SCALE, MAX_SCALE);
+    if (Math.abs(nextScale - currentTransform.scale) < 1e-9) {
+      return;
+    }
+
+    const centerX = viewportRef.current.clientWidth / 2;
+    const centerY = viewportRef.current.clientHeight / 2;
+    const svgPoint = viewportToSvgPoint(
+      viewportPoint(px(centerX), px(centerY)),
+      currentTransform,
+      svgResult.viewBox
+    );
+    const translateX = centerX - (svgPoint.x - svgResult.viewBox.x) * nextScale;
+    const translateY = centerY - (svgPoint.y - svgResult.viewBox.y) * nextScale;
+
+    if (fitToContentModeActiveRef.current) {
+      setFitToContentModeActive(false);
+    }
+    dispatchCanvasTransform({ translateX, translateY, scale: nextScale });
+  }, [
+    canvasTransformRef,
+    dispatchCanvasTransform,
+    fitToContentModeActiveRef,
+    setFitToContentModeActive,
+    svgResult,
+    zoomScaleRequestToken,
+    zoomScaleRequestValue
   ]);
 
   const copyWarningToClipboard = useCallback(() => {

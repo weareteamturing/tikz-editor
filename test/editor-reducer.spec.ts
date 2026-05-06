@@ -995,12 +995,29 @@ describe("editorReducer – layout", () => {
   it("REQUEST_FIT_TO_CONTENT increments request token", () => {
     const initial = makeInitialState();
     expect(initial.fitToContentRequestToken).toBe(0);
+    expect(initial.fitToContentModeActive).toBe(true);
 
     const next = editorReducer(initial, { type: "REQUEST_FIT_TO_CONTENT" });
     expect(next.fitToContentRequestToken).toBe(1);
+    expect(next.fitToContentModeActive).toBe(true);
 
     const next2 = editorReducer(next, { type: "REQUEST_FIT_TO_CONTENT" });
     expect(next2.fitToContentRequestToken).toBe(2);
+  });
+
+  it("SET_FIT_TO_CONTENT_MODE updates fit tracking without issuing a fit request", () => {
+    const initial = makeInitialState();
+    const disabled = editorReducer(initial, { type: "SET_FIT_TO_CONTENT_MODE", active: false });
+
+    expect(disabled.fitToContentModeActive).toBe(false);
+    expect(disabled.fitToContentRequestToken).toBe(initial.fitToContentRequestToken);
+
+    const disabledAgain = editorReducer(disabled, { type: "SET_FIT_TO_CONTENT_MODE", active: false });
+    expect(disabledAgain).toBe(disabled);
+
+    const enabled = editorReducer(disabled, { type: "SET_FIT_TO_CONTENT_MODE", active: true });
+    expect(enabled.fitToContentModeActive).toBe(true);
+    expect(enabled.fitToContentRequestToken).toBe(initial.fitToContentRequestToken);
   });
 });
 

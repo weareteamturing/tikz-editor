@@ -107,6 +107,34 @@ describe("editor-command-runtime", () => {
     expect(dispatch).toHaveBeenCalledWith({ type: "TOGGLE_SNAP_MODE", mode: "guides" });
   });
 
+  it("treats fit to content as a checked toggle", () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+    const inactiveRuntime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        fitToContentModeActive: false
+      })
+    );
+    expect(inactiveRuntime.bindings[APP_MENU_COMMAND_IDS.FIT_TO_CONTENT].checked).toBe(false);
+    expect(inactiveRuntime.runCommand(APP_MENU_COMMAND_IDS.FIT_TO_CONTENT, "menu")).toBe(true);
+    expect(dispatch).toHaveBeenLastCalledWith({ type: "REQUEST_FIT_TO_CONTENT" });
+
+    const activeRuntime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        fitToContentModeActive: true
+      })
+    );
+    expect(activeRuntime.bindings[APP_MENU_COMMAND_IDS.FIT_TO_CONTENT].checked).toBe(true);
+    expect(activeRuntime.runCommand(APP_MENU_COMMAND_IDS.FIT_TO_CONTENT, "menu")).toBe(true);
+    expect(dispatch).toHaveBeenLastCalledWith({ type: "SET_FIT_TO_CONTENT_MODE", active: false });
+  });
+
   it("routes rotate-left through grouped transform edits", () => {
     const dispatch = vi.fn<(action: EditorAction) => void>();
     const source = String.raw`\begin{tikzpicture}
@@ -1123,6 +1151,7 @@ function makeInput({
   activeHandleId = null,
   historyIndex,
   historyLength,
+  fitToContentModeActive = false,
   showGrid = false,
   showTransparencyGrid = false,
   snapModes = { grid: true, guides: true, points: true, gaps: true },
@@ -1155,6 +1184,7 @@ function makeInput({
   activeHandleId?: string | null;
   historyIndex?: number;
   historyLength?: number;
+  fitToContentModeActive?: boolean;
   showGrid?: boolean;
   showTransparencyGrid?: boolean;
   snapModes?: {
@@ -1201,6 +1231,7 @@ function makeInput({
     tabCount: 1,
     dirty: false,
     fileRef: null,
+    fitToContentModeActive,
     rightSidebarTab: "inspector" as const,
     assistantAvailable: true,
     showGrid,

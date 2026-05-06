@@ -61,8 +61,11 @@ function initialUiState(): WorkspaceEphemeralState {
     creationStrokeColor: DEFAULT_CREATION_STROKE_COLOR,
     creationFillColor: DEFAULT_CREATION_FILL_COLOR,
     fitToContentRequestToken: 0,
+    fitToContentModeActive: true,
     zoomRequestToken: 0,
     zoomRequestDirection: null,
+    zoomScaleRequestToken: 0,
+    zoomScaleRequestValue: null,
     showSourcePanel: true,
     showInspectorPanel: true,
     showObjectsPanel: true,
@@ -1060,11 +1063,25 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       ui = { ...ui, fitToContentRequestToken: ui.fitToContentRequestToken + 1 };
       break;
 
+    case "SET_FIT_TO_CONTENT_MODE":
+      if (ui.fitToContentModeActive === action.active) return state;
+      ui = { ...ui, fitToContentModeActive: action.active };
+      break;
+
     case "REQUEST_ZOOM":
       ui = {
         ...ui,
         zoomRequestToken: ui.zoomRequestToken + 1,
         zoomRequestDirection: action.direction
+      };
+      break;
+
+    case "REQUEST_ZOOM_SCALE":
+      if (!Number.isFinite(action.scale) || action.scale <= 0) return state;
+      ui = {
+        ...ui,
+        zoomScaleRequestToken: ui.zoomScaleRequestToken + 1,
+        zoomScaleRequestValue: action.scale
       };
       break;
 

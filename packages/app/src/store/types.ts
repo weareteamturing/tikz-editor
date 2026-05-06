@@ -139,9 +139,14 @@ export type WorkspaceEphemeralState = {
   creationFillColor: string;
   /** Monotonic token used to request a fit-to-content operation from CanvasPanel. */
   fitToContentRequestToken: number;
+  /** Whether the canvas is tracking content bounds as the view changes. */
+  fitToContentModeActive: boolean;
   /** Monotonic token used to request zoom operations from CanvasPanel. */
   zoomRequestToken: number;
   zoomRequestDirection: ZoomRequestDirection | null;
+  /** Monotonic token used to request an absolute canvas zoom scale. */
+  zoomScaleRequestToken: number;
+  zoomScaleRequestValue: number | null;
 
   // ── layout slice ─────────────────────────────────────────────────────────────
   showSourcePanel: boolean;
@@ -217,9 +222,14 @@ export type EditorState = {
   creationFillColor: string;
   /** Monotonic token used to request a fit-to-content operation from CanvasPanel. */
   fitToContentRequestToken: number;
+  /** Whether the canvas is tracking content bounds as the view changes. */
+  fitToContentModeActive: boolean;
   /** Monotonic token used to request zoom operations from CanvasPanel. */
   zoomRequestToken: number;
   zoomRequestDirection: ZoomRequestDirection | null;
+  /** Monotonic token used to request an absolute canvas zoom scale. */
+  zoomScaleRequestToken: number;
+  zoomScaleRequestValue: number | null;
 
   // ── layout slice ─────────────────────────────────────────────────────────────
   showSourcePanel: boolean;
@@ -315,7 +325,9 @@ export type EditorAction =
   | { type: "TOGGLE_CANVAS_AID"; aid: CanvasAid }
   | { type: "TOGGLE_SNAP_MODE"; mode: SnapMode }
   | { type: "REQUEST_FIT_TO_CONTENT" }
+  | { type: "SET_FIT_TO_CONTENT_MODE"; active: boolean }
   | { type: "REQUEST_ZOOM"; direction: ZoomRequestDirection }
+  | { type: "REQUEST_ZOOM_SCALE"; scale: number }
   // Layout
   | { type: "TOGGLE_PANEL"; panel: "source" | "inspector" }
   | { type: "SYNC_LAYOUT_STATE"; sourceVisible: boolean; inspectorVisible: boolean; objectsVisible: boolean; stylesVisible: boolean; figuresVisible: boolean; assistantVisible: boolean; activeRightTab: "inspector" | "objects" | "styles" | "assistant" }

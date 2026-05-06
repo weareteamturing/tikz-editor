@@ -95,6 +95,7 @@ type RuntimeInput = {
   tabCount: number;
   dirty: boolean;
   fileRef: DocumentFileRef | null;
+  fitToContentModeActive: boolean;
   showGrid: boolean;
   showTransparencyGrid: boolean;
   snapModes: SnapModes;
@@ -151,6 +152,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     tabCount,
     dirty,
     fileRef,
+    fitToContentModeActive,
     showGrid,
     showTransparencyGrid,
     snapModes,
@@ -797,7 +799,14 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     },
     [APP_MENU_COMMAND_IDS.FIT_TO_CONTENT]: {
       enabled: snapshot.svg != null,
-      run: () => dispatch({ type: "REQUEST_FIT_TO_CONTENT" })
+      checked: fitToContentModeActive,
+      run: () => {
+        if (fitToContentModeActive) {
+          dispatch({ type: "SET_FIT_TO_CONTENT_MODE", active: false });
+          return;
+        }
+        dispatch({ type: "REQUEST_FIT_TO_CONTENT" });
+      }
     },
     [APP_MENU_COMMAND_IDS.ZOOM_IN]: {
       enabled: snapshot.svg != null,
@@ -1008,6 +1017,7 @@ export function useEditorCommandRuntime(
   const tabCount = useEditorStore((s) => s.tabOrder.length);
   const dirty = useEditorStore((s) => s.documents[s.activeDocumentId]?.dirty ?? false);
   const fileRef = useEditorStore((s) => s.documents[s.activeDocumentId]?.fileRef ?? null);
+  const fitToContentModeActive = useEditorStore((s) => s.fitToContentModeActive);
   const showGrid = useEditorStore((s) => s.showGrid);
   const showTransparencyGrid = useEditorStore((s) => s.showTransparencyGrid);
   const snapModes = useEditorStore((s) => s.snapModes);
@@ -1084,6 +1094,7 @@ export function useEditorCommandRuntime(
         tabCount,
         dirty,
         fileRef,
+        fitToContentModeActive,
         showGrid,
         showTransparencyGrid,
         snapModes,
@@ -1128,6 +1139,7 @@ export function useEditorCommandRuntime(
       tabCount,
       dirty,
       fileRef,
+      fitToContentModeActive,
       showGrid,
       showTransparencyGrid,
       snapModes,
