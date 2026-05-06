@@ -180,7 +180,7 @@ export function AppMenuBar({
     }
 
     window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
+    return () => { window.removeEventListener("pointerdown", onPointerDown); };
   }, []);
 
   useEffect(() => {
@@ -195,7 +195,7 @@ export function AppMenuBar({
     }
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => { window.removeEventListener("keydown", onKeyDown); };
   }, [openSectionId]);
 
   return (
@@ -243,7 +243,7 @@ export function AppMenuBar({
                 path={section.id}
                 nested={false}
                 bindings={bindings}
-                onCommandRun={() => setOpenSectionId(null)}
+                onCommandRun={() => { setOpenSectionId(null); }}
               />
             ) : null}
           </div>

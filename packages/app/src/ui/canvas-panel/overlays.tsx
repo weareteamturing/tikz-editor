@@ -606,9 +606,9 @@ export function HitRegionLayer({
               strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
               style={cursor ? { cursor } : undefined}
               pointerEvents={pointerEvents}
-              onPointerDown={(event) => onElementPointerDown(event, region.targetId, region)}
-              onContextMenu={(event) => onElementContextMenu(event, region.targetId, region)}
-              onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
+              onPointerDown={(event) => { onElementPointerDown(event, region.targetId, region); }}
+              onContextMenu={(event) => { onElementContextMenu(event, region.targetId, region); }}
+              onDoubleClick={(event) => { onElementDoubleClick(event, region.targetId, region); }}
               onPointerEnter={onEnter}
               onPointerLeave={onLeave}
               data-hit-region-target-id={region.targetId}
@@ -633,9 +633,9 @@ export function HitRegionLayer({
               strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
               style={cursor ? { cursor } : undefined}
               pointerEvents={pointerEvents}
-              onPointerDown={(event) => onElementPointerDown(event, region.targetId, region)}
-              onContextMenu={(event) => onElementContextMenu(event, region.targetId, region)}
-              onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
+              onPointerDown={(event) => { onElementPointerDown(event, region.targetId, region); }}
+              onContextMenu={(event) => { onElementContextMenu(event, region.targetId, region); }}
+              onDoubleClick={(event) => { onElementDoubleClick(event, region.targetId, region); }}
               onPointerEnter={onEnter}
               onPointerLeave={onLeave}
               data-hit-region-target-id={region.targetId}
@@ -666,9 +666,9 @@ export function HitRegionLayer({
               strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
               style={cursor ? { cursor } : undefined}
               pointerEvents={pointerEvents}
-              onPointerDown={(event) => onElementPointerDown(event, region.targetId, region)}
-              onContextMenu={(event) => onElementContextMenu(event, region.targetId, region)}
-              onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
+              onPointerDown={(event) => { onElementPointerDown(event, region.targetId, region); }}
+              onContextMenu={(event) => { onElementContextMenu(event, region.targetId, region); }}
+              onDoubleClick={(event) => { onElementDoubleClick(event, region.targetId, region); }}
               onPointerEnter={onEnter}
               onPointerLeave={onLeave}
               data-hit-region-target-id={region.targetId}
@@ -699,9 +699,9 @@ export function HitRegionLayer({
                 strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
                 style={cursor ? { cursor } : undefined}
                 pointerEvents={pointerEvents}
-                onPointerDown={(event) => onElementPointerDown(event, region.targetId, region)}
-                onContextMenu={(event) => onElementContextMenu(event, region.targetId, region)}
-                onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
+                onPointerDown={(event) => { onElementPointerDown(event, region.targetId, region); }}
+                onContextMenu={(event) => { onElementContextMenu(event, region.targetId, region); }}
+                onDoubleClick={(event) => { onElementDoubleClick(event, region.targetId, region); }}
                 onPointerEnter={onEnter}
                 onPointerLeave={onLeave}
                 data-hit-region-target-id={region.targetId}
@@ -845,9 +845,9 @@ export function SelectionDragLayer({
               className={css.selectionDragStroke}
               points={bounds.points.map((point) => `${fmt(point.x)},${fmt(point.y)}`).join(" ")}
               strokeWidth={dragStrokeWidth}
-              onPointerDown={(event) => onElementPointerDown(event, bounds.sourceId)}
-              onContextMenu={(event) => onElementContextMenu(event, bounds.sourceId)}
-              onDoubleClick={(event) => onElementDoubleClick(event, bounds.sourceId)}
+              onPointerDown={(event) => { onElementPointerDown(event, bounds.sourceId); }}
+              onContextMenu={(event) => { onElementContextMenu(event, bounds.sourceId); }}
+              onDoubleClick={(event) => { onElementDoubleClick(event, bounds.sourceId); }}
             />
           );
         }
@@ -861,9 +861,9 @@ export function SelectionDragLayer({
             width={Math.max(0.001, bounds.bounds.maxX - bounds.bounds.minX)}
             height={Math.max(0.001, bounds.bounds.maxY - bounds.bounds.minY)}
             strokeWidth={dragStrokeWidth}
-            onPointerDown={(event) => onElementPointerDown(event, bounds.sourceId)}
-            onContextMenu={(event) => onElementContextMenu(event, bounds.sourceId)}
-            onDoubleClick={(event) => onElementDoubleClick(event, bounds.sourceId)}
+            onPointerDown={(event) => { onElementPointerDown(event, bounds.sourceId); }}
+            onContextMenu={(event) => { onElementContextMenu(event, bounds.sourceId); }}
+            onDoubleClick={(event) => { onElementDoubleClick(event, bounds.sourceId); }}
           />
         );
       })}
@@ -924,12 +924,12 @@ export function HandleOverlay({
           onRotateHandlePointerDown(event, display.elementId, display.centerWorld, display.cursor);
         };
         const onContextMenu = (event: ReactMouseEvent<SVGElement>) =>
-          onElementContextMenu(
+          { onElementContextMenu(
             event,
             display.kind === "move-handle" ? display.handle.sourceRef.sourceId : display.elementId,
             undefined,
             display.kind === "move-handle" ? display.handle.id : null
-          );
+          ); };
 
         if (display.kind === "rotate-element") {
           const rotateCursorClass =

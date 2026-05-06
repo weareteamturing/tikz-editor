@@ -113,6 +113,7 @@ export default tseslint.config(
     files: ["packages/*/src/**/*.{ts,tsx}", "apps/*/src/**/*.{ts,tsx}"],
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/consistent-type-imports": "error",
       "@typescript-eslint/no-unsafe-assignment": "error",
       "@typescript-eslint/no-unsafe-member-access": "error",
       "@typescript-eslint/no-unsafe-call": "error",
@@ -127,6 +128,7 @@ export default tseslint.config(
       "@typescript-eslint/no-duplicate-type-constituents": "error",
       "@typescript-eslint/no-redundant-type-constituents": "error",
       "@typescript-eslint/no-unnecessary-type-assertion": "error",
+      "@typescript-eslint/no-confusing-void-expression": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
         {

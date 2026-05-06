@@ -230,7 +230,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     return {
       enabled: capability.status !== "unsupported",
       checked: toolMode === mode,
-      run: () => dispatch({ type: "SET_TOOL_MODE", mode })
+      run: () => { dispatch({ type: "SET_TOOL_MODE", mode }); }
     };
   };
 
@@ -364,19 +364,19 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const bindings: CommandBindings = {
     [APP_MENU_COMMAND_IDS.NEW_DOCUMENT]: {
       enabled: true,
-      run: () => dispatch({ type: "NEW_DOCUMENT" })
+      run: () => { dispatch({ type: "NEW_DOCUMENT" }); }
     },
     [APP_MENU_COMMAND_IDS.OPEN_DOCUMENT]: {
       enabled: canOpen,
-      run: () => runOpenDocument(false)
+      run: () => { runOpenDocument(false); }
     },
     [APP_MENU_COMMAND_IDS.IMPORT_POWERPOINT]: {
       enabled: canOpenBinary,
-      run: () => runImportPowerPoint()
+      run: () => { runImportPowerPoint(); }
     },
     [APP_MENU_COMMAND_IDS.IMPORT_SVG]: {
       enabled: canOpen,
-      run: () => runOpenDocument(true, false)
+      run: () => { runOpenDocument(true, false); }
     },
     [APP_MENU_COMMAND_IDS.CLEAR_RECENT_FILES]: {
       enabled: typeof getActiveEditorPlatform().files?.clearRecentFiles === "function",
@@ -480,11 +480,11 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     },
     [APP_MENU_COMMAND_IDS.UNDO]: {
       enabled: canUndo,
-      run: () => dispatch({ type: "UNDO" })
+      run: () => { dispatch({ type: "UNDO" }); }
     },
     [APP_MENU_COMMAND_IDS.REDO]: {
       enabled: canRedo,
-      run: () => dispatch({ type: "REDO" })
+      run: () => { dispatch({ type: "REDO" }); }
     },
     [APP_MENU_COMMAND_IDS.FORMAT_TIKZ]: {
       enabled: showSourcePanel,
@@ -810,61 +810,61 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     },
     [APP_MENU_COMMAND_IDS.ZOOM_IN]: {
       enabled: snapshot.svg != null,
-      run: () => dispatch({ type: "REQUEST_ZOOM", direction: "in" })
+      run: () => { dispatch({ type: "REQUEST_ZOOM", direction: "in" }); }
     },
     [APP_MENU_COMMAND_IDS.ZOOM_OUT]: {
       enabled: snapshot.svg != null,
-      run: () => dispatch({ type: "REQUEST_ZOOM", direction: "out" })
+      run: () => { dispatch({ type: "REQUEST_ZOOM", direction: "out" }); }
     },
     [APP_MENU_COMMAND_IDS.TOGGLE_GRID]: {
       enabled: true,
       checked: showGrid,
-      run: () => dispatch({ type: "TOGGLE_CANVAS_AID", aid: "grid" })
+      run: () => { dispatch({ type: "TOGGLE_CANVAS_AID", aid: "grid" }); }
     },
     [APP_MENU_COMMAND_IDS.TOGGLE_TRANSPARENCY_GRID]: {
       enabled: true,
       checked: showTransparencyGrid,
-      run: () => dispatch({ type: "TOGGLE_CANVAS_AID", aid: "transparencyGrid" })
+      run: () => { dispatch({ type: "TOGGLE_CANVAS_AID", aid: "transparencyGrid" }); }
     },
     [APP_MENU_COMMAND_IDS.TOGGLE_INFINITE_CANVAS]: {
       enabled: true,
       checked: !showDocumentBounds,
-      run: () => dispatch({ type: "TOGGLE_CANVAS_AID", aid: "documentBounds" })
+      run: () => { dispatch({ type: "TOGGLE_CANVAS_AID", aid: "documentBounds" }); }
     },
     [APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GRID]: {
       enabled: true,
       checked: snapModes.grid,
-      run: () => dispatch({ type: "TOGGLE_SNAP_MODE", mode: "grid" })
+      run: () => { dispatch({ type: "TOGGLE_SNAP_MODE", mode: "grid" }); }
     },
     [APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GUIDES]: {
       enabled: true,
       checked: snapModes.guides,
-      run: () => dispatch({ type: "TOGGLE_SNAP_MODE", mode: "guides" })
+      run: () => { dispatch({ type: "TOGGLE_SNAP_MODE", mode: "guides" }); }
     },
     [APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_POINTS]: {
       enabled: true,
       checked: snapModes.points,
-      run: () => dispatch({ type: "TOGGLE_SNAP_MODE", mode: "points" })
+      run: () => { dispatch({ type: "TOGGLE_SNAP_MODE", mode: "points" }); }
     },
     [APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_GAPS]: {
       enabled: true,
       checked: snapModes.gaps,
-      run: () => dispatch({ type: "TOGGLE_SNAP_MODE", mode: "gaps" })
+      run: () => { dispatch({ type: "TOGGLE_SNAP_MODE", mode: "gaps" }); }
     },
     [APP_MENU_COMMAND_IDS.TOGGLE_SNAP_HAPTICS]: {
       enabled: isMacDesktop,
       checked: snapHapticsEnabled,
-      run: () => updateCanvasSettings({ snapHapticsEnabled: !snapHapticsEnabled })
+      run: () => { updateCanvasSettings({ snapHapticsEnabled: !snapHapticsEnabled }); }
     },
     [APP_MENU_COMMAND_IDS.TOGGLE_RULERS]: {
       enabled: true,
       checked: showRulers,
-      run: () => dispatch({ type: "TOGGLE_CANVAS_AID", aid: "rulers" })
+      run: () => { dispatch({ type: "TOGGLE_CANVAS_AID", aid: "rulers" }); }
     },
     [APP_MENU_COMMAND_IDS.TOGGLE_GUIDES]: {
       enabled: true,
       checked: showGuides,
-      run: () => dispatch({ type: "TOGGLE_CANVAS_AID", aid: "guides" })
+      run: () => { dispatch({ type: "TOGGLE_CANVAS_AID", aid: "guides" }); }
     },
     [APP_MENU_COMMAND_IDS.TOGGLE_SOURCE_PANEL]: {
       enabled: true,
@@ -945,7 +945,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     [APP_MENU_COMMAND_IDS.TOGGLE_DEV_PANEL]: {
       enabled: true,
       checked: showDevPanel,
-      run: () => dispatch({ type: "TOGGLE_DEV_PANEL" })
+      run: () => { dispatch({ type: "TOGGLE_DEV_PANEL" }); }
     },
     [APP_MENU_COMMAND_IDS.SAVE_WORKSPACE_AS]: {
       enabled: onOpenSaveWorkspace != null,

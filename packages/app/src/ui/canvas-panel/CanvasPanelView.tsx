@@ -527,7 +527,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                           y2={visibleRanges?.svgMaxY ?? (svgResult.viewBox.y + svgResult.viewBox.height)}
                           className={`${css.guideHitLine} ${css.guideLineVertical}`}
                           strokeWidth={guideHitStrokeWidth}
-                          onPointerDown={(event) => onGuidePointerDown(event, "vertical", x)}
+                          onPointerDown={(event) => { onGuidePointerDown(event, "vertical", x); }}
                         />
                       </g>
                     ))}
@@ -550,7 +550,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                             y2={y}
                             className={`${css.guideHitLine} ${css.guideLineHorizontal}`}
                             strokeWidth={guideHitStrokeWidth}
-                            onPointerDown={(event) => onGuidePointerDown(event, "horizontal", worldY)}
+                            onPointerDown={(event) => { onGuidePointerDown(event, "horizontal", worldY); }}
                           />
                         </g>
                       );

@@ -2,10 +2,11 @@ import { applyEditAction, type ReorderDirection } from "tikz-editor/edit/actions
 import { getEditActionAvailability } from "tikz-editor/edit/action-availability";
 import { pt, worldPoint } from "tikz-editor/coords/index";
 import { PT_PER_CM } from "tikz-editor/edit/format";
+import type {
+  resolveTransformInspectorValues} from "tikz-editor/edit/property-write-builders";
 import {
   buildTransformSetPropertyMutations,
   resolveTransformInspectorMutationContext,
-  resolveTransformInspectorValues,
   type TransformInspectorKey
 } from "tikz-editor/edit/property-write-builders";
 import { propertyIdForWriteKey } from "tikz-editor/edit/property-registry";

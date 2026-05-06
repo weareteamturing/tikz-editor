@@ -237,7 +237,7 @@ export function AddRectCard() {
       tl.to(contentGroup, { opacity: 1, duration: 0.05, ease: "none" }, "createDrag");
       cursorPath.moveTo("createEnd", 0.82, "createDrag", "power1.inOut");
       tweenRectBounds(tl, createState, collapsedBounds, initialBounds, 0.82, "createDrag", "power1.inOut", (bounds) =>
-        updateBodyAndOverlay(bounds, false, "create")
+        { updateBodyAndOverlay(bounds, false, "create"); }
       );
 
       tl.add("createRelease", "createDrag+=0.82");
@@ -257,7 +257,7 @@ export function AddRectCard() {
       tl.add("resizeDrag", "resizePress+=0.16");
       cursorPath.moveTo("resizeEnd", 1.35, "resizeDrag", "power1.inOut");
       tweenRectBounds(tl, resizeState, initialBounds, resizedBounds, 1.315, "resizeDrag+=0.035", "power1.inOut", (bounds) =>
-        updateBodyAndOverlay(bounds, true, "resize")
+        { updateBodyAndOverlay(bounds, true, "resize"); }
       );
 
       tl.add("resizeRelease", "resizeDrag+=1.35");
@@ -464,7 +464,7 @@ function tweenRectBounds(
       height: to.height,
       duration,
       ease,
-      onUpdate: () => onUpdate(state)
+      onUpdate: () => { onUpdate(state); }
     },
     position
   );

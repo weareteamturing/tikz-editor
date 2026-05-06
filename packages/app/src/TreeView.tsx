@@ -1,4 +1,4 @@
-import { Tree } from "@lezer/common";
+import type { Tree } from "@lezer/common";
 import { useState, useMemo } from "react";
 
 interface TreeNodeData {
@@ -62,9 +62,13 @@ function TreeNode({
           whiteSpace: "nowrap",
           background: node.isError ? "rgba(191,44,41,0.08)" : undefined
         }}
-        onClick={() => hasChildren && setCollapsed(!collapsed)}
-        onMouseEnter={() => onHover([node.from, node.to])}
-        onMouseLeave={() => onHover(null)}
+        onClick={() => {
+          if (hasChildren) {
+            setCollapsed(!collapsed);
+          }
+        }}
+        onMouseEnter={() => { onHover([node.from, node.to]); }}
+        onMouseLeave={() => { onHover(null); }}
       >
         <span style={{ flexShrink: 0, fontSize: 10, color: "#8ea0b2" }}>
           {hasChildren ? (collapsed ? "▶" : "▼") : " "}

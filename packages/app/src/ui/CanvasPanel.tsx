@@ -34,7 +34,7 @@ type SnapLine
 } from "tikz-editor/edit/snapping";
 import { renderTikzToSvg } from "tikz-editor/render/index";
 import { collectGeometryInvalidation } from "tikz-editor/semantic/index";
-import {
+import type {
 EditHandle,
 SceneElement
 } from "tikz-editor/semantic/types";
@@ -100,7 +100,7 @@ generatePathToolSource,
 pathToolHasDrawableSegments,
 type PathToolGestureSegment
 } from "./canvas-panel/path-tool";
-import {
+import type {
 resolveResizeFrameForSource
 } from "./canvas-panel/resize-frames";
 import {
@@ -2632,7 +2632,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       dispatchTextEditBeforeInputIntent(inputEvent, textarea);
     };
     textarea.addEventListener("beforeinput", handleBeforeInput);
-    return () => textarea.removeEventListener("beforeinput", handleBeforeInput);
+    return () => { textarea.removeEventListener("beforeinput", handleBeforeInput); };
   }, [dispatchTextEditBeforeInputIntent, textEditingSession]);
 
   useEffect(() => {
@@ -2839,7 +2839,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       dispatchCanvasTextEditAction({ type: "session_close" });
     };
     window.addEventListener("pointerdown", handleGlobalPointerDown, true);
-    return () => window.removeEventListener("pointerdown", handleGlobalPointerDown, true);
+    return () => { window.removeEventListener("pointerdown", handleGlobalPointerDown, true); };
   }, [dispatchCanvasTextEditAction, textEditingSession]);
 
   const { onElementPointerDown, onElementDoubleClick } = useCanvasElementInteractions({
@@ -3357,8 +3357,8 @@ export const CanvasPanel = memo(function CanvasPanel({
   useEffect(() => {
     if (!warning) return;
 
-    const timer = window.setTimeout(() => setWarning(null), 3200);
-    return () => window.clearTimeout(timer);
+    const timer = window.setTimeout(() => { setWarning(null); }, 3200);
+    return () => { window.clearTimeout(timer); };
   }, [warning]);
 
   useEffect(() => {
@@ -3731,7 +3731,7 @@ export const CanvasPanel = memo(function CanvasPanel({
 
   useCanvasDragController(dragControllerConfig);
 
-  useEffect(() => () => setActiveCanvasDragKind(null), [setActiveCanvasDragKind]);
+  useEffect(() => () => { setActiveCanvasDragKind(null); }, [setActiveCanvasDragKind]);
 
   useEffect(() => {
     if (activeCanvasDragKind == null) {
@@ -3953,7 +3953,7 @@ export const CanvasPanel = memo(function CanvasPanel({
         onElementPointerDown={onElementPointerDown}
         onElementContextMenu={onElementContextMenu}
         onElementDoubleClick={onElementDoubleClick}
-        onHoverChange={(id: string | null) => dispatch({ type: "SET_HOVERED_ELEMENT", id })}
+        onHoverChange={(id: string | null) => { dispatch({ type: "SET_HOVERED_ELEMENT", id }); }}
         marqueeBounds={marqueeBounds}
         selectionBoxes={selectionBoxes}
         adornmentHighlightBoxes={adornmentHighlightBoxes}
@@ -3974,7 +3974,7 @@ export const CanvasPanel = memo(function CanvasPanel({
         contextMenuState={contextMenuState}
         commandRuntimeBindings={commandRuntime.bindings}
         contextMenuDefinition={contextMenuDefinition}
-        onContextMenuClose={() => setContextMenuState(null)}
+        onContextMenuClose={() => { setContextMenuState(null); }}
         onContextMenuCommandRun={(commandId: AppMenuCommandId, origin: CommandOrigin) => {
           commandRuntime.runCommand(commandId, origin);
           setContextMenuState(null);
@@ -4013,7 +4013,7 @@ export const CanvasPanel = memo(function CanvasPanel({
           <EquationModal
             mode="edit"
             initialLatex={equationModalTarget.latex}
-            onClose={() => setEquationModalTarget(null)}
+            onClose={() => { setEquationModalTarget(null); }}
             onConfirm={(latex) => {
               dispatch({
                 type: "APPLY_EDIT_ACTION",

@@ -117,7 +117,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
               value={property.value}
               options={property.options}
               disabled={!writable}
-              onChange={(nextValue) => applySetProperty(property.write, nextValue)}
+              onChange={(nextValue) => { applySetProperty(property.write, nextValue); }}
               renderValue={() => <span className={valueClassName}>{property.options.find((option) => option.value === property.value)?.label ?? property.value}</span>}
             />,
             true
@@ -215,8 +215,8 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             writable,
             value: property.value,
             step: property.step,
-            onPreview: (next: number) => applySingleLengthValue(property, next, { recordInHistory: false }),
-            onCommit: (next: number) => applySingleLengthValue(property, next)
+            onPreview: (next: number) => { applySingleLengthValue(property, next, { recordInHistory: false }); },
+            onCommit: (next: number) => { applySingleLengthValue(property, next); }
           })}
           <div className={css.controlRow}>
             {maybeWrapWithProvenanceTooltip(
@@ -267,7 +267,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
               },
               writable,
               (nextValue: "unset" | "left" | "center" | "right" | "justify") =>
-                applySetProperty(property.write, nextValue === "unset" ? "" : nextValue, { clearKeys: property.clearKeys })
+                { applySetProperty(property.write, nextValue === "unset" ? "" : nextValue, { clearKeys: property.clearKeys }); }
             ),
             true
           )}
@@ -292,16 +292,16 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
               },
               writable,
               (nextValue) =>
-                commitAfterHoverPreview(previewOwnerKey, () =>
-                  applyNodeShapeValue(property.write, nextValue)
-                ),
+                { commitAfterHoverPreview(previewOwnerKey, () =>
+                  { applyNodeShapeValue(property.write, nextValue); }
+                ); },
               undefined,
               valueClassName,
               (nextValue) =>
-                applyHoverPreview(previewOwnerKey, () =>
-                  applyNodeShapeValue(property.write, nextValue, { recordInHistory: false })
-                ),
-              () => clearHoverPreviewSession(previewOwnerKey)
+                { applyHoverPreview(previewOwnerKey, () =>
+                  { applyNodeShapeValue(property.write, nextValue, { recordInHistory: false }); }
+                ); },
+              () => { clearHoverPreviewSession(previewOwnerKey); }
             ),
             true
           )}
@@ -335,43 +335,43 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
               },
               writable,
               (nextFamily: NodeFontFamilyId) =>
-                applyNodeFontValue(property.write, property.context, {
+                { applyNodeFontValue(property.write, property.context, {
                   family: nextFamily,
                   weight: property.weight,
                   style: property.style,
                   sizePreset: property.sizePreset,
                   customSizePt: property.customSizePt
-                }),
+                }); },
               () =>
-                applyNodeFontValue(property.write, property.context, {
+                { applyNodeFontValue(property.write, property.context, {
                   family: property.family,
                   weight: property.weight === "bold" ? "normal" : "bold",
                   style: property.style,
                   sizePreset: property.sizePreset,
                   customSizePt: property.customSizePt
-                }),
+                }); },
               () =>
-                applyNodeFontValue(property.write, property.context, {
+                { applyNodeFontValue(property.write, property.context, {
                   family: property.family,
                   weight: property.weight,
                   style: property.style === "italic" ? "normal" : "italic",
                   sizePreset: property.sizePreset,
                   customSizePt: property.customSizePt
-                }),
+                }); },
               (nextSizePreset: NodeFontSizePresetId) =>
-                commitAfterHoverPreview(previewOwnerKey, () =>
-                  applyNodeFontValue(property.write, property.context, {
+                { commitAfterHoverPreview(previewOwnerKey, () =>
+                  { applyNodeFontValue(property.write, property.context, {
                     family: property.family,
                     weight: property.weight,
                     style: property.style,
                     sizePreset: nextSizePreset,
                     customSizePt: property.customSizePt
-                  })
-                ),
+                  }); }
+                ); },
               valueClassName,
               (nextSizePreset: NodeFontSizePresetId) =>
-                applyHoverPreview(previewOwnerKey, () =>
-                  applyNodeFontValue(
+                { applyHoverPreview(previewOwnerKey, () =>
+                  { applyNodeFontValue(
                     property.write,
                     property.context,
                     {
@@ -382,9 +382,9 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                       customSizePt: property.customSizePt
                     },
                     { recordInHistory: false }
-                  )
-                ),
-              () => clearHoverPreviewSession(previewOwnerKey)
+                  ); }
+                ); },
+              () => { clearHoverPreviewSession(previewOwnerKey); }
             ),
             true
           )}
@@ -469,7 +469,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                 options: property.options
               },
               writable,
-              (nextValue) => applyFillShadingValue(property.write, nextValue),
+              (nextValue) => { applyFillShadingValue(property.write, nextValue); },
               undefined,
               valueClassName
             ),
@@ -495,7 +495,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                 options: property.options
               },
               writable,
-              (nextValue) => applyFillPatternValue(property.write, nextValue),
+              (nextValue) => { applyFillPatternValue(property.write, nextValue); },
               undefined,
               valueClassName
             ),
@@ -515,8 +515,8 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             writable,
             value: property.value,
             step: property.step,
-            onPreview: (next: number) => applySingleFillPatternOptionValue(property, next, { recordInHistory: false }),
-            onCommit: (next: number) => applySingleFillPatternOptionValue(property, next)
+            onPreview: (next: number) => { applySingleFillPatternOptionValue(property, next, { recordInHistory: false }); },
+            onCommit: (next: number) => { applySingleFillPatternOptionValue(property, next); }
           })}
           <div className={css.controlRow}>
             {maybeWrapWithProvenanceTooltip(
@@ -601,7 +601,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                   });
                 });
               }}
-              onOptionHoverEnd={() => clearHoverPreviewSession(previewOwnerKey)}
+              onOptionHoverEnd={() => { clearHoverPreviewSession(previewOwnerKey); }}
               renderValue={() => (
                 <span className={css.lineWidthValue}>
                   <span className={css.lineWidthValuePreview}>
@@ -668,16 +668,16 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
               },
               writable,
               (nextValue) =>
-                commitAfterHoverPreview(previewOwnerKey, () =>
-                  applyDashStyleValue(property.write, nextValue)
-                ),
+                { commitAfterHoverPreview(previewOwnerKey, () =>
+                  { applyDashStyleValue(property.write, nextValue); }
+                ); },
               undefined,
               valueClassName,
               (nextValue) =>
-                applyHoverPreview(previewOwnerKey, () =>
-                  applyDashStyleValue(property.write, nextValue, { recordInHistory: false })
-                ),
-              () => clearHoverPreviewSession(previewOwnerKey)
+                { applyHoverPreview(previewOwnerKey, () =>
+                  { applyDashStyleValue(property.write, nextValue, { recordInHistory: false }); }
+                ); },
+              () => { clearHoverPreviewSession(previewOwnerKey); }
             ),
             true
           )}
@@ -703,16 +703,16 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
               },
               writable,
               (nextValue) =>
-                commitAfterHoverPreview(previewOwnerKey, () =>
-                  applyLineCapValue(property.write, nextValue)
-                ),
+                { commitAfterHoverPreview(previewOwnerKey, () =>
+                  { applyLineCapValue(property.write, nextValue); }
+                ); },
               undefined,
               valueClassName,
               (nextValue) =>
-                applyHoverPreview(previewOwnerKey, () =>
-                  applyLineCapValue(property.write, nextValue, { recordInHistory: false })
-                ),
-              () => clearHoverPreviewSession(previewOwnerKey)
+                { applyHoverPreview(previewOwnerKey, () =>
+                  { applyLineCapValue(property.write, nextValue, { recordInHistory: false }); }
+                ); },
+              () => { clearHoverPreviewSession(previewOwnerKey); }
             ),
             true
           )}
@@ -738,16 +738,16 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
               },
               writable,
               (nextValue) =>
-                commitAfterHoverPreview(previewOwnerKey, () =>
-                  applyLineJoinValue(property.write, nextValue)
-                ),
+                { commitAfterHoverPreview(previewOwnerKey, () =>
+                  { applyLineJoinValue(property.write, nextValue); }
+                ); },
               undefined,
               valueClassName,
               (nextValue) =>
-                applyHoverPreview(previewOwnerKey, () =>
-                  applyLineJoinValue(property.write, nextValue, { recordInHistory: false })
-                ),
-              () => clearHoverPreviewSession(previewOwnerKey)
+                { applyHoverPreview(previewOwnerKey, () =>
+                  { applyLineJoinValue(property.write, nextValue, { recordInHistory: false }); }
+                ); },
+              () => { clearHoverPreviewSession(previewOwnerKey); }
             ),
             true
           )}
@@ -773,16 +773,16 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
               },
               writable,
               (nextValue) =>
-                commitAfterHoverPreview(previewOwnerKey, () =>
-                  applyPathMorphingDecorationValue(property.write, nextValue)
-                ),
+                { commitAfterHoverPreview(previewOwnerKey, () =>
+                  { applyPathMorphingDecorationValue(property.write, nextValue); }
+                ); },
               undefined,
               valueClassName,
               (nextValue) =>
-                applyHoverPreview(previewOwnerKey, () =>
-                  applyPathMorphingDecorationValue(property.write, nextValue, { recordInHistory: false })
-                ),
-              () => clearHoverPreviewSession(previewOwnerKey)
+                { applyHoverPreview(previewOwnerKey, () =>
+                  { applyPathMorphingDecorationValue(property.write, nextValue, { recordInHistory: false }); }
+                ); },
+              () => { clearHoverPreviewSession(previewOwnerKey); }
             ),
             true
           )}
@@ -807,12 +807,12 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
               checked={property.enabled}
               disabled={!writable}
               onChange={(event) =>
-                applyRoundedCornersValue(
+                { applyRoundedCornersValue(
                   property.write,
                   event.currentTarget.checked,
                   event.currentTarget.checked ? sliderValue : defaultRadius,
                   property.disableRequiresSharpCorners
-                )}
+                ); }}
             />
             <span className={withValueProvenanceClass(css.checkboxLabel, provenance)}>{property.label}</span>
           </label>
@@ -856,7 +856,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                 options: property.options
               },
               writable,
-              (nextValue) => applyShadowPresetValue(property.write, property.context, nextValue),
+              (nextValue) => { applyShadowPresetValue(property.write, property.context, nextValue); },
               undefined,
               valueClassName
             ),
@@ -885,16 +885,16 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
             },
             writable,
             (nextValue) =>
-              commitAfterHoverPreview(previewOwnerKey, () =>
-                applyArrowTipValue(property.write, property.side, nextValue)
-              ),
+              { commitAfterHoverPreview(previewOwnerKey, () =>
+                { applyArrowTipValue(property.write, property.side, nextValue); }
+              ); },
             undefined,
             valueClassName,
             (nextValue) =>
-              applyHoverPreview(previewOwnerKey, () =>
-                applyArrowTipValue(property.write, property.side, nextValue, { recordInHistory: false })
-              ),
-            () => clearHoverPreviewSession(previewOwnerKey)
+              { applyHoverPreview(previewOwnerKey, () =>
+                { applyArrowTipValue(property.write, property.side, nextValue, { recordInHistory: false }); }
+              ); },
+            () => { clearHoverPreviewSession(previewOwnerKey); }
           ),
           true
         )}

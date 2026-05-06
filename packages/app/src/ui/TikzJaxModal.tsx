@@ -139,7 +139,7 @@ export function TikzJaxModal({
         const timeoutId = window.setTimeout(() => {
           reject(new Error(`Native compile did not return within ${NATIVE_COMPILE_TIMEOUT_MS}ms.`));
         }, NATIVE_COMPILE_TIMEOUT_MS);
-        void compilePromise.finally(() => window.clearTimeout(timeoutId));
+        void compilePromise.finally(() => { window.clearTimeout(timeoutId); });
       });
       return Promise.race([compilePromise, timeoutPromise]).then((svg) => {
         if (cancelled) return;
@@ -172,8 +172,8 @@ export function TikzJaxModal({
   useEffect(() => {
     if (phase !== "loading-lib") return;
     ensureTikzJaxLoaded().then(
-      () => setPhase("rendering"),
-      () => setPhase("lib-error")
+      () => { setPhase("rendering"); },
+      () => { setPhase("lib-error"); }
     );
   }, [phase]);
 
@@ -304,7 +304,7 @@ export function TikzJaxModal({
 
       {phase === "native-error" ? (
         <div className={css.fallbackRow}>
-          <Modal.SecondaryButton onClick={() => setPhase("loading-lib")}>
+          <Modal.SecondaryButton onClick={() => { setPhase("loading-lib"); }}>
             Continue with TikZJax Fallback
           </Modal.SecondaryButton>
         </div>
@@ -317,7 +317,7 @@ export function TikzJaxModal({
       <Modal.Footer align="between">
         <div className={css.footerLeft}>
           {showLogToggle && phase === "done" && nativeLog.trim().length > 0 ? (
-            <Modal.GhostButton onClick={() => setShowLogView((prev) => !prev)}>
+            <Modal.GhostButton onClick={() => { setShowLogView((prev) => !prev); }}>
               {showLogView ? "Show Image" : "Show Log"}
             </Modal.GhostButton>
           ) : null}

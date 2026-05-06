@@ -148,7 +148,7 @@ export function InspectorSingleSection(props: {
           <button
             type="button"
             className={css.moreOptionsToggle}
-            onClick={() => setStrokeMoreOptionsOpen((current) => !current)}
+            onClick={() => { setStrokeMoreOptionsOpen((current) => !current); }}
           >
             {showStrokeMoreOptions ? "fewer options.." : "more options.."}
           </button>
@@ -159,7 +159,7 @@ export function InspectorSingleSection(props: {
           <button
             type="button"
             className={css.moreOptionsToggle}
-            onClick={() => setFillMoreOptionsOpen((current) => !current)}
+            onClick={() => { setFillMoreOptionsOpen((current) => !current); }}
           >
             {showFillMoreOptions ? "fewer options.." : "more options.."}
           </button>
@@ -336,7 +336,7 @@ export function InspectorMultiSection(props: {
           <button
             type="button"
             className={css.moreOptionsToggle}
-            onClick={() => setStrokeMoreOptionsOpen((current) => !current)}
+            onClick={() => { setStrokeMoreOptionsOpen((current) => !current); }}
           >
             {showStrokeMoreOptions ? "fewer options.." : "more options.."}
           </button>
@@ -347,7 +347,7 @@ export function InspectorMultiSection(props: {
           <button
             type="button"
             className={css.moreOptionsToggle}
-            onClick={() => setFillMoreOptionsOpen((current) => !current)}
+            onClick={() => { setFillMoreOptionsOpen((current) => !current); }}
           >
             {showFillMoreOptions ? "fewer options.." : "more options.."}
           </button>

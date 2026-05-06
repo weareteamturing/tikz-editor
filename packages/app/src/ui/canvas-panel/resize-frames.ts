@@ -1,6 +1,7 @@
 import { worldToLocal } from "tikz-editor/edit/coords";
 import type { ResizeRole } from "tikz-editor/edit/actions";
-import { EditHandle, isFrameLocalCoordinateEditHandle, SceneCircle, SceneElement, SceneEllipse, ScenePath, ScenePathShapeHint, SceneText } from "tikz-editor/semantic/types";
+import type { EditHandle, SceneCircle, SceneElement, SceneEllipse, ScenePath, ScenePathShapeHint, SceneText } from "tikz-editor/semantic/types";
+import { isFrameLocalCoordinateEditHandle } from "tikz-editor/semantic/types";
 import {
   applyFrameTransform,
   applyFrameVector,

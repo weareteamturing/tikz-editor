@@ -257,7 +257,7 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
                 inputMode="numeric"
                 className={css.input}
                 value={dpiInput}
-                onChange={(event) => setDpiInput(event.target.value)}
+                onChange={(event) => { setDpiInput(event.target.value); }}
               />
               <span className={css.help}>Canvas export uses the selected DPI to choose the PNG pixel size.</span>
             </label>
@@ -266,7 +266,7 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
               <input
                 type="checkbox"
                 checked={transparentBackground}
-                onChange={(event) => setTransparentBackground(event.target.checked)}
+                onChange={(event) => { setTransparentBackground(event.target.checked); }}
               />
               <span className={css.checkboxText}>
                 <span className={css.label}>Transparent background</span>

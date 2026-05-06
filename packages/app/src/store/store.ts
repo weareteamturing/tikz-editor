@@ -12,7 +12,7 @@ export type EditorStore = EditorState & {
 
 export const useEditorStore = create<EditorStore>((set) => ({
   ...makeInitialState(loadWorkspaceSeed() ?? undefined),
-  dispatch: (action: EditorAction) => set((state) => {
+  dispatch: (action: EditorAction) => { set((state) => {
     const next = editorReducer(state, action);
     if (shouldSaveWorkspace(state, next)) {
       const workspaceState = workspaceStateFromEditorState(next);
@@ -23,7 +23,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
       }
     }
     return next;
-  })
+  }); }
 }));
 
 function shouldSaveWorkspace(previous: EditorState, next: EditorState): boolean {

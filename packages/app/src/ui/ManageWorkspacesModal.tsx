@@ -111,9 +111,9 @@ export function ManageWorkspacesModal({ onClose }: ManageWorkspacesModalProps) {
                   key={ws.id}
                   className={css.item}
                   draggable={!isEditing}
-                  onDragStart={() => onDragStart(index)}
+                  onDragStart={() => { onDragStart(index); }}
                   onDragOver={onDragOver}
-                  onDrop={() => onDrop(index)}
+                  onDrop={() => { onDrop(index); }}
                   data-testid={`manage-workspaces-item-${ws.id}`}
                 >
                   <span className={css.dragHandle} aria-hidden="true">⋮⋮</span>
@@ -146,7 +146,7 @@ export function ManageWorkspacesModal({ onClose }: ManageWorkspacesModalProps) {
                       <button
                         type="button"
                         className={css.itemActionButton}
-                        onClick={() => startRename(ws.id, ws.name)}
+                        onClick={() => { startRename(ws.id, ws.name); }}
                         data-testid={`manage-workspaces-rename-${ws.id}`}
                       >
                         Rename
@@ -155,7 +155,7 @@ export function ManageWorkspacesModal({ onClose }: ManageWorkspacesModalProps) {
                     <button
                       type="button"
                       className={`${css.itemActionButton} ${css.itemActionDanger}`}
-                      onClick={() => onDelete(ws.id, ws.name)}
+                      onClick={() => { onDelete(ws.id, ws.name); }}
                       data-testid={`manage-workspaces-delete-${ws.id}`}
                     >
                       Delete

@@ -1,6 +1,7 @@
 import { syntaxTree } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
-import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
+import type { EditorView} from "@codemirror/view";
+import { ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 import {
   computeScrubbedValue,

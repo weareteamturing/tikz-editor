@@ -72,10 +72,10 @@ export function useFigureThumbnails(
 
   useEffect(() => {
     const timer = window.setTimeout(
-      () => setStableInput((current) => ({ ...current, source, figures })),
+      () => { setStableInput((current) => ({ ...current, source, figures })); },
       refreshDelayMs
     );
-    return () => window.clearTimeout(timer);
+    return () => { window.clearTimeout(timer); };
   }, [documentKey, figures, refreshDelayMs, source]);
 
   const figureSignatures = useMemo(() => {
@@ -212,11 +212,11 @@ export function useFigureThumbnails(
         await new Promise<void>((resolve) => {
           const hasIdleCallback = typeof window.requestIdleCallback === "function";
           if (hasIdleCallback) {
-            const id = window.requestIdleCallback(() => resolve(), { timeout: 80 });
+            const id = window.requestIdleCallback(() => { resolve(); }, { timeout: 80 });
             timers.push({ kind: "idle", id });
             return;
           }
-          const id = window.setTimeout(() => resolve(), 0);
+          const id = window.setTimeout(() => { resolve(); }, 0);
           timers.push({ kind: "timeout", id });
         });
       }

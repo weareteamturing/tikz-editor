@@ -77,7 +77,7 @@ export function SaveWorkspaceModal({ onClose }: SaveWorkspaceModalProps) {
           </p>
         </Modal.Body>
         <Modal.Footer>
-          <Modal.SecondaryButton onClick={() => setPendingOverwriteId(null)}>
+          <Modal.SecondaryButton onClick={() => { setPendingOverwriteId(null); }}>
             Back
           </Modal.SecondaryButton>
           <Modal.PrimaryButton
@@ -116,7 +116,7 @@ export function SaveWorkspaceModal({ onClose }: SaveWorkspaceModalProps) {
               className={css.input}
               value={name}
               placeholder="My workspace"
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => { setName(event.target.value); }}
             />
           </label>
           {reserved ? (

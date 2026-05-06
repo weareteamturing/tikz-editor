@@ -239,7 +239,7 @@ export function InspectorPanel() {
         type="text"
         value={property.value}
         disabled={!writable}
-        onChange={(event) => applySetProperty(property.write, event.currentTarget.value)}
+        onChange={(event) => { applySetProperty(property.write, event.currentTarget.value); }}
       />
     );
     return (
@@ -656,7 +656,7 @@ export function InspectorPanel() {
     return (
       <div
         className={className}
-        onPointerDown={(event) => beginNumberLabelScrub(event, binding)}
+        onPointerDown={(event) => { beginNumberLabelScrub(event, binding); }}
       >
         {label}
       </div>
@@ -690,7 +690,7 @@ export function InspectorPanel() {
         max={property.max}
         value={formatNumber(property.value)}
         disabled={!writable}
-        onChange={(event) => handleNumberChange(property, event.currentTarget.value)}
+        onChange={(event) => { handleNumberChange(property, event.currentTarget.value); }}
       />
     );
     return (
@@ -701,8 +701,8 @@ export function InspectorPanel() {
           step: property.step,
           min: property.min,
           max: property.max,
-          onPreview: (next) => handleNumberChange(property, String(next), { recordInHistory: false }),
-          onCommit: (next) => handleNumberChange(property, String(next))
+          onPreview: (next) => { handleNumberChange(property, String(next), { recordInHistory: false }); },
+          onCommit: (next) => { handleNumberChange(property, String(next)); }
         })}
         <div className={css.controlRow}>
           {maybeWrapWithProvenanceTooltip(provenance, input, true)}
@@ -728,7 +728,7 @@ export function InspectorPanel() {
         max={property.max}
         value={property.mixed ? "" : formatNumber(property.value)}
         disabled={!writable}
-        onChange={(event) => handleMultiNumberChange(property, event.currentTarget.value)}
+        onChange={(event) => { handleMultiNumberChange(property, event.currentTarget.value); }}
       />
     );
     return (
@@ -739,8 +739,8 @@ export function InspectorPanel() {
           step: property.step,
           min: property.min,
           max: property.max,
-          onPreview: (next) => handleMultiNumberChange(property, String(next), { recordInHistory: false }),
-          onCommit: (next) => handleMultiNumberChange(property, String(next))
+          onPreview: (next) => { handleMultiNumberChange(property, String(next), { recordInHistory: false }); },
+          onCommit: (next) => { handleMultiNumberChange(property, String(next)); }
         })}
         <div className={css.controlRow}>
           {maybeWrapWithProvenanceTooltip(provenance, input, true)}
@@ -783,8 +783,8 @@ export function InspectorPanel() {
           writable,
           value: property.value,
           step: property.step,
-          onPreview: (next) => applySingleLengthValue(property, next, { recordInHistory: false }),
-          onCommit: (next) => applySingleLengthValue(property, next)
+          onPreview: (next) => { applySingleLengthValue(property, next, { recordInHistory: false }); },
+          onCommit: (next) => { applySingleLengthValue(property, next); }
         })}
         <div className={css.controlRow}>
           {maybeWrapWithProvenanceTooltip(provenance, input, true)}
@@ -824,8 +824,8 @@ export function InspectorPanel() {
           writable,
           value: property.value,
           step: property.step,
-          onPreview: (next) => applyMultiLengthValue(property, next, { recordInHistory: false }),
-          onCommit: (next) => applyMultiLengthValue(property, next)
+          onPreview: (next) => { applyMultiLengthValue(property, next, { recordInHistory: false }); },
+          onCommit: (next) => { applyMultiLengthValue(property, next); }
         })}
         <div className={css.controlRow}>
           {maybeWrapWithProvenanceTooltip(provenance, input, true)}
@@ -1005,7 +1005,7 @@ export function InspectorPanel() {
                 disabled={!writable}
                 aria-label={button.label}
                 aria-pressed={active}
-                onClick={() => onValueChange(active ? "unset" : button.value)}
+                onClick={() => { onValueChange(active ? "unset" : button.value); }}
               >
                 {button.icon}
               </button>
@@ -1132,7 +1132,7 @@ export function InspectorPanel() {
               disabled={!writable}
               aria-label="Serif family"
               aria-pressed={!property.familyMixed && property.family === "serif"}
-              onClick={() => onFamilyChange("serif")}
+              onClick={() => { onFamilyChange("serif"); }}
             >
               <RiFontSerif size={13} />
             </button>
@@ -1142,7 +1142,7 @@ export function InspectorPanel() {
               disabled={!writable}
               aria-label="Sans family"
               aria-pressed={!property.familyMixed && property.family === "sans"}
-              onClick={() => onFamilyChange("sans")}
+              onClick={() => { onFamilyChange("sans"); }}
             >
               <RiFontSansSerif size={13} />
             </button>
@@ -1152,7 +1152,7 @@ export function InspectorPanel() {
               disabled={!writable}
               aria-label="Monospace family"
               aria-pressed={!property.familyMixed && property.family === "monospace"}
-              onClick={() => onFamilyChange("monospace")}
+              onClick={() => { onFamilyChange("monospace"); }}
             >
               <RiFontMono size={13} />
             </button>

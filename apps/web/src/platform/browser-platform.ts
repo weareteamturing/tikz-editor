@@ -126,8 +126,8 @@ function createIndexedDbHandleStore(): FsHandleStore {
       request.onupgradeneeded = () => {
         request.result.createObjectStore(storeName);
       };
-      request.onerror = () => reject(request.error ?? new Error("Failed to open IndexedDB."));
-      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => { reject(request.error ?? new Error("Failed to open IndexedDB.")); };
+      request.onsuccess = () => { resolve(request.result); };
     });
   }
 
@@ -138,8 +138,8 @@ function createIndexedDbHandleStore(): FsHandleStore {
         const tx = db.transaction(storeName, mode);
         const store = tx.objectStore(storeName);
         const request = run(store);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed."));
+        request.onsuccess = () => { resolve(request.result); };
+        request.onerror = () => { reject(request.error ?? new Error("IndexedDB request failed.")); };
       });
     } finally {
       db.close();

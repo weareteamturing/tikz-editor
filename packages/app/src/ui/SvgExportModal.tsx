@@ -98,8 +98,8 @@ export function SvgExportModal({ svgResult, onClose }: SvgExportModalProps) {
     if (!copyFeedback) {
       return;
     }
-    const timer = window.setTimeout(() => setCopyFeedback(null), 1800);
-    return () => window.clearTimeout(timer);
+    const timer = window.setTimeout(() => { setCopyFeedback(null); }, 1800);
+    return () => { window.clearTimeout(timer); };
   }, [copyFeedback]);
 
   const validation = useMemo(() => validateSvgMarkup(markup), [markup]);
@@ -209,7 +209,7 @@ export function SvgExportModal({ svgResult, onClose }: SvgExportModalProps) {
                   type="text"
                   className={css.input}
                   value={fileName}
-                  onChange={(event) => setFileName(event.target.value)}
+                  onChange={(event) => { setFileName(event.target.value); }}
                 />
               </label>
 

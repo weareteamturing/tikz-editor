@@ -100,7 +100,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 key={cat.id}
                 type="button"
                 className={[css.navItem, activeCategory === cat.id ? css.navItemActive : ""].filter(Boolean).join(" ")}
-                onClick={() => selectCategory(cat.id)}
+                onClick={() => { selectCategory(cat.id); }}
                 data-testid={`settings-category-${cat.id}`}
               >
                 {cat.label}
@@ -122,7 +122,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       id="setting-ui-font-size"
                       className={css.select}
                       value={settings.general.uiFontSizePx}
-                      onChange={(e) => updateGeneralSettings({ uiFontSizePx: Number(e.target.value) })}
+                      onChange={(e) => { updateGeneralSettings({ uiFontSizePx: Number(e.target.value) }); }}
                     >
                       {[10, 11, 12, 13, 14].map((size) => (
                         <option key={size} value={size}>{size}px</option>
@@ -139,7 +139,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       id="setting-color-scheme"
                       className={css.select}
                       value={settings.general.colorScheme}
-                      onChange={(e) => updateGeneralSettings({ colorScheme: e.target.value as ColorScheme })}
+                      onChange={(e) => { updateGeneralSettings({ colorScheme: e.target.value as ColorScheme }); }}
                     >
                       <option value="system">System (default)</option>
                       <option value="light">Light</option>
@@ -159,7 +159,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       type="checkbox"
                       className={css.checkbox}
                       checked={settings.general.canvasInvert}
-                      onChange={(e) => updateGeneralSettings({ canvasInvert: e.target.checked })}
+                      onChange={(e) => { updateGeneralSettings({ canvasInvert: e.target.checked }); }}
                     />
                   </div>
 
@@ -174,7 +174,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       id="setting-color-picker-accuracy"
                       className={css.select}
                       value={settings.colorPicker.accuracy}
-                      onChange={(e) => updateColorPickerSettings({ accuracy: e.target.value as ColorPickerAccuracy })}
+                      onChange={(e) => { updateColorPickerSettings({ accuracy: e.target.value as ColorPickerAccuracy }); }}
                     >
                       <option value="approximate">Approximate (default)</option>
                       <option value="exact">Exact</option>
@@ -208,7 +208,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       type="checkbox"
                       className={css.checkbox}
                       checked={settings.editor.wordWrap}
-                      onChange={(e) => updateEditorSettings({ wordWrap: e.target.checked })}
+                      onChange={(e) => { updateEditorSettings({ wordWrap: e.target.checked }); }}
                     />
                   </div>
 
@@ -222,7 +222,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       type="checkbox"
                       className={css.checkbox}
                       checked={settings.editor.lineNumbers}
-                      onChange={(e) => updateEditorSettings({ lineNumbers: e.target.checked })}
+                      onChange={(e) => { updateEditorSettings({ lineNumbers: e.target.checked }); }}
                     />
                   </div>
 
@@ -235,7 +235,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       id="setting-font-size"
                       className={css.select}
                       value={settings.editor.fontSize}
-                      onChange={(e) => updateEditorSettings({ fontSize: Number(e.target.value) })}
+                      onChange={(e) => { updateEditorSettings({ fontSize: Number(e.target.value) }); }}
                     >
                       {[8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20].map((size) => (
                         <option key={size} value={size}>{size}px</option>
@@ -252,7 +252,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       id="setting-indent-size"
                       className={css.select}
                       value={settings.editor.indentSize}
-                      onChange={(e) => updateEditorSettings({ indentSize: Number(e.target.value) as 2 | 4 })}
+                      onChange={(e) => { updateEditorSettings({ indentSize: Number(e.target.value) as 2 | 4 }); }}
                     >
                       <option value={2}>2 spaces</option>
                       <option value={4}>4 spaces</option>
@@ -272,7 +272,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       type="checkbox"
                       className={css.checkbox}
                       checked={settings.editor.formatterReflowLongOptions}
-                      onChange={(e) => updateEditorSettings({ formatterReflowLongOptions: e.target.checked })}
+                      onChange={(e) => { updateEditorSettings({ formatterReflowLongOptions: e.target.checked }); }}
                     />
                   </div>
 
@@ -288,7 +288,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       min={MIN_FORMATTER_MAX_LINE_LENGTH}
                       max={MAX_FORMATTER_MAX_LINE_LENGTH}
                       value={formatterMaxLineLengthValue}
-                      onChange={(e) => setFormatterMaxLineLengthInput(e.target.value)}
+                      onChange={(e) => { setFormatterMaxLineLengthInput(e.target.value); }}
                       onBlur={commitFormatterMaxLineLength}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
@@ -324,7 +324,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       id="setting-grid-size"
                       className={css.select}
                       value={settings.canvas.gridSize}
-                      onChange={(e) => updateCanvasSettings({ gridSize: e.target.value as GridSize })}
+                      onChange={(e) => { updateCanvasSettings({ gridSize: e.target.value as GridSize }); }}
                     >
                       <option value="fine">Fine</option>
                       <option value="standard">Standard</option>
@@ -341,7 +341,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       id="setting-handle-size"
                       className={css.select}
                       value={settings.canvas.handleSizePx}
-                      onChange={(e) => updateCanvasSettings({ handleSizePx: Number(e.target.value) })}
+                      onChange={(e) => { updateCanvasSettings({ handleSizePx: Number(e.target.value) }); }}
                     >
                       <option value={7}>Small</option>
                       <option value={9}>Medium</option>
@@ -365,7 +365,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       step={0.0005}
                       list="zoom-speed-ticks"
                       value={settings.canvas.zoomSpeed}
-                      onChange={(e) => updateCanvasSettings({ zoomSpeed: Number(e.target.value) })}
+                      onChange={(e) => { updateCanvasSettings({ zoomSpeed: Number(e.target.value) }); }}
                     />
                     <datalist id="zoom-speed-ticks">
                       <option value={0.0045} />
@@ -384,7 +384,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       id="setting-mathjax-font"
                       className={css.select}
                       value={settings.rendering.mathJaxFont}
-                      onChange={(e) => updateRenderingSettings({ mathJaxFont: e.target.value as MathJaxFont })}
+                      onChange={(e) => { updateRenderingSettings({ mathJaxFont: e.target.value as MathJaxFont }); }}
                     >
                       {MATHJAX_FONTS.map(({ value, label }) => (
                         <option key={value} value={value}>{label}</option>

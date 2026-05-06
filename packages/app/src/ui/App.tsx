@@ -354,9 +354,9 @@ export function App() {
     if (colorScheme === "system") {
       const mq = window.matchMedia("(prefers-color-scheme: dark)");
       apply(mq.matches);
-      const handler = (e: MediaQueryListEvent) => apply(e.matches);
+      const handler = (e: MediaQueryListEvent) => { apply(e.matches); };
       mq.addEventListener("change", handler);
-      return () => mq.removeEventListener("change", handler);
+      return () => { mq.removeEventListener("change", handler); };
     } else {
       apply(colorScheme === "dark");
     }
@@ -1323,7 +1323,7 @@ export function App() {
     }
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => { window.removeEventListener("keydown", onKeyDown); };
   }, [
     commandRuntime,
     dispatch,
@@ -1472,7 +1472,7 @@ export function App() {
         <Suspense fallback={null}>
           <OpenExampleModal
             examples={OPEN_EXAMPLE_CATALOG}
-            onClose={() => setShowOpenExampleModal(false)}
+            onClose={() => { setShowOpenExampleModal(false); }}
             onSelectExample={loadExampleIntoEditor}
           />
         </Suspense>
@@ -1482,7 +1482,7 @@ export function App() {
           <TikzJaxModal
             source={compiledPictureSource.source}
             activeFigureId={compiledPictureSource.activeFigureId}
-            onClose={() => setCompiledPictureSource(null)}
+            onClose={() => { setCompiledPictureSource(null); }}
             latex={platform.latex}
             showOpenInNewTab={!platform.id.startsWith("desktop")}
             showLogToggle={platform.id.startsWith("desktop")}
@@ -1491,7 +1491,7 @@ export function App() {
       ) : null}
       {showSettingsModal ? (
         <Suspense fallback={null}>
-          <SettingsModal onClose={() => setShowSettingsModal(false)} />
+          <SettingsModal onClose={() => { setShowSettingsModal(false); }} />
         </Suspense>
       ) : null}
       {equationModalState ? (
@@ -1504,7 +1504,7 @@ export function App() {
                 setInsertEquationDraft(latex);
               }
             }}
-            onClose={() => setEquationModalState(null)}
+            onClose={() => { setEquationModalState(null); }}
             onConfirm={(latex) => {
               if (equationModalState.mode === "insert") {
                 const text = formatEquationText(latex, "inline-dollar");
@@ -1606,7 +1606,7 @@ export function App() {
         <Suspense fallback={null}>
           <SvgExportModal
             svgResult={svgExportSvgResult}
-            onClose={() => setSvgExportSvgResult(null)}
+            onClose={() => { setSvgExportSvgResult(null); }}
           />
         </Suspense>
       ) : null}
@@ -1614,7 +1614,7 @@ export function App() {
         <Suspense fallback={null}>
           <PngExportModal
             svgResult={pngExportSvgResult}
-            onClose={() => setPngExportSvgResult(null)}
+            onClose={() => { setPngExportSvgResult(null); }}
           />
         </Suspense>
       ) : null}
@@ -1630,12 +1630,12 @@ export function App() {
       ) : null}
       {showSaveWorkspaceModal ? (
         <Suspense fallback={null}>
-          <SaveWorkspaceModal onClose={() => setShowSaveWorkspaceModal(false)} />
+          <SaveWorkspaceModal onClose={() => { setShowSaveWorkspaceModal(false); }} />
         </Suspense>
       ) : null}
       {showManageWorkspacesModal ? (
         <Suspense fallback={null}>
-          <ManageWorkspacesModal onClose={() => setShowManageWorkspacesModal(false)} />
+          <ManageWorkspacesModal onClose={() => { setShowManageWorkspacesModal(false); }} />
         </Suspense>
       ) : null}
       {isDragOver ? (

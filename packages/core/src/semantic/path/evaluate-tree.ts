@@ -25,7 +25,7 @@ import {
 } from "./tree.js";
 import { applyNameScope } from "../nodes/evaluate.js";
 import { cloneCustomStyleRegistry } from "../style/custom-styles.js";
-import { resolveContextDelta } from "../style/resolve.js";
+import { resolveContextDelta, type parseStyleValueAsOptionList } from "../style/resolve.js";
 import { resolveFrameMeta } from "../evaluate.js";
 import type { DiagnosticPushFn, FeatureMarkFn } from "./types.js";
 
@@ -71,8 +71,8 @@ export function handleChildOperationCluster(params: {
   treeFrameState: SemanticContext["stack"][number];
   context: SemanticContext;
   defaultPathOrigin: WorldPoint;
-  drawEdgeOptions: ReturnType<typeof import("../style/resolve.js").parseStyleValueAsOptionList>;
-  edgeFromParentStyleOptions: ReturnType<typeof import("../style/resolve.js").parseStyleValueAsOptionList>;
+  drawEdgeOptions: ReturnType<typeof parseStyleValueAsOptionList>;
+  edgeFromParentStyleOptions: ReturnType<typeof parseStyleValueAsOptionList>;
   markFeature: FeatureMarkFn;
   pushDiagnostic: DiagnosticPushFn;
   emittedTreeHookDiagnostics: Set<string>;

@@ -332,7 +332,7 @@ export function evaluatePathStatement(
             geometryElements,
             markFeature,
             activeRoundedCorners,
-            setCurrentPoint: (point) => setCurrentPoint(point),
+            setCurrentPoint: (point) => { setCurrentPoint(point); },
             setPathStartPoint: (point) => {
               context.pathStartPoint = point;
             }
@@ -388,7 +388,7 @@ export function evaluatePathStatement(
             geometryElements,
             markFeature,
             activeRoundedCorners,
-            setCurrentPoint: (point) => setCurrentPoint(point),
+            setCurrentPoint: (point) => { setCurrentPoint(point); },
             setPathStartPoint: (point) => {
               context.pathStartPoint = point;
             }

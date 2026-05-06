@@ -79,7 +79,7 @@ export function FigureNavigator() {
     const raf = window.requestAnimationFrame(() => {
       strip.scrollLeft = targetScrollLeft;
     });
-    return () => window.cancelAnimationFrame(raf);
+    return () => { window.cancelAnimationFrame(raf); };
   }, [activeDocumentId, figures.length]);
 
   const priorityFigureIds = useMemo(() => {
@@ -129,7 +129,7 @@ export function FigureNavigator() {
         type="button"
         className={css.navButton}
         disabled={!canGoPrev}
-        onClick={() => selectAt(activeIndex - 1)}
+        onClick={() => { selectAt(activeIndex - 1); }}
         aria-label="Previous figure"
       >
         {"<"}
@@ -143,7 +143,7 @@ export function FigureNavigator() {
               type="button"
               key={figure.id}
               className={[css.thumb, isActive ? css.thumbActive : ""].filter(Boolean).join(" ")}
-              onClick={() => dispatch({ type: "SET_ACTIVE_FIGURE", figureId: figure.id })}
+              onClick={() => { dispatch({ type: "SET_ACTIVE_FIGURE", figureId: figure.id }); }}
               title={`Figure ${index + 1}`}
               aria-label={`Figure ${index + 1}`}
               ref={(node) => {
@@ -166,7 +166,7 @@ export function FigureNavigator() {
         type="button"
         className={css.navButton}
         disabled={!canGoNext}
-        onClick={() => selectAt(activeIndex + 1)}
+        onClick={() => { selectAt(activeIndex + 1); }}
         aria-label="Next figure"
       >
         {">"}

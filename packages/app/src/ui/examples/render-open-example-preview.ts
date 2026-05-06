@@ -1,4 +1,5 @@
 import type { TikzOpenExample } from "./open-example-catalog";
+import type { renderTikzToSvgAsync as renderTikzToSvgAsyncType } from "tikz-editor/render/index";
 
 export type OpenExamplePreview = {
   exampleId: string;
@@ -8,7 +9,7 @@ export type OpenExamplePreview = {
   errorMessage: string | null;
 };
 
-type RenderTikzToSvgAsync = typeof import("tikz-editor/render/index")["renderTikzToSvgAsync"];
+type RenderTikzToSvgAsync = typeof renderTikzToSvgAsyncType;
 
 async function renderOpenExamplePreviewWithRenderer(
   example: TikzOpenExample,

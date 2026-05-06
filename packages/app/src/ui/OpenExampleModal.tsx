@@ -36,7 +36,7 @@ export function OpenExampleModal({ examples, onClose, onSelectExample }: OpenExa
                 type="button"
                 className={css.card}
                 data-testid={`open-example-card-${example.id}`}
-                onClick={() => onSelectExample(example)}
+                onClick={() => { onSelectExample(example); }}
               >
                 <div className={css.previewFrame}>
                   {hasPreview ? (

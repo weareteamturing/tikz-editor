@@ -117,10 +117,10 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
 
     updateSize();
 
-    const observer = new ResizeObserver(() => updateSize());
+    const observer = new ResizeObserver(() => { updateSize(); });
     observer.observe(viewport);
 
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); };
   }, [setViewportSize, viewportRef]);
 
   useEffect(() => {

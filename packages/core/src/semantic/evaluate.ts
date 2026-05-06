@@ -866,7 +866,7 @@ function evaluateStatement(
         statement,
         context,
         resolved.style,
-        (featureId, status) => markFeature(featureUsage, featureId, status),
+        (featureId, status) => { markFeature(featureUsage, featureId, status); },
         (code, message, from, to) => {
           diagnostics.push({
             severity: code.startsWith("unsupported") ? "warning" : "error",

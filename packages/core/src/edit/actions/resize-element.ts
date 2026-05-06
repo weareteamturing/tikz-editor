@@ -1,13 +1,15 @@
-import {
+import type {
   EditHandle,
   EvaluateOptions,
-  isFrameLocalCoordinateEditHandle,
-  isRelativeCoordinateEditHandle,
   SceneCircle,
   SceneElement,
   SceneEllipse,
   ScenePath,
   ScenePathShapeHint
+} from "../../semantic/types.js";
+import {
+  isFrameLocalCoordinateEditHandle,
+  isRelativeCoordinateEditHandle
 } from "../../semantic/types.js";
 import { pt } from "../../coords/scalars.js";
 import { applyFrameTransform } from "../../coords/frame.js";

@@ -510,7 +510,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: A
                     type="button"
                     className={css.attachmentPreviewButton}
                     onClick={() =>
-                      setExpandedAttachmentId((current) => (current === attachment.id ? null : attachment.id))
+                      { setExpandedAttachmentId((current) => (current === attachment.id ? null : attachment.id)); }
                     }
                     aria-label={`Preview ${attachment.fileName}`}
                   >
@@ -538,7 +538,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: A
           ) : null}
           <textarea
             value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
+            onChange={(event) => { setPrompt(event.target.value); }}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault();
@@ -580,7 +580,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: A
                 ariaLabel="Model"
                 options={dropdownOptions}
                 value={selectedModel}
-                onChange={(value) => setSelectedModel(value)}
+                onChange={(value) => { setSelectedModel(value); }}
                 onOpen={() => {
                   if (!metaRequested) {
                     setMetaLoading(true);
@@ -815,7 +815,7 @@ function AssistantTimelineItem({ item }: { item: AssistantItem }) {
               alt="Tool preview"
               src={previewImage}
               className={imageExpanded ? css.toolPreviewImageExpanded : css.toolPreviewImage}
-              onClick={() => setImageExpanded(!imageExpanded)}
+              onClick={() => { setImageExpanded(!imageExpanded); }}
             />
           ) : null}
         </div>

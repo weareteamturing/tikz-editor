@@ -395,9 +395,9 @@ export function ObjectsPanel() {
                       ref={inputRef}
                       className={css.titleInput}
                       value={editingValue}
-                      onChange={(event) => setEditingValue(event.target.value)}
+                      onChange={(event) => { setEditingValue(event.target.value); }}
                       onBlur={commitRename}
-                      onClick={(event) => event.stopPropagation()}
+                      onClick={(event) => { event.stopPropagation(); }}
                       onKeyDown={(event: ReactKeyboardEvent<HTMLInputElement>) => {
                         if (event.key === "Enter") {
                           commitRename();

@@ -34,7 +34,7 @@ export function ToolbarToolPopup({
     }
 
     window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
+    return () => { window.removeEventListener("pointerdown", onPointerDown); };
   }, [onClose, open]);
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export function ToolbarToolPopup({
     }
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => { window.removeEventListener("keydown", onKeyDown); };
   }, [onClose, open]);
 
   return (
@@ -115,7 +115,7 @@ export function ToolbarPopupChoiceList({
             role="option"
             aria-selected={selected}
             className={[css.choiceButton, selected ? css.choiceButtonSelected : ""].filter(Boolean).join(" ")}
-            onClick={() => onSelect(choice.id)}
+            onClick={() => { onSelect(choice.id); }}
           >
             {choice.label}
           </button>
@@ -149,7 +149,7 @@ export function ToolbarPopupVisualChoiceGrid({
             aria-selected={selected}
             data-testid={testId}
             className={[css.visualChoiceButton, selected ? css.visualChoiceButtonSelected : ""].filter(Boolean).join(" ")}
-            onClick={() => onSelect(choice.id)}
+            onClick={() => { onSelect(choice.id); }}
             title={choice.label}
           >
             <span className={css.visualChoicePreview} aria-hidden="true">

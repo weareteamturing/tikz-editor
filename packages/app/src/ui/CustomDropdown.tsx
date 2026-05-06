@@ -122,7 +122,7 @@ export function CustomDropdown<TValue extends string>({
     }
 
     window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
+    return () => { window.removeEventListener("pointerdown", onPointerDown); };
   }, [closeMenu, open]);
 
   useEffect(() => {
@@ -145,7 +145,7 @@ export function CustomDropdown<TValue extends string>({
     }
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => { window.removeEventListener("keydown", onKeyDown); };
   }, [closeMenu, editable, open]);
 
   useEffect(() => {

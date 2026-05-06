@@ -13,9 +13,9 @@ export function useResolvedColorScheme(): "light" | "dark" {
   useEffect(() => {
     if (colorScheme !== "system") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
+    const handler = (e: MediaQueryListEvent) => { setSystemDark(e.matches); };
     mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
+    return () => { mq.removeEventListener("change", handler); };
   }, [colorScheme]);
 
   if (colorScheme === "system") return systemDark ? "dark" : "light";

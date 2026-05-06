@@ -995,7 +995,7 @@ export function SourcePanel() {
       setDarkMode(document.documentElement.dataset.colorScheme === "dark");
     });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-color-scheme"] });
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); };
   }, []);
 
   useEffect(() => {
@@ -1245,7 +1245,7 @@ export function SourcePanel() {
     };
 
     window.addEventListener(SOURCE_FORMAT_REQUEST_EVENT, handleFormatRequest);
-    return () => window.removeEventListener(SOURCE_FORMAT_REQUEST_EVENT, handleFormatRequest);
+    return () => { window.removeEventListener(SOURCE_FORMAT_REQUEST_EVENT, handleFormatRequest); };
   }, [editorIndentSize, formatterMaxLineLength, formatterReflowLongOptions]);
 
   const handleInlineColorChange = (nextToken: string): void => {

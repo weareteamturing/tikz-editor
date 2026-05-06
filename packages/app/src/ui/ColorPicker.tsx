@@ -96,7 +96,7 @@ export function ColorPickerField({
     }
 
     window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
+    return () => { window.removeEventListener("pointerdown", onPointerDown); };
   }, [open]);
 
   useEffect(() => {
@@ -111,7 +111,7 @@ export function ColorPickerField({
     }
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => { window.removeEventListener("keydown", onKeyDown); };
   }, [open]);
 
   useEffect(() => {
@@ -693,7 +693,7 @@ export function ColorPicker({
           role="tab"
           aria-selected={tab === "standard"}
           className={[css.tabButton, tab === "standard" ? css.tabButtonActive : ""].filter(Boolean).join(" ")}
-          onClick={() => setTab("standard")}
+          onClick={() => { setTab("standard"); }}
           disabled={disabled}
         >
           Standard
@@ -703,7 +703,7 @@ export function ColorPicker({
           role="tab"
           aria-selected={tab === "custom"}
           className={[css.tabButton, tab === "custom" ? css.tabButtonActive : ""].filter(Boolean).join(" ")}
-          onClick={() => setTab("custom")}
+          onClick={() => { setTab("custom"); }}
           disabled={disabled}
         >
           Custom
@@ -724,7 +724,7 @@ export function ColorPicker({
                           type="button"
                           className={[css.swatchButton, selected ? css.swatchButtonSelected : ""].filter(Boolean).join(" ")}
                           aria-label={`${ariaLabel} ${swatch.token}`}
-                          onClick={() => handleSwatchClick(swatch.token)}
+                          onClick={() => { handleSwatchClick(swatch.token); }}
                           disabled={disabled}
                         >
                           <span className={css.swatchDot} style={{ background: swatch.cssColor }} aria-hidden="true" />
@@ -746,7 +746,7 @@ export function ColorPicker({
                       type="button"
                       className={[css.swatchButton, selected ? css.swatchButtonSelected : ""].filter(Boolean).join(" ")}
                       aria-label={`${ariaLabel} ${colorName}`}
-                      onClick={() => handleSwatchClick(colorName)}
+                      onClick={() => { handleSwatchClick(colorName); }}
                       disabled={disabled}
                     >
                       <span
@@ -868,8 +868,8 @@ export function ColorPicker({
                     step={1}
                     value={channelValue}
                     disabled={disabled}
-                    onChange={(event) => handleCustomChannelChange(channel, event.currentTarget.value, "drag")}
-                    onBlur={(event) => handleCustomChannelChange(channel, event.currentTarget.value, "release")}
+                    onChange={(event) => { handleCustomChannelChange(channel, event.currentTarget.value, "drag"); }}
+                    onBlur={(event) => { handleCustomChannelChange(channel, event.currentTarget.value, "release"); }}
                     onKeyDown={(event) => {
                       if (event.key !== "Enter") {
                         return;
@@ -900,8 +900,8 @@ export function ColorPicker({
                   autoCorrect="off"
                   disabled={disabled}
                   aria-invalid={customInputError ? "true" : "false"}
-                  onChange={(event) => handleCustomTextInputChange(event.currentTarget.value)}
-                  onBlur={() => commitCustomTextInput()}
+                  onChange={(event) => { handleCustomTextInputChange(event.currentTarget.value); }}
+                  onBlur={() => { commitCustomTextInput(); }}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter") {
                       return;
@@ -929,8 +929,8 @@ export function ColorPicker({
               type="text"
               value={customExpression}
               disabled={disabled}
-              onChange={(event) => handleCustomExpressionInputChange(event.currentTarget.value)}
-              onBlur={() => commitCustomExpression()}
+              onChange={(event) => { handleCustomExpressionInputChange(event.currentTarget.value); }}
+              onBlur={() => { commitCustomExpression(); }}
               onKeyDown={(event) => {
                 if (event.key !== "Enter") {
                   return;

@@ -1,4 +1,4 @@
-import type { Tree } from "@lezer/common";
+import type { SyntaxNode, Tree } from "@lezer/common";
 
 import type { Diagnostic } from "../diagnostics/types.js";
 import type {
@@ -44,7 +44,7 @@ export type CstToAstOptions = {
 
 type FigureNodeEntry = {
   id: string;
-  node: import("@lezer/common").SyntaxNode | null;
+  node: SyntaxNode | null;
   inventory: TikzFigureInventoryItem;
 };
 
@@ -140,7 +140,7 @@ export function fromCst(tree: Tree, source: string, opts: CstToAstOptions = {}):
   };
 }
 
-function recoverInlineTikzOptions(node: import("@lezer/common").SyntaxNode, source: string) {
+function recoverInlineTikzOptions(node: SyntaxNode, source: string) {
   const commandNode = findFirstChildByName(node, "InlineTikzCmd");
   if (!commandNode) {
     return;
@@ -309,8 +309,8 @@ export function collectContextDefinitions(source: string): Statement[] {
   return dedupedValues;
 }
 
-function collectParsedFigureNodesBySpan(tree: Tree): Map<string, import("@lezer/common").SyntaxNode> {
-  const nodes = new Map<string, import("@lezer/common").SyntaxNode>();
+function collectParsedFigureNodesBySpan(tree: Tree): Map<string, SyntaxNode> {
+  const nodes = new Map<string, SyntaxNode>();
   walk(tree.topNode, (node) => {
     if (node.type.name === "TikzEnvironment") {
       nodes.set(spanKey(node), node);
@@ -326,7 +326,7 @@ function spanKey(span: { from: number; to: number }): string {
 function resolveActiveSyntaxNode(
   source: string,
   activeFigureEntry: FigureNodeEntry
-): { node: import("@lezer/common").SyntaxNode; parseSource: string } | null {
+): { node: SyntaxNode; parseSource: string } | null {
   if (activeFigureEntry.node) {
     return { node: activeFigureEntry.node, parseSource: source };
   }
@@ -408,7 +408,7 @@ function scanFigureOptionsSpan(source: string, cursor: number, figureEnd: number
 }
 
 function collectRelevantStatementsFromNode(
-  node: import("@lezer/common").SyntaxNode,
+  node: SyntaxNode,
   source: string,
   state: { nextStatementIndex: number }
 ): Statement[] {
@@ -426,7 +426,7 @@ function collectRelevantStatementsFromNode(
   return statements;
 }
 
-function isRelevantDefinitionNode(node: import("@lezer/common").SyntaxNode): boolean {
+function isRelevantDefinitionNode(node: SyntaxNode): boolean {
   const typeName = node.type.name;
   if (
     typeName === "MacroDefinitionStatement" ||

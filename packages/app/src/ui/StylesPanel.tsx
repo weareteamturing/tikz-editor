@@ -446,13 +446,13 @@ export function StylesPanel() {
                   <AddPropertyRow
                     section={section}
                     onAdd={handleAddProperty}
-                    onCancel={() => setAddingInSection(null)}
+                    onCancel={() => { setAddingInSection(null); }}
                   />
                 ) : (
                   <button
                     type="button"
                     className={css.addButton}
-                    onClick={() => setAddingInSection(section.id)}
+                    onClick={() => { setAddingInSection(section.id); }}
                   >
                     +
                   </button>
@@ -507,7 +507,7 @@ function DeclarationRow({
           checked={enabled}
           disabled={!toggleWritable}
           aria-label={`Toggle ${keySlug}`}
-          onChange={(event) => onToggle(declaration, event.currentTarget.checked)}
+          onChange={(event) => { onToggle(declaration, event.currentTarget.checked); }}
         />
       </div>
       <div className={css.keyCell}>
@@ -517,8 +517,8 @@ function DeclarationRow({
             ariaLabel="Property name"
             value={keySlug}
             options={ALL_KEY_SUGGESTIONS}
-            onChange={(newKey) => onRenameKey(declaration, newKey)}
-            onCommit={(newKey) => onRenameKey(declaration, newKey)}
+            onChange={(newKey) => { onRenameKey(declaration, newKey); }}
+            onCommit={(newKey) => { onRenameKey(declaration, newKey); }}
             triggerClassName={css.keyInput}
           />
         ) : (
@@ -533,7 +533,7 @@ function DeclarationRow({
           type="button"
           className={css.deleteButton}
           aria-label={`Delete ${keySlug}`}
-          onClick={() => onDelete(declaration)}
+          onClick={() => { onDelete(declaration); }}
         >
           ×
         </button>
@@ -560,7 +560,7 @@ function renderValueEditor(
       <RawValueInput
         value={toPropertyRawValue(declaration)}
         disabled={!writable}
-        onCommit={(val) => onRawValueCommit(declaration, val)}
+        onCommit={(val) => { onRawValueCommit(declaration, val); }}
       />
     );
   }
@@ -575,7 +575,7 @@ function renderValueEditor(
           options={property.options}
           namedColorSwatches={namedColorSwatches}
           disabled={!writable}
-          onChange={(value) => onPropertyChange(declaration, property, value)}
+          onChange={(value) => { onPropertyChange(declaration, property, value); }}
         />
       );
     case "number":
@@ -611,8 +611,8 @@ function renderValueEditor(
           value={String(property.value)}
           disabled={!writable}
           options={options}
-          onChange={(value) => onPropertyChange(declaration, property, value)}
-          onCommit={(rawText) => onRawValueCommit(declaration, rawText)}
+          onChange={(value) => { onPropertyChange(declaration, property, value); }}
+          onCommit={(rawText) => { onRawValueCommit(declaration, rawText); }}
           triggerClassName={css.valueInput}
         />
       );
@@ -624,7 +624,7 @@ function renderValueEditor(
             type="checkbox"
             checked={property.enabled}
             disabled={!writable}
-            onChange={(event) => onPropertyChange(declaration, property, event.target.checked)}
+            onChange={(event) => { onPropertyChange(declaration, property, event.target.checked); }}
           />
           <span>{property.enabled ? `${property.radius.toFixed(1)}pt` : "off"}</span>
         </label>
@@ -645,7 +645,7 @@ function renderValueEditor(
         <RawValueInput
           value={toPropertyRawValue(declaration)}
           disabled={!writable}
-          onCommit={(val) => onRawValueCommit(declaration, val)}
+          onCommit={(val) => { onRawValueCommit(declaration, val); }}
         />
       );
   }
@@ -679,7 +679,7 @@ function RawValueInput({
       className={css.rawInput}
       type="text"
       value={editText}
-      onChange={(e) => setEditText(e.target.value)}
+      onChange={(e) => { setEditText(e.target.value); }}
       onBlur={() => {
         setEditing(false);
         const trimmed = editText.trim();

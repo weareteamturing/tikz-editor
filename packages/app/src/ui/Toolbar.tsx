@@ -73,7 +73,7 @@ export function Toolbar() {
     }
 
     window.addEventListener("pointerup", onPointerUp);
-    return () => window.removeEventListener("pointerup", onPointerUp);
+    return () => { window.removeEventListener("pointerup", onPointerUp); };
   }, [bucketPopupClosePending, openPopupMode]);
 
   const closeBucketPopup = () => {
@@ -128,7 +128,7 @@ export function Toolbar() {
           <div
             className={popupCss.matrixPicker}
             data-testid="toolbar-matrix-picker-grid"
-            onMouseLeave={() => setMatrixHoverSize(null)}
+            onMouseLeave={() => { setMatrixHoverSize(null); }}
           >
             {Array.from({ length: maxRows }, (_, rowIndex) => rowIndex + 1).map((row) => (
               <div key={row} className={popupCss.matrixPickerRow}>
@@ -140,8 +140,8 @@ export function Toolbar() {
                       popupCss.matrixPickerCell,
                       isSelected(row, column) ? popupCss.matrixPickerCellSelected : ""
                     ].filter(Boolean).join(" ")}
-                    onMouseEnter={() => setMatrixHoverSize({ rows: row, columns: column })}
-                    onFocus={() => setMatrixHoverSize({ rows: row, columns: column })}
+                    onMouseEnter={() => { setMatrixHoverSize({ rows: row, columns: column }); }}
+                    onFocus={() => { setMatrixHoverSize({ rows: row, columns: column }); }}
                     onClick={() => {
                       dispatch({ type: "SET_ADD_MATRIX_PRESET", rows: row, columns: column });
                       dispatch({ type: "SET_TOOL_MODE", mode: "addMatrix" });
@@ -238,7 +238,7 @@ export function Toolbar() {
       <ToolbarToolPopup
         key={mode}
         open={openPopupMode === mode}
-        onClose={() => setOpenPopupMode(null)}
+        onClose={() => { setOpenPopupMode(null); }}
         popup={renderPopup("shape-picker")}
         popupTestId="toolbar-tool-popup-addShape"
       >

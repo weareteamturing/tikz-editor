@@ -1,6 +1,7 @@
 import type { Extension } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
-import { Decoration, EditorView, type DecorationSet, ViewPlugin, type ViewUpdate, WidgetType } from "@codemirror/view";
+import type { EditorView} from "@codemirror/view";
+import { Decoration, type DecorationSet, ViewPlugin, type ViewUpdate, WidgetType } from "@codemirror/view";
 import {
   collectDetectedColors,
   resolveDeclaredColorAnalysis,

@@ -95,7 +95,7 @@ function ModalSheet({
       }
     }
     dialog.addEventListener("cancel", onCancel);
-    return () => dialog.removeEventListener("cancel", onCancel);
+    return () => { dialog.removeEventListener("cancel", onCancel); };
   }, [closeOnEscape, onClose]);
 
   function onDialogPointerDown(event: ReactPointerEvent<HTMLDialogElement>): void {
@@ -151,7 +151,7 @@ function ModalPanel({
       }
     }
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => { window.removeEventListener("keydown", onKeyDown); };
   }, [closeOnEscape, onClose]);
 
   useEffect(() => {
@@ -300,7 +300,7 @@ function ModalHeader({
               className={css.closeIconButton}
               aria-label={closeAriaLabel}
               onClick={onClose}
-              onPointerDown={(event) => event.stopPropagation()}
+              onPointerDown={(event) => { event.stopPropagation(); }}
             >
               <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
                 <path d="M1 1 L9 9 M9 1 L1 9" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" />

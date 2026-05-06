@@ -171,7 +171,7 @@ export function StatusBar() {
             className={[css.iconButton, showGrid ? css.iconButtonActive : ""].filter(Boolean).join(" ")}
             aria-label={showGrid ? "Hide grid" : "Show grid"}
             aria-pressed={showGrid}
-            onClick={() => dispatch({ type: "TOGGLE_CANVAS_AID", aid: "grid" })}
+            onClick={() => { dispatch({ type: "TOGGLE_CANVAS_AID", aid: "grid" }); }}
           >
             <RiGridLine size={15} aria-hidden="true" />
           </button>
@@ -197,7 +197,7 @@ export function StatusBar() {
           step={1}
           value={sliderZoomPercent}
           aria-label="Zoom"
-          onChange={(event) => requestZoomPercent(Number(event.currentTarget.value))}
+          onChange={(event) => { requestZoomPercent(Number(event.currentTarget.value)); }}
         />
 
         <span className={css.zoomSelectWrap}>
@@ -205,7 +205,7 @@ export function StatusBar() {
             className={css.zoomSelect}
             value={String(zoomPercent)}
             aria-label="Zoom percentage"
-            onChange={(event) => requestZoomPercent(Number(event.currentTarget.value))}
+            onChange={(event) => { requestZoomPercent(Number(event.currentTarget.value)); }}
           >
             {zoomOptions.map((level) => (
               <option key={level} value={level}>{level}%</option>

@@ -67,7 +67,7 @@ export function TabStrip({
             <button
               type="button"
               className={css.tabButton}
-              onClick={() => dispatch({ type: "SWITCH_DOCUMENT", documentId: id })}
+              onClick={() => { dispatch({ type: "SWITCH_DOCUMENT", documentId: id }); }}
               data-testid={`tab-switch-${id}`}
             >
               <span className={css.title}>{doc.title}</span>
@@ -102,7 +102,7 @@ export function TabStrip({
       <button
         type="button"
         className={css.add}
-        onClick={() => dispatch({ type: "NEW_DOCUMENT" })}
+        onClick={() => { dispatch({ type: "NEW_DOCUMENT" }); }}
         aria-label="New document"
         data-testid="tab-new"
       >

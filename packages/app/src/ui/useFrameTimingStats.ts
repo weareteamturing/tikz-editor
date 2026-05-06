@@ -76,7 +76,7 @@ export function useFrameTimingStats(activeDragKind: CanvasDragKind | null, enabl
     };
 
     rafId = window.requestAnimationFrame(step);
-    return () => window.cancelAnimationFrame(rafId);
+    return () => { window.cancelAnimationFrame(rafId); };
   }, [enabled]);
 
   return stats;

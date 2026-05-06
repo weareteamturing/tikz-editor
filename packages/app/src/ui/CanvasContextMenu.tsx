@@ -192,7 +192,7 @@ export function CanvasContextMenu({
     }
 
     window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
+    return () => { window.removeEventListener("pointerdown", onPointerDown); };
   }, [onClose, open]);
 
   useEffect(() => {
@@ -207,7 +207,7 @@ export function CanvasContextMenu({
     }
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => { window.removeEventListener("keydown", onKeyDown); };
   }, [onClose, open]);
 
   if (!open) {

@@ -81,7 +81,7 @@ export function DevPanel() {
         <div className={css.resizeHandle} onMouseDown={onResizeMouseDown} />
         <div className={css.header}>
           <span>Dev Panel</span>
-          <button className={css.closeBtn} onClick={() => dispatch({ type: "TOGGLE_DEV_PANEL" })}>✕</button>
+          <button className={css.closeBtn} onClick={() => { dispatch({ type: "TOGGLE_DEV_PANEL" }); }}>✕</button>
         </div>
 
         <div className={css.tabs}>
@@ -89,7 +89,7 @@ export function DevPanel() {
             <button
               key={t}
               className={`${css.tab} ${tab === t ? css.tabActive : ""}`}
-              onClick={() => setTab(t)}
+              onClick={() => { setTab(t); }}
             >
               {t.toUpperCase()}
             </button>

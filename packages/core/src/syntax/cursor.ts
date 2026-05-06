@@ -10,7 +10,7 @@ export function forEachChild(node: SyntaxNode, fn: (child: SyntaxNode) => void):
 
 export function walk(node: SyntaxNode, fn: (node: SyntaxNode) => void): void {
   fn(node);
-  forEachChild(node, (child) => walk(child, fn));
+  forEachChild(node, (child) => { walk(child, fn); });
 }
 
 export function findFirstNodeByName(root: SyntaxNode, name: string): SyntaxNode | null {

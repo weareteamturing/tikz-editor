@@ -66,7 +66,7 @@ export function RepeatModal({
               min={1}
               step={1}
               value={columns}
-              onChange={(event) => onColumnsChange(Number(event.target.value))}
+              onChange={(event) => { onColumnsChange(Number(event.target.value)); }}
             />
           </label>
           <label className={css.field}>
@@ -77,7 +77,7 @@ export function RepeatModal({
               min={1}
               step={1}
               value={rows}
-              onChange={(event) => onRowsChange(Number(event.target.value))}
+              onChange={(event) => { onRowsChange(Number(event.target.value)); }}
             />
           </label>
           <label className={css.field}>
@@ -87,7 +87,7 @@ export function RepeatModal({
               type="number"
               step={0.1}
               value={formatUiNumber(horizontalStepCm)}
-              onChange={(event) => onHorizontalStepChange(Number(event.target.value))}
+              onChange={(event) => { onHorizontalStepChange(Number(event.target.value)); }}
             />
           </label>
           <label className={css.field}>
@@ -97,7 +97,7 @@ export function RepeatModal({
               type="number"
               step={0.1}
               value={formatUiNumber(verticalStepCm)}
-              onChange={(event) => onVerticalStepChange(Number(event.target.value))}
+              onChange={(event) => { onVerticalStepChange(Number(event.target.value)); }}
             />
           </label>
         </div>

@@ -395,8 +395,8 @@ function loadSvgImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.decoding = "async";
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Failed to decode SVG for PNG export."));
+    image.onload = () => { resolve(image); };
+    image.onerror = () => { reject(new Error("Failed to decode SVG for PNG export.")); };
     image.src = url;
   });
 }

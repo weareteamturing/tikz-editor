@@ -344,7 +344,7 @@ function InspectorColorSection() {
               <span>Fill</span>
               <div className="inspectorValueTrigger">
                 <span className="inspectorSwatch" style={{ background: fillCss }} aria-hidden="true" />
-                <input value={fillColor} onChange={(event) => setFillColor(event.target.value)} />
+                <input value={fillColor} onChange={(event) => { setFillColor(event.target.value); }} />
               </div>
               <div className="inspectorPopover">
                 <ColorPicker
@@ -364,7 +364,7 @@ function InspectorColorSection() {
               <span>Draw</span>
               <div className="inspectorValueTrigger">
                 <span className="inspectorSwatch" style={{ background: strokeCss }} aria-hidden="true" />
-                <input value={strokeColor} onChange={(event) => setStrokeColor(event.target.value)} />
+                <input value={strokeColor} onChange={(event) => { setStrokeColor(event.target.value); }} />
               </div>
             </label>
             <label className="inspectorProperty">
@@ -688,7 +688,7 @@ function SourceEditDemo() {
 
       tl.add("scrubStart", "scrubHover+=0.28");
       cursor.setPressed(true, "scrubStart");
-      tl.call(() => setNumberChanging(true), undefined, "scrubStart");
+      tl.call(() => { setNumberChanging(true); }, undefined, "scrubStart");
       moveCursorThrough([
         numberHover,
         { x: numberDragEnd.x - 14, y: numberDragEnd.y + 1 },
@@ -1076,11 +1076,11 @@ function ForeachRepeatDemo() {
           <div className="repeatGrid">
             <label>
               <span>Columns</span>
-              <input type="number" min="1" max="6" value={columns} onChange={(event) => setColumns(clampRepeatValue(event.target.value))} />
+              <input type="number" min="1" max="6" value={columns} onChange={(event) => { setColumns(clampRepeatValue(event.target.value)); }} />
             </label>
             <label>
               <span>Rows</span>
-              <input type="number" min="1" max="4" value={rows} onChange={(event) => setRows(clampRepeatValue(event.target.value, 4))} />
+              <input type="number" min="1" max="4" value={rows} onChange={(event) => { setRows(clampRepeatValue(event.target.value, 4)); }} />
             </label>
             <label>
               <span>H Step (cm)</span>
