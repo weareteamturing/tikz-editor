@@ -5,8 +5,14 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import unicorn from "eslint-plugin-unicorn";
 import vitest from "@vitest/eslint-plugin";
 import tseslint from "typescript-eslint";
+import tikz from "./scripts/eslint-plugin-tikz.mjs";
 
 export default tseslint.config(
+  {
+    linterOptions: {
+      reportUnusedDisableDirectives: "error"
+    }
+  },
   {
     ignores: [
       "node_modules/**",
@@ -47,6 +53,7 @@ export default tseslint.config(
     plugins: {
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
+      tikz,
       unicorn
     },
     rules: {
@@ -129,6 +136,8 @@ export default tseslint.config(
         }
       ],
       "@typescript-eslint/unbound-method": "error",
+      "tikz/no-coordinate-type-cast": "error",
+      "tikz/no-raw-coordinate-object": "error",
       "unicorn/catch-error-name": "error",
       "unicorn/no-new-array": "error",
       "unicorn/no-useless-fallback-in-spread": "error",

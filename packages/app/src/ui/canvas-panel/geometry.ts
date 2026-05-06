@@ -151,6 +151,15 @@ export function rotatePointAroundCenter(
   cy: number,
   degrees: number
 ): SvgPoint | TextRectLocalPoint | WorldPoint {
+  return rotateTypedPointAroundCenter(point, cx, cy, degrees);
+}
+
+function rotateTypedPointAroundCenter<TPoint extends SvgPoint | TextRectLocalPoint | WorldPoint>(
+  point: TPoint,
+  cx: number,
+  cy: number,
+  degrees: number
+): TPoint {
   if (Math.abs(degrees) <= 1e-6) {
     return point;
   }
@@ -162,7 +171,7 @@ export function rotatePointAroundCenter(
   return {
     x: cx + dx * cos - dy * sin,
     y: cy + dx * sin + dy * cos
-  } as typeof point;
+  } as TPoint;
 }
 
 export function viewportToSvgPoint(
