@@ -77,6 +77,12 @@ export function TabStrip({
                   <circle cx="3" cy="3" r="3" />
                 </svg>
               ) : null}
+              {doc.externalChangeStatus !== "none" ? (
+                <svg className={css.externalChange} width="7" height="7" viewBox="0 0 7 7" aria-label="File changed on disk">
+                  <title>File changed on disk</title>
+                  <path d="M3.5 0 7 7H0Z" />
+                </svg>
+              ) : null}
             </button>
             <button
               type="button"

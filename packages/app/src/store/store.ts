@@ -80,6 +80,9 @@ function persistedDocumentChanged(previous: DocumentSession, next: DocumentSessi
     previous.activeFigureId !== next.activeFigureId ||
     previous.savedSource !== next.savedSource ||
     fileRefChanged(previous.fileRef, next.fileRef) ||
+    fileRevisionChanged(previous.diskRevision, next.diskRevision) ||
+    previous.lastKnownDiskSource !== next.lastKnownDiskSource ||
+    previous.externalChangeStatus !== next.externalChangeStatus ||
     previous.assistantThreadId !== next.assistantThreadId ||
     previous.assistantWorkspacePath !== next.assistantWorkspacePath ||
     previous.assistantFigurePath !== next.assistantFigurePath ||
@@ -101,6 +104,19 @@ function fileRefChanged(previous: DocumentFileRef | null, next: DocumentFileRef 
     previous.path !== next.path ||
     previous.provider !== next.provider
   );
+}
+
+function fileRevisionChanged(
+  previous: DocumentSession["diskRevision"],
+  next: DocumentSession["diskRevision"]
+): boolean {
+  if (previous === next) {
+    return false;
+  }
+  if (!previous || !next) {
+    return true;
+  }
+  return previous.hash !== next.hash || previous.mtimeMs !== next.mtimeMs || previous.size !== next.size;
 }
 
 let pendingWorkspaceSaveState: WorkspacePersistedState | null = null;

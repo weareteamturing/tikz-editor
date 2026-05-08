@@ -1,5 +1,5 @@
 import { getActiveEditorPlatform } from "../platform/current";
-import type { DocumentFileRef } from "./types";
+import type { DocumentFileRef, ExternalChangeStatus, FileRevision } from "./types";
 import { WORKSPACE_VERSION, type WorkspaceSeed } from "./workspace-state";
 import type { IJsonModel } from "flexlayout-react";
 
@@ -27,6 +27,9 @@ type PersistedWorkspace = {
     activeFigureId?: string | null;
     savedSource?: string;
     fileRef?: DocumentFileRef | null;
+    diskRevision?: FileRevision | null;
+    lastKnownDiskSource?: string | null;
+    externalChangeStatus?: ExternalChangeStatus;
     assistantThreadId?: string | null;
     assistantWorkspacePath?: string | null;
     assistantFigurePath?: string | null;
@@ -81,6 +84,27 @@ function normalizeFileRef(raw: unknown): DocumentFileRef | null {
   };
 }
 
+function normalizeFileRevision(raw: unknown): FileRevision | null {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+  const candidate = raw as Partial<FileRevision>;
+  if (typeof candidate.hash !== "string" || candidate.hash.length === 0) {
+    return null;
+  }
+  return {
+    hash: candidate.hash,
+    mtimeMs: typeof candidate.mtimeMs === "number" ? candidate.mtimeMs : undefined,
+    size: typeof candidate.size === "number" ? candidate.size : undefined
+  };
+}
+
+function normalizeExternalChangeStatus(raw: unknown): ExternalChangeStatus {
+  return raw === "changed" || raw === "missing" || raw === "permission-needed" || raw === "error"
+    ? raw
+    : "none";
+}
+
 function migrateWorkspace(parsed: Partial<PersistedWorkspace>): WorkspaceSeed | null {
   const version = typeof parsed.workspaceVersion === "number" ? parsed.workspaceVersion : 1;
   if (version !== 1 && version !== WORKSPACE_VERSION) {
@@ -97,6 +121,9 @@ function migrateWorkspace(parsed: Partial<PersistedWorkspace>): WorkspaceSeed | 
           activeFigureId: typeof doc.activeFigureId === "string" ? doc.activeFigureId : null,
           savedSource: typeof doc.savedSource === "string" ? doc.savedSource : doc.source,
           fileRef: normalizeFileRef(doc.fileRef),
+          diskRevision: normalizeFileRevision(doc.diskRevision),
+          lastKnownDiskSource: typeof doc.lastKnownDiskSource === "string" ? doc.lastKnownDiskSource : null,
+          externalChangeStatus: normalizeExternalChangeStatus(doc.externalChangeStatus),
           assistantThreadId: typeof doc.assistantThreadId === "string" ? doc.assistantThreadId : null,
           assistantWorkspacePath: typeof doc.assistantWorkspacePath === "string" ? doc.assistantWorkspacePath : null,
           assistantFigurePath: typeof doc.assistantFigurePath === "string" ? doc.assistantFigurePath : null,
@@ -136,6 +163,9 @@ export function saveWorkspace(state: {
     activeFigureId: string | null;
     savedSource: string;
     fileRef: DocumentFileRef | null;
+    diskRevision?: FileRevision | null;
+    lastKnownDiskSource?: string | null;
+    externalChangeStatus?: ExternalChangeStatus;
     assistantThreadId: string | null;
     assistantWorkspacePath: string | null;
     assistantFigurePath: string | null;
@@ -157,6 +187,9 @@ export function saveWorkspace(state: {
         activeFigureId: doc.activeFigureId,
         savedSource: doc.savedSource,
         fileRef: doc.fileRef,
+        diskRevision: doc.diskRevision ?? null,
+        lastKnownDiskSource: doc.lastKnownDiskSource ?? null,
+        externalChangeStatus: doc.externalChangeStatus ?? "none",
         assistantThreadId: doc.assistantThreadId,
         assistantWorkspacePath: doc.assistantWorkspacePath,
         assistantFigurePath: doc.assistantFigurePath,

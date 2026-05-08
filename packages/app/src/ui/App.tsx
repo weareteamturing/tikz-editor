@@ -33,6 +33,7 @@ import css from "./App.module.css";
 import "./variables.css";
 import { TabStrip } from "./TabStrip";
 import type { UnsavedChangesDecision } from "./UnsavedChangesModal";
+import type { FileConflictDecision } from "./FileConflictModal";
 import { collectDirtyDocumentIdsForIntent, type CloseIntent } from "./close-guard";
 import { OPEN_EXAMPLE_CATALOG, type TikzOpenExample } from "./examples/open-example-catalog";
 import type { EmitSvgResult } from "tikz-editor/svg/index";
@@ -41,6 +42,8 @@ import { resolveOpenedFileForDocument, dataTransferHasFilePayload } from "./svg-
 import type { AssistantComposerImageAttachment } from "./assistant-image-attachments";
 import { formatEquationText, type EquationNodeTarget } from "./equation-utils";
 import { useDebouncedEffect } from "./hooks/useDebouncedEffect";
+import { decideLinkedFileRefresh, isLinkedFileRef, type LinkedTextWriteResult } from "../linked-file-sync";
+import type { DocumentFileRef, DocumentSession, FileRevision } from "../store/types";
 import "./selection.css";
 
 const DevPanel = lazy(async () => {
@@ -76,6 +79,11 @@ const TikzJaxModal = lazy(async () => {
 const UnsavedChangesModal = lazy(async () => {
   const mod = await import("./UnsavedChangesModal");
   return { default: mod.UnsavedChangesModal };
+});
+
+const FileConflictModal = lazy(async () => {
+  const mod = await import("./FileConflictModal");
+  return { default: mod.FileConflictModal };
 });
 
 const EquationModal = lazy(async () => {
@@ -187,6 +195,15 @@ type UpdateModalPhase =
   | { status: "installing"; downloadedBytes: number; contentLength?: number }
   | { status: "failed"; message: string };
 
+type PendingFileConflict = {
+  documentId: string;
+  title: string;
+  remoteSource: string;
+  remoteRevision: FileRevision;
+  remoteFileRef: DocumentFileRef;
+  resolve: (decision: FileConflictDecision) => void;
+};
+
 export function App() {
   const {
     source,
@@ -262,6 +279,7 @@ export function App() {
   const [pngExportSvgResult, setPngExportSvgResult] = useState<EmitSvgResult | null>(null);
   const [pendingAutoFit, setPendingAutoFit] = useState(false);
   const [pendingClose, setPendingClose] = useState<{ intent: CloseIntent; dirtyDocumentIds: string[] } | null>(null);
+  const [pendingFileConflict, setPendingFileConflict] = useState<PendingFileConflict | null>(null);
   const requestCloseIntentRef = useRef<(intent: CloseIntent) => void>(() => {});
   const computeSchedulerRef = useRef<ReturnType<typeof createSingleFlightScheduler<ComputeRequest, ComputeResponse>> | null>(null);
   const updateCheckPromiseRef = useRef<Promise<UpdateInfo | null> | null>(null);
@@ -320,6 +338,176 @@ export function App() {
       alertFn(message);
     }
   }, []);
+
+  const applyLinkedReadDecision = useCallback((doc: DocumentSession, reason: "restore" | "focus" | "tab" | "save") => {
+    const readLinkedText = getActiveEditorPlatform().files?.readLinkedText;
+    if (!doc.fileRef || !isLinkedFileRef(doc.fileRef) || typeof readLinkedText !== "function") {
+      return;
+    }
+    void readLinkedText(doc.fileRef).then((result) => {
+      const currentDoc = documentsRef.current[doc.id];
+      if (!currentDoc) {
+        return;
+      }
+      const decision = decideLinkedFileRefresh(currentDoc, result);
+      if (decision.kind === "reload") {
+        dispatch({
+          type: "REPLACE_DOCUMENT_SOURCE_FROM_DISK",
+          documentId: doc.id,
+          source: decision.source,
+          fileRef: decision.fileRef,
+          diskRevision: decision.revision
+        });
+        return;
+      }
+      if (decision.kind === "mark-status") {
+        dispatch({
+          type: "SET_DOCUMENT_LINKED_FILE_STATUS",
+          documentId: doc.id,
+          externalChangeStatus: decision.externalChangeStatus,
+          diskRevision: decision.externalChangeStatus === "changed" ? undefined : decision.revision,
+          lastKnownDiskSource: decision.externalChangeStatus === "changed" ? undefined : decision.source
+        });
+      }
+    }).catch((error: unknown) => {
+      console.info(`[tikz-editor] Linked file ${reason} check failed.`, error);
+      dispatch({
+        type: "SET_DOCUMENT_LINKED_FILE_STATUS",
+        documentId: doc.id,
+        externalChangeStatus: "error"
+      });
+    });
+  }, [dispatch]);
+
+  const initializeLinkedBaseline = useCallback(async (
+    documentId: string,
+    sourceForDocument: string,
+    fileRef: DocumentFileRef | null
+  ): Promise<void> => {
+    const readLinkedText = getActiveEditorPlatform().files?.readLinkedText;
+    if (!fileRef || !isLinkedFileRef(fileRef) || typeof readLinkedText !== "function") {
+      return;
+    }
+    const result = await readLinkedText(fileRef);
+    if (result.status !== "ok") {
+      dispatch({
+        type: "SET_DOCUMENT_LINKED_FILE_STATUS",
+        documentId,
+        externalChangeStatus:
+          result.status === "missing" || result.status === "permission-needed" ? result.status : "error"
+      });
+      return;
+    }
+    dispatch({
+      type: "MARK_DOCUMENT_SAVED",
+      documentId,
+      fileRef: result.fileRef,
+      diskRevision: result.revision,
+      lastKnownDiskSource: result.source ?? sourceForDocument
+    });
+  }, [dispatch]);
+
+  const requestFileConflictDecision = useCallback((
+    doc: DocumentSession,
+    conflict: Extract<LinkedTextWriteResult, { status: "changed-on-disk" }>
+  ): Promise<FileConflictDecision> => {
+    return new Promise((resolve) => {
+      setPendingFileConflict({
+        documentId: doc.id,
+        title: doc.title,
+        remoteSource: conflict.source,
+        remoteRevision: conflict.revision,
+        remoteFileRef: conflict.fileRef,
+        resolve
+      });
+    });
+  }, []);
+
+  const saveDocument = useCallback(async (
+    documentId: string,
+    mode: "save" | "save-as",
+    options: { forceOverwrite?: boolean } = {}
+  ): Promise<boolean> => {
+    const doc = documentsRef.current[documentId];
+    if (!doc) {
+      return false;
+    }
+    const files = getActiveEditorPlatform().files;
+    if (!files?.saveText) {
+      return false;
+    }
+
+    if (
+      mode === "save" &&
+      doc.fileRef &&
+      isLinkedFileRef(doc.fileRef) &&
+      typeof files.writeLinkedText === "function"
+    ) {
+      const result = await files.writeLinkedText(
+        doc.fileRef,
+        doc.source,
+        options.forceOverwrite ? null : doc.diskRevision
+      );
+      if (result.status === "saved") {
+        dispatch({
+          type: "MARK_DOCUMENT_SAVED",
+          documentId,
+          fileRef: result.fileRef,
+          diskRevision: result.revision,
+          lastKnownDiskSource: doc.source
+        });
+        return true;
+      }
+      if (result.status === "changed-on-disk") {
+        dispatch({
+          type: "SET_DOCUMENT_LINKED_FILE_STATUS",
+          documentId,
+          externalChangeStatus: "changed"
+        });
+        const decision = await requestFileConflictDecision(doc, result);
+        setPendingFileConflict(null);
+        if (decision === "reload") {
+          dispatch({
+            type: "REPLACE_DOCUMENT_SOURCE_FROM_DISK",
+            documentId,
+            source: result.source,
+            fileRef: result.fileRef,
+            diskRevision: result.revision
+          });
+          return false;
+        }
+        if (decision === "save-anyway") {
+          return await saveDocument(documentId, "save", { forceOverwrite: true });
+        }
+        if (decision === "save-as") {
+          return await saveDocument(documentId, "save-as");
+        }
+        return false;
+      }
+      const status =
+        result.status === "missing" || result.status === "permission-needed" ? result.status : "error";
+      dispatch({ type: "SET_DOCUMENT_LINKED_FILE_STATUS", documentId, externalChangeStatus: status });
+      if (result.status === "failed") {
+        await showNativeMessage("Save Failed", result.reason ?? "Could not save the linked file.", "error");
+      }
+      return false;
+    }
+
+    const result = await files.saveText(doc.source, {
+      mode,
+      fileRef: doc.fileRef,
+      suggestedName: doc.fileRef?.name ?? "tikz-document.tex"
+    });
+    if (result.status === "saved") {
+      dispatch({ type: "MARK_DOCUMENT_SAVED", documentId, fileRef: result.fileRef });
+      await initializeLinkedBaseline(documentId, doc.source, result.fileRef);
+      return true;
+    }
+    if (result.status === "failed") {
+      await showNativeMessage("Save Failed", result.reason ?? "Save failed.", "error");
+    }
+    return false;
+  }, [dispatch, initializeLinkedBaseline, requestFileConflictDecision, showNativeMessage]);
 
   const runUpdateCheck = useCallback(async (): Promise<UpdateInfo | null> => {
     const updates = getActiveEditorPlatform().updates;
@@ -413,6 +601,9 @@ export function App() {
     onRequestCloseAllDocuments: () => {
       requestCloseIntent({ kind: "close-all" });
     },
+    onRequestSaveDocument: (documentId, mode) => {
+      void saveDocument(documentId, mode);
+    },
     onOpenSaveWorkspace: () => {
       setShowSaveWorkspaceModal(true);
     },
@@ -469,6 +660,39 @@ export function App() {
     activeDocumentIdRef.current = activeDocumentId;
     documentsRef.current = documents;
   }, [activeDocumentId, documents, snapshot, source]);
+
+  useEffect(() => {
+    for (const doc of Object.values(documentsRef.current)) {
+      applyLinkedReadDecision(doc, "restore");
+    }
+  }, [applyLinkedReadDecision]);
+
+  useEffect(() => {
+    const checkActiveDocument = () => {
+      const doc = documentsRef.current[activeDocumentIdRef.current];
+      if (doc) {
+        applyLinkedReadDecision(doc, "focus");
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkActiveDocument();
+      }
+    };
+    window.addEventListener("focus", checkActiveDocument);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("focus", checkActiveDocument);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [applyLinkedReadDecision]);
+
+  useEffect(() => {
+    const doc = documentsRef.current[activeDocumentId];
+    if (doc) {
+      applyLinkedReadDecision(doc, "tab");
+    }
+  }, [activeDocumentId, applyLinkedReadDecision]);
 
   useEffect(() => {
     if (!repeatModalState) {
@@ -1451,34 +1675,14 @@ export function App() {
       return;
     }
 
-    const saveText = getActiveEditorPlatform().files?.saveText;
-    if (!saveText) {
-      setPendingClose(null);
-      return;
-    }
     for (const documentId of closeCtx.dirtyDocumentIds) {
       const doc = documents[documentId];
       if (!doc || !doc.dirty) {
         continue;
       }
-      const result = await saveText(doc.source, {
-        mode: "save",
-        fileRef: doc.fileRef,
-        suggestedName: doc.fileRef?.name ?? "tikz-document.tex"
-      });
-      if (result.status === "saved") {
-        dispatch({
-          type: "MARK_DOCUMENT_SAVED",
-          documentId,
-          fileRef: result.fileRef
-        });
+      const saved = await saveDocument(documentId, "save");
+      if (saved) {
         continue;
-      }
-      if (result.status === "failed") {
-        const alertFn = (globalThis as { alert?: (message?: string) => void }).alert;
-        if (typeof alertFn === "function") {
-          alertFn(result.reason ?? "Save failed. Close action was cancelled.");
-        }
       }
       setPendingClose(null);
       return;
@@ -1781,6 +1985,16 @@ export function App() {
             documentTitles={pendingClose.dirtyDocumentIds.map((id) => documents[id]?.title ?? "Untitled")}
             onChoose={(decision) => {
               void handleUnsavedDecision(decision);
+            }}
+          />
+        </Suspense>
+      ) : null}
+      {pendingFileConflict ? (
+        <Suspense fallback={null}>
+          <FileConflictModal
+            documentTitle={pendingFileConflict.title}
+            onChoose={(decision) => {
+              pendingFileConflict.resolve(decision);
             }}
           />
         </Suspense>

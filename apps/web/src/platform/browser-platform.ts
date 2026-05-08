@@ -1,4 +1,13 @@
-import type { DocumentFileRef, EditorPlatform, MenuCommandHandler, PlatformUpdateApi } from "@tikz-editor/app";
+import type {
+  DocumentFileRef,
+  EditorPlatform,
+  FileRevision,
+  LinkedTextReadResult,
+  LinkedTextWriteResult,
+  MenuCommandHandler,
+  PlatformUpdateApi
+} from "@tikz-editor/app";
+import { revisionForText } from "@tikz-editor/app/src/linked-file-sync";
 
 type StorageLike = {
   getItem: (key: string) => string | null;
@@ -24,7 +33,7 @@ type ClipboardLike = {
 type FsApiLike = {
   showOpenFilePicker?: (
     options?: unknown
-  ) => Promise<Array<{ name?: string; getFile: () => Promise<{ text: () => Promise<string>; arrayBuffer: () => Promise<ArrayBuffer> }> }>>;
+  ) => Promise<Array<{ name?: string; getFile: () => Promise<{ text: () => Promise<string>; arrayBuffer: () => Promise<ArrayBuffer>; lastModified?: number; size?: number }> }>>;
   showSaveFilePicker?: (options?: unknown) => Promise<{ name?: string; createWritable: () => Promise<{ write: (text: string) => Promise<void>; close: () => Promise<void> }> }>;
 };
 
@@ -432,6 +441,84 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
     }
   }
 
+  async function readLinkedText(fileRef: DocumentFileRef): Promise<LinkedTextReadResult> {
+    const handle = await resolvePersistedHandle(fileRef);
+    if (!handle) {
+      return { status: "permission-needed" };
+    }
+    const maybeHandle = handle as {
+      name?: string;
+      getFile?: () => Promise<{ text: () => Promise<string>; lastModified?: number; size?: number }>;
+    };
+    if (typeof maybeHandle.getFile !== "function") {
+      return { status: "failed", reason: "Stored browser file handle is unavailable." };
+    }
+    const canRead = await requestHandlePermission(handle, "read");
+    if (!canRead) {
+      return { status: "permission-needed" };
+    }
+    try {
+      const file = await maybeHandle.getFile();
+      const source = await file.text();
+      return {
+        status: "ok",
+        source,
+        revision: revisionForText(source, { mtimeMs: file.lastModified, size: file.size }),
+        fileRef: {
+          ...fileRef,
+          name: maybeHandle.name ?? fileRef.name
+        }
+      };
+    } catch (error) {
+      logBrowserPlatformDebug("Browser linked file read failed.", error);
+      return { status: "failed", reason: "Could not read the linked file." };
+    }
+  }
+
+  async function writeLinkedText(
+    fileRef: DocumentFileRef,
+    text: string,
+    expectedRevision: FileRevision | null
+  ): Promise<LinkedTextWriteResult> {
+    const current = await readLinkedText(fileRef);
+    if (current.status !== "ok") {
+      return current;
+    }
+    if (
+      expectedRevision &&
+      (current.revision.hash !== expectedRevision.hash ||
+        current.revision.mtimeMs !== expectedRevision.mtimeMs ||
+        current.revision.size !== expectedRevision.size)
+    ) {
+      return {
+        status: "changed-on-disk",
+        source: current.source,
+        revision: current.revision,
+        fileRef: current.fileRef
+      };
+    }
+    const handle = await resolvePersistedHandle(fileRef);
+    if (!handle) {
+      return { status: "permission-needed" };
+    }
+    if (!(await saveWithHandle(text, handle))) {
+      return { status: "failed", reason: "Could not write the linked file." };
+    }
+    const saved = await readLinkedText(fileRef);
+    if (saved.status === "ok") {
+      return {
+        status: "saved",
+        revision: saved.revision,
+        fileRef: saved.fileRef
+      };
+    }
+    return {
+      status: "saved",
+      revision: revisionForText(text),
+      fileRef
+    };
+  }
+
   async function saveAsViaFsApi(
     text: string,
     suggestedName: string
@@ -566,6 +653,18 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
             }
             : currentRef
         };
+      },
+      readLinkedText: async (fileRef) => {
+        if (fileRef.kind !== "browser-file" || fileRef.provider !== BROWSER_FILE_PROVIDER) {
+          return { status: "failed", reason: "File is not linked through the browser File System Access API." };
+        }
+        return await readLinkedText(fileRef);
+      },
+      writeLinkedText: async (fileRef, text, expectedRevision) => {
+        if (fileRef.kind !== "browser-file" || fileRef.provider !== BROWSER_FILE_PROVIDER) {
+          return { status: "failed", reason: "File is not linked through the browser File System Access API." };
+        }
+        return await writeLinkedText(fileRef, text, expectedRevision);
       },
       exportFile: (content, options) => {
         if (

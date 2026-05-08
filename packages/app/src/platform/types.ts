@@ -1,4 +1,5 @@
-import type { DocumentFileRef } from "../store/types.js";
+import type { LinkedTextReadResult, LinkedTextWriteResult } from "../linked-file-sync.js";
+import type { DocumentFileRef, FileRevision } from "../store/types.js";
 import type { AppMenuCommandId, AppMenuDefinition, AppMenuItem } from "../app-menu/index.js";
 
 export type MenuCommandOrigin = "menu" | "shortcut" | "context-menu" | "platform";
@@ -40,6 +41,12 @@ export type PlatformFileApi = {
     | { status: "cancelled"; fileRef: DocumentFileRef | null }
     | { status: "failed"; fileRef: DocumentFileRef | null; reason?: string }
   >;
+  readLinkedText?: (fileRef: DocumentFileRef) => Promise<LinkedTextReadResult>;
+  writeLinkedText?: (
+    fileRef: DocumentFileRef,
+    text: string,
+    expectedRevision: FileRevision | null
+  ) => Promise<LinkedTextWriteResult>;
   exportFile?: (content: BlobPart[], options: { fileName: string; mimeType: string }) => Promise<boolean>;
   clearRecentFiles?: () => Promise<void>;
 };

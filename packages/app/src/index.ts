@@ -8,6 +8,7 @@ export {
   listAllWorkspaces
 } from "./ui/workspace-apply.js";
 export { useWorkspaceListStore } from "./store/workspace-list-store.js";
+export { hashTextForRevision, revisionForText } from "./linked-file-sync.js";
 
 export type {
   AppMenuDefinition,
@@ -48,4 +49,5 @@ export type {
   MenuCommandOrigin,
   MenuCommandHandler
 } from "./platform/types.js";
-export type { DocumentFileRef } from "./store/types.js";
+export type { DocumentFileRef, ExternalChangeStatus, FileRevision } from "./store/types.js";
+export type { LinkedTextReadResult, LinkedTextWriteResult } from "./linked-file-sync.js";

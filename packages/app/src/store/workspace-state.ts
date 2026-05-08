@@ -3,6 +3,8 @@ import type {
   DocumentFileRef,
   DocumentSession,
   EditorState,
+  ExternalChangeStatus,
+  FileRevision,
   WorkspaceEphemeralState,
   WorkspacePersistedState
 } from "./types";
@@ -26,6 +28,9 @@ export type WorkspaceSeedDocument = {
   activeFigureId?: string | null;
   savedSource?: string;
   fileRef?: DocumentFileRef | null;
+  diskRevision?: FileRevision | null;
+  lastKnownDiskSource?: string | null;
+  externalChangeStatus?: ExternalChangeStatus;
   assistantThreadId?: string | null;
   assistantWorkspacePath?: string | null;
   assistantFigurePath?: string | null;
@@ -52,6 +57,9 @@ export function createDocumentSession(params: {
   title?: string;
   activeFigureId?: string | null;
   fileRef?: DocumentFileRef | null;
+  diskRevision?: FileRevision | null;
+  lastKnownDiskSource?: string | null;
+  externalChangeStatus?: ExternalChangeStatus;
   assistantThreadId?: string | null;
   assistantWorkspacePath?: string | null;
   assistantFigurePath?: string | null;
@@ -81,6 +89,9 @@ export function createDocumentSession(params: {
     fileRef: params.fileRef ?? null,
     savedSource: params.source,
     dirty: false,
+    diskRevision: params.diskRevision ?? null,
+    lastKnownDiskSource: params.lastKnownDiskSource ?? null,
+    externalChangeStatus: params.externalChangeStatus ?? "none",
     assistantThreadId: params.assistantThreadId ?? null,
     assistantWorkspacePath: params.assistantWorkspacePath ?? null,
     assistantFigurePath: params.assistantFigurePath ?? null,
@@ -118,6 +129,9 @@ export function hydrateWorkspaceStateFromSeed(seed: WorkspaceSeed): WorkspacePer
       title: raw.title,
       activeFigureId: raw.activeFigureId ?? null,
       fileRef: raw.fileRef ?? null,
+      diskRevision: raw.diskRevision ?? null,
+      lastKnownDiskSource: raw.lastKnownDiskSource ?? null,
+      externalChangeStatus: raw.externalChangeStatus ?? "none",
       assistantThreadId: raw.assistantThreadId ?? null,
       assistantWorkspacePath: raw.assistantWorkspacePath ?? null,
       assistantFigurePath: raw.assistantFigurePath ?? null,

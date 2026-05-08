@@ -325,6 +325,81 @@ test("fs-api save/open flows with rebinding and permission fallback", async ({ p
   await expect.poll(async () => readSource(page)).toContain("% opened");
 });
 
+test("fs-api linked save detects external changes before overwriting", async ({ page }) => {
+  await page.addInitScript(() => {
+    type PermissionMode = "read" | "readwrite";
+    let diskText = "\\draw (0,0)--(1,1); % base";
+    let lastModified = 1;
+    const memoryStore = new Map<string, unknown>();
+    const handle = {
+      name: "linked.tex",
+      queryPermission: async () => "granted",
+      requestPermission: async (_options: { mode: PermissionMode }) => "granted",
+      getFile: async () => ({
+        text: async () => diskText,
+        lastModified,
+        size: diskText.length
+      }),
+      createWritable: async () => {
+        let pending = diskText;
+        return {
+          write: async (value: string) => {
+            pending = value;
+          },
+          close: async () => {
+            diskText = pending;
+            lastModified += 1;
+          }
+        };
+      }
+    };
+
+    (globalThis as unknown as { __TIKZ_EDITOR_BROWSER_PLATFORM_ENV__: unknown }).__TIKZ_EDITOR_BROWSER_PLATFORM_ENV__ = {
+      fsApi: {
+        showOpenFilePicker: async () => [handle],
+        showSaveFilePicker: async () => handle
+      },
+      fsHandleStore: {
+        load: async (id: string) => memoryStore.get(id) ?? null,
+        save: async (id: string, storedHandle: unknown) => {
+          memoryStore.set(id, storedHandle);
+        }
+      }
+    };
+    (globalThis as unknown as {
+      __PW_SET_LINKED_DISK_TEXT__: (next: string) => void;
+      __PW_GET_LINKED_DISK_TEXT__: () => string;
+    }).__PW_SET_LINKED_DISK_TEXT__ = (next: string) => {
+      diskText = next;
+      lastModified += 1;
+    };
+    (globalThis as unknown as { __PW_GET_LINKED_DISK_TEXT__: () => string }).__PW_GET_LINKED_DISK_TEXT__ = () => diskText;
+  });
+
+  await gotoApp(page);
+  await openMenuCommand(page, "file", "file.open-document");
+  await expect.poll(async () => readSource(page)).toContain("% base");
+  await expect.poll(async () => page.evaluate(() => {
+    const raw = localStorage.getItem("tikz-editor:workspace");
+    const parsed = raw ? JSON.parse(raw) as { documents?: Array<{ diskRevision?: unknown }> } : null;
+    return Boolean(parsed?.documents?.some((doc) => doc.diskRevision));
+  })).toBe(true);
+
+  await setSource(page, "\\draw (2,2)--(3,3); % local");
+  await page.evaluate(() => {
+    (globalThis as unknown as { __PW_SET_LINKED_DISK_TEXT__?: (next: string) => void })
+      .__PW_SET_LINKED_DISK_TEXT__?.("\\draw (4,4)--(5,5); % remote");
+  });
+
+  await openMenuCommand(page, "file", "file.save-document");
+  await expect(page.getByTestId("file-conflict-modal")).toBeVisible();
+  await page.getByTestId("file-conflict-save-anyway").click();
+
+  await expect.poll(async () => page.evaluate(() => {
+    return (globalThis as unknown as { __PW_GET_LINKED_DISK_TEXT__?: () => string }).__PW_GET_LINKED_DISK_TEXT__?.() ?? "";
+  })).toContain("% local");
+});
+
 test("export commands smoke and svg copy command writes clipboard text", async ({ page }) => {
   await page.addInitScript(() => {
     const writes: string[] = [];

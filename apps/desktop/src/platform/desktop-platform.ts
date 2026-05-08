@@ -16,6 +16,9 @@ import {
   type AppMenuItem,
   type DocumentFileRef,
   type EditorPlatform,
+  type FileRevision,
+  type LinkedTextReadResult,
+  type LinkedTextWriteResult,
   type UpdateInfo,
   type UpdateInstallProgress,
   type MenuCommandHandler
@@ -51,6 +54,24 @@ type DesktopSaveTextResult = {
   name: string | null;
 };
 
+type DesktopLinkedFileRef = {
+  kind: "file";
+  name: string;
+  path: string;
+  provider: "desktop-fs";
+};
+
+type DesktopLinkedTextReadResult =
+  | { status: "ok"; source: string; revision: FileRevision; fileRef: DesktopLinkedFileRef }
+  | { status: "missing" }
+  | { status: "failed"; reason?: string };
+
+type DesktopLinkedTextWriteResult =
+  | { status: "saved"; revision: FileRevision; fileRef: DesktopLinkedFileRef }
+  | { status: "changed-on-disk"; source: string; revision: FileRevision; fileRef: DesktopLinkedFileRef }
+  | { status: "missing" }
+  | { status: "failed"; reason?: string };
+
 type DesktopBridge = {
   openText: (path?: string | null, options?: { addToRecent?: boolean }) => Promise<DesktopOpenTextResult | null>;
   openBinary?: (path?: string | null, options?: { addToRecent?: boolean }) => Promise<DesktopOpenBinaryResult | null>;
@@ -60,6 +81,12 @@ type DesktopBridge = {
     path?: string | null;
     forceSaveAs: boolean;
   }) => Promise<DesktopSaveTextResult>;
+  readLinkedText?: (path: string) => Promise<DesktopLinkedTextReadResult>;
+  writeLinkedText?: (params: {
+    path: string;
+    text: string;
+    expectedRevision?: FileRevision | null;
+  }) => Promise<DesktopLinkedTextWriteResult>;
   exportFile: (params: {
     fileName: string;
     mimeType: string;
@@ -700,6 +727,18 @@ function createDefaultBridge(): DesktopBridge {
         forceSaveAs
       });
     },
+    readLinkedText: async (path) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<DesktopLinkedTextReadResult>("desktop_read_linked_text", { path });
+    },
+    writeLinkedText: async ({ path, text, expectedRevision }) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<DesktopLinkedTextWriteResult>("desktop_write_linked_text", {
+        path,
+        text,
+        expectedRevision: expectedRevision ?? null
+      });
+    },
     exportFile: async ({ fileName, mimeType, bytesBase64 }) => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<boolean>("desktop_export_file", { fileName, mimeType, bytesBase64 });
@@ -1267,6 +1306,48 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
           status: "saved",
           fileRef: toDesktopFileRef(result.path, result.name)
         };
+      },
+      readLinkedText: async (fileRef): Promise<LinkedTextReadResult> => {
+        if (fileRef.provider !== "desktop-fs" || !fileRef.path || !getBridge().readLinkedText) {
+          return { status: "failed", reason: "File is not linked to a desktop path." };
+        }
+        const result = await getBridge().readLinkedText!(fileRef.path);
+        if (result.status === "ok") {
+          return {
+            status: "ok",
+            source: result.source,
+            revision: result.revision,
+            fileRef: toDesktopFileRef(result.fileRef.path, result.fileRef.name)
+          };
+        }
+        return result;
+      },
+      writeLinkedText: async (fileRef, text, expectedRevision): Promise<LinkedTextWriteResult> => {
+        if (fileRef.provider !== "desktop-fs" || !fileRef.path || !getBridge().writeLinkedText) {
+          return { status: "failed", reason: "File is not linked to a desktop path." };
+        }
+        const result = await getBridge().writeLinkedText!({
+          path: fileRef.path,
+          text,
+          expectedRevision
+        });
+        if (result.status === "saved") {
+          nativeMenuManager.refreshRecents();
+          return {
+            status: "saved",
+            revision: result.revision,
+            fileRef: toDesktopFileRef(result.fileRef.path, result.fileRef.name)
+          };
+        }
+        if (result.status === "changed-on-disk") {
+          return {
+            status: "changed-on-disk",
+            source: result.source,
+            revision: result.revision,
+            fileRef: toDesktopFileRef(result.fileRef.path, result.fileRef.name)
+          };
+        }
+        return result;
       },
       exportFile: async (content, options) => {
         const blob = new Blob(content, { type: options.mimeType });

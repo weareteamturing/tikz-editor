@@ -13,6 +13,7 @@ use std::collections::HashSet;
 use std::env;
 use std::ffi::OsString;
 use std::fs;
+use std::io;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::Path;
 use std::path::PathBuf;
@@ -148,6 +149,58 @@ struct SaveTextPayload {
     ok: bool,
     path: Option<String>,
     name: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct FileRevisionPayload {
+    #[serde(rename = "mtimeMs", skip_serializing_if = "Option::is_none")]
+    mtime_ms: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    size: Option<u64>,
+    hash: String,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+enum LinkedTextReadPayload {
+    Ok {
+        source: String,
+        revision: FileRevisionPayload,
+        #[serde(rename = "fileRef")]
+        file_ref: LinkedFileRefPayload,
+    },
+    Missing,
+    Failed {
+        reason: String,
+    },
+}
+
+#[derive(Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+enum LinkedTextWritePayload {
+    Saved {
+        revision: FileRevisionPayload,
+        #[serde(rename = "fileRef")]
+        file_ref: LinkedFileRefPayload,
+    },
+    ChangedOnDisk {
+        source: String,
+        revision: FileRevisionPayload,
+        #[serde(rename = "fileRef")]
+        file_ref: LinkedFileRefPayload,
+    },
+    Missing,
+    Failed {
+        reason: String,
+    },
+}
+
+#[derive(Clone, Serialize)]
+struct LinkedFileRefPayload {
+    kind: String,
+    name: String,
+    path: String,
+    provider: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -370,6 +423,57 @@ fn read_open_text_payload_from_path(path: &Path) -> Result<OpenTextPayload, Stri
         path: path_string,
         name,
     })
+}
+
+fn hash_text_for_revision(text: &str) -> String {
+    let mut hash: u32 = 0x811c9dc5;
+    for byte in text.as_bytes() {
+        hash ^= *byte as u32;
+        hash = hash.wrapping_mul(0x01000193);
+    }
+    format!("{hash:08x}")
+}
+
+fn revision_for_path_and_source(path: &Path, source: &str) -> FileRevisionPayload {
+    let metadata = fs::metadata(path).ok();
+    let mtime_ms = metadata
+        .as_ref()
+        .and_then(|meta| meta.modified().ok())
+        .and_then(|modified| modified.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_secs_f64() * 1000.0);
+    FileRevisionPayload {
+        mtime_ms,
+        size: metadata.as_ref().map(|meta| meta.len()),
+        hash: hash_text_for_revision(source),
+    }
+}
+
+fn linked_file_ref_payload(path: &Path) -> LinkedFileRefPayload {
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| "document.tex".to_string());
+    LinkedFileRefPayload {
+        kind: "file".to_string(),
+        name,
+        path: path.to_string_lossy().to_string(),
+        provider: "desktop-fs".to_string(),
+    }
+}
+
+fn read_linked_text_payload(path: &Path) -> Result<LinkedTextReadPayload, String> {
+    match fs::read_to_string(path) {
+        Ok(source) => Ok(LinkedTextReadPayload::Ok {
+            revision: revision_for_path_and_source(path, &source),
+            file_ref: linked_file_ref_payload(path),
+            source,
+        }),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(LinkedTextReadPayload::Missing),
+        Err(error) => Ok(LinkedTextReadPayload::Failed {
+            reason: error.to_string(),
+        }),
+    }
 }
 
 fn enqueue_pending_open_results(
@@ -1229,6 +1333,64 @@ fn desktop_save_text(
 }
 
 #[tauri::command]
+fn desktop_read_linked_text(path: String) -> Result<LinkedTextReadPayload, String> {
+    read_linked_text_payload(Path::new(&path))
+}
+
+#[tauri::command]
+fn desktop_write_linked_text(
+    path: String,
+    text: String,
+    expected_revision: Option<FileRevisionPayload>,
+    app: AppHandle,
+) -> Result<LinkedTextWritePayload, String> {
+    let path_buf = PathBuf::from(path);
+    let current = read_linked_text_payload(&path_buf)?;
+    match current {
+        LinkedTextReadPayload::Ok {
+            source,
+            revision,
+            file_ref,
+        } => {
+            if let Some(expected) = expected_revision {
+                if expected.hash != revision.hash
+                    || expected.mtime_ms != revision.mtime_ms
+                    || expected.size != revision.size
+                {
+                    return Ok(LinkedTextWritePayload::ChangedOnDisk {
+                        source,
+                        revision,
+                        file_ref,
+                    });
+                }
+            }
+        }
+        LinkedTextReadPayload::Missing => return Ok(LinkedTextWritePayload::Missing),
+        LinkedTextReadPayload::Failed { reason } => {
+            return Ok(LinkedTextWritePayload::Failed { reason });
+        }
+    }
+
+    if let Some(parent) = path_buf.parent() {
+        if let Err(error) = fs::create_dir_all(parent) {
+            return Ok(LinkedTextWritePayload::Failed {
+                reason: error.to_string(),
+            });
+        }
+    }
+    if let Err(error) = fs::write(&path_buf, text) {
+        return Ok(LinkedTextWritePayload::Failed {
+            reason: error.to_string(),
+        });
+    }
+    let source = fs::read_to_string(&path_buf).unwrap_or_default();
+    let revision = revision_for_path_and_source(&path_buf, &source);
+    let file_ref = linked_file_ref_payload(&path_buf);
+    add_recent_file(&app, file_ref.path.clone());
+    Ok(LinkedTextWritePayload::Saved { revision, file_ref })
+}
+
+#[tauri::command]
 fn desktop_export_file(
     file_name: String,
     _mime_type: String,
@@ -1738,6 +1900,8 @@ pub fn run() {
             desktop_open_text,
             desktop_open_binary,
             desktop_save_text,
+            desktop_read_linked_text,
+            desktop_write_linked_text,
             desktop_export_file,
             desktop_confirm_unsaved_changes,
             desktop_show_message_dialog,

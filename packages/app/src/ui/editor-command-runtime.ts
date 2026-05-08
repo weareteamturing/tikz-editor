@@ -120,6 +120,7 @@ type RuntimeInput = {
   onOpenPngExport?: (svgResult: EmitSvgResult) => void;
   onRequestCloseDocument?: (documentId: string) => void;
   onRequestCloseAllDocuments?: () => void;
+  onRequestSaveDocument?: (documentId: string, mode: "save" | "save-as") => void | Promise<void>;
   onAddNodeAdornment?: (kind: "label" | "pin") => void;
   onShowCompiledPicture?: () => void;
   onOpenSettings?: () => void;
@@ -179,6 +180,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     onOpenPngExport,
     onRequestCloseDocument,
     onRequestCloseAllDocuments,
+    onRequestSaveDocument,
     onAddNodeAdornment,
     onShowCompiledPicture,
     onOpenSettings,
@@ -395,6 +397,10 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     [APP_MENU_COMMAND_IDS.SAVE_DOCUMENT]: {
       enabled: canSave,
       run: () => {
+        if (onRequestSaveDocument) {
+          void onRequestSaveDocument(activeDocumentId, "save");
+          return;
+        }
         const saveText = getActiveEditorPlatform().files?.saveText;
         if (!saveText) {
           return;
@@ -418,6 +424,10 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     [APP_MENU_COMMAND_IDS.SAVE_DOCUMENT_AS]: {
       enabled: canSave,
       run: () => {
+        if (onRequestSaveDocument) {
+          void onRequestSaveDocument(activeDocumentId, "save-as");
+          return;
+        }
         const saveText = getActiveEditorPlatform().files?.saveText;
         if (!saveText) {
           return;
@@ -1001,8 +1011,9 @@ export function useEditorCommandRuntime(
     onOpenExample?: () => void;
     onOpenSvgExport?: (svgResult: EmitSvgResult) => void;
     onOpenPngExport?: (svgResult: EmitSvgResult) => void;
-    onRequestCloseDocument?: (documentId: string) => void;
-    onRequestCloseAllDocuments?: () => void;
+  onRequestCloseDocument?: (documentId: string) => void;
+  onRequestCloseAllDocuments?: () => void;
+  onRequestSaveDocument?: (documentId: string, mode: "save" | "save-as") => void | Promise<void>;
     onAddNodeAdornment?: (kind: "label" | "pin") => void;
     onShowCompiledPicture?: () => void;
     onOpenSettings?: () => void;
@@ -1133,6 +1144,7 @@ export function useEditorCommandRuntime(
         onOpenPngExport: options.onOpenPngExport,
         onRequestCloseDocument: options.onRequestCloseDocument,
         onRequestCloseAllDocuments: options.onRequestCloseAllDocuments,
+        onRequestSaveDocument: options.onRequestSaveDocument,
         onAddNodeAdornment: options.onAddNodeAdornment,
         onShowCompiledPicture: options.onShowCompiledPicture,
         onOpenSettings: options.onOpenSettings,
@@ -1180,6 +1192,7 @@ export function useEditorCommandRuntime(
       options.onOpenPngExport,
       options.onRequestCloseDocument,
       options.onRequestCloseAllDocuments,
+      options.onRequestSaveDocument,
       options.onAddNodeAdornment,
       options.onShowCompiledPicture,
       options.onOpenSettings,

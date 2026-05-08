@@ -154,6 +154,20 @@ export function StatusBar() {
           </div>
         )}
 
+        {currentDocument?.externalChangeStatus && currentDocument.externalChangeStatus !== "none" ? (
+          <div className={css.cell}>
+            <span className={css.warning}>
+              {currentDocument.externalChangeStatus === "changed"
+                ? "Changed on disk"
+                : currentDocument.externalChangeStatus === "missing"
+                  ? "File missing"
+                  : currentDocument.externalChangeStatus === "permission-needed"
+                    ? "File permission needed"
+                    : "File sync error"}
+            </span>
+          </div>
+        ) : null}
+
         {pendingRequestId && (
           <div className={css.cell}>
             <span>Computing...</span>

@@ -67,6 +67,14 @@ export type DocumentFileRef = {
   provider?: "browser-fsa" | "download" | "desktop-fs";
 };
 
+export type FileRevision = {
+  mtimeMs?: number;
+  size?: number;
+  hash: string;
+};
+
+export type ExternalChangeStatus = "none" | "changed" | "missing" | "permission-needed" | "error";
+
 export type DocumentSession = {
   id: string;
   title: string;
@@ -94,6 +102,9 @@ export type DocumentSession = {
   fileRef: DocumentFileRef | null;
   savedSource: string;
   dirty: boolean;
+  diskRevision: FileRevision | null;
+  lastKnownDiskSource: string | null;
+  externalChangeStatus: ExternalChangeStatus;
   assistantThreadId: string | null;
   assistantWorkspacePath: string | null;
   assistantFigurePath: string | null;
@@ -255,7 +266,27 @@ export type EditorAction =
   | { type: "SWITCH_DOCUMENT"; documentId: string }
   | { type: "CLOSE_DOCUMENT"; documentId?: string }
   | { type: "CLOSE_ALL_DOCUMENTS" }
-  | { type: "MARK_DOCUMENT_SAVED"; documentId?: string; fileRef?: DocumentFileRef | null }
+  | {
+      type: "MARK_DOCUMENT_SAVED";
+      documentId?: string;
+      fileRef?: DocumentFileRef | null;
+      diskRevision?: FileRevision | null;
+      lastKnownDiskSource?: string | null;
+    }
+  | {
+      type: "REPLACE_DOCUMENT_SOURCE_FROM_DISK";
+      documentId?: string;
+      source: string;
+      fileRef?: DocumentFileRef | null;
+      diskRevision: FileRevision;
+    }
+  | {
+      type: "SET_DOCUMENT_LINKED_FILE_STATUS";
+      documentId?: string;
+      externalChangeStatus: ExternalChangeStatus;
+      diskRevision?: FileRevision | null;
+      lastKnownDiskSource?: string | null;
+    }
   | {
       type: "APPLY_EDIT_ACTION";
       action: EditAction;

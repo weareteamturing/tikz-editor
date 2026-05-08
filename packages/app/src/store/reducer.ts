@@ -343,7 +343,46 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         savedSource: doc.source,
         dirty: false,
         fileRef: action.fileRef ?? doc.fileRef,
-        title: (action.fileRef ?? doc.fileRef)?.name ?? doc.title
+        title: (action.fileRef ?? doc.fileRef)?.name ?? doc.title,
+        diskRevision: action.diskRevision !== undefined ? action.diskRevision : doc.diskRevision,
+        lastKnownDiskSource: action.lastKnownDiskSource !== undefined ? action.lastKnownDiskSource : doc.lastKnownDiskSource,
+        externalChangeStatus: "none"
+      }));
+      break;
+    }
+
+    case "REPLACE_DOCUMENT_SOURCE_FROM_DISK": {
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      workspace = updateDocument(workspace, documentId, (doc) => ({
+        ...doc,
+        source: action.source,
+        sourceRevision: doc.source === action.source ? doc.sourceRevision : doc.sourceRevision + 1,
+        savedSource: action.source,
+        dirty: false,
+        fileRef: action.fileRef ?? doc.fileRef,
+        title: (action.fileRef ?? doc.fileRef)?.name ?? doc.title,
+        diskRevision: action.diskRevision,
+        lastKnownDiskSource: action.source,
+        externalChangeStatus: "none",
+        history: [],
+        historyIndex: -1,
+        lastEditChangedSourceIds: null,
+        lastEditChangeToken: doc.lastEditChangeToken + 1,
+        lastEditPatches: null,
+        lastEditPatchBaseRevision: null,
+        activeHandleId: null
+      }));
+      break;
+    }
+
+    case "SET_DOCUMENT_LINKED_FILE_STATUS": {
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      workspace = updateDocument(workspace, documentId, (doc) => ({
+        ...doc,
+        externalChangeStatus: action.externalChangeStatus,
+        diskRevision: action.diskRevision !== undefined ? action.diskRevision : doc.diskRevision,
+        lastKnownDiskSource:
+          action.lastKnownDiskSource !== undefined ? action.lastKnownDiskSource : doc.lastKnownDiskSource
       }));
       break;
     }
@@ -378,7 +417,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           history: [],
           historyIndex: -1,
           activeHandleId: null,
-          dirty: action.source !== doc.savedSource
+          dirty: action.source !== doc.savedSource,
+          externalChangeStatus: doc.externalChangeStatus === "none" ? "none" : doc.externalChangeStatus
         };
       });
       break;

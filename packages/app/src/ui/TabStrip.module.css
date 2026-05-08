@@ -89,6 +89,12 @@
   display: block;
 }
 
+.externalChange {
+  fill: var(--color-warning);
+  flex-shrink: 0;
+  display: block;
+}
+
 .close,
 .add {
   display: inline-flex;
