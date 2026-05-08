@@ -85,6 +85,7 @@ export async function renderTikzToSvgAsync(source: string, opts: RenderTikzOptio
 
   const parseOpts: ParseTikzOptions = {
     ...opts.parse,
+    includeContextDefinitions: opts.parse?.includeContextDefinitions ?? true,
     nodeTextValidator:
       opts.parse?.nodeTextValidator ??
       (useDefaultNodeTextValidator && textEngine && !hasUserMacros
@@ -140,7 +141,7 @@ function describeMathJaxFailure(error: unknown): string {
 }
 
 function containsUserMacroDefinitions(source: string): boolean {
-  return /\\(?:def|let|newcommand|renewcommand|pgfmathparse|pgfmathsetmacro)\b/.test(source);
+  return /\\(?:def|let|newcommand|renewcommand|providecommand|DeclareRobustCommand|DeclareMathOperator|pgfmathparse|pgfmathsetmacro)\b/.test(source);
 }
 
 function isMatrixNode(node: NodeItem): boolean {

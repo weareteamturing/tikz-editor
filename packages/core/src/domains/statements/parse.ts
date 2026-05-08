@@ -231,8 +231,20 @@ function mapMacroCommandDefinitionStatement(
   const statementIndex = allocateStatementIndex(state);
   const newCommandNode = findFirstChildByName(node, "NewCommandCmd");
   const renewCommandNode = findFirstChildByName(node, "RenewCommandCmd");
-  const commandNode = newCommandNode ?? renewCommandNode;
-  const commandRaw = renewCommandNode ? "\\renewcommand" : "\\newcommand";
+  const provideCommandNode = findFirstChildByName(node, "ProvideCommandCmd");
+  const declareRobustCommandNode = findFirstChildByName(node, "DeclareRobustCommandCmd");
+  const declareMathOperatorNode = findFirstChildByName(node, "DeclareMathOperatorCmd");
+  const commandNode = newCommandNode
+    ?? renewCommandNode
+    ?? provideCommandNode
+    ?? declareRobustCommandNode
+    ?? declareMathOperatorNode;
+  const commandRaw = resolveMacroCommandRaw({
+    declareMathOperatorNode,
+    declareRobustCommandNode,
+    provideCommandNode,
+    renewCommandNode
+  });
   const commandNameNode = findFirstChildByName(node, "MacroCommandName");
   const commandNameTokenNode = commandNameNode ? findFirstChildByName(commandNameNode, "CommandName") : null;
   const commandNameGroupNode = commandNameNode ? findFirstChildByName(commandNameNode, "Group") : null;
@@ -268,10 +280,37 @@ function mapMacroCommandDefinitionStatement(
     aritySpan: toSpan(arityNumberNode),
     optionalDefaultRaw: defaultArgNode ? extractBracketInnerRaw(defaultArgNode, source) : undefined,
     optionalDefaultSpan: defaultArgNode ? toBracketInnerSpan(defaultArgNode, source) : undefined,
-    bodyRaw: bodyNode ? extractGroupInnerRaw(bodyNode, source) : "",
+    bodyRaw: commandRaw === "\\DeclareMathOperator"
+      ? toDeclareMathOperatorBody(bodyNode ? extractGroupInnerRaw(bodyNode, source) : "", starred)
+      : bodyNode ? extractGroupInnerRaw(bodyNode, source) : "",
     bodySpan: bodyNode ? toGroupInnerSpan(bodyNode, source) : undefined,
     starred
   };
+}
+
+function resolveMacroCommandRaw(nodes: {
+  declareMathOperatorNode: SyntaxNode | null;
+  declareRobustCommandNode: SyntaxNode | null;
+  provideCommandNode: SyntaxNode | null;
+  renewCommandNode: SyntaxNode | null;
+}): MacroCommandDefinitionStatement["commandRaw"] {
+  if (nodes.declareMathOperatorNode) {
+    return "\\DeclareMathOperator";
+  }
+  if (nodes.declareRobustCommandNode) {
+    return "\\DeclareRobustCommand";
+  }
+  if (nodes.provideCommandNode) {
+    return "\\providecommand";
+  }
+  if (nodes.renewCommandNode) {
+    return "\\renewcommand";
+  }
+  return "\\newcommand";
+}
+
+function toDeclareMathOperatorBody(operatorNameRaw: string, starred: boolean): string {
+  return `${starred ? "\\operatorname*" : "\\operatorname"}{${operatorNameRaw}}`;
 }
 
 function mapStyleDefinitionStatement(node: SyntaxNode, source: string, state: StatementMappingState): Statement | null {

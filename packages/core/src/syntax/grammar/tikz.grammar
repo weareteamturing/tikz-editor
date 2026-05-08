@@ -334,10 +334,13 @@ LetAliasTarget {
 }
 
 MacroCommandDefinitionStatement {
-  (NewCommandCmd | RenewCommandCmd) "*"?
-  MacroCommandName
-  MacroCommandArityClause?
-  Group
+  ((NewCommandCmd | RenewCommandCmd | ProvideCommandCmd | DeclareRobustCommandCmd) "*"?
+    MacroCommandName
+    MacroCommandArityClause?
+    Group) |
+  (DeclareMathOperatorCmd "*"?
+    MacroCommandName
+    Group)
 }
 
 MacroCommandArityClause {
@@ -749,6 +752,9 @@ StrayToken {
     LetDefCmd,
     NewCommandCmd,
     RenewCommandCmd,
+    ProvideCommandCmd,
+    DeclareRobustCommandCmd,
+    DeclareMathOperatorCmd,
     InlineTikzCmd,
     EndTikz,
     FillDrawCmd,
@@ -762,8 +768,8 @@ StrayToken {
     ShadeCmd,
     UseAsBoundingBoxCmd,
     BeginScope,
-  EndScope,
-  ForeachCmd,
+    EndScope,
+    ForeachCmd,
     ForeachKw,
     MatrixCmd,
     NodeCmd,
@@ -850,6 +856,9 @@ StrayToken {
   LetDefCmd { "\\let" }
   NewCommandCmd { "\\newcommand" }
   RenewCommandCmd { "\\renewcommand" }
+  ProvideCommandCmd { "\\providecommand" }
+  DeclareRobustCommandCmd { "\\DeclareRobustCommand" }
+  DeclareMathOperatorCmd { "\\DeclareMathOperator" }
   PgfkeysCmd { "\\pgfkeys" }
   UseTikzLibraryCmd { "\\usetikzlibrary" }
   MatrixRowSepCmd { "\\\\" }

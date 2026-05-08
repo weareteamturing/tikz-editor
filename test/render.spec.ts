@@ -1243,6 +1243,43 @@ World};
     }
   });
 
+  it("expands DeclareMathOperator macros before MathJax rendering in async mode", async () => {
+    const source = String.raw`\DeclareMathOperator{\cone}{cone}
+\DeclareMathOperator*{\argmax}{argmax}
+\begin{tikzpicture}
+  \node at (0.11,3) {$\cone(M)$};
+  \node at (0,0) {$\argmax_{x \in X} f(x)$};
+\end{tikzpicture}`;
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
+    expect(result.svg.svg).toContain('data-text-renderer="mathjax"');
+    const labels = result.semantic.scene.elements
+      .filter((element) => element.kind === "Text")
+      .map((element) => (element.kind === "Text" ? element.text : ""));
+    expect(labels).toContain(String.raw`$\operatorname{cone}(M)$`);
+    expect(labels).toContain(String.raw`$\operatorname*{argmax}_{x \in X} f(x)$`);
+  });
+
+  it("expands providecommand and DeclareRobustCommand macros before MathJax rendering in async mode", async () => {
+    const source = String.raw`\newcommand{\kept}{A}
+\providecommand{\kept}{B}
+\providecommand{\fresh}[1]{\mathcal{#1}}
+\DeclareRobustCommand{\vect}[1]{\mathbf{#1}}
+\begin{tikzpicture}
+  \node at (0,0) {$\kept+\fresh{F}+\vect{x}$};
+\end{tikzpicture}`;
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
+    expect(result.svg.svg).toContain('data-text-renderer="mathjax"');
+    const label = result.semantic.scene.elements.find((element) => element.kind === "Text");
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      expect(label.text).toBe(String.raw`$A+\mathcal{F}+\mathbf{x}$`);
+    }
+  });
+
   it("expands newcommand optional/default arguments before MathJax rendering in async mode", async () => {
     const source = String.raw`\begin{tikzpicture}
   \newcommand{\pair}[2][\alpha]{#1+#2}

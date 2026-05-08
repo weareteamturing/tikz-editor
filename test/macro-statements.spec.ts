@@ -30,6 +30,34 @@ describe("statement-level macro expansion", () => {
       expect(svg).toContain("<path");
     });
 
+    it("providecommand expands to TikZ statements without overwriting existing macros", () => {
+      const source = String.raw`\begin{tikzpicture}
+        \newcommand{\mynode}[1]{\node at (#1,0) {kept};}
+        \providecommand{\mynode}[1]{\node at (#1,0) {overwritten};}
+        \providecommand{\myline}[2]{\draw (#1,0) -- (#2,0);}
+        \mynode{1}
+        \myline{0}{3}
+      \end{tikzpicture}`;
+
+      const { svg, scene } = renderSvg(source);
+      expect(scene.elements.filter(e => e.kind === "Text")).toHaveLength(1);
+      expect(svg).toContain(">kept<");
+      expect(svg).not.toContain("overwritten");
+      expect(svg).toContain("<path");
+    });
+
+    it("DeclareRobustCommand expands to TikZ statements", () => {
+      const source = String.raw`\begin{tikzpicture}
+        \DeclareRobustCommand{\mynode}[2]{\node[#1] at (#2,0) {robust};}
+        \mynode{red}{3}
+      \end{tikzpicture}`;
+
+      const { svg, scene } = renderSvg(source);
+      expect(scene.elements.filter(e => e.kind === "Text")).toHaveLength(1);
+      expect(svg).toContain("robust");
+      expect(svg).toContain('fill="#ff0000"');
+    });
+
     it("macro-expanded elements keep invocation source refs and generated identity refs", () => {
       const source = String.raw`\begin{tikzpicture}
         \newcommand{\myline}{\draw (0,0) -- (1,0);}

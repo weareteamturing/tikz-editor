@@ -842,6 +842,7 @@ function collectMacroDefinition(statement: MacroDefinitionStatement, bindings: M
 function collectMacroCommandDefinition(statement: MacroCommandDefinitionStatement, bindings: Map<string, MacroBinding>): void {
   const name = normalizeMacroName(statement.nameRaw);
   if (!name) return;
+  if (statement.commandRaw === "\\providecommand" && bindings.has(name)) return;
   const parameterCount = Math.min(Math.max(0, statement.arity), 9);
   const origin: MacroOriginFrameType = { macroName: name, definitionId: statement.id, definitionSpan: statement.span, commandRaw: statement.commandRaw };
   if (parameterCount === 0) {

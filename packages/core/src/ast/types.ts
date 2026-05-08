@@ -145,7 +145,7 @@ export type MacroCommandDefinitionStatement = {
   id: string;
   span: Span;
   raw: string;
-  commandRaw: "\\newcommand" | "\\renewcommand";
+  commandRaw: "\\newcommand" | "\\renewcommand" | "\\providecommand" | "\\DeclareRobustCommand" | "\\DeclareMathOperator";
   nameRaw: string;
   nameSpan?: Span;
   arity: number;

@@ -1623,6 +1623,9 @@ function applyMacroCommandDefinitionStatement(
   if (!name) {
     return;
   }
+  if (statement.commandRaw === "\\providecommand" && readContextMacroBinding(context, name, statement.id) != null) {
+    return;
+  }
 
   const parameterCount = clampMacroParameterCount(statement.arity, diagnostics, statement);
   const optionalFirstArgDefault = resolveOptionalFirstArgDefault(statement, parameterCount, diagnostics);

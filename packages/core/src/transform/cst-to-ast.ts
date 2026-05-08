@@ -546,7 +546,7 @@ function collectScopedMacroDefinitionsFromStream(
         continue;
       }
 
-      if (commandName === "\\newcommand" || commandName === "\\renewcommand") {
+      if (isMacroCommandDefinitionName(commandName)) {
         const parsed = tryParseNewCommandStatement(
           source,
           commandName,
@@ -680,7 +680,7 @@ function tryParseLetStatement(
 
 function tryParseNewCommandStatement(
   source: string,
-  commandRaw: "\\newcommand" | "\\renewcommand",
+  commandRaw: "\\newcommand" | "\\renewcommand" | "\\providecommand" | "\\DeclareRobustCommand" | "\\DeclareMathOperator",
   commandFrom: number,
   fromCursor: number,
   statementIndex: number
@@ -715,24 +715,26 @@ function tryParseNewCommandStatement(
     cursor = nameGroup.to;
   }
 
-  cursor = skipWhitespaceAndComments(source, cursor);
   let arity = 0;
   let aritySpan: { from: number; to: number } | undefined;
-  const arityGroup = readBalancedDelimited(source, cursor, "[", "]");
-  if (arityGroup && /^\d+$/u.test(arityGroup.content.trim())) {
-    arity = Number.parseInt(arityGroup.content.trim(), 10);
-    aritySpan = { from: arityGroup.from + 1, to: arityGroup.to - 1 };
-    cursor = arityGroup.to;
-  }
-
-  cursor = skipWhitespaceAndComments(source, cursor);
   let optionalDefaultRaw: string | undefined;
   let optionalDefaultSpan: { from: number; to: number } | undefined;
-  const optionalGroup = readBalancedDelimited(source, cursor, "[", "]");
-  if (optionalGroup) {
-    optionalDefaultRaw = optionalGroup.content;
-    optionalDefaultSpan = { from: optionalGroup.from + 1, to: optionalGroup.to - 1 };
-    cursor = optionalGroup.to;
+  if (commandRaw !== "\\DeclareMathOperator") {
+    cursor = skipWhitespaceAndComments(source, cursor);
+    const arityGroup = readBalancedDelimited(source, cursor, "[", "]");
+    if (arityGroup && /^\d+$/u.test(arityGroup.content.trim())) {
+      arity = Number.parseInt(arityGroup.content.trim(), 10);
+      aritySpan = { from: arityGroup.from + 1, to: arityGroup.to - 1 };
+      cursor = arityGroup.to;
+    }
+
+    cursor = skipWhitespaceAndComments(source, cursor);
+    const optionalGroup = readBalancedDelimited(source, cursor, "[", "]");
+    if (optionalGroup) {
+      optionalDefaultRaw = optionalGroup.content;
+      optionalDefaultSpan = { from: optionalGroup.from + 1, to: optionalGroup.to - 1 };
+      cursor = optionalGroup.to;
+    }
   }
 
   cursor = skipWhitespaceAndComments(source, cursor);
@@ -755,12 +757,26 @@ function tryParseNewCommandStatement(
       aritySpan,
       optionalDefaultRaw,
       optionalDefaultSpan,
-      bodyRaw: bodyGroup.content,
+      bodyRaw: commandRaw === "\\DeclareMathOperator"
+        ? `${starred ? "\\operatorname*" : "\\operatorname"}{${bodyGroup.content}}`
+        : bodyGroup.content,
       bodySpan: { from: bodyGroup.from + 1, to: bodyGroup.to - 1 },
       starred
     },
     to: cursor
   };
+}
+
+function isMacroCommandDefinitionName(
+  commandName: string
+): commandName is "\\newcommand" | "\\renewcommand" | "\\providecommand" | "\\DeclareRobustCommand" | "\\DeclareMathOperator" {
+  return (
+    commandName === "\\newcommand" ||
+    commandName === "\\renewcommand" ||
+    commandName === "\\providecommand" ||
+    commandName === "\\DeclareRobustCommand" ||
+    commandName === "\\DeclareMathOperator"
+  );
 }
 
 function collectScopedColorDefinitionsFromStream(

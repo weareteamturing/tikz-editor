@@ -1,6 +1,13 @@
 import type { Span } from "../ast/types.js";
 
-export type MacroDefinitionCommandRaw = "\\def" | "\\let" | "\\newcommand" | "\\renewcommand";
+export type MacroDefinitionCommandRaw =
+  | "\\def"
+  | "\\let"
+  | "\\newcommand"
+  | "\\renewcommand"
+  | "\\providecommand"
+  | "\\DeclareRobustCommand"
+  | "\\DeclareMathOperator";
 
 export type MacroOriginFrame = {
   macroName: string;

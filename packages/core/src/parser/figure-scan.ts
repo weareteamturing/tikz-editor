@@ -84,7 +84,13 @@ function collectMacroDefinitionBodySpans(source: string): Array<{ from: number; 
       continue;
     }
 
-    if (command.raw === "\\newcommand" || command.raw === "\\renewcommand") {
+    if (
+      command.raw === "\\newcommand" ||
+      command.raw === "\\renewcommand" ||
+      command.raw === "\\providecommand" ||
+      command.raw === "\\DeclareRobustCommand" ||
+      command.raw === "\\DeclareMathOperator"
+    ) {
       const body = tryReadNewCommandBodySpan(source, cursor);
       if (body) {
         spans.push(body);
