@@ -20,7 +20,7 @@ import {
   pathHasRoundableCorner
 } from "./inspector/rounded-corners.js";
 import { parseTikz } from "../parser/index.js";
-import type { PathItem, PathStatement, Statement } from "../ast/types.js";
+import type { PathItem, PathStatement, Span, Statement } from "../ast/types.js";
 import type { OptionListAst } from "../options/types.js";
 import {
   findTopLevelCharacter,
@@ -4162,6 +4162,17 @@ type InlineWriteTarget = {
   foreachVariableNames?: string[];
 };
 
+function sourceSpanContainsMacroOrigin(
+  source: string,
+  span: Span,
+  macroStack: readonly { macroName: string }[]
+): boolean {
+  const from = Math.max(0, Math.min(source.length, span.from));
+  const to = Math.max(from, Math.min(source.length, span.to));
+  const slice = source.slice(from, to);
+  return macroStack.some((origin) => origin.macroName.length > 0 && slice.includes(origin.macroName));
+}
+
 function normalizeShapeRawValue(raw: string): string {
   return stripEnclosingBraces(raw).trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -4205,7 +4216,11 @@ function resolveInlineWriteTarget(
   parseOptions: EditParseOptions = {},
   resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
 ): InlineWriteTarget {
-  if (element.origin?.macroStack && element.origin.macroStack.length > 0) {
+  if (
+    element.origin?.macroStack &&
+    element.origin.macroStack.length > 0 &&
+    sourceSpanContainsMacroOrigin(source, element.sourceRef.sourceSpan, element.origin.macroStack)
+  ) {
     return {
       targetId: null,
       targetKind: null,

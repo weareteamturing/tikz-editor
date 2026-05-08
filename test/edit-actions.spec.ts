@@ -4502,6 +4502,31 @@ describe("applyEditAction – updateNodeText", () => {
     expect(result.patches).toHaveLength(1);
   });
 
+  it("replaces the selected repeated path-attached node text when neighboring coordinates use macros", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \def\r{0.9}
+  \draw[<->, thick] (0.02,0) -- node[above, sloped] {$r$} (\r-0.02,0);
+  \draw[<->, thick] (\r+0.02,0) -- node[above, sloped] {$r$} (2*\r-0.01,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "updateNodeText",
+      elementId: "node:2:3",
+      text: "$R$"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected node text update to succeed");
+    }
+    expect(result.newSource).toBe(String.raw`\begin{tikzpicture}
+  \def\r{0.9}
+  \draw[<->, thick] (0.02,0) -- node[above, sloped] {$r$} (\r-0.02,0);
+  \draw[<->, thick] (\r+0.02,0) -- node[above, sloped] {$R$} (2*\r-0.01,0);
+\end{tikzpicture}`);
+    expect(result.patches).toHaveLength(1);
+  });
+
   it("updates matrix cell text by synthetic matrix-cell ids", () => {
     const source = String.raw`\begin{tikzpicture}
   \matrix[matrix of nodes] {

@@ -56,6 +56,38 @@ describe("getInspectorDescriptor", () => {
     expect(attachmentSection.properties.some((property) => property.id === "path-attached-node-sloped")).toBe(true);
   });
 
+  it("keeps authored path-attached node text editable when only adjacent coordinates use macros", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \def\r{0.9}
+  \draw[<->, thick] (0.02,0) -- node[above, sloped] {$r$} (\r-0.02,0);
+  \draw[<->, thick] (\r+0.02,0) -- node[above, sloped] {$r$} (2*\r-0.01,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const secondRadiusLabel = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.sourceRef.sourceId === "node:2:3"
+    );
+    expect(secondRadiusLabel).toBeDefined();
+    if (!secondRadiusLabel) {
+      throw new Error("Expected the second path-attached radius label");
+    }
+
+    const descriptor = getInspectorDescriptor(secondRadiusLabel, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const textColorProperty = descriptor.sections
+      .flatMap((section) => section.properties)
+      .find((property) => property.id === "node-text-color" && property.kind === "color");
+
+    expect(descriptor.readOnlyReason).toBeUndefined();
+    expect(descriptor.writeTargetId).toBe("node:2:3");
+    expect(textColorProperty?.write).toBeDefined();
+    if (!textColorProperty?.write) {
+      throw new Error("Expected node text color to expose a write target");
+    }
+    expect(textColorProperty.write.writable).toBe(true);
+  });
+
   it("returns adornment-specific sections for pins", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[draw,pin={[pin edge={blue,dashed,line width=1pt}]above:$q_0$}] at (0,0) {A};

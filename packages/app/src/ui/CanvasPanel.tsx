@@ -2217,15 +2217,17 @@ export const CanvasPanel = memo(function CanvasPanel({
     }
     const candidates = Array.from(host.querySelectorAll<SVGSVGElement>('svg[data-text-renderer="mathjax"]'));
     for (const candidate of candidates) {
+      if (candidate.getAttribute("data-scene-text-id") === target.sceneTextId) {
+        return candidate;
+      }
+    }
+    for (const candidate of candidates) {
       if (candidate.getAttribute("data-paragraph-id") === target.paragraphId) {
         return candidate;
       }
     }
     for (const candidate of candidates) {
-      if (
-        candidate.getAttribute("data-scene-text-id") === target.sceneTextId ||
-        candidate.getAttribute("data-source-id") === target.sourceId
-      ) {
+      if (candidate.getAttribute("data-source-id") === target.sourceId) {
         return candidate;
       }
     }

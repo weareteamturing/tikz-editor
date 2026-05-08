@@ -27,6 +27,8 @@
   color: var(--color-warning);
   line-height: 1.4;
   margin-bottom: 8px;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .toolHint {
@@ -869,4 +871,6 @@
   font-size: calc(var(--app-ui-scale, 1) * 10px);
   color: var(--color-warning);
   line-height: 1.35;
+  -webkit-user-select: text;
+  user-select: text;
 }
