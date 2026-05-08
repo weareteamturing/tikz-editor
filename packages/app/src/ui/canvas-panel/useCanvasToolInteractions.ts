@@ -409,6 +409,11 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
             return;
           }
 
+          if (event.detail >= 2) {
+            finalizePathDraft(false);
+            return;
+          }
+
           const segmentStart = pathToolCurrentPoint(activeDraft);
           if (distanceSquared(segmentStart, resolvedStart) <= 1e-6) {
             setSnapLines(startSnapResult.lines);

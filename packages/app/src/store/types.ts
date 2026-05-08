@@ -148,6 +148,7 @@ export type WorkspaceEphemeralState = {
   /** Monotonic token used to request an absolute canvas zoom scale. */
   zoomScaleRequestToken: number;
   zoomScaleRequestValue: number | null;
+  canvasStatusHint: string | null;
 
   // ── layout slice ─────────────────────────────────────────────────────────────
   showSourcePanel: boolean;
@@ -231,6 +232,7 @@ export type EditorState = {
   /** Monotonic token used to request an absolute canvas zoom scale. */
   zoomScaleRequestToken: number;
   zoomScaleRequestValue: number | null;
+  canvasStatusHint: string | null;
 
   // ── layout slice ─────────────────────────────────────────────────────────────
   showSourcePanel: boolean;
@@ -329,6 +331,7 @@ export type EditorAction =
   | { type: "SET_FIT_TO_CONTENT_MODE"; active: boolean }
   | { type: "REQUEST_ZOOM"; direction: ZoomRequestDirection }
   | { type: "REQUEST_ZOOM_SCALE"; scale: number }
+  | { type: "SET_CANVAS_STATUS_HINT"; hint: string | null }
   // Layout
   | { type: "TOGGLE_PANEL"; panel: "source" | "inspector" }
   | { type: "SYNC_LAYOUT_STATE"; sourceVisible: boolean; inspectorVisible: boolean; objectsVisible: boolean; stylesVisible: boolean; figuresVisible: boolean; assistantVisible: boolean; activeRightTab: "inspector" | "objects" | "styles" | "assistant" }

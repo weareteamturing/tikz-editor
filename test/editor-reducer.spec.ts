@@ -1019,6 +1019,26 @@ describe("editorReducer – layout", () => {
     expect(enabled.fitToContentModeActive).toBe(true);
     expect(enabled.fitToContentRequestToken).toBe(initial.fitToContentRequestToken);
   });
+
+  it("SET_CANVAS_STATUS_HINT updates transient canvas guidance", () => {
+    const initial = makeInitialState();
+    expect(initial.canvasStatusHint).toBeNull();
+
+    const hinted = editorReducer(initial, {
+      type: "SET_CANVAS_STATUS_HINT",
+      hint: "Double-click path to add a point."
+    });
+    expect(hinted.canvasStatusHint).toBe("Double-click path to add a point.");
+
+    const hintedAgain = editorReducer(hinted, {
+      type: "SET_CANVAS_STATUS_HINT",
+      hint: "Double-click path to add a point."
+    });
+    expect(hintedAgain).toBe(hinted);
+
+    const cleared = editorReducer(hinted, { type: "SET_CANVAS_STATUS_HINT", hint: null });
+    expect(cleared.canvasStatusHint).toBeNull();
+  });
 });
 
 // ── TOGGLE_DEV_PANEL ──────────────────────────────────────────────────────────

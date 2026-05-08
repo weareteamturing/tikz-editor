@@ -61,6 +61,10 @@
   color: var(--color-ok);
 }
 
+.hint {
+  color: var(--text-faint);
+}
+
 .spacer {
   flex: 1;
   min-width: 12px;

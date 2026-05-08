@@ -22,6 +22,7 @@ export function StatusBar() {
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const pendingRequestId = useEditorStore((s) => s.pendingRequestId);
   const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
+  const canvasStatusHint = useEditorStore((s) => s.canvasStatusHint);
   const dispatch = useEditorStore((s) => s.dispatch);
 
   const showPerf = import.meta.env.DEV;
@@ -134,6 +135,12 @@ export function StatusBar() {
             <span className={incrementalFallbackClass}>
               fallback ({incrementalFallbackReason})
             </span>
+          </div>
+        )}
+
+        {canvasStatusHint && (
+          <div className={css.cell}>
+            <span className={css.hint}>{canvasStatusHint}</span>
           </div>
         )}
       </div>

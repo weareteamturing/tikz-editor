@@ -23,7 +23,6 @@ applyEditAction,
 type EditAction
 } from "tikz-editor/edit/actions";
 import { PT_PER_CM,formatNumber } from "tikz-editor/edit/format";
-import { resolveEligibleExplicitPath,type ExplicitPathAnalysis } from "tikz-editor/edit/path-editing";
 import {
 makeForeachTemplateTargetId,
 resolvePropertyTarget,
@@ -35,7 +34,6 @@ type SnapLine
 import { renderTikzToSvg } from "tikz-editor/render/index";
 import { collectGeometryInvalidation } from "tikz-editor/semantic/index";
 import type {
-EditHandle,
 SceneElement
 } from "tikz-editor/semantic/types";
 import type { SvgRenderModel } from "tikz-editor/svg";
@@ -100,6 +98,7 @@ generatePathToolSource,
 pathToolHasDrawableSegments,
 type PathToolGestureSegment
 } from "./canvas-panel/path-tool";
+import { collectDensePathSourceIds, resolvePathSelectionHint } from "./canvas-panel/path-selection-hint";
 import type {
 resolveResizeFrameForSource
 } from "./canvas-panel/resize-frames";
@@ -243,44 +242,8 @@ const DESKTOP_TIKZ_CLIPBOARD_FORMATS = [
   "application/x-tikz-editor+json",
   "com.tikzeditor.tikz-json"
 ] as const;
-const DENSE_PATH_SEGMENT_THRESHOLD = 7;
 const DOCUMENT_BOUNDS_OFF_MIN_PADDING_WORLD = 200;
 const TEXT_CARET_OVERLAY_EPSILON_PX = 0.25;
-
-function hasInsertablePathSegment(
-  editHandles: readonly EditHandle[],
-  sourceId: string,
-  analysis: ExplicitPathAnalysis
-): boolean {
-  const hasAnchorHandle = (anchorIndex: number) => {
-    const anchor = analysis.anchors[anchorIndex];
-    return Boolean(anchor && editHandles.some((handle) =>
-      handle.sourceRef.sourceId === sourceId &&
-      handle.kind === "path-point" &&
-      handle.sourceRef.sourceSpan.from === anchor.item.span.from &&
-      handle.sourceRef.sourceSpan.to === anchor.item.span.to
-    ));
-  };
-  const hasControlHandle = (itemIndex: number | undefined) => {
-    const item = itemIndex == null ? null : analysis.statement.items[itemIndex];
-    return Boolean(item && item.kind === "Coordinate" && editHandles.some((handle) =>
-      handle.sourceRef.sourceId === sourceId &&
-      handle.kind === "path-control" &&
-      handle.sourceRef.sourceSpan.from === item.span.from &&
-      handle.sourceRef.sourceSpan.to === item.span.to
-    ));
-  };
-
-  return analysis.segments.some((segment) => {
-    if (!hasAnchorHandle(segment.startAnchorIndex) || !hasAnchorHandle(segment.endAnchorIndex)) {
-      return false;
-    }
-    if (segment.kind === "line") {
-      return true;
-    }
-    return hasControlHandle(segment.control1Index) && (!segment.usedAnd || hasControlHandle(segment.control2Index));
-  });
-}
 
 type FigureViewportState = {
   transform: CanvasTransform;
@@ -1543,22 +1506,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   }, [showDevPanel, viewportSize.height, viewportSize.width]);
 
   const densePathSourceIds = useMemo(() => {
-    const dense = new Set<string>();
-    for (const element of snapshot.scene?.elements ?? []) {
-      if (element.kind !== "Path" || element.shapeHint != null) {
-        continue;
-      }
-      let segmentCount = 0;
-      for (const command of element.commands) {
-        if (command.kind === "L" || command.kind === "C" || command.kind === "A") {
-          segmentCount += 1;
-        }
-      }
-      if (segmentCount >= DENSE_PATH_SEGMENT_THRESHOLD) {
-        dense.add(element.sourceRef.sourceId);
-      }
-    }
-    return dense;
+    return collectDensePathSourceIds(snapshot.scene?.elements);
   }, [snapshot.scene]);
 
   const collapsedDensePathSourceIds = useMemo(() => {
@@ -1576,7 +1524,7 @@ export const CanvasPanel = memo(function CanvasPanel({
 
   const pathSelectionHint = useMemo(() => {
     if (
-      warning ||
+      warning != null ||
       toolMode !== "select" ||
       activeCanvasDragKind != null ||
       activeSourceScrubSourceId != null ||
@@ -1584,34 +1532,37 @@ export const CanvasPanel = memo(function CanvasPanel({
     ) {
       return null;
     }
-    if (selectedElementIds.size !== 1) return null;
-    const sourceId = [...selectedElementIds][0];
-    const isNodeSource = snapshot.editHandles.some(
-      (handle) => handle.sourceRef.sourceId === sourceId && handle.kind === "node-position"
-    );
-    if (isNodeSource) return null;
-    const element = snapshot.scene?.elements.find((e) => e.sourceRef.sourceId === sourceId);
-    if (!element || element.kind !== "Path") return null;
-    const resolved = resolveEligibleExplicitPath(source, sourceId, editParseOptions);
-    if (resolved.kind !== "eligible") return null;
-    if (resolved.analysis.segments.length === 0) return null;
-    if (collapsedDensePathSourceIds.has(sourceId)) return "Double-click path to edit points.";
-    if (!hasInsertablePathSegment(snapshot.editHandles, sourceId, resolved.analysis)) return null;
-    // dense paths that are expanded are also eligible for add-point hint
-    return "Double-click path to add a point.";
+    return resolvePathSelectionHint({
+      source,
+      selectedElementIds,
+      editHandles: snapshot.editHandles,
+      elements: snapshot.scene?.elements,
+      collapsedDensePathSourceIds,
+      parseOptions: editParseOptions
+    });
   }, [
-    warning,
-    toolMode,
     activeCanvasDragKind,
     activeSourceScrubSourceId,
     collapsedDensePathSourceIds,
+    editParseOptions,
     selectedElementIds,
     snapshot.editHandles,
     snapshot.scene,
     snapshot.source,
-    editParseOptions,
-    source
+    source,
+    toolMode,
+    warning
   ]);
+
+  useEffect(() => {
+    dispatch({ type: "SET_CANVAS_STATUS_HINT", hint: pathSelectionHint });
+  }, [dispatch, pathSelectionHint]);
+
+  useEffect(() => {
+    return () => {
+      dispatch({ type: "SET_CANVAS_STATUS_HINT", hint: null });
+    };
+  }, [dispatch]);
 
   const {
     nodeAnchorTargets,
@@ -3999,7 +3950,7 @@ export const CanvasPanel = memo(function CanvasPanel({
         onTextEditTextareaPaste={handleTextEditTextareaPaste}
         onTextEditTextareaDrop={handleTextEditTextareaDrop}
         onTextEditTextareaKeyDown={handleTextEditTextareaKeyDown}
-        selectionHint={pathSelectionHint}
+        selectionHint={null}
         showDevPanel={showDevPanel}
         snapDebugRect={snapDebugRect}
         onSnapDebugMovePointerDown={onSnapDebugMovePointerDown}

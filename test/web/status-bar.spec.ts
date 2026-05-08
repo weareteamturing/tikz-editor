@@ -23,6 +23,7 @@ type MockStatusBarState = {
   selectedElementIds: Set<string>;
   pendingRequestId: string | null;
   activeCanvasDragKind: null;
+  canvasStatusHint: string | null;
   dispatch: (action: EditorAction) => void;
 };
 
@@ -45,6 +46,7 @@ const mocks = vi.hoisted(() => {
     selectedElementIds: new Set(),
     pendingRequestId: null,
     activeCanvasDragKind: null,
+    canvasStatusHint: null,
     dispatch
   };
   return { dispatch, storeState };
@@ -79,6 +81,7 @@ describe("StatusBar", () => {
     mocks.storeState.fitToContentModeActive = false;
     mocks.storeState.showGrid = true;
     mocks.storeState.canvasTransform = { translateX: 0, translateY: 0, scale: 1 };
+    mocks.storeState.canvasStatusHint = null;
 
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -143,5 +146,15 @@ describe("StatusBar", () => {
 
     expect(mocks.dispatch).toHaveBeenCalledTimes(1);
     expect(mocks.dispatch).toHaveBeenCalledWith({ type: "TOGGLE_CANVAS_AID", aid: "grid" });
+  });
+
+  it("shows canvas guidance from shared UI state", async () => {
+    mocks.storeState.canvasStatusHint = "Double-click path to add a point.";
+
+    await act(async () => {
+      root.render(React.createElement(StatusBar));
+    });
+
+    expect(container.textContent).toContain("Double-click path to add a point.");
   });
 });

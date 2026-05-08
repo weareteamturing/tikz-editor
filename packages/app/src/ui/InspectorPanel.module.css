@@ -30,13 +30,14 @@
 }
 
 .toolHint {
-  font-size: calc(var(--app-ui-scale, 1) * 10px);
-  color: var(--text-faint);
-  padding: 6px 8px;
-  background: var(--bg-subtle);
-  border-radius: 2px;
-  margin-bottom: 8px;
-  line-height: 1.4;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
+  color: var(--text-muted);
+  padding: 7px 9px;
+  background: color-mix(in srgb, var(--bg-pane) 72%, var(--bg-app));
+  border: 1px solid var(--border-lighter);
+  border-radius: 4px;
+  margin-bottom: 10px;
+  line-height: 1.45;
 }
 
 .toolSliderRow {

@@ -306,8 +306,7 @@ export function Toolbar() {
     const { mode, label, title, icon: Icon } = toolDef;
     const capability = getToolCapabilityStatus(mode);
     const unsupported = capability.status === "unsupported";
-    const partial = capability.status === "partial";
-    const buttonTitle = partial || unsupported
+    const buttonTitle = unsupported
       ? `${title}\n${capability.reason}`
       : title;
     const nextMode = resolveToolbarToolMode(toolMode, mode);

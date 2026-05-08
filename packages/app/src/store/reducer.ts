@@ -66,6 +66,7 @@ function initialUiState(): WorkspaceEphemeralState {
     zoomRequestDirection: null,
     zoomScaleRequestToken: 0,
     zoomScaleRequestValue: null,
+    canvasStatusHint: null,
     showSourcePanel: true,
     showInspectorPanel: true,
     showObjectsPanel: true,
@@ -1083,6 +1084,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         zoomScaleRequestToken: ui.zoomScaleRequestToken + 1,
         zoomScaleRequestValue: action.scale
       };
+      break;
+
+    case "SET_CANVAS_STATUS_HINT":
+      if (ui.canvasStatusHint === action.hint) return state;
+      ui = { ...ui, canvasStatusHint: action.hint };
       break;
 
     case "SYNC_LAYOUT_STATE":
