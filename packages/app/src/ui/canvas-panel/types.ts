@@ -301,6 +301,7 @@ export type TextEditingSession = {
   layoutKind: NodeTextLayoutKind;
   region: Extract<HitRegion, { shape: "rect" }>;
   popupAnchorBox?: SvgBounds;
+  isForeachTemplateEdit: boolean;
 };
 
 export type NodeAnchorOverlayState = {
@@ -321,6 +322,7 @@ export type EditableTextTarget = {
   totalWidth: number;
   region: Extract<HitRegion, { shape: "rect" }>;
   popupAnchorBox?: SvgBounds;
+  isForeachTemplateEdit?: boolean;
 };
 
 export type SnapDebugLogInput = {

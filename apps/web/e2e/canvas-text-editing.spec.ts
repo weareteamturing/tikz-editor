@@ -284,13 +284,14 @@ test("foreach-expanded node text editing uses the template source text", async (
   await expect(textarea).toBeVisible();
   await expect(textarea).toBeFocused();
   await expect(textarea).toHaveValue(String.raw`\y`);
+  await expect(page.getByTestId("canvas-text-edit-foreach-tag")).toHaveText("foreach");
 
   await textarea.press(`${PRIMARY_MOD}+A`);
   await page.keyboard.type(String.raw`\y units`);
   await expect.poll(async () => await readStoreSource(page)).toContain(String.raw`{\y units}`);
 });
 
-test("foreach-expanded text caret and selection overlay stay on the clicked instance", async ({ page }) => {
+test("foreach-expanded text editing selects the template and hides canvas caret mapping", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}
   \foreach \y in {1,2,3} {
@@ -301,27 +302,13 @@ test("foreach-expanded text caret and selection overlay stay on the clicked inst
   const textRegions = page.locator('[data-hit-region-target-id="foreach:0"][data-hit-region-interaction-mode="text"]');
   await expect(textRegions).toHaveCount(3);
 
-  const firstBox = await textRegions.nth(0).boundingBox();
-  const thirdBox = await textRegions.nth(2).boundingBox();
-  if (!firstBox || !thirdBox) {
-    throw new Error("Expected foreach text region bounds.");
-  }
-
   await textRegions.nth(2).click();
-  await expect(page.getByTestId("canvas-text-edit-textarea")).toBeVisible();
-  await expect(page.getByTestId("canvas-text-edit-textarea")).toHaveValue(String.raw`\y+x`);
-
-  const caret = page.getByTestId("canvas-text-selection-caret");
-  await expect(caret).toBeVisible();
-  const caretBox = await caret.boundingBox();
-  if (!caretBox) {
-    throw new Error("Expected caret bounds.");
-  }
-  const caretCenterX = caretBox.x + caretBox.width / 2;
-  const firstCenterX = firstBox.x + firstBox.width / 2;
-  const thirdCenterX = thirdBox.x + thirdBox.width / 2;
-
-  expect(Math.abs(caretCenterX - thirdCenterX)).toBeLessThan(Math.abs(caretCenterX - firstCenterX));
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toBeVisible();
+  await expect(textarea).toHaveValue(String.raw`\y+x`);
+  await expect(page.getByTestId("canvas-text-edit-foreach-tag")).toHaveText("foreach");
+  await expect(page.getByTestId("canvas-text-selection-overlay")).toHaveCount(0);
+  await expect(readTextareaSelection(page)).resolves.toEqual({ start: 0, end: 4 });
 });
 
 test("rotated single-line node text enters canvas edit mode", async ({ page }) => {

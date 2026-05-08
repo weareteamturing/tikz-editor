@@ -638,7 +638,8 @@ export function reduceCanvasTextEdit(
             renderSourceText: action.target.renderSourceText,
             layoutKind: action.target.layoutKind,
             region: action.target.region,
-            popupAnchorBox: action.target.popupAnchorBox
+            popupAnchorBox: action.target.popupAnchorBox,
+            isForeachTemplateEdit: action.target.isForeachTemplateEdit === true
           },
           selectionOverlay: null,
           dragSelection: null,
@@ -675,7 +676,8 @@ export function reduceCanvasTextEdit(
             renderSourceText: action.target.renderSourceText,
             layoutKind: action.target.layoutKind,
             region: action.target.region,
-            popupAnchorBox: action.target.popupAnchorBox
+            popupAnchorBox: action.target.popupAnchorBox,
+            isForeachTemplateEdit: action.target.isForeachTemplateEdit === true
           },
           selectionOverlay: null,
           dragSelection: {
@@ -998,6 +1000,9 @@ export function reduceCanvasTextEdit(
       const nextLayoutKind = targetMatchesSessionText ? action.target.layoutKind : session.layoutKind;
       const nextRegion = targetMatchesSessionText ? action.target.region : session.region;
       const nextPopupAnchorBox = targetMatchesSessionText ? action.target.popupAnchorBox : session.popupAnchorBox;
+      const nextIsForeachTemplateEdit = targetMatchesSessionText
+        ? action.target.isForeachTemplateEdit === true
+        : session.isForeachTemplateEdit;
       if (
         state.sourceRevision === action.sourceRevision &&
         session.workingSource === action.source &&
@@ -1007,6 +1012,7 @@ export function reduceCanvasTextEdit(
         session.paragraphId === nextParagraphId &&
         session.renderSourceText === nextRenderSourceText &&
         session.layoutKind === nextLayoutKind &&
+        session.isForeachTemplateEdit === nextIsForeachTemplateEdit &&
         sameRegion(session.region, nextRegion) &&
         session.popupAnchorBox?.minX === nextPopupAnchorBox?.minX &&
         session.popupAnchorBox?.minY === nextPopupAnchorBox?.minY &&
@@ -1035,7 +1041,8 @@ export function reduceCanvasTextEdit(
             renderSourceText: nextRenderSourceText,
             layoutKind: nextLayoutKind,
             region: nextRegion,
-            popupAnchorBox: nextPopupAnchorBox
+            popupAnchorBox: nextPopupAnchorBox,
+            isForeachTemplateEdit: nextIsForeachTemplateEdit
           }
         },
         effects: []

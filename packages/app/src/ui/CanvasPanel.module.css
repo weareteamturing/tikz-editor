@@ -422,6 +422,16 @@
   border-color: color-mix(in srgb, var(--accent) 50%, var(--border) 50%);
 }
 
+.textEditPopupTag {
+  align-self: center;
+  margin: -1px 0 2px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: 0;
+  user-select: none;
+}
+
 .textEditTextarea {
   display: block;
   resize: none;

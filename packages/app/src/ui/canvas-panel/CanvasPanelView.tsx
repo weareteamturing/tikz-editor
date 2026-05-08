@@ -698,6 +698,9 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
               onPointerDown={onTextEditPopupPointerDown}
               data-testid="canvas-text-edit-popup"
             >
+              {textEditingSession.isForeachTemplateEdit ? (
+                <div className={css.textEditPopupTag} data-testid="canvas-text-edit-foreach-tag">foreach</div>
+              ) : null}
               <div className={css.textEditTextareaLayer}>
                 <textarea
                   ref={textEditTextareaRef}

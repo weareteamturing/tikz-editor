@@ -2083,6 +2083,7 @@ export const CanvasPanel = memo(function CanvasPanel({
         return null;
       }
       let sourceSpan = sceneText.matrixCell?.textSpan ?? sceneText.textSourceSpan ?? sceneText.sourceRef.sourceSpan;
+      let isForeachTemplateEdit = false;
       const foreachOrigin = sceneText.origin;
       if (
         snapshot.parseResult &&
@@ -2104,6 +2105,7 @@ export const CanvasPanel = memo(function CanvasPanel({
           resolvedTemplate.target.textSpan.to > resolvedTemplate.target.textSpan.from
         ) {
           sourceSpan = resolvedTemplate.target.textSpan;
+          isForeachTemplateEdit = true;
         }
       }
       if (sourceSpan.to <= sourceSpan.from) {
@@ -2155,6 +2157,7 @@ export const CanvasPanel = memo(function CanvasPanel({
         style: sceneText.style,
         totalWidth: textBlockWidth,
         region,
+        isForeachTemplateEdit,
         popupAnchorBox: preferredBounds
           ? svgBounds(pt(preferredBounds.minX), pt(preferredBounds.minY), pt(preferredBounds.maxX), pt(preferredBounds.maxY))
           : svgBounds(
@@ -2231,6 +2234,9 @@ export const CanvasPanel = memo(function CanvasPanel({
 
   const resolveTextOffsetFromClient = useCallback(
     async (target: EditableTextTarget, clientPoint: ClientPoint): Promise<number | null> => {
+      if (target.isForeachTemplateEdit) {
+        return null;
+      }
       const outputJax = getActiveMathJaxOutputJax();
       const containerElement = resolveRenderedMathTextElement(target);
       const requiresParagraphGeometry = target.usesMathJax && target.layoutKind !== "single-line";
@@ -2274,6 +2280,9 @@ export const CanvasPanel = memo(function CanvasPanel({
 
   const resolveTextLineRangeFromClient = useCallback(
     async (target: EditableTextTarget, clientPoint: ClientPoint): Promise<TextLineRange | null> => {
+      if (target.isForeachTemplateEdit) {
+        return null;
+      }
       const outputJax = getActiveMathJaxOutputJax();
       const containerElement = resolveRenderedMathTextElement(target);
       const requiresParagraphGeometry = target.usesMathJax && target.layoutKind !== "single-line";
@@ -2345,6 +2354,16 @@ export const CanvasPanel = memo(function CanvasPanel({
         return;
       }
       suppressNextBackgroundClickRef.current = true;
+      if (target.isForeachTemplateEdit) {
+        event.preventDefault();
+        startTextEditingSession(
+          target,
+          0,
+          target.text.length,
+          textEditingSession?.sourceId === target.sourceId ? textEditingSession.historyMergeKey : undefined
+        );
+        return;
+      }
       const requestRevision = canvasTextEditState.asyncRequestRevision + 1;
       const baseInputRevision = canvasTextEditState.inputRevision;
       const existingHistoryMergeKey =
@@ -2452,6 +2471,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       resolveTextLineRangeFromClient,
       resolveTextOffsetFromClient,
       source,
+      startTextEditingSession,
       svgResult,
       textEditingSession,
       viewportRef
@@ -2600,6 +2620,16 @@ export const CanvasPanel = memo(function CanvasPanel({
       textarea.setSelectionRange(start, end);
     }
   }, [textEditingSession]);
+
+  useEffect(() => {
+    const textarea = textEditTextareaRef.current;
+    if (!textEditingSession?.isForeachTemplateEdit || !textarea || textEditPopupHeight == null) {
+      return;
+    }
+    if (document.activeElement !== textarea) {
+      textarea.focus({ preventScroll: true });
+    }
+  }, [textEditingSession, textEditPopupHeight]);
 
   useEffect(() => {
     const textarea = textEditTextareaRef.current;

@@ -253,6 +253,17 @@ export function useCanvasTextEditingEffects(args: UseCanvasTextEditingEffectsArg
 
     const boundedStart = clamp(textEditingSession.selectionStart, 0, textEditingSession.text.length);
     const boundedEnd = clamp(textEditingSession.selectionEnd, 0, textEditingSession.text.length);
+    if (textEditingSession.isForeachTemplateEdit || target.isForeachTemplateEdit) {
+      dispatchCanvasTextEditAction({
+        type: "overlay_resolved",
+        requestRevision: textEditAsyncRequestRevision,
+        sourceId: target.sourceId,
+        selectionStart: boundedStart,
+        selectionEnd: boundedEnd,
+        overlay: null
+      });
+      return;
+    }
 
     const outputJax = getActiveMathJaxOutputJax();
     const containerElement = resolveRenderedMathTextElement(target);
