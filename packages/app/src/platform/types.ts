@@ -47,6 +47,8 @@ export type PlatformFileApi = {
     text: string,
     expectedRevision: FileRevision | null
   ) => Promise<LinkedTextWriteResult>;
+  syncLinkedFileWatches?: (fileRefs: readonly DocumentFileRef[]) => Promise<void> | void;
+  bindLinkedFileChange?: (handler: (fileRef: DocumentFileRef) => void) => (() => void) | void;
   exportFile?: (content: BlobPart[], options: { fileName: string; mimeType: string }) => Promise<boolean>;
   clearRecentFiles?: () => Promise<void>;
 };

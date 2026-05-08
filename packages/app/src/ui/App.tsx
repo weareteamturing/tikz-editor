@@ -204,6 +204,12 @@ type PendingFileConflict = {
   resolve: (decision: FileConflictDecision) => void;
 };
 
+function linkedFilePathKey(fileRef: DocumentFileRef | null | undefined): string | null {
+  return fileRef?.provider === "desktop-fs" && typeof fileRef.path === "string" && fileRef.path.trim().length > 0
+    ? fileRef.path
+    : null;
+}
+
 export function App() {
   const {
     source,
@@ -287,6 +293,17 @@ export function App() {
   const snapshotRef = useRef(snapshot);
   const activeDocumentIdRef = useRef(activeDocumentId);
   const documentsRef = useRef(documents);
+  const linkedWatchTimersRef = useRef<Map<string, number>>(new Map());
+  const pendingBackgroundLinkedPathsRef = useRef<Set<string>>(new Set());
+  const linkedFileWatchSignature = useMemo(
+    () =>
+      Object.values(documents)
+        .map((doc) => linkedFilePathKey(doc.fileRef))
+        .filter((path): path is string => path != null)
+        .sort()
+        .join("\n"),
+    [documents]
+  );
 
   function executeCloseIntent(intent: CloseIntent): void {
     if (intent.kind === "close-document") {
@@ -689,10 +706,70 @@ export function App() {
 
   useEffect(() => {
     const doc = documentsRef.current[activeDocumentId];
+    const pathKey = linkedFilePathKey(doc?.fileRef);
+    if (pathKey) {
+      pendingBackgroundLinkedPathsRef.current.delete(pathKey);
+    }
     if (doc) {
       applyLinkedReadDecision(doc, "tab");
     }
   }, [activeDocumentId, applyLinkedReadDecision]);
+
+  useEffect(() => {
+    const sync = getActiveEditorPlatform().files?.syncLinkedFileWatches;
+    if (typeof sync !== "function") {
+      return;
+    }
+    const fileRefs = Object.values(documentsRef.current)
+      .map((doc) => doc.fileRef)
+      .filter((fileRef): fileRef is DocumentFileRef => Boolean(fileRef && linkedFilePathKey(fileRef)));
+    void sync(fileRefs);
+    return () => {
+      void sync([]);
+    };
+  }, [linkedFileWatchSignature]);
+
+  useEffect(() => {
+    const bind = getActiveEditorPlatform().files?.bindLinkedFileChange;
+    if (typeof bind !== "function") {
+      return;
+    }
+    const timers = linkedWatchTimersRef.current;
+    const pendingBackgroundPaths = pendingBackgroundLinkedPathsRef.current;
+    const unbind = bind((fileRef) => {
+      const pathKey = linkedFilePathKey(fileRef);
+      if (!pathKey) {
+        return;
+      }
+      const existing = timers.get(pathKey);
+      if (existing != null) {
+        window.clearTimeout(existing);
+      }
+      const timer = window.setTimeout(() => {
+        timers.delete(pathKey);
+        const docsForPath = Object.values(documentsRef.current).filter((doc) => linkedFilePathKey(doc.fileRef) === pathKey);
+        const activeDoc = docsForPath.find((doc) => doc.id === activeDocumentIdRef.current);
+        if (activeDoc) {
+          applyLinkedReadDecision(activeDoc, "focus");
+          return;
+        }
+        if (docsForPath.length > 0) {
+          pendingBackgroundPaths.add(pathKey);
+        }
+      }, 350);
+      timers.set(pathKey, timer);
+    });
+    return () => {
+      for (const timer of timers.values()) {
+        window.clearTimeout(timer);
+      }
+      timers.clear();
+      pendingBackgroundPaths.clear();
+      if (typeof unbind === "function") {
+        unbind();
+      }
+    };
+  }, [applyLinkedReadDecision]);
 
   useEffect(() => {
     if (!repeatModalState) {

@@ -6,6 +6,7 @@ use assistant::{
 };
 use base64::Engine;
 use clipboard_rs::{Clipboard, ClipboardContent, ClipboardContext};
+use notify::{Config as NotifyConfig, RecommendedWatcher, RecursiveMode, Watcher};
 use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -18,7 +19,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{
     menu::{
@@ -83,6 +84,7 @@ const LATEX_COMMAND_TIMEOUT_SECS: u64 = 20;
 const RECENTS_FILENAME: &str = "recent-files.json";
 const CONTEXT_MENU_EVENT_PREFIX: &str = "ctx::";
 const DESKTOP_OPEN_REQUESTS_CHANGED_EVENT: &str = "desktop-open-requests-changed";
+const DESKTOP_LINKED_FILE_CHANGED_EVENT: &str = "desktop-linked-file-changed";
 static NEXT_LATEX_COMPILE_ID: AtomicU64 = AtomicU64::new(1);
 #[cfg(target_os = "macos")]
 const DESKTOP_SVG_CLIPBOARD_FORMATS: [&str; 2] =
@@ -115,6 +117,12 @@ struct WindowCloseState {
 struct PendingOpenRequestsState {
     requests: Mutex<Vec<OpenTextPayload>>,
     failures: Mutex<Vec<OpenTextFailurePayload>>,
+}
+
+#[derive(Default)]
+struct LinkedFileWatchState {
+    watcher: Mutex<Option<RecommendedWatcher>>,
+    watched_paths: Arc<Mutex<HashSet<PathBuf>>>,
 }
 
 #[derive(Clone, Serialize)]
@@ -201,6 +209,11 @@ struct LinkedFileRefPayload {
     name: String,
     path: String,
     provider: String,
+}
+
+#[derive(Clone, Serialize)]
+struct LinkedFileChangedPayload {
+    path: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -474,6 +487,39 @@ fn read_linked_text_payload(path: &Path) -> Result<LinkedTextReadPayload, String
             reason: error.to_string(),
         }),
     }
+}
+
+fn normalize_watch_path(path: PathBuf) -> PathBuf {
+    path.canonicalize().unwrap_or(path)
+}
+
+fn changed_linked_paths_for_event(
+    event_paths: &[PathBuf],
+    watched_paths: &HashSet<PathBuf>,
+) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    for watched in watched_paths {
+        let watched_parent = watched.parent();
+        let changed = event_paths.iter().any(|event_path| {
+            let normalized_event = normalize_watch_path(event_path.clone());
+            normalized_event == *watched
+                || (watched_parent.is_some() && normalized_event.parent() == watched_parent)
+        });
+        if changed && seen.insert(watched.clone()) {
+            out.push(watched.clone());
+        }
+    }
+    out
+}
+
+fn emit_linked_file_changed(app: &AppHandle, path: &Path) {
+    let _ = app.emit(
+        DESKTOP_LINKED_FILE_CHANGED_EVENT,
+        LinkedFileChangedPayload {
+            path: path.to_string_lossy().to_string(),
+        },
+    );
 }
 
 fn enqueue_pending_open_results(
@@ -1391,6 +1437,77 @@ fn desktop_write_linked_text(
 }
 
 #[tauri::command]
+fn desktop_sync_linked_file_watches(paths: Vec<String>, app: AppHandle) -> Result<(), String> {
+    let state = app.state::<LinkedFileWatchState>();
+    let watched_paths: HashSet<PathBuf> = paths
+        .into_iter()
+        .map(|path| path.trim().to_string())
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from)
+        .map(normalize_watch_path)
+        .collect();
+
+    {
+        let mut watched = state
+            .watched_paths
+            .lock()
+            .map_err(|_| "linked file watch state unavailable".to_string())?;
+        *watched = watched_paths.clone();
+    }
+
+    let mut parent_dirs = HashSet::<PathBuf>::new();
+    for path in &watched_paths {
+        if let Some(parent) = path.parent() {
+            parent_dirs.insert(parent.to_path_buf());
+        }
+    }
+
+    if parent_dirs.is_empty() {
+        let mut watcher_slot = state
+            .watcher
+            .lock()
+            .map_err(|_| "linked file watcher unavailable".to_string())?;
+        *watcher_slot = None;
+        return Ok(());
+    }
+
+    let app_for_callback = app.clone();
+    let watched_for_callback = Arc::clone(&state.watched_paths);
+    let mut watcher = RecommendedWatcher::new(
+        move |result: notify::Result<notify::Event>| {
+            let Ok(event) = result else {
+                return;
+            };
+            if event.paths.is_empty() {
+                return;
+            }
+            let watched_snapshot = match watched_for_callback.lock() {
+                Ok(watched) => watched.clone(),
+                Err(_) => return,
+            };
+            for path in changed_linked_paths_for_event(&event.paths, &watched_snapshot) {
+                emit_linked_file_changed(&app_for_callback, &path);
+            }
+        },
+        NotifyConfig::default(),
+    )
+    .map_err(|error| error.to_string())?;
+
+    for dir in parent_dirs {
+        watcher
+            .watch(&dir, RecursiveMode::NonRecursive)
+            .map_err(|error| error.to_string())?;
+    }
+
+    let mut watcher_slot = state
+        .watcher
+        .lock()
+        .map_err(|_| "linked file watcher unavailable".to_string())?;
+    *watcher_slot = Some(watcher);
+    Ok(())
+}
+
+#[tauri::command]
 fn desktop_export_file(
     file_name: String,
     _mime_type: String,
@@ -1864,7 +1981,8 @@ pub fn run() {
     let builder = builder
         .manage(RecentFilesState::default())
         .manage(WindowCloseState::default())
-        .manage(PendingOpenRequestsState::default());
+        .manage(PendingOpenRequestsState::default())
+        .manage(LinkedFileWatchState::default());
 
     builder
         .on_window_event(|window, event| {
@@ -1902,6 +2020,7 @@ pub fn run() {
             desktop_save_text,
             desktop_read_linked_text,
             desktop_write_linked_text,
+            desktop_sync_linked_file_watches,
             desktop_export_file,
             desktop_confirm_unsaved_changes,
             desktop_show_message_dialog,
@@ -2000,11 +2119,12 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        collect_associated_file_paths, has_supported_association_extension,
+        changed_linked_paths_for_event, collect_associated_file_paths, has_supported_association_extension,
         map_unsaved_changes_dialog_result, validate_external_url,
     };
     use rfd::MessageDialogResult;
-    use std::path::Path;
+    use std::collections::HashSet;
+    use std::path::{Path, PathBuf};
 
     #[test]
     fn validates_supported_external_urls() {
@@ -2090,6 +2210,23 @@ mod tests {
         assert_eq!(
             map_unsaved_changes_dialog_result(MessageDialogResult::Custom("Cancel".to_string())),
             "cancel"
+        );
+    }
+
+    #[test]
+    fn maps_directory_events_back_to_watched_files() {
+        let watched = HashSet::from([
+            PathBuf::from("/tmp/project/a.tex"),
+            PathBuf::from("/tmp/project/b.tex"),
+            PathBuf::from("/tmp/other/c.tex"),
+        ]);
+        let changed = changed_linked_paths_for_event(&[PathBuf::from("/tmp/project/.a.tex.swp")], &watched);
+        assert_eq!(
+            changed.into_iter().collect::<HashSet<_>>(),
+            HashSet::from([
+                PathBuf::from("/tmp/project/a.tex"),
+                PathBuf::from("/tmp/project/b.tex")
+            ])
         );
     }
 }

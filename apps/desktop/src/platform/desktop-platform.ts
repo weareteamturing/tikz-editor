@@ -87,6 +87,8 @@ type DesktopBridge = {
     text: string;
     expectedRevision?: FileRevision | null;
   }) => Promise<DesktopLinkedTextWriteResult>;
+  syncLinkedFileWatches?: (paths: string[]) => Promise<void>;
+  onLinkedFileChanged?: (handler: (payload: { path: string }) => void) => Promise<() => void>;
   exportFile: (params: {
     fileName: string;
     mimeType: string;
@@ -739,6 +741,16 @@ function createDefaultBridge(): DesktopBridge {
         expectedRevision: expectedRevision ?? null
       });
     },
+    syncLinkedFileWatches: async (paths) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("desktop_sync_linked_file_watches", { paths });
+    },
+    onLinkedFileChanged: async (handler) => {
+      const { listen } = await import("@tauri-apps/api/event");
+      return await listen<{ path: string }>("desktop-linked-file-changed", (event) => {
+        handler(event.payload);
+      });
+    },
     exportFile: async ({ fileName, mimeType, bytesBase64 }) => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<boolean>("desktop_export_file", { fileName, mimeType, bytesBase64 });
@@ -1348,6 +1360,44 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
           };
         }
         return result;
+      },
+      syncLinkedFileWatches: async (fileRefs) => {
+        const sync = getBridge().syncLinkedFileWatches;
+        if (!sync) {
+          return;
+        }
+        const paths = fileRefs
+          .filter((fileRef) => fileRef.provider === "desktop-fs" && typeof fileRef.path === "string")
+          .map((fileRef) => fileRef.path!)
+          .filter((path, index, all) => path.trim().length > 0 && all.indexOf(path) === index);
+        await sync(paths);
+      },
+      bindLinkedFileChange: (handler) => {
+        const bridge = getBridge();
+        if (!bridge.onLinkedFileChanged) {
+          return;
+        }
+        let active = true;
+        let unlisten: (() => void) | null = null;
+        void bridge.onLinkedFileChanged((payload) => {
+          if (!active) {
+            return;
+          }
+          const name = payload.path.split(/[\\/]/).pop() || "document.tex";
+          handler(toDesktopFileRef(payload.path, name));
+        }).then((fn) => {
+          if (!active) {
+            fn();
+            return;
+          }
+          unlisten = fn;
+        }).catch((error: unknown) => {
+          logDesktopPlatformDebug("Failed to bind linked file watcher events.", error);
+        });
+        return () => {
+          active = false;
+          unlisten?.();
+        };
       },
       exportFile: async (content, options) => {
         const blob = new Blob(content, { type: options.mimeType });
