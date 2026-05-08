@@ -159,3 +159,57 @@ test("settings modal controls follow dark theme colors", async ({ page }) => {
     `${expectedThemeColors.scrollbarThumb} ${expectedThemeColors.scrollbarTrack}`
   );
 });
+
+test("codemirror search controls follow dark theme colors", async ({ page }) => {
+  await gotoApp(page);
+  await openMenuCommand(page, "file", "file.open-settings");
+  await page.selectOption("#setting-color-scheme", "dark");
+  await page.getByTestId("settings-modal").getByRole("button", { name: "Close settings" }).click();
+
+  await page.locator(".cm-content").first().click();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+F" : "Control+F");
+
+  const searchPanel = page.locator(".cm-panel.cm-search");
+  await expect(searchPanel).toBeVisible();
+
+  const searchInputStyles = await searchPanel.locator("input[name='search']").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      backgroundColor: style.backgroundColor,
+      color: style.color,
+      borderColor: style.borderColor,
+      colorScheme: style.colorScheme
+    };
+  });
+
+  expect(searchInputStyles.backgroundColor).toBe("rgb(37, 37, 37)");
+  expect(searchInputStyles.color).toBe("rgb(212, 212, 212)");
+  expect(searchInputStyles.borderColor).toBe("rgb(86, 86, 86)");
+  expect(searchInputStyles.colorScheme).toBe("dark");
+
+  const nextButtonStyles = await searchPanel.locator("button[name='next']").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      backgroundColor: style.backgroundColor,
+      color: style.color,
+      borderColor: style.borderColor,
+      colorScheme: style.colorScheme
+    };
+  });
+
+  expect(nextButtonStyles.backgroundColor).toBe("rgb(37, 37, 37)");
+  expect(nextButtonStyles.color).toBe("rgb(212, 212, 212)");
+  expect(nextButtonStyles.borderColor).toBe("rgb(86, 86, 86)");
+  expect(nextButtonStyles.colorScheme).toBe("dark");
+
+  const matchCaseStyles = await searchPanel.locator("input[name='case']").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      accentColor: style.accentColor,
+      colorScheme: style.colorScheme
+    };
+  });
+
+  expect(matchCaseStyles.accentColor).toBe("rgb(88, 152, 208)");
+  expect(matchCaseStyles.colorScheme).toBe("dark");
+});

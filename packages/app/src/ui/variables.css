@@ -223,6 +223,42 @@ html {
   color: #d4d4d4 !important;
 }
 
+[data-color-scheme="dark"] .cm-panel.cm-search {
+  border-color: #383838 !important;
+  color: #d4d4d4 !important;
+}
+
+[data-color-scheme="dark"] .cm-panel.cm-search input:not([type="checkbox"]):not([type="radio"]),
+[data-color-scheme="dark"] .cm-panel.cm-search button {
+  -webkit-appearance: none;
+  appearance: none;
+  color-scheme: dark;
+  background-color: #252525 !important;
+  background-image: none !important;
+  border: 1px solid #565656 !important;
+  color: #d4d4d4 !important;
+}
+
+[data-color-scheme="dark"] .cm-panel.cm-search input:not([type="checkbox"]):not([type="radio"])::placeholder {
+  color: #787878 !important;
+}
+
+[data-color-scheme="dark"] .cm-panel.cm-search button:not(:disabled):hover {
+  background-color: #383838 !important;
+}
+
+[data-color-scheme="dark"] .cm-panel.cm-search button:disabled {
+  background-color: #252525 !important;
+  border-color: #383838 !important;
+  color: #585858 !important;
+}
+
+[data-color-scheme="dark"] .cm-panel.cm-search input[type="checkbox"],
+[data-color-scheme="dark"] .cm-panel.cm-search input[type="radio"] {
+  color-scheme: dark;
+  accent-color: #5898d0;
+}
+
 [data-color-scheme="dark"] .cm-searchMatch {
   background-color: rgba(255, 200, 0, 0.2) !important;
 }
