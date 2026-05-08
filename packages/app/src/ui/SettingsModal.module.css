@@ -130,6 +130,21 @@
   cursor: pointer;
 }
 
+.select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 18px;
+  background-color: var(--settings-control-bg);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 10px) 10px,
+    calc(100% - 6px) 10px;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+}
+
 .numberInput {
   width: 80px;
   cursor: text;
@@ -199,6 +214,11 @@
   height: 26px;
   width: auto;
   max-width: 100%;
+}
+
+:global([data-color-scheme="dark"]) .fontPreviewImg {
+  filter: invert(1);
+  opacity: 0.82;
 }
 
 .resetRow {
