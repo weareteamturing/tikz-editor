@@ -1,0 +1,78 @@
+.summary {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 3px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
+}
+
+.summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.label {
+  color: var(--text-muted);
+}
+
+.value {
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+}
+
+.notes {
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-pane);
+  color: var(--text);
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.warning,
+.error {
+  margin: 0;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
+  line-height: 1.45;
+}
+
+.warning {
+  color: var(--color-warning);
+}
+
+.error {
+  color: var(--color-error);
+}
+
+.progressArea {
+  display: grid;
+  gap: 8px;
+}
+
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
+}
+
+.progressTrack {
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--border) 70%, var(--bg-app));
+}
+
+.progressFill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}

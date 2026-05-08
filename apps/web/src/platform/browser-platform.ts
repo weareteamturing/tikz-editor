@@ -1,4 +1,4 @@
-import type { DocumentFileRef, EditorPlatform, MenuCommandHandler } from "@tikz-editor/app";
+import type { DocumentFileRef, EditorPlatform, MenuCommandHandler, PlatformUpdateApi } from "@tikz-editor/app";
 
 type StorageLike = {
   getItem: (key: string) => string | null;
@@ -45,10 +45,12 @@ function logBrowserPlatformDebug(message: string, error?: unknown): void {
 }
 
 export type BrowserPlatformEnvironment = {
+  id?: string;
   storage?: StorageLike;
   clipboard?: ClipboardLike;
   fsApi?: FsApiLike;
   fsHandleStore?: FsHandleStore;
+  updates?: PlatformUpdateApi;
 };
 
 function readInjectedTestEnvironment(): BrowserPlatformEnvironment {
@@ -474,7 +476,7 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
   }
 
   return {
-    id: "web",
+    id: mergedEnv.id ?? "web",
     persistence: {
       load: (key) => storage?.getItem(key) ?? null,
       save: (key, value) => {
@@ -591,6 +593,7 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
           URL.revokeObjectURL(objectUrl);
         }
       }
-    }
+    },
+    updates: mergedEnv.updates
   };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { APP_MENU_COMMAND_IDS, APP_MENU_DEFINITION } from "../packages/app/src/app-menu/index.js";
+import { APP_MENU_COMMAND_IDS, APP_MENU_DEFINITION, filterAppMenuDefinitionForTarget } from "../packages/app/src/app-menu/index.js";
 
 describe("app menu definition", () => {
   it("defines file lifecycle command ids", () => {
@@ -109,6 +109,37 @@ describe("app menu definition", () => {
 
   it("defines a help manual command id", () => {
     expect(APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL).toBe("help.open-pgf-tikz-manual");
+  });
+
+  it("defines a check for updates command id", () => {
+    expect(APP_MENU_COMMAND_IDS.CHECK_FOR_UPDATES).toBe("help.check-for-updates");
+  });
+
+  it("exposes Check for Updates in the Help menu for non-mac desktop targets", () => {
+    const helpSection = APP_MENU_DEFINITION.find((section) => section.id === "help");
+    expect(helpSection).toBeDefined();
+    const updateItem = helpSection?.items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.CHECK_FOR_UPDATES
+    );
+    expect(updateItem).toBeDefined();
+    if (!updateItem || updateItem.kind !== "command") {
+      throw new Error("Expected help.check-for-updates command item in Help menu.");
+    }
+    expect(updateItem.label).toBe("Check for Updates...");
+    expect(updateItem.platforms).toEqual(["desktop-windows", "desktop-linux"]);
+  });
+
+  it("filters Check for Updates into Help on Windows and Linux, but not macOS", () => {
+    const windowsHelp = filterAppMenuDefinitionForTarget(APP_MENU_DEFINITION, "desktop-windows")
+      .find((section) => section.id === "help");
+    const linuxHelp = filterAppMenuDefinitionForTarget(APP_MENU_DEFINITION, "desktop-linux")
+      .find((section) => section.id === "help");
+    const macHelp = filterAppMenuDefinitionForTarget(APP_MENU_DEFINITION, "desktop-macos")
+      .find((section) => section.id === "help");
+
+    expect(windowsHelp?.items.some((item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.CHECK_FOR_UPDATES)).toBe(true);
+    expect(linuxHelp?.items.some((item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.CHECK_FOR_UPDATES)).toBe(true);
+    expect(macHelp?.items.some((item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.CHECK_FOR_UPDATES)).toBe(false);
   });
 
   it("exposes Open Example in the File menu", () => {

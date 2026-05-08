@@ -79,6 +79,62 @@ describe("editor-command-runtime", () => {
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_GAPS].checked).toBe(true);
   });
 
+  it("enables Check for Updates when platform updater support is available", () => {
+    const onCheckForUpdates = vi.fn();
+    setActiveEditorPlatform({
+      id: "desktop-test",
+      persistence: {
+        load: () => null,
+        save: () => undefined
+      },
+      updates: {
+        checkForUpdate: async () => null,
+        installUpdate: async () => undefined,
+        relaunch: async () => undefined
+      }
+    });
+
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch: vi.fn<(action: EditorAction) => void>(),
+        snapshot: makeSnapshot(renderTikzToSvg(SOURCE)),
+        selectedElementIds: new Set(),
+        onCheckForUpdates
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.CHECK_FOR_UPDATES].enabled).toBe(true);
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.CHECK_FOR_UPDATES, "menu")).toBe(true);
+    expect(onCheckForUpdates).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables Check for Updates while update work is busy", () => {
+    setActiveEditorPlatform({
+      id: "desktop-test",
+      persistence: {
+        load: () => null,
+        save: () => undefined
+      },
+      updates: {
+        checkForUpdate: async () => null,
+        installUpdate: async () => undefined,
+        relaunch: async () => undefined
+      }
+    });
+
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch: vi.fn<(action: EditorAction) => void>(),
+        snapshot: makeSnapshot(renderTikzToSvg(SOURCE)),
+        selectedElementIds: new Set(),
+        onCheckForUpdates: vi.fn(),
+        updateCheckBusy: true
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.CHECK_FOR_UPDATES].enabled).toBe(false);
+  });
+
   it("dispatches per-mode snap toggles", () => {
     const dispatch = vi.fn<(action: EditorAction) => void>();
     const rendered = renderTikzToSvg(SOURCE);
@@ -1175,7 +1231,9 @@ function makeInput({
   onOpenEditEquation,
   onOpenRepeat,
   onOpenSaveWorkspace,
-  onOpenManageWorkspaces
+  onOpenManageWorkspaces,
+  onCheckForUpdates,
+  updateCheckBusy
 }: {
   dispatch: (action: EditorAction) => void;
   source?: string;
@@ -1214,6 +1272,8 @@ function makeInput({
   onOpenRepeat?: () => void;
   onOpenSaveWorkspace?: () => void;
   onOpenManageWorkspaces?: () => void;
+  onCheckForUpdates?: () => void;
+  updateCheckBusy?: boolean;
 }) {
   const activeFigureId = snapshot.parseResult?.activeFigureId ?? null;
 
@@ -1258,6 +1318,8 @@ function makeInput({
     onOpenEditEquation,
     onOpenRepeat,
     onOpenSaveWorkspace,
-    onOpenManageWorkspaces
+    onOpenManageWorkspaces,
+    onCheckForUpdates,
+    updateCheckBusy
   };
 }

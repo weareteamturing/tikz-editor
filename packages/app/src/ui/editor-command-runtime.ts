@@ -129,6 +129,8 @@ type RuntimeInput = {
   onOpenRepeat?: () => void;
   onOpenSaveWorkspace?: () => void;
   onOpenManageWorkspaces?: () => void;
+  onCheckForUpdates?: () => void | Promise<void>;
+  updateCheckBusy?: boolean;
 };
 
 export type EditorCommandRuntime = {
@@ -185,7 +187,9 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     onOpenEditEquation,
     onOpenRepeat,
     onOpenSaveWorkspace,
-    onOpenManageWorkspaces
+    onOpenManageWorkspaces,
+    onCheckForUpdates,
+    updateCheckBusy
   } = input;
   const parseOptions = {
     activeFigureId,
@@ -220,6 +224,10 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const canOpenBinary = typeof getActiveEditorPlatform().files?.openBinary === "function";
   const canSave = typeof getActiveEditorPlatform().files?.saveText === "function";
   const canOpenExternalUrl = typeof getActiveEditorPlatform().window?.openExternalUrl === "function";
+  const canCheckForUpdates =
+    typeof getActiveEditorPlatform().updates?.checkForUpdate === "function" &&
+    typeof getActiveEditorPlatform().updates?.installUpdate === "function" &&
+    typeof getActiveEditorPlatform().updates?.relaunch === "function";
   const isMacDesktop =
     getActiveEditorPlatform().id.startsWith("desktop") &&
     typeof navigator !== "undefined" &&
@@ -959,6 +967,10 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       enabled: onOpenSettings != null,
       run: () => onOpenSettings?.()
     },
+    [APP_MENU_COMMAND_IDS.CHECK_FOR_UPDATES]: {
+      enabled: canCheckForUpdates && !updateCheckBusy,
+      run: () => onCheckForUpdates?.()
+    },
     [APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL]: {
       enabled: canOpenExternalUrl,
       run: () => {
@@ -1000,6 +1012,8 @@ export function useEditorCommandRuntime(
     onOpenRepeat?: () => void;
     onOpenSaveWorkspace?: () => void;
     onOpenManageWorkspaces?: () => void;
+    onCheckForUpdates?: () => void | Promise<void>;
+    updateCheckBusy?: boolean;
     activeHandleIdOverride?: string | null;
   } = {}
 ): EditorCommandRuntime {
@@ -1122,6 +1136,8 @@ export function useEditorCommandRuntime(
         onAddNodeAdornment: options.onAddNodeAdornment,
         onShowCompiledPicture: options.onShowCompiledPicture,
         onOpenSettings: options.onOpenSettings,
+        onCheckForUpdates: options.onCheckForUpdates,
+        updateCheckBusy: options.updateCheckBusy,
         onFocusAssistant: options.onFocusAssistant,
         onOpenInsertEquation: options.onOpenInsertEquation,
         onOpenEditEquation: options.onOpenEditEquation,
@@ -1167,6 +1183,8 @@ export function useEditorCommandRuntime(
       options.onAddNodeAdornment,
       options.onShowCompiledPicture,
       options.onOpenSettings,
+      options.onCheckForUpdates,
+      options.updateCheckBusy,
       options.onFocusAssistant,
       options.onOpenInsertEquation,
       options.onOpenEditEquation,

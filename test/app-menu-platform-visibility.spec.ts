@@ -22,6 +22,12 @@ const TEST_MENU: AppMenuDefinition = [
       },
       {
         kind: "command",
+        commandId: "help.check-for-updates",
+        label: "Check for Updates",
+        platforms: ["desktop-linux"]
+      },
+      {
+        kind: "command",
         commandId: "view.toggle-assistant-panel",
         label: "Assistant",
         platforms: ["desktop-macos"]
@@ -57,6 +63,7 @@ describe("filterAppMenuDefinitionForTarget", () => {
     const filtered = filterAppMenuDefinitionForTarget(TEST_MENU, "desktop-windows");
     expect(commandIds(filtered)).toContain("view.toggle-source-panel");
     expect(commandIds(filtered)).toContain("view.toggle-inspector-panel");
+    expect(commandIds(filtered)).not.toContain("help.check-for-updates");
     expect(commandIds(filtered)).not.toContain("view.toggle-assistant-panel");
     expect(commandIds(filtered)).not.toContain("view.toggle-snap-haptics");
   });
@@ -67,11 +74,21 @@ describe("filterAppMenuDefinitionForTarget", () => {
     expect(commandIds(filtered)).toContain("view.toggle-assistant-panel");
     expect(commandIds(filtered)).toContain("view.toggle-snap-haptics");
     expect(commandIds(filtered)).not.toContain("view.toggle-inspector-panel");
+    expect(commandIds(filtered)).not.toContain("help.check-for-updates");
+  });
+
+  it("keeps linux scoped items on desktop-linux target", () => {
+    const filtered = filterAppMenuDefinitionForTarget(TEST_MENU, "desktop-linux");
+    expect(commandIds(filtered)).toContain("view.toggle-source-panel");
+    expect(commandIds(filtered)).toContain("help.check-for-updates");
+    expect(commandIds(filtered)).not.toContain("view.toggle-inspector-panel");
+    expect(commandIds(filtered)).not.toContain("view.toggle-assistant-panel");
   });
 
   it("keeps windows and macos scoped items visible on legacy desktop target", () => {
     const filtered = filterAppMenuDefinitionForTarget(TEST_MENU, "desktop");
     expect(commandIds(filtered)).toContain("view.toggle-inspector-panel");
     expect(commandIds(filtered)).toContain("view.toggle-assistant-panel");
+    expect(commandIds(filtered)).toContain("help.check-for-updates");
   });
 });

@@ -86,6 +86,7 @@ export type PlatformWindowApi = {
   bindCloseRequest?: (handler: () => void) => (() => void) | void;
   close?: () => Promise<void> | void;
   confirmUnsavedChanges?: (message: string) => Promise<"save" | "discard" | "cancel">;
+  showMessage?: (options: { title: string; message: string; kind?: "info" | "warning" | "error" }) => Promise<void> | void;
   openExternalUrl?: (url: string) => Promise<boolean> | boolean;
   setTheme?: (theme: "light" | "dark" | null) => Promise<void>;
 };
@@ -218,6 +219,24 @@ export type CodexStatus = {
   hasWsl: boolean;
 };
 
+export type UpdateInfo = {
+  version: string;
+  currentVersion: string;
+  date?: string;
+  body?: string;
+};
+
+export type UpdateInstallProgress =
+  | { type: "started"; contentLength?: number }
+  | { type: "progress"; chunkLength: number }
+  | { type: "finished" };
+
+export type PlatformUpdateApi = {
+  checkForUpdate: () => Promise<UpdateInfo | null>;
+  installUpdate: (onProgress: (progress: UpdateInstallProgress) => void) => Promise<void>;
+  relaunch: () => Promise<void>;
+};
+
 export type AssistantApi = {
   checkCodexStatus?: () => Promise<CodexStatus>;
   installCodex?: (method: "npm" | "brew" | "wsl") => Promise<string>;
@@ -274,6 +293,7 @@ export type EditorPlatform = {
   haptics?: PlatformHaptics;
   accessibility?: PlatformAccessibility;
   assistant?: AssistantApi;
+  updates?: PlatformUpdateApi;
   latex?: PlatformLatex;
 };
 

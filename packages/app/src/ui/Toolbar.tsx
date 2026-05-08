@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { RiDownloadCloudLine } from "@remixicon/react";
 import { useProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
 import { getActiveEditorPlatform } from "../platform/current";
@@ -25,7 +26,14 @@ const SHAPE_POPUP_CHOICES = NODE_SHAPE_OPTIONS.map((option) => ({
   previewSvg: GENERATED_NODE_SHAPE_PREVIEWS[option.value] ?? null
 }));
 
-export function Toolbar() {
+type ToolbarProps = {
+  updateChip?: {
+    version: string;
+    onClick: () => void;
+  } | null;
+};
+
+export function Toolbar({ updateChip = null }: ToolbarProps) {
   const toolMode = useEditorStore((s) => s.toolMode);
   const bucketFillColor = useEditorStore((s) => s.bucketFillColor);
   const selectedAddShape = useEditorStore((s) => s.selectedAddShape);
@@ -355,6 +363,21 @@ export function Toolbar() {
           return separator ? [separator, button] : [button];
         })}
       </div>
+      <div className={css.spacer} />
+      {updateChip ? (
+        <RenderedTooltip content={`Install update ${updateChip.version}`}>
+          <button
+            type="button"
+            className={css.updateChip}
+            onClick={updateChip.onClick}
+            data-testid="toolbar-update-chip"
+            aria-label={`Update available: ${updateChip.version}`}
+          >
+            <RiDownloadCloudLine size={15} aria-hidden="true" />
+            <span>Update available</span>
+          </button>
+        </RenderedTooltip>
+      ) : null}
     </div>
   );
 }

@@ -26,6 +26,7 @@ tauri-plugin-log = "2"
 tauri-plugin-clipboard-x = "2.0.1"
 tauri-plugin-shell = "2"
 tauri-plugin-opener = "2"
+tauri-plugin-process = "2"
 clipboard-rs = "0.3.3"
 base64 = "0.22"
 rfd = { version = "0.15", features = ["common-controls-v6"] }

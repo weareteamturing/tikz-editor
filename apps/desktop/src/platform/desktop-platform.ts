@@ -16,9 +16,12 @@ import {
   type AppMenuItem,
   type DocumentFileRef,
   type EditorPlatform,
+  type UpdateInfo,
+  type UpdateInstallProgress,
   type MenuCommandHandler
 } from "@tikz-editor/app";
 import type { CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu } from "@tauri-apps/api/menu";
+import type { Update } from "@tauri-apps/plugin-updater";
 
 type StorageLike = {
   getItem: (key: string) => string | null;
@@ -78,6 +81,7 @@ type DesktopBridge = {
   setWindowTitle: (title: string) => Promise<void>;
   closeWindow: () => Promise<void>;
   confirmUnsavedChanges: (message: string) => Promise<"save" | "discard" | "cancel">;
+  showMessage?: (options: { title: string; message: string; kind?: "info" | "warning" | "error" }) => Promise<void>;
   openExternalUrl: (url: string) => Promise<boolean>;
   performSnapHaptic?: () => Promise<void>;
   prefersNonBlinkingTextInsertionIndicator?: () => Promise<boolean>;
@@ -94,6 +98,9 @@ type DesktopBridge = {
   onContextMenuCommand: (handler: (payload: { requestId: string; commandId: AppMenuCommandId }) => void) => Promise<() => void>;
   checkCodexStatus?: () => Promise<{ installed: boolean; has_npm: boolean; has_brew: boolean; has_wsl: boolean }>;
   installCodex?: (method: "npm" | "brew" | "wsl") => Promise<string>;
+  checkForUpdate?: () => Promise<UpdateInfo | null>;
+  installUpdate?: (onProgress: (progress: UpdateInstallProgress) => void) => Promise<void>;
+  relaunch?: () => Promise<void>;
   assistantEnsureDocumentThread?: (params: {
     documentId: string;
     source: string;
@@ -560,10 +567,21 @@ function createNativeDesktopMenuManager(options: {
     });
     addCommandRef(APP_MENU_COMMAND_IDS.OPEN_SETTINGS, { kind: "command", item: settingsItem });
 
+    const updateState = commandStates[APP_MENU_COMMAND_IDS.CHECK_FOR_UPDATES] ?? { enabled: false };
+    const updateItem = await menuApi.MenuItem.new({
+      id: "app.check-for-updates",
+      text: "Check for Updates...",
+      enabled: updateState.enabled,
+      action: () => {
+        dispatchCommand(APP_MENU_COMMAND_IDS.CHECK_FOR_UPDATES, "platform");
+      }
+    });
+    addCommandRef(APP_MENU_COMMAND_IDS.CHECK_FOR_UPDATES, { kind: "command", item: updateItem });
+
     return await menuApi.Submenu.new({
       id: "app",
       text: APP_DISPLAY_NAME,
-      items: [aboutItem, separator1, settingsItem, separator2, quitItem]
+      items: [aboutItem, separator1, updateItem, settingsItem, separator2, quitItem]
     });
   }
 
@@ -656,6 +674,8 @@ function createNativeDesktopMenuManager(options: {
 }
 
 function createDefaultBridge(): DesktopBridge {
+  let pendingUpdate: Update | null = null;
+
   return {
     openText: async (path, options) => {
       const { invoke } = await import("@tauri-apps/api/core");
@@ -721,6 +741,10 @@ function createDefaultBridge(): DesktopBridge {
     confirmUnsavedChanges: async (message) => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<"save" | "discard" | "cancel">("desktop_confirm_unsaved_changes", { message });
+    },
+    showMessage: async ({ title, message, kind }) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("desktop_show_message_dialog", { title, message, kind: kind ?? "info" });
     },
     openExternalUrl: async (url) => {
       const { invoke } = await import("@tauri-apps/api/core");
@@ -788,6 +812,43 @@ function createDefaultBridge(): DesktopBridge {
     installCodex: async (method: "npm" | "brew" | "wsl") => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<string>("desktop_install_codex", { method });
+    },
+    checkForUpdate: async () => {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const update = await check();
+      pendingUpdate = update;
+      if (!update) {
+        return null;
+      }
+      return {
+        version: update.version,
+        currentVersion: update.currentVersion,
+        date: update.date,
+        body: update.body
+      };
+    },
+    installUpdate: async (onProgress) => {
+      if (!pendingUpdate) {
+        throw new Error("No pending update is available.");
+      }
+      await pendingUpdate.downloadAndInstall((event) => {
+        switch (event.event) {
+          case "Started":
+            onProgress({ type: "started", contentLength: event.data.contentLength });
+            break;
+          case "Progress":
+            onProgress({ type: "progress", chunkLength: event.data.chunkLength });
+            break;
+          case "Finished":
+            onProgress({ type: "finished" });
+            break;
+        }
+      });
+      pendingUpdate = null;
+    },
+    relaunch: async () => {
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      await relaunch();
     },
     assistantEnsureDocumentThread: async ({ documentId, source, threadId, workspacePath, figurePath, previewPath }) => {
       const { invoke } = await import("@tauri-apps/api/core");
@@ -1112,6 +1173,17 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       confirmUnsavedChanges: async (message) => {
         return await getBridge().confirmUnsavedChanges(message);
       },
+      showMessage: async (options) => {
+        const showMessage = getBridge().showMessage;
+        if (showMessage) {
+          await showMessage(options);
+          return;
+        }
+        const alertFn = (globalThis as { alert?: (message?: string) => void }).alert;
+        if (typeof alertFn === "function") {
+          alertFn(options.message);
+        }
+      },
       openExternalUrl: async (url) => {
         return await getBridge().openExternalUrl(url);
       },
@@ -1278,6 +1350,29 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
           disposed = true;
           unlisten?.();
         };
+      }
+    },
+    updates: {
+      checkForUpdate: async () => {
+        const checkForUpdate = getBridge().checkForUpdate;
+        if (!checkForUpdate) {
+          return null;
+        }
+        return await checkForUpdate();
+      },
+      installUpdate: async (onProgress) => {
+        const installUpdate = getBridge().installUpdate;
+        if (!installUpdate) {
+          throw new Error("Desktop updater is unavailable.");
+        }
+        await installUpdate(onProgress);
+      },
+      relaunch: async () => {
+        const relaunch = getBridge().relaunch;
+        if (!relaunch) {
+          throw new Error("Desktop relaunch is unavailable.");
+        }
+        await relaunch();
       }
     }
   };

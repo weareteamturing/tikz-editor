@@ -18,9 +18,14 @@ function makeMockBridge() {
   const openBinaryCalls: Array<{ path?: string | null; addToRecent?: boolean }> = [];
   const contextMenuPayloads: unknown[] = [];
   const assistantStartTurnPayloads: unknown[] = [];
+  const messageDialogs: unknown[] = [];
+  const updateProgressEvents: string[] = [];
   const pendingOpenRequests: Array<{ source: string; path: string; name: string }> = [];
   const pendingOpenFailures: Array<{ path: string; message: string }> = [];
   let snapHapticCalls = 0;
+  let relaunchCalls = 0;
+  let updateAvailable = true;
+  let updateInstallShouldFail = false;
   let contextMenuCommandHandler: ((payload: { requestId: string; commandId: string }) => void) | null = null;
   let pendingOpenChangedHandler: (() => void) | null = null;
   return {
@@ -29,7 +34,16 @@ function makeMockBridge() {
     openBinaryCalls,
     contextMenuPayloads,
     assistantStartTurnPayloads,
+    messageDialogs,
+    updateProgressEvents,
     getSnapHapticCalls: () => snapHapticCalls,
+    getRelaunchCalls: () => relaunchCalls,
+    setUpdateAvailable: (available: boolean) => {
+      updateAvailable = available;
+    },
+    setUpdateInstallShouldFail: (shouldFail: boolean) => {
+      updateInstallShouldFail = shouldFail;
+    },
     bridge: {
       openText: async (path?: string | null, options?: { addToRecent?: boolean }) => {
         openTextCalls.push({ path, addToRecent: options?.addToRecent });
@@ -61,6 +75,10 @@ function makeMockBridge() {
       writeClipboardBundle: async () => undefined,
       setWindowTitle: async () => undefined,
       closeWindow: async () => undefined,
+      confirmUnsavedChanges: async () => "cancel" as const,
+      showMessage: async (options: { title: string; message: string; kind?: "info" | "warning" | "error" }) => {
+        messageDialogs.push(options);
+      },
       openExternalUrl: async () => true,
       performSnapHaptic: async () => {
         snapHapticCalls += 1;
@@ -87,6 +105,27 @@ function makeMockBridge() {
             contextMenuCommandHandler = null;
           }
         };
+      },
+      checkForUpdate: async () => updateAvailable
+        ? {
+            version: "0.2.0",
+            currentVersion: "0.1.0",
+            date: "2026-05-08T12:00:00Z",
+            body: "Update notes"
+          }
+        : null,
+      installUpdate: async (onProgress) => {
+        if (updateInstallShouldFail) {
+          throw new Error("download failed");
+        }
+        onProgress({ type: "started", contentLength: 100 });
+        onProgress({ type: "progress", chunkLength: 40 });
+        onProgress({ type: "progress", chunkLength: 60 });
+        onProgress({ type: "finished" });
+        updateProgressEvents.push("done");
+      },
+      relaunch: async () => {
+        relaunchCalls += 1;
       },
       assistantEnsureDocumentThread: async ({ documentId }) => ({
         threadId: `thr-${documentId}`,
@@ -216,6 +255,67 @@ describe("desktop shell flows", () => {
         })
       ]
     }));
+  });
+
+  it("exposes update checks through the desktop platform", async () => {
+    const mock = makeMockBridge();
+    const platform = createDesktopPlatformAdapter({
+      storage: { getItem: () => null, setItem: () => undefined },
+      bridge: mock.bridge
+    });
+
+    const update = await platform.updates?.checkForUpdate();
+    expect(update).toEqual({
+      version: "0.2.0",
+      currentVersion: "0.1.0",
+      date: "2026-05-08T12:00:00Z",
+      body: "Update notes"
+    });
+  });
+
+  it("forwards update install progress and relaunches", async () => {
+    const mock = makeMockBridge();
+    const platform = createDesktopPlatformAdapter({
+      storage: { getItem: () => null, setItem: () => undefined },
+      bridge: mock.bridge
+    });
+
+    const progress: unknown[] = [];
+    await platform.updates?.installUpdate?.((event) => {
+      progress.push(event);
+    });
+    await platform.updates?.relaunch?.();
+
+    expect(progress).toEqual([
+      { type: "started", contentLength: 100 },
+      { type: "progress", chunkLength: 40 },
+      { type: "progress", chunkLength: 60 },
+      { type: "finished" }
+    ]);
+    expect(mock.updateProgressEvents).toEqual(["done"]);
+    expect(mock.getRelaunchCalls()).toBe(1);
+  });
+
+  it("reports update install failures", async () => {
+    const mock = makeMockBridge();
+    mock.setUpdateInstallShouldFail(true);
+    const platform = createDesktopPlatformAdapter({
+      storage: { getItem: () => null, setItem: () => undefined },
+      bridge: mock.bridge
+    });
+
+    await expect(platform.updates?.installUpdate?.(() => undefined)).rejects.toThrow("download failed");
+  });
+
+  it("returns null when no update is available", async () => {
+    const mock = makeMockBridge();
+    mock.setUpdateAvailable(false);
+    const platform = createDesktopPlatformAdapter({
+      storage: { getItem: () => null, setItem: () => undefined },
+      bridge: mock.bridge
+    });
+
+    await expect(platform.updates?.checkForUpdate()).resolves.toBeNull();
   });
 
   it("routes rust-owned context menu command events to app commands", async () => {

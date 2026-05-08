@@ -1265,6 +1265,31 @@ async fn desktop_confirm_unsaved_changes(message: String) -> Result<String, Stri
 }
 
 #[tauri::command]
+async fn desktop_show_message_dialog(
+    title: String,
+    message: String,
+    kind: Option<String>,
+) -> Result<(), String> {
+    use rfd::{AsyncMessageDialog, MessageButtons, MessageLevel};
+
+    let level = match kind.as_deref() {
+        Some("warning") => MessageLevel::Warning,
+        Some("error") => MessageLevel::Error,
+        _ => MessageLevel::Info,
+    };
+
+    AsyncMessageDialog::new()
+        .set_level(level)
+        .set_title(&title)
+        .set_description(&message)
+        .set_buttons(MessageButtons::Ok)
+        .show()
+        .await;
+
+    Ok(())
+}
+
+#[tauri::command]
 fn desktop_confirm_window_close(app: AppHandle) -> Result<(), String> {
     {
         let state = app.state::<WindowCloseState>();
@@ -1665,6 +1690,7 @@ pub fn run() {
 
     builder = builder
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_clipboard_x::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init());
@@ -1714,6 +1740,7 @@ pub fn run() {
             desktop_save_text,
             desktop_export_file,
             desktop_confirm_unsaved_changes,
+            desktop_show_message_dialog,
             desktop_confirm_window_close,
             desktop_list_recent_files,
             desktop_clear_recent_files,

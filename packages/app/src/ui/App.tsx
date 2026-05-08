@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   APP_MENU_COMMAND_IDS,
@@ -36,7 +36,7 @@ import type { UnsavedChangesDecision } from "./UnsavedChangesModal";
 import { collectDirtyDocumentIdsForIntent, type CloseIntent } from "./close-guard";
 import { OPEN_EXAMPLE_CATALOG, type TikzOpenExample } from "./examples/open-example-catalog";
 import type { EmitSvgResult } from "tikz-editor/svg/index";
-import type { AssistantEvent } from "../platform/types";
+import type { AssistantEvent, UpdateInfo, UpdateInstallProgress } from "../platform/types";
 import { resolveOpenedFileForDocument, dataTransferHasFilePayload } from "./svg-import";
 import type { AssistantComposerImageAttachment } from "./assistant-image-attachments";
 import { formatEquationText, type EquationNodeTarget } from "./equation-utils";
@@ -98,6 +98,13 @@ const ManageWorkspacesModal = lazy(async () => {
   return { default: mod.ManageWorkspacesModal };
 });
 
+const UpdateModal = lazy(async () => {
+  const mod = await import("./UpdateModal");
+  return { default: mod.UpdateModal };
+});
+
+let startupUpdateCheckStarted = false;
+
 function menuTargetFromPlatformId(platformId: string): AppMenuPlatformTarget {
   if (platformId.startsWith("desktop")) {
     if (typeof navigator !== "undefined") {
@@ -108,7 +115,7 @@ function menuTargetFromPlatformId(platformId: string): AppMenuPlatformTarget {
         return "desktop-windows";
       }
     }
-    return "desktop";
+    return "desktop-linux";
   }
   return "web";
 }
@@ -175,6 +182,11 @@ type RepeatModalState = {
   verticalStepPt: number;
 };
 
+type UpdateModalPhase =
+  | { status: "idle" }
+  | { status: "installing"; downloadedBytes: number; contentLength?: number }
+  | { status: "failed"; message: string };
+
 export function App() {
   const {
     source,
@@ -226,6 +238,11 @@ export function App() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showSaveWorkspaceModal, setShowSaveWorkspaceModal] = useState(false);
   const [showManageWorkspacesModal, setShowManageWorkspacesModal] = useState(false);
+  const [availableUpdate, setAvailableUpdate] = useState<UpdateInfo | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [updateDismissedForSession, setUpdateDismissedForSession] = useState(false);
+  const [updateCheckBusy, setUpdateCheckBusy] = useState(false);
+  const [updateModalPhase, setUpdateModalPhase] = useState<UpdateModalPhase>({ status: "idle" });
   const userWorkspaces = useWorkspaceListStore((s) => s.userWorkspaces);
   const [isDragOver, setIsDragOver] = useState(false);
   const isDesktop = platform.id.startsWith("desktop");
@@ -247,6 +264,7 @@ export function App() {
   const [pendingClose, setPendingClose] = useState<{ intent: CloseIntent; dirtyDocumentIds: string[] } | null>(null);
   const requestCloseIntentRef = useRef<(intent: CloseIntent) => void>(() => {});
   const computeSchedulerRef = useRef<ReturnType<typeof createSingleFlightScheduler<ComputeRequest, ComputeResponse>> | null>(null);
+  const updateCheckPromiseRef = useRef<Promise<UpdateInfo | null> | null>(null);
   const sourceRef = useRef(source);
   const snapshotRef = useRef(snapshot);
   const activeDocumentIdRef = useRef(activeDocumentId);
@@ -287,6 +305,64 @@ export function App() {
 
   requestCloseIntentRef.current = requestCloseIntent;
 
+  const showNativeMessage = useCallback(async (
+    title: string,
+    message: string,
+    kind: "info" | "warning" | "error" = "info"
+  ): Promise<void> => {
+    const showMessage = getActiveEditorPlatform().window?.showMessage;
+    if (typeof showMessage === "function") {
+      await showMessage({ title, message, kind });
+      return;
+    }
+    const alertFn = (globalThis as { alert?: (message?: string) => void }).alert;
+    if (typeof alertFn === "function") {
+      alertFn(message);
+    }
+  }, []);
+
+  const runUpdateCheck = useCallback(async (): Promise<UpdateInfo | null> => {
+    const updates = getActiveEditorPlatform().updates;
+    if (!updates) {
+      return null;
+    }
+    if (updateCheckPromiseRef.current) {
+      return await updateCheckPromiseRef.current;
+    }
+    setUpdateCheckBusy(true);
+    const promise = updates.checkForUpdate();
+    updateCheckPromiseRef.current = promise;
+    try {
+      const update = await promise;
+      setAvailableUpdate(update);
+      if (update) {
+        setUpdateDismissedForSession(false);
+      }
+      return update;
+    } finally {
+      updateCheckPromiseRef.current = null;
+      setUpdateCheckBusy(false);
+    }
+  }, []);
+
+  const handleManualUpdateCheck = useCallback(async (): Promise<void> => {
+    try {
+      const update = await runUpdateCheck();
+      if (update) {
+        setUpdateModalPhase({ status: "idle" });
+        setShowUpdateModal(true);
+        return;
+      }
+      await showNativeMessage("TikZ Editor", "You're up to date.", "info");
+    } catch (error) {
+      await showNativeMessage(
+        "Update Check Failed",
+        error instanceof Error ? error.message : String(error),
+        "error"
+      );
+    }
+  }, [runUpdateCheck, showNativeMessage]);
+
   const commandRuntime = useEditorCommandRuntime({
     onOpenExample: () => {
       setShowOpenExampleModal(true);
@@ -306,6 +382,10 @@ export function App() {
     onOpenSettings: () => {
       setShowSettingsModal(true);
     },
+    onCheckForUpdates: () => {
+      void handleManualUpdateCheck();
+    },
+    updateCheckBusy: updateCheckBusy || updateModalPhase.status === "installing",
     onOpenInsertEquation: () => {
       setEquationModalState({ mode: "insert" });
     },
@@ -361,6 +441,18 @@ export function App() {
       apply(colorScheme === "dark");
     }
   }, [canvasInvert, colorScheme, platform.window]);
+
+  useEffect(() => {
+    if (!platform.updates || startupUpdateCheckStarted) {
+      return;
+    }
+    startupUpdateCheckStarted = true;
+    void runUpdateCheck().catch((error: unknown) => {
+      if (typeof console !== "undefined" && typeof console.info === "function") {
+        console.info("[tikz-editor] Startup update check failed.", error);
+      }
+    });
+  }, [platform.updates, runUpdateCheck]);
 
   useEffect(() => {
     const desktopOs = desktopOsFromPlatformId(platform.id);
@@ -1395,6 +1487,59 @@ export function App() {
     executeCloseIntent(closeCtx.intent);
   }
 
+  function handleUpdateLater(): void {
+    setShowUpdateModal(false);
+    setUpdateDismissedForSession(true);
+    setUpdateModalPhase({ status: "idle" });
+  }
+
+  function handleUpdateModalClose(): void {
+    setShowUpdateModal(false);
+    setUpdateModalPhase({ status: "idle" });
+  }
+
+  async function handleInstallUpdate(): Promise<void> {
+    const updates = getActiveEditorPlatform().updates;
+    if (!updates || !availableUpdate) {
+      return;
+    }
+    setUpdateModalPhase({ status: "installing", downloadedBytes: 0 });
+    let downloadedBytes = 0;
+    try {
+      await updates.installUpdate((progress: UpdateInstallProgress) => {
+        if (progress.type === "started") {
+          downloadedBytes = 0;
+          setUpdateModalPhase({
+            status: "installing",
+            downloadedBytes,
+            contentLength: progress.contentLength
+          });
+          return;
+        }
+        if (progress.type === "progress") {
+          downloadedBytes += progress.chunkLength;
+          setUpdateModalPhase((current) => ({
+            status: "installing",
+            downloadedBytes,
+            contentLength: current.status === "installing" ? current.contentLength : undefined
+          }));
+          return;
+        }
+        setUpdateModalPhase((current) => ({
+          status: "installing",
+          downloadedBytes,
+          contentLength: current.status === "installing" ? current.contentLength : undefined
+        }));
+      });
+      await updates.relaunch();
+    } catch (error) {
+      setUpdateModalPhase({
+        status: "failed",
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
   function isDroppableFile(file: File): boolean {
     const name = file.name.toLowerCase();
     return name.endsWith(".tex") || name.endsWith(".tikz") || name.endsWith(".svg");
@@ -1450,7 +1595,19 @@ export function App() {
           bindings={commandRuntime.bindings}
         />
       )}
-      <Toolbar />
+      <Toolbar
+        updateChip={
+          availableUpdate && !showUpdateModal && !updateDismissedForSession
+            ? {
+                version: availableUpdate.version,
+                onClick: () => {
+                  setUpdateModalPhase({ status: "idle" });
+                  setShowUpdateModal(true);
+                }
+              }
+            : null
+        }
+      />
       <TabStrip
         onRequestCloseDocument={(documentId) => {
           requestCloseIntent({ kind: "close-document", documentId });
@@ -1636,6 +1793,20 @@ export function App() {
       {showManageWorkspacesModal ? (
         <Suspense fallback={null}>
           <ManageWorkspacesModal onClose={() => { setShowManageWorkspacesModal(false); }} />
+        </Suspense>
+      ) : null}
+      {showUpdateModal && availableUpdate ? (
+        <Suspense fallback={null}>
+          <UpdateModal
+            update={availableUpdate}
+            phase={updateModalPhase}
+            isWindows={desktopOsFromPlatformId(platform.id) === "windows"}
+            onInstall={() => {
+              void handleInstallUpdate();
+            }}
+            onClose={handleUpdateModalClose}
+            onLater={handleUpdateLater}
+          />
         </Suspense>
       ) : null}
       {isDragOver ? (

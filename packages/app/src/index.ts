@@ -41,6 +41,9 @@ export type {
   AssistantThreadSummary,
   AssistantTurnStatus,
   EditorPlatform,
+  PlatformUpdateApi,
+  UpdateInfo,
+  UpdateInstallProgress,
   PlatformLatex,
   MenuCommandOrigin,
   MenuCommandHandler

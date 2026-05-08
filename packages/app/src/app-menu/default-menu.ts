@@ -581,6 +581,13 @@ export const APP_MENU_DEFINITION = [
     items: [
       {
         kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.CHECK_FOR_UPDATES,
+        label: "Check for Updates...",
+        platforms: ["desktop-windows", "desktop-linux"]
+      },
+      { kind: "separator", platforms: ["desktop-windows", "desktop-linux"] },
+      {
+        kind: "command",
         commandId: APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL,
         label: "Open PGF/TikZ Manual"
       }

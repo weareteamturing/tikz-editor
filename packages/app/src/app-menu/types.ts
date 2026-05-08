@@ -99,6 +99,7 @@ export const APP_MENU_COMMAND_IDS = {
   SAVE_WORKSPACE_AS: "view.save-workspace-as",
   MANAGE_WORKSPACES: "view.manage-workspaces",
   OPEN_PGF_TIKZ_MANUAL: "help.open-pgf-tikz-manual",
+  CHECK_FOR_UPDATES: "help.check-for-updates",
   SHOW_COMPILED_PICTURE: "file.show-compiled-picture",
   OPEN_SETTINGS: "file.open-settings",
   CLEAR_RECENT_FILES: "file.clear-recent-files"
@@ -106,7 +107,7 @@ export const APP_MENU_COMMAND_IDS = {
 
 export type AppMenuCommandId = (typeof APP_MENU_COMMAND_IDS)[keyof typeof APP_MENU_COMMAND_IDS];
 
-export type AppMenuPlatformTarget = "web" | "desktop" | "desktop-macos" | "desktop-windows";
+export type AppMenuPlatformTarget = "web" | "desktop" | "desktop-macos" | "desktop-windows" | "desktop-linux";
 
 type AppMenuPlatformScoped = {
   platforms?: readonly AppMenuPlatformTarget[];

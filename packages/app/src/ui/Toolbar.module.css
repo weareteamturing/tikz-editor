@@ -140,6 +140,35 @@
   flex: 1;
 }
 
+.updateChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  margin-left: 8px;
+  margin-right: 3px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-pane));
+  color: var(--text);
+  font: inherit;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.updateChip:hover {
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-pane));
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+}
+
+.updateChip:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 1px;
+}
+
 .modeLabel {
   font-size: calc(var(--app-ui-scale, 1) * 10px);
   color: var(--text-faint);

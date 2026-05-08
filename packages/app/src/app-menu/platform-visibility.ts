@@ -21,8 +21,11 @@ function platformTargetsMatch(target: AppMenuPlatformTarget, candidate: AppMenuP
   if (target === "desktop-macos") {
     return candidate === "desktop";
   }
+  if (target === "desktop-linux") {
+    return candidate === "desktop";
+  }
   if (target === "desktop") {
-    return candidate === "desktop-windows" || candidate === "desktop-macos";
+    return candidate === "desktop-windows" || candidate === "desktop-macos" || candidate === "desktop-linux";
   }
   return false;
 }
