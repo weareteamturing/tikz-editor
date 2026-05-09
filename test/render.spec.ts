@@ -382,6 +382,50 @@ describe("render pipeline", () => {
     expect(result.semantic.scene.elements.length).toBeGreaterThan(0);
   });
 
+  it("uses browser text measurement for plain node text fallback width", () => {
+    const target = globalThis as unknown as {
+      document?: unknown;
+    };
+    const previousDocument = target.document;
+    target.document = {
+      createElement: (tagName: string) => {
+        if (tagName !== "canvas") {
+          return {};
+        }
+        return {
+          getContext: (contextId: string) =>
+            contextId === "2d"
+              ? {
+                  font: "",
+                  measureText: (text: string) => ({
+                    width: text === "iiiiiiiiii" ? 12 : text.length * 10,
+                    actualBoundingBoxAscent: 7,
+                    actualBoundingBoxDescent: 2
+                  })
+                }
+              : null
+        };
+      }
+    };
+
+    try {
+      const source = String.raw`\begin{tikzpicture}
+  \node at (0,0) {iiiiiiiiii};
+\end{tikzpicture}`;
+      const result = renderTikzToSvg(source);
+      const text = result.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+
+      expect(text?.textBlockWidth).toBe(12);
+      expect(text?.textBlockHeight).toBe(9);
+    } finally {
+      if (previousDocument === undefined) {
+        delete target.document;
+      } else {
+        target.document = previousDocument;
+      }
+    }
+  });
+
   it("does not report invalid-node-tex for matrix bodies containing ampersands", async () => {
     const source = String.raw`\begin{tikzpicture}
   \matrix[matrix of nodes] at (0,0) {

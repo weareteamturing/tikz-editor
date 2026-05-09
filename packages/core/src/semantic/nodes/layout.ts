@@ -14,6 +14,15 @@ const EXPLICIT_LINE_BREAK_PATTERN = /[ \t\r\n]*\\\\(?:\[[^\]]*\])?[ \t\r\n]*/g;
 const EXPLICIT_LINE_BREAK_CANONICAL_PATTERN = /[ \t\r\n]*(\\\\(?:\[[^\]]*\])?)[ \t\r\n]*/g;
 const EXPLICIT_LINE_BREAK_TOKEN_PATTERN = /\\\\(?:\[[^\]]*\])?/;
 
+let plainTextMeasureContext: CanvasRenderingContext2D | null | undefined;
+
+type PlainTextBlockMetrics = {
+  width: number;
+  height: number;
+  baselineY: number;
+  midLineY: number;
+};
+
 export function resolveNodeLayout(
   text: string,
   options: PathOptionItem["options"] | undefined,
@@ -171,9 +180,11 @@ export function resolveNodeLayout(
         `Multiline MathJax measurement failed for node text layout (${layoutKind}).`
       );
     }
-    const maxLineLength = textLines.reduce((max, line) => Math.max(max, line.length), 0);
-    textNaturalWidth = maxLineLength * charWidth;
-    textNaturalHeight = textLines.length * lineHeight;
+    const plainMetrics = measurePlainTextBlock(textLines, style, charWidth, lineHeight, baseLineY, midLineY);
+    textNaturalWidth = plainMetrics.width;
+    textNaturalHeight = plainMetrics.height;
+    baseLineY = plainMetrics.baselineY;
+    midLineY = plainMetrics.midLineY;
   }
 
   // Empty node text should not contribute a synthetic baseline line box
@@ -299,6 +310,99 @@ function computeNodeTextLines(text: string, textWidth: number | null, charWidth:
     wrapped.push(...wrapLine(line, maxChars));
   }
   return wrapped.length > 0 ? wrapped : [""];
+}
+
+function measurePlainTextBlock(
+  lines: string[],
+  style: ResolvedStyle,
+  fallbackCharWidth: number,
+  fallbackLineHeight: number,
+  fallbackBaselineY: number,
+  fallbackMidLineY: number
+): PlainTextBlockMetrics {
+  const context = getPlainTextMeasureContext();
+  if (context) {
+    applyPlainTextMeasureFont(context, style);
+    let measuredWidth = 0;
+    let measuredAscent = 0;
+    let measuredDescent = 0;
+    for (const line of lines) {
+      const metrics = context.measureText(line);
+      if (Number.isFinite(metrics.width) && metrics.width > measuredWidth) {
+        measuredWidth = metrics.width;
+      }
+      const ascent = resolvePlainTextMetric(metrics, "fontBoundingBoxAscent", "actualBoundingBoxAscent");
+      const descent = resolvePlainTextMetric(metrics, "fontBoundingBoxDescent", "actualBoundingBoxDescent");
+      if (ascent != null) {
+        measuredAscent = Math.max(measuredAscent, ascent);
+      }
+      if (descent != null) {
+        measuredDescent = Math.max(measuredDescent, descent);
+      }
+    }
+    if (measuredWidth > 0) {
+      const measuredLineHeight = measuredAscent + measuredDescent;
+      const lineHeight = measuredLineHeight > 0 ? measuredLineHeight : fallbackLineHeight;
+      const lineGap = Math.max(style.fontSize * 1.15, lineHeight);
+      const height = lineHeight + Math.max(0, lines.length - 1) * lineGap;
+      const baselineY = measuredLineHeight > 0 ? (measuredDescent - measuredAscent) / 2 : fallbackBaselineY;
+      const midLineY = measuredLineHeight > 0 ? 0 : fallbackMidLineY;
+      return {
+        width: measuredWidth,
+        height,
+        baselineY,
+        midLineY
+      };
+    }
+  }
+
+  const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
+  return {
+    width: maxLineLength * fallbackCharWidth,
+    height: lines.length * fallbackLineHeight,
+    baselineY: fallbackBaselineY,
+    midLineY: fallbackMidLineY
+  };
+}
+
+function resolvePlainTextMetric(
+  metrics: TextMetrics,
+  preferredKey: "fontBoundingBoxAscent" | "fontBoundingBoxDescent",
+  fallbackKey: "actualBoundingBoxAscent" | "actualBoundingBoxDescent"
+): number | null {
+  const preferred = metrics[preferredKey];
+  if (Number.isFinite(preferred) && preferred > 0) {
+    return preferred;
+  }
+  const fallback = metrics[fallbackKey];
+  return Number.isFinite(fallback) && fallback > 0 ? fallback : null;
+}
+
+function getPlainTextMeasureContext(): CanvasRenderingContext2D | null {
+  if (plainTextMeasureContext !== undefined) {
+    return plainTextMeasureContext;
+  }
+
+  const documentLike = (globalThis as { document?: { createElement?: (tagName: string) => unknown } }).document;
+  if (typeof documentLike?.createElement !== "function") {
+    return null;
+  }
+
+  const canvas = documentLike.createElement("canvas") as { getContext?: (contextId: "2d") => CanvasRenderingContext2D | null };
+  plainTextMeasureContext = typeof canvas?.getContext === "function" ? canvas.getContext("2d") : null;
+  return plainTextMeasureContext;
+}
+
+function applyPlainTextMeasureFont(context: CanvasRenderingContext2D, style: ResolvedStyle): void {
+  const fontStyle = style.fontStyle === "italic" ? "italic " : "";
+  const fontWeight = style.fontWeight === "bold" ? "bold " : "";
+  const fontFamily =
+    style.fontFamily === "sans"
+      ? "CMU Sans Serif, Latin Modern Sans, Helvetica, Arial, sans-serif"
+      : style.fontFamily === "monospace"
+        ? "Latin Modern Mono, CMU Typewriter Text, Courier New, monospace"
+        : "CMU Serif, Latin Modern Roman, Times New Roman, serif";
+  context.font = `${fontStyle}${fontWeight}${Math.max(1, style.fontSize)}px ${fontFamily}`;
 }
 
 function resolveParagraphAlignment(
