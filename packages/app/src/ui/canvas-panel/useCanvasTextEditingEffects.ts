@@ -8,7 +8,7 @@ import { clientToViewport, svgToViewport } from "../coords/convert";
 import { clientBoundsToViewport, svgBoundsToViewportBounds } from "../coords/text";
 import { clamp } from "./geometry";
 import { createSourceRenderOffsetMap } from "./text-offset-map";
-import { applyTextMeasureFont, createVisualTextLayout } from "./text-visual-layout";
+import { applyTextMeasureFont, createVisualTextLayout, resolveVisualLineLeft } from "./text-visual-layout";
 import type { CanvasSnapshot, EditableTextTarget, StateSetter, TextEditingSession, TextSelectionOverlay, TextSelectionOverlayBox } from "./types";
 import type { CanvasTextEditAction } from "./canvas-text-edit-machine";
 
@@ -89,8 +89,9 @@ function resolveRegionSelectionOverlay(
   const ranges = layout.sourceLineRanges;
   const lineHeight = target.region.height / Math.max(1, ranges.length);
   if (selectionStart === selectionEnd) {
-    const { lineIndex, ratio } = layout.getCaretPosition(selectionStart);
-    const left = target.region.x + clamp(ratio, 0, 1) * target.region.width;
+    const { lineIndex, x, lineWidth } = layout.getCaretPosition(selectionStart);
+    const lineLeft = resolveVisualLineLeft(target.region.width, lineWidth, target.style.textAlign);
+    const left = target.region.x + lineLeft + clamp(x, 0, Math.max(lineWidth, target.region.width));
     const top = target.region.y + lineIndex * lineHeight;
     const height = Math.max(1, lineHeight);
     return {
@@ -111,9 +112,10 @@ function resolveRegionSelectionOverlay(
     if (localEnd <= localStart) {
       continue;
     }
-    const { leftRatio, rightRatio } = layout.getLineSelectionRatios(localStart, localEnd, index);
-    const left = target.region.x + clamp(leftRatio, 0, 1) * target.region.width;
-    const right = target.region.x + clamp(rightRatio, 0, 1) * target.region.width;
+    const { leftX, rightX, lineWidth } = layout.getLineSelectionRatios(localStart, localEnd, index);
+    const lineLeft = resolveVisualLineLeft(target.region.width, lineWidth, target.style.textAlign);
+    const left = target.region.x + lineLeft + clamp(leftX, 0, Math.max(lineWidth, target.region.width));
+    const right = target.region.x + lineLeft + clamp(rightX, 0, Math.max(lineWidth, target.region.width));
     const top = target.region.y + index * lineHeight;
     const height = Math.max(1, lineHeight);
     const width = Math.max(1, right - left);

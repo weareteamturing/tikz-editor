@@ -117,7 +117,7 @@ type SnapDebugOverlayRect,
 type SnapDebugPoint
 } from "./canvas-panel/snap-debug";
 import { createSourceRenderOffsetMap } from "./canvas-panel/text-offset-map";
-import { applyTextMeasureFont,collectLogicalLineRanges,createVisualTextLayout } from "./canvas-panel/text-visual-layout";
+import { applyTextMeasureFont,collectLogicalLineRanges,createVisualTextLayout,resolveVisualLineLeft } from "./canvas-panel/text-visual-layout";
 import type {
 ApplyActionFeedback,
 CanvasContextMenuState,
@@ -509,16 +509,6 @@ function estimateTextOffsetFromClient(
       : makeSvgPoint(pt(clientPoint.x), pt(clientPoint.y));
   })();
   const localPoint = mapPointToRectRegionLocal(svgPoint, target.region);
-  const xRatio =
-    contentBox.width <= 1e-6
-      ? 1
-      : clamp((localPoint.x - contentBox.x) / contentBox.width, 0, 1);
-
-  const ranges = collectLogicalLineRanges(target.text);
-  if (ranges.length <= 1) {
-    return clamp(Math.round(xRatio * target.text.length), 0, target.text.length);
-  }
-
   const ctx = getFallbackTextMeasureContext();
   applyFallbackMeasureFont(ctx, target);
   const layout = createVisualTextLayout(
@@ -531,6 +521,7 @@ function estimateTextOffsetFromClient(
       return ctx.measureText(text).width;
     }
   );
+  const ranges = layout.sourceLineRanges;
 
   const yRatio =
     contentBox.height <= 1e-6
@@ -540,7 +531,10 @@ function estimateTextOffsetFromClient(
     ranges.length - 1,
     Math.max(0, Math.floor(yRatio * ranges.length))
   );
-  return layout.resolveSourceOffsetFromLineRatio(lineIndex, xRatio);
+  const lineWidth = layout.getLineWidth(lineIndex);
+  const lineLeft = resolveVisualLineLeft(contentBox.width, lineWidth, target.style.textAlign);
+  const localLineX = localPoint.x - contentBox.x - lineLeft;
+  return layout.resolveSourceOffsetFromLineX(lineIndex, localLineX);
 }
 
 function estimateTextLineRangeFromClient(

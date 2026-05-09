@@ -12,6 +12,17 @@ export type TextMeasureStyle = {
   fontFamily?: string | null;
 };
 
+export type VisualTextAlign =
+  | "left"
+  | "flush left"
+  | "right"
+  | "flush right"
+  | "center"
+  | "flush center"
+  | "justify"
+  | "none"
+  | undefined;
+
 type MathMode = "none" | "dollar" | "paren";
 
 const STRUCTURAL_MATH_COMMANDS = new Set([
@@ -232,16 +243,25 @@ function prefixXFromLocalOffset(prefix: number[], offset: number): number {
   return (prefix[bounded] ?? 0) / total;
 }
 
-function offsetFromPrefixRatio(prefix: number[], xRatio: number): number {
+function prefixWidth(prefix: number[]): number {
+  return Math.max(0, prefix[prefix.length - 1] ?? 0);
+}
+
+function prefixDistanceFromLocalOffset(prefix: number[], offset: number): number {
+  const bounded = Math.max(0, Math.min(offset, Math.max(0, prefix.length - 1)));
+  return Math.max(0, prefix[bounded] ?? 0);
+}
+
+function offsetFromPrefixDistance(prefix: number[], x: number): number {
   const lineLength = Math.max(0, prefix.length - 1);
   if (lineLength === 0) {
     return 0;
   }
   const total = prefix[lineLength] ?? 0;
   if (!(total > 0)) {
-    return clamp(Math.round(xRatio * lineLength), 0, lineLength);
+    return clamp(Math.round(x * lineLength), 0, lineLength);
   }
-  const target = clamp(xRatio, 0, 1) * total;
+  const target = clamp(x, 0, total);
   let bestIndex = 0;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (let index = 0; index < prefix.length; index += 1) {
@@ -252,6 +272,26 @@ function offsetFromPrefixRatio(prefix: number[], xRatio: number): number {
     }
   }
   return bestIndex;
+}
+
+function offsetFromPrefixRatio(prefix: number[], xRatio: number): number {
+  const total = prefixWidth(prefix);
+  if (!(total > 0)) {
+    return offsetFromPrefixDistance(prefix, clamp(xRatio, 0, 1));
+  }
+  return offsetFromPrefixDistance(prefix, clamp(xRatio, 0, 1) * total);
+}
+
+export function resolveVisualLineLeft(blockWidth: number, lineWidth: number, align: VisualTextAlign): number {
+  const safeBlockWidth = Number.isFinite(blockWidth) && blockWidth > 0 ? blockWidth : lineWidth;
+  const safeLineWidth = Math.max(0, Number.isFinite(lineWidth) ? lineWidth : 0);
+  if (align === "left" || align === "flush left" || align === "justify") {
+    return 0;
+  }
+  if (align === "right" || align === "flush right") {
+    return Math.max(0, safeBlockWidth - safeLineWidth);
+  }
+  return Math.max(0, (safeBlockWidth - safeLineWidth) / 2);
 }
 
 function resolveLineIndexForOffset(ranges: LogicalLineRange[], textLength: number, offset: number): number {
@@ -301,30 +341,51 @@ export function createVisualTextLayout(
     renderLineRanges: renderRanges,
     sourceToRender: offsetMap.sourceToRender,
     renderToSource: offsetMap.renderToSource,
-    getCaretPosition(sourceOffset: number): { lineIndex: number; ratio: number } {
+    getCaretPosition(sourceOffset: number): { lineIndex: number; ratio: number; x: number; lineWidth: number } {
       const lineIndex = resolveLineIndexForOffset(sourceRanges, sourceText.length, sourceOffset);
       const renderRange = resolveRenderLineRange(lineIndex);
       const renderPrefix = resolveRenderPrefix(lineIndex);
       const renderOffset = clampRenderOffsetToLineRange(offsetMap.sourceToRender(sourceOffset), renderRange);
+      const localOffset = renderOffset - renderRange.start;
       return {
         lineIndex,
-        ratio: prefixXFromLocalOffset(renderPrefix, renderOffset - renderRange.start)
+        ratio: prefixXFromLocalOffset(renderPrefix, localOffset),
+        x: prefixDistanceFromLocalOffset(renderPrefix, localOffset),
+        lineWidth: prefixWidth(renderPrefix)
       };
     },
-    getLineSelectionRatios(sourceOffsetStart: number, sourceOffsetEnd: number, lineIndex: number): { leftRatio: number; rightRatio: number } {
+    getLineSelectionRatios(
+      sourceOffsetStart: number,
+      sourceOffsetEnd: number,
+      lineIndex: number
+    ): { leftRatio: number; rightRatio: number; leftX: number; rightX: number; lineWidth: number } {
       const renderRange = resolveRenderLineRange(lineIndex);
       const renderPrefix = resolveRenderPrefix(lineIndex);
       const renderStart = clampRenderOffsetToLineRange(offsetMap.sourceToRender(sourceOffsetStart), renderRange);
       const renderEnd = clampRenderOffsetToLineRange(offsetMap.sourceToRender(sourceOffsetEnd), renderRange);
+      const localStart = renderStart - renderRange.start;
+      const localEnd = renderEnd - renderRange.start;
       return {
-        leftRatio: prefixXFromLocalOffset(renderPrefix, renderStart - renderRange.start),
-        rightRatio: prefixXFromLocalOffset(renderPrefix, renderEnd - renderRange.start)
+        leftRatio: prefixXFromLocalOffset(renderPrefix, localStart),
+        rightRatio: prefixXFromLocalOffset(renderPrefix, localEnd),
+        leftX: prefixDistanceFromLocalOffset(renderPrefix, localStart),
+        rightX: prefixDistanceFromLocalOffset(renderPrefix, localEnd),
+        lineWidth: prefixWidth(renderPrefix)
       };
+    },
+    getLineWidth(lineIndex: number): number {
+      return prefixWidth(resolveRenderPrefix(lineIndex));
     },
     resolveSourceOffsetFromLineRatio(lineIndex: number, xRatio: number): number {
       const renderRange = resolveRenderLineRange(lineIndex);
       const renderPrefix = resolveRenderPrefix(lineIndex);
       const localOffset = offsetFromPrefixRatio(renderPrefix, xRatio);
+      return clamp(offsetMap.renderToSource(renderRange.start + localOffset), 0, sourceText.length);
+    },
+    resolveSourceOffsetFromLineX(lineIndex: number, x: number): number {
+      const renderRange = resolveRenderLineRange(lineIndex);
+      const renderPrefix = resolveRenderPrefix(lineIndex);
+      const localOffset = offsetFromPrefixDistance(renderPrefix, x);
       return clamp(offsetMap.renderToSource(renderRange.start + localOffset), 0, sourceText.length);
     }
   };

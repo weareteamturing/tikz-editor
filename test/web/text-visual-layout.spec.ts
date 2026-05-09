@@ -69,6 +69,18 @@ describe("text visual layout", () => {
     expect(positions[text.length]).toBeGreaterThan(positions[0] ?? 0);
   });
 
+  it("reports measured caret distances instead of only proportional ratios", () => {
+    const layout = createVisualTextLayout("iw", "iw", (text) => {
+      if (text === "i") return 1;
+      if (text === "w") return 4;
+      return text.length;
+    });
+
+    expect(layout.getCaretPosition(1).x).toBe(1);
+    expect(layout.getCaretPosition(2).x).toBe(5);
+    expect(layout.resolveSourceOffsetFromLineX(0, 4)).toBe(2);
+  });
+
   it("maps normalized render text across explicit multiline math source", () => {
     const sourceText = String.raw`$x$ \\ variable`;
     const renderText = String.raw`$x$\\variable`;
