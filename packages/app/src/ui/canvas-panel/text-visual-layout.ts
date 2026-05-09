@@ -99,6 +99,15 @@ function findTeXLinebreakCommandEnd(text: string, start: number): number | null 
   return cursor;
 }
 
+function hasMatchingUnescapedDollar(text: string, start: number): boolean {
+  for (let cursor = start + 1; cursor < text.length; cursor += 1) {
+    if (text[cursor] === "$" && !isEscapedCharacter(text, cursor)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function collectLogicalLineRanges(text: string): LogicalLineRange[] {
   if (text.length === 0) {
     return [{ start: 0, end: 0 }];
@@ -164,10 +173,18 @@ export function buildRenderLinePrefixWidths(
     const char = lineText[cursor] ?? "";
 
     if (char === "$" && !isEscapedCharacter(lineText, cursor)) {
-      mathMode = mathMode === "dollar" ? "none" : "dollar";
-      prefix[cursor + 1] = width;
-      cursor += 1;
-      continue;
+      if (mathMode === "dollar") {
+        mathMode = "none";
+        prefix[cursor + 1] = width;
+        cursor += 1;
+        continue;
+      }
+      if (hasMatchingUnescapedDollar(lineText, cursor)) {
+        mathMode = "dollar";
+        prefix[cursor + 1] = width;
+        cursor += 1;
+        continue;
+      }
     }
 
     if (char === "\\" && !isEscapedCharacter(lineText, cursor)) {
@@ -264,14 +281,26 @@ function offsetFromPrefixDistance(prefix: number[], x: number): number {
   const target = clamp(x, 0, total);
   let bestIndex = 0;
   let bestDistance = Number.POSITIVE_INFINITY;
+  const hasOnlyUniqueCaretStops = hasUniqueCaretStops(prefix);
   for (let index = 0; index < prefix.length; index += 1) {
     const distance = Math.abs((prefix[index] ?? 0) - target);
-    if (distance < bestDistance) {
+    if (distance < bestDistance || (distance === bestDistance && hasOnlyUniqueCaretStops)) {
       bestDistance = distance;
       bestIndex = index;
     }
   }
   return bestIndex;
+}
+
+function hasUniqueCaretStops(prefix: number[]): boolean {
+  const seen = new Set<number>();
+  for (const value of prefix) {
+    if (seen.has(value)) {
+      return false;
+    }
+    seen.add(value);
+  }
+  return true;
 }
 
 function offsetFromPrefixRatio(prefix: number[], xRatio: number): number {

@@ -49,6 +49,13 @@ describe("text visual layout", () => {
     expect(afterX.ratio).toBeGreaterThan(afterDollar.ratio);
   });
 
+  it("treats unmatched dollar delimiters as visible literals", () => {
+    const layout = createVisualTextLayout("$", "$", measureTextWidth);
+
+    expect(layout.getCaretPosition(1).x).toBeGreaterThan(layout.getCaretPosition(0).x);
+    expect(layout.resolveSourceOffsetFromLineX(0, 0.5)).toBe(1);
+  });
+
   it("splits TeX linebreak commands into logical lines including optional arguments", () => {
     const text = String.raw`First\\[2pt] Second`;
     const ranges = collectLogicalLineRanges(text);

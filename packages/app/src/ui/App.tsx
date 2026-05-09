@@ -1328,12 +1328,14 @@ export function App() {
         getSource: () => string;
         getSourceRevision: () => number;
         getSnapshotSource: () => string;
+        getPendingRequestId: () => string | null;
         runCommand: (commandId: string) => boolean;
         selectFirstFigure: () => void;
         selectAllElements: () => void;
         selectSourceIds: (sourceIds: string[]) => void;
         clearSelection: () => void;
         getSelectedSourceIds: () => string[];
+        getSceneSourceIds: () => string[];
         getActiveFigureId: () => string | null;
         getFigureCount: () => number;
         getActiveCanvasDragKind: () => string | null;
@@ -1364,6 +1366,9 @@ export function App() {
       getSnapshotSource: () => {
         return snapshotRef.current.source;
       },
+      getPendingRequestId: () => {
+        return useEditorStore.getState().pendingRequestId;
+      },
       runCommand: (commandId) => {
         return commandRuntime.runCommand(commandId as keyof typeof commandRuntime.bindings, "platform");
       },
@@ -1388,6 +1393,22 @@ export function App() {
       getSelectedSourceIds: () => {
         return [...useEditorStore.getState().selectedElementIds];
       },
+      getSceneSourceIds: () => {
+        const sourceIds = new Set<string>();
+        for (const element of snapshotRef.current.scene?.elements ?? []) {
+          sourceIds.add(element.sourceRef.sourceId);
+          if (element.matrixCell) {
+            sourceIds.add(element.matrixCell.matrixSourceId);
+            sourceIds.add(element.matrixCell.cellSourceId);
+          }
+          if (element.treeChild) {
+            sourceIds.add(element.treeChild.treeRootSourceId);
+            sourceIds.add(element.treeChild.parentSourceId);
+            sourceIds.add(element.treeChild.childSourceId);
+          }
+        }
+        return [...sourceIds];
+      },
       getActiveFigureId: () => {
         return useEditorStore.getState().activeFigureId;
       },
@@ -1406,6 +1427,7 @@ export function App() {
         };
       },
       setCanvasTransform: (transform) => {
+        dispatch({ type: "SET_FIT_TO_CONTENT_MODE", active: false });
         dispatch({ type: "SET_CANVAS_TRANSFORM", transform });
       },
       getSceneTextDebug: () => {

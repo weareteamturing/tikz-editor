@@ -1298,6 +1298,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   const visitedFigureKeysRef = useRef(new Set<string>());
   const previousFigureViewportKeyRef = useRef<string | null>(null);
   const pendingFirstVisitAutoFitKeyRef = useRef<string | null>(null);
+  const skipNextViewportStatePersistKeyRef = useRef<string | null>(null);
 
   // Cache viewport boundary once on drag-start, clear on drag-end (avoids getBoundingClientRect per frame)
   if (dragTooltip && !dragTooltipBoundaryRef.current && viewportRef.current) {
@@ -1677,6 +1678,20 @@ export const CanvasPanel = memo(function CanvasPanel({
     () => makeFigureViewportKey(activeDocumentId, activeFigureId),
     [activeDocumentId, activeFigureId]
   );
+  const saveFigureViewportState = useCallback(
+    (key: string, transform: CanvasTransform, fitToContentActive: boolean) => {
+      viewportStateByFigureKeyRef.current.set(key, {
+        transform: {
+          translateX: transform.translateX,
+          translateY: transform.translateY,
+          scale: transform.scale
+        },
+        fitToContentModeActive: fitToContentActive
+      });
+      visitedFigureKeysRef.current.add(key);
+    },
+    []
+  );
 
   useEffect(() => {
     const openDocuments = new Set(tabOrder);
@@ -1702,16 +1717,9 @@ export const CanvasPanel = memo(function CanvasPanel({
     const previousKey = previousFigureViewportKeyRef.current;
     if (previousKey && previousKey !== activeFigureViewportKey) {
       const previousTransform = canvasTransformRef.current;
-      viewportStateByFigureKeyRef.current.set(previousKey, {
-        transform: {
-          translateX: previousTransform.translateX,
-          translateY: previousTransform.translateY,
-          scale: previousTransform.scale
-        },
-        fitToContentModeActive: fitToContentModeActiveRef.current
-      });
-      visitedFigureKeysRef.current.add(previousKey);
+      saveFigureViewportState(previousKey, previousTransform, fitToContentModeActiveRef.current);
     }
+    skipNextViewportStatePersistKeyRef.current = activeFigureViewportKey;
 
     const savedState = viewportStateByFigureKeyRef.current.get(activeFigureViewportKey);
     if (savedState) {
@@ -1742,7 +1750,24 @@ export const CanvasPanel = memo(function CanvasPanel({
 
     pendingFirstVisitAutoFitKeyRef.current = null;
     previousFigureViewportKeyRef.current = activeFigureViewportKey;
-  }, [activeFigureViewportKey, dispatchCanvasTransform, fitToContent, setFitToContentModeActive]);
+  }, [activeFigureViewportKey, dispatchCanvasTransform, fitToContent, saveFigureViewportState, setFitToContentModeActive]);
+
+  useEffect(() => {
+    if (skipNextViewportStatePersistKeyRef.current === activeFigureViewportKey) {
+      skipNextViewportStatePersistKeyRef.current = null;
+      return;
+    }
+    if (previousFigureViewportKeyRef.current !== activeFigureViewportKey) {
+      return;
+    }
+    if (!visitedFigureKeysRef.current.has(activeFigureViewportKey)) {
+      return;
+    }
+    if (pendingFirstVisitAutoFitKeyRef.current === activeFigureViewportKey) {
+      return;
+    }
+    saveFigureViewportState(activeFigureViewportKey, canvasTransform, fitToContentModeActive);
+  }, [activeFigureViewportKey, canvasTransform, fitToContentModeActive, saveFigureViewportState]);
 
   const handledFitRequestRef = useRef(0);
   useEffect(() => {
@@ -3976,7 +4001,7 @@ export const CanvasPanel = memo(function CanvasPanel({
         onTextEditTextareaPaste={handleTextEditTextareaPaste}
         onTextEditTextareaDrop={handleTextEditTextareaDrop}
         onTextEditTextareaKeyDown={handleTextEditTextareaKeyDown}
-        selectionHint={null}
+        selectionHint={pathSelectionHint}
         showDevPanel={showDevPanel}
         snapDebugRect={snapDebugRect}
         onSnapDebugMovePointerDown={onSnapDebugMovePointerDown}

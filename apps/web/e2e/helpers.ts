@@ -178,6 +178,16 @@ export async function readSource(page: Page): Promise<string> {
   return text ?? "";
 }
 
+export async function readCodeMirrorText(page: Page): Promise<string | null> {
+  const editor = page.locator(".cm-content").first();
+  if (await editor.count() === 0) {
+    return null;
+  }
+  return await page.locator(".cm-content .cm-line").evaluateAll((lines) =>
+    lines.map((line) => line.textContent ?? "").join("\n")
+  );
+}
+
 export async function readStoreSource(page: Page): Promise<string> {
   return await page.evaluate(() => {
     const api = (globalThis as unknown as {
@@ -187,6 +197,136 @@ export async function readStoreSource(page: Page): Promise<string> {
     }).__TIKZ_EDITOR_APP_TEST_API__;
     return api?.getSource?.() ?? "";
   });
+}
+
+type SourceCanvasConsistencyOptions = {
+  minSceneSourceIds?: number;
+  minHitRegions?: number;
+  requireVisibleSourceEditor?: boolean;
+  assertSelectionInScene?: boolean;
+  assertNoActiveCanvasDrag?: boolean;
+  assertNoPendingRequest?: boolean;
+};
+
+export async function expectSourceCanvasConsistency(
+  page: Page,
+  options: SourceCanvasConsistencyOptions = {}
+): Promise<void> {
+  await expect.poll(async () => {
+    return await page.evaluate((expectedOptions) => {
+      const api = (globalThis as unknown as {
+        __TIKZ_EDITOR_APP_TEST_API__?: {
+          getSource?: () => string;
+          getSnapshotSource?: () => string;
+          getPendingRequestId?: () => string | null;
+          getSelectedSourceIds?: () => string[];
+          getSceneSourceIds?: () => string[];
+          getActiveFigureId?: () => string | null;
+          getFigureCount?: () => number;
+          getActiveCanvasDragKind?: () => string | null;
+        };
+      }).__TIKZ_EDITOR_APP_TEST_API__;
+      if (!api) {
+        return { ok: false, reason: "App test API is unavailable." };
+      }
+
+      const source = api.getSource?.();
+      const snapshotSource = api.getSnapshotSource?.();
+      if (typeof source !== "string") {
+        return { ok: false, reason: "Store source is unavailable." };
+      }
+      if (snapshotSource !== source) {
+        return {
+          ok: false,
+          reason: "Snapshot source is stale.",
+          storeLength: source.length,
+          snapshotLength: snapshotSource?.length ?? null
+        };
+      }
+
+      const sourceEditor = document.querySelector(".cm-content");
+      const sourceEditorVisible = sourceEditor instanceof HTMLElement &&
+        sourceEditor.offsetParent != null &&
+        sourceEditor.getClientRects().length > 0;
+      if (expectedOptions.requireVisibleSourceEditor && !sourceEditorVisible) {
+        return { ok: false, reason: "Source editor is not visible." };
+      }
+      if (sourceEditorVisible) {
+        const editorSource = Array.from(sourceEditor.querySelectorAll(".cm-line"))
+          .map((line) => line.textContent ?? "")
+          .join("\n");
+        if (editorSource !== source) {
+          return {
+            ok: false,
+            reason: "CodeMirror source differs from store source.",
+            storeLength: source.length,
+            editorLength: editorSource.length
+          };
+        }
+      }
+
+      const figureCount = api.getFigureCount?.() ?? 0;
+      if (figureCount > 0 && api.getActiveFigureId?.() == null) {
+        return { ok: false, reason: "Document has figures but no active figure." };
+      }
+
+      if (expectedOptions.assertNoPendingRequest && api.getPendingRequestId?.() != null) {
+        return { ok: false, reason: "A compute request is still pending." };
+      }
+
+      if (expectedOptions.assertNoActiveCanvasDrag && api.getActiveCanvasDragKind?.() != null) {
+        return {
+          ok: false,
+          reason: "Canvas drag state is still active.",
+          activeCanvasDragKind: api.getActiveCanvasDragKind?.()
+        };
+      }
+
+      const sceneSourceIds = new Set(api.getSceneSourceIds?.() ?? []);
+      if ((expectedOptions.minSceneSourceIds ?? 0) > sceneSourceIds.size) {
+        return {
+          ok: false,
+          reason: "Scene source ID count is lower than expected.",
+          expected: expectedOptions.minSceneSourceIds ?? 0,
+          actual: sceneSourceIds.size
+        };
+      }
+
+      if (expectedOptions.assertSelectionInScene) {
+        const selectableSourceIds = new Set(sceneSourceIds);
+        for (const element of Array.from(document.querySelectorAll("[data-selection-overlay-box-source-id]"))) {
+          const sourceId = element.getAttribute("data-selection-overlay-box-source-id");
+          if (sourceId) {
+            selectableSourceIds.add(sourceId);
+          }
+        }
+        const missingSelectionIds = (api.getSelectedSourceIds?.() ?? [])
+          .filter((sourceId) => !selectableSourceIds.has(sourceId));
+        if (missingSelectionIds.length > 0) {
+          return {
+            ok: false,
+            reason: "Selection contains source IDs missing from the current scene.",
+            missingSelectionIds
+          };
+        }
+      }
+
+      const hitRegionCount = document.querySelectorAll("[data-hit-region-target-id]").length;
+      if ((expectedOptions.minHitRegions ?? 0) > hitRegionCount) {
+        return {
+          ok: false,
+          reason: "Hit-region count is lower than expected.",
+          expected: expectedOptions.minHitRegions ?? 0,
+          actual: hitRegionCount
+        };
+      }
+
+      return { ok: true };
+    }, options);
+  }, {
+    timeout: 15_000,
+    intervals: [100, 200, 400, 800]
+  }).toMatchObject({ ok: true });
 }
 
 export async function readCanvasTransform(page: Page): Promise<{ translateX: number; translateY: number; scale: number }> {
@@ -215,6 +355,24 @@ export async function setCanvasTransform(
     }
     api.setCanvasTransform(nextTransform);
   }, transform);
+  await expect.poll(async () => {
+    return await page.evaluate(() => {
+      const stage = document.querySelector("[data-testid='canvas-world-stage']");
+      if (!(stage instanceof HTMLElement)) {
+        return null;
+      }
+      const translateX = Number(stage.dataset.canvasTranslateX);
+      const translateY = Number(stage.dataset.canvasTranslateY);
+      const scale = Number(stage.dataset.canvasScale);
+      if (![translateX, translateY, scale].every(Number.isFinite)) {
+        return null;
+      }
+      return { translateX, translateY, scale };
+    });
+  }, {
+    timeout: 4_000,
+    intervals: [50, 100, 200, 400]
+  }).toMatchObject(transform);
 }
 
 export async function readPersistedWorkspaceDocumentCount(page: Page): Promise<number> {

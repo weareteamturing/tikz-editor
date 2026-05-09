@@ -57,6 +57,10 @@ export type HistoryEntry = {
   sourceBefore: string;
   /** Source after the action (for full redo). */
   sourceAfter: string;
+  /** Selection before the action, when the edit action originated from WYSIWYG state. */
+  selectedElementIdsBefore?: string[];
+  /** Selection after the action, when the edit action originated from WYSIWYG state. */
+  selectedElementIdsAfter?: string[];
 };
 
 export type DocumentFileRef = {

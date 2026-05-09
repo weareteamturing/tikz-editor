@@ -413,6 +413,9 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
             <div
               className={css.worldStage}
               data-testid="canvas-world-stage"
+              data-canvas-translate-x={canvasTransform.translateX}
+              data-canvas-translate-y={canvasTransform.translateY}
+              data-canvas-scale={canvasTransform.scale}
               style={{
                 width: svgResult.viewBox.width * canvasTransform.scale,
                 height: svgResult.viewBox.height * canvasTransform.scale,

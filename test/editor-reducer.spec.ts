@@ -364,6 +364,38 @@ describe("editorReducer – UNDO / REDO", () => {
     const redone = editorReducer(undone, { type: "REDO" });
     expect(redone.sourceRevision).toBe(3);
   });
+
+  it("restores WYSIWYG selections across undo and redo", () => {
+    const initial: EditorState = {
+      ...makeInitialState(),
+      source: "before",
+      selectedElementIds: new Set(["path:0"]),
+      snapshot: { ...makeEmptySnapshot("before"), source: "before" }
+    };
+
+    const edited = editorReducer(initial, {
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "duplicateElements",
+        elementIds: ["path:0"]
+      },
+      precomputedResult: {
+        kind: "success",
+        newSource: "after",
+        patches: [],
+        selectedSourceIds: ["path:2"]
+      }
+    });
+    expect(edited.selectedElementIds).toEqual(new Set(["path:2"]));
+
+    const undone = editorReducer(edited, { type: "UNDO" });
+    expect(undone.source).toBe("before");
+    expect(undone.selectedElementIds).toEqual(new Set(["path:0"]));
+
+    const redone = editorReducer(undone, { type: "REDO" });
+    expect(redone.source).toBe("after");
+    expect(redone.selectedElementIds).toEqual(new Set(["path:2"]));
+  });
 });
 
 // ── APPLY_EDIT_ACTION ──────────────────────────────────────────────────────────

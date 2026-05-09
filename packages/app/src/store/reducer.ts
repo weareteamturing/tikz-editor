@@ -790,7 +790,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           ...lastEntry,
           label: actionLabel(historyKind),
           forward: result.patches,
-          sourceAfter: result.newSource
+          sourceAfter: result.newSource,
+          selectedElementIdsAfter: [...nextSelection]
         };
         workspace = updateDocument(workspace, documentId, (doc) => ({
           ...doc,
@@ -822,7 +823,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         forward: result.patches,
         backward: result.patches,
         sourceBefore: activeDoc.source,
-        sourceAfter: result.newSource
+        sourceAfter: result.newSource,
+        selectedElementIdsBefore: [...activeDoc.selectedElementIds],
+        selectedElementIdsAfter: [...nextSelection]
       };
 
       workspace = updateDocument(workspace, documentId, (doc) => ({
@@ -899,6 +902,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
             ? current.lastEditWarningToken + 1
             : current.lastEditWarningToken,
         historyIndex: current.historyIndex - 1,
+        selectedElementIds: entry.selectedElementIdsBefore
+          ? new Set(entry.selectedElementIdsBefore)
+          : current.selectedElementIds,
+        activeHandleId: null,
         dirty: entry.sourceBefore !== current.savedSource
       }));
       break;
@@ -927,6 +934,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
             ? current.lastEditWarningToken + 1
             : current.lastEditWarningToken,
         historyIndex: current.historyIndex + 1,
+        selectedElementIds: entry.selectedElementIdsAfter
+          ? new Set(entry.selectedElementIdsAfter)
+          : current.selectedElementIds,
+        activeHandleId: null,
         dirty: entry.sourceAfter !== current.savedSource
       }));
       break;
