@@ -808,7 +808,10 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
               boundary={dragTooltipBoundary}
               content={
                 <div
-                  className={css.dragTooltipContent}
+                  className={[
+                    css.dragTooltipContent,
+                    dragTooltip.rows.every((row) => row.label === "X" || row.label === "Y") ? css.dragTooltipContentCompact : ""
+                  ].filter(Boolean).join(" ")}
                   data-testid="canvas-drag-tooltip"
                   data-drag-tooltip-kind={dragTooltip.kind}
                   data-select="text"

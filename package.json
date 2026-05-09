@@ -41,9 +41,9 @@
     "dev:desktop": "npm run -w @tikz-editor/desktop tauri:dev",
     "build:landing": "npm run -w @tikz-editor/landing build",
     "build:desktop": "npm run -w @tikz-editor/desktop tauri:build",
-    "test:e2e": "npm run -w @tikz-editor/web test:e2e",
-    "test:e2e:ci": "npm run -w @tikz-editor/web test:e2e:ci",
-    "test:desktop:e2e": "npm run -w @tikz-editor/desktop test:e2e"
+    "test:e2e": "npm run -w @tikz-editor/web test:e2e --",
+    "test:e2e:ci": "npm run -w @tikz-editor/web test:e2e:ci --",
+    "test:desktop:e2e": "npm run -w @tikz-editor/desktop test:e2e --"
   },
   "keywords": [
     "tikz",

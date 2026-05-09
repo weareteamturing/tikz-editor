@@ -16,6 +16,8 @@ import {
   waitForHitRegions
 } from "./helpers";
 
+const CM_PER_PT = 1 / 28.4527559055;
+
 function toolbarButton(page: import("@playwright/test").Page, label: string) {
   return page.locator(`[data-tauri-drag-region] button[aria-label="${label}"]`).first();
 }
@@ -211,8 +213,8 @@ test("resize drag shows and hides metric tooltip", async ({ page }) => {
   await expect(tooltip).toBeVisible();
   await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("Width:");
   await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("Height:");
-  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("pt");
   await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("cm");
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("pt");
 
   await page.mouse.up();
   await expect(tooltip).toHaveCount(0);
@@ -307,6 +309,15 @@ test("rectangle and grid creation show tooltips and keep tooltip in viewport bou
   await dragBetweenPoints(page, layer, { x: 120, y: 120 }, { x: 280, y: 240 });
   await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("Width:");
   await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("Height:");
+  await expect(page.getByTestId("canvas-drag-tooltip-row").first()).toContainText(/Width:\s*[0-9.]+cm \([0-9.]+pt\)/);
+  await page.mouse.up();
+
+  await toolbarButton(page, "Circle").click();
+  await dragBetweenPoints(page, layer, { x: 140, y: 140 }, { x: 220, y: 200 });
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("Radius:");
+  await expect(page.getByTestId("canvas-drag-tooltip")).not.toContainText("Width:");
+  await expect(page.getByTestId("canvas-drag-tooltip")).not.toContainText("Height:");
+  await expect(page.getByTestId("canvas-drag-tooltip-row").first()).toContainText(/Radius:\s*[0-9.]+cm \([0-9.]+pt\)/);
   await page.mouse.up();
 
   await toolbarButton(page, "Grid").click();
@@ -394,6 +405,78 @@ test("freehand tool activates and inspector shows smoothing control", async ({ p
   await toolbarButton(page, "Freehand").click();
   // Freehand no longer has a toolbar popup; smoothing control is in the inspector
   await expect(toolbarButton(page, "Freehand")).toHaveClass(/btnActive/);
+});
+
+test("node tool inserts at the snapped preview point", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await toolbarButton(page, "Node").click();
+  const layer = interactionLayer(page);
+  const snappedGridClientPoint = await layer.evaluate((svgElement) => {
+    const svg = svgElement as SVGSVGElement;
+    const rect = svg.getBoundingClientRect();
+    const viewBox = svg.viewBox.baseVal;
+    const ptPerCm = 28.4527559055;
+    const worldX = ptPerCm;
+    const worldY = ptPerCm;
+    const svgX = worldX;
+    const svgY = viewBox.y + viewBox.height - (worldY - viewBox.y);
+    return {
+      x: rect.left + ((svgX - viewBox.x) / viewBox.width) * rect.width,
+      y: rect.top + ((svgY - viewBox.y) / viewBox.height) * rect.height
+    };
+  });
+  const offGridClick = {
+    x: snappedGridClientPoint.x + 4,
+    y: snappedGridClientPoint.y + 4
+  };
+
+  await page.mouse.move(offGridClick.x, offGridClick.y);
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText(/X:\s*1cm/);
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText(/Y:\s*1cm/);
+  await expect(page.getByTestId("canvas-drag-tooltip")).not.toContainText("pt");
+  await page.mouse.down();
+  await page.mouse.up();
+
+  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toContain("\\nodeat(1,1){node};");
+});
+
+test("shape tool click insertion uses the snapped preview point", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await toolbarButton(page, "Shape").click();
+  await page.getByTestId("toolbar-shape-choice-diamond").click();
+  const layer = interactionLayer(page);
+  const snappedGridClientPoint = await layer.evaluate((svgElement) => {
+    const svg = svgElement as SVGSVGElement;
+    const rect = svg.getBoundingClientRect();
+    const viewBox = svg.viewBox.baseVal;
+    const ptPerCm = 28.4527559055;
+    const worldX = ptPerCm;
+    const worldY = ptPerCm;
+    const svgX = worldX;
+    const svgY = viewBox.y + viewBox.height - (worldY - viewBox.y);
+    return {
+      x: rect.left + ((svgX - viewBox.x) / viewBox.width) * rect.width,
+      y: rect.top + ((svgY - viewBox.y) / viewBox.height) * rect.height
+    };
+  });
+  const offGridClick = {
+    x: snappedGridClientPoint.x + 4,
+    y: snappedGridClientPoint.y + 4
+  };
+
+  await page.mouse.move(offGridClick.x, offGridClick.y);
+  await page.mouse.down();
+  await page.mouse.up();
+
+  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toContain(
+    "\\node[draw,shape=diamond,minimumwidth=2.2cm,minimumheight=1.4cm]at(1,1){};"
+  );
 });
 
 test("shape toolbar popup auto-opens, remembers the chosen shape, and inserts an empty shaped node", async ({ page }) => {
@@ -572,12 +655,12 @@ test("diamond east-handle drag does not collapse to tiny size", async ({ page })
   const tooltip = page.getByTestId("canvas-drag-tooltip");
   await expect(tooltip).toBeVisible();
   const tooltipText = (await tooltip.textContent()) ?? "";
-  const widthPt = Number((/Width:\s*([0-9.]+)pt/.exec(tooltipText) ?? [])[1] ?? "0");
-  const heightPt = Number((/Height:\s*([0-9.]+)pt/.exec(tooltipText) ?? [])[1] ?? "0");
-  expect(widthPt).toBeLessThan(baseline.widthPt + 0.75);
-  expect(heightPt).toBeLessThan(baseline.heightPt + 0.75);
-  expect(widthPt).toBeGreaterThan(30);
-  expect(heightPt).toBeGreaterThan(30);
+  const widthCm = Number((/Width:\s*([0-9.]+)cm/.exec(tooltipText) ?? [])[1] ?? "0");
+  const heightCm = Number((/Height:\s*([0-9.]+)cm/.exec(tooltipText) ?? [])[1] ?? "0");
+  expect(widthCm).toBeLessThan((baseline.widthPt + 0.75) * CM_PER_PT);
+  expect(heightCm).toBeLessThan((baseline.heightPt + 0.75) * CM_PER_PT);
+  expect(widthCm).toBeGreaterThan(30 * CM_PER_PT);
+  expect(heightCm).toBeGreaterThan(30 * CM_PER_PT);
 
   await page.mouse.up();
   const after = await readSource(page);

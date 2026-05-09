@@ -46,6 +46,7 @@ import {
   formatTooltipAngleRow,
   formatTooltipGridCountRow,
   formatTooltipLengthRows,
+  formatToolCreateLengthRows,
   projectResizeDimensionsFromCenter,
   projectResizeDimensionsFromOppositeCorner,
   resolveFrameBasis,
@@ -78,6 +79,7 @@ const ADORNMENT_CENTER_SNAP_THRESHOLD_PT = 1;
 const GRID_RESIZE_STEP_EPSILON = 1e-9;
 const SNAP_FEEDBACK_EPSILON = 1e-6;
 const ADORNMENT_OWNER_CENTER_EPSILON = 1e-6;
+const MIN_SHAPE_DRAG_DIMENSION_PT = 0.1 * 28.4527559055;
 
 function clientPointFromEvent(event: Pick<PointerEvent, "clientX" | "clientY">): ClientPoint {
   return clientPoint(px(event.clientX), px(event.clientY));
@@ -281,7 +283,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
         );
         setToolDraft({ ...drag });
         const size = resolveToolCreateSize(drag.toolMode, drag.startWorld, drag.currentWorld);
-        const rows = formatTooltipLengthRows(size.width, size.height);
+        const rows = formatToolCreateLengthRows(drag.toolMode, size);
         if (drag.toolMode === "addGrid") {
           const counts = resolveGridTooltipCounts(drag.startWorld, drag.currentWorld);
           rows.push(formatTooltipGridCountRow(counts.columns, counts.rows));
@@ -989,8 +991,11 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
                   : {})
               }
             : rawTemplate;
+        const hasShapeDrag =
+          drag.toolMode === "addShape" &&
+          Math.max(Math.abs(finalWorld.x - drag.startWorld.x), Math.abs(finalWorld.y - drag.startWorld.y)) >= MIN_SHAPE_DRAG_DIMENSION_PT;
         const insertionAt =
-          drag.toolMode === "addShape"
+          drag.toolMode === "addShape" && hasShapeDrag
             ? resolveAddShapeOriginFromDrag(selectedAddShape, drag.startWorld, finalWorld)
             : drag.startWorld;
         queueSelectionForAddedElement(insertionAt);

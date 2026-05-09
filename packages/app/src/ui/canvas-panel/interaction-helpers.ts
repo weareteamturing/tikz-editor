@@ -339,6 +339,26 @@ export function formatTooltipLengthRows(widthPt: number, heightPt: number): Drag
   ];
 }
 
+export function formatTooltipCoordinateRows(point: WorldPoint): DragTooltipRow[] {
+  return [
+    { label: "X", value: formatTooltipLengthCm(point.x) },
+    { label: "Y", value: formatTooltipLengthCm(point.y) }
+  ];
+}
+
+export function formatToolCreateLengthRows(
+  mode: ToolCreateMode,
+  size: { width: number; height: number; radius?: number }
+): DragTooltipRow[] {
+  if (mode === "addCircle") {
+    return [
+      { label: "Radius", value: formatTooltipLength(size.radius ?? size.width / 2) }
+    ];
+  }
+
+  return formatTooltipLengthRows(size.width, size.height);
+}
+
 export function formatTooltipAngleRow(degrees: number): DragTooltipRow {
   const normalized = Math.abs(degrees) <= TOOLTIP_ZERO_EPSILON ? 0 : degrees;
   return {
@@ -445,11 +465,11 @@ export function resolveToolCreateSize(
   mode: ToolCreateMode,
   startWorld: WorldPoint,
   currentWorld: WorldPoint
-): { width: number; height: number } {
+): { width: number; height: number; radius?: number } {
   if (mode === "addCircle") {
     const radius = Math.hypot(currentWorld.x - startWorld.x, currentWorld.y - startWorld.y);
     const diameter = clampTooltipScalar(radius * 2);
-    return { width: diameter, height: diameter };
+    return { width: diameter, height: diameter, radius: clampTooltipScalar(radius) };
   }
 
   return {
@@ -469,7 +489,11 @@ export function resolveGridTooltipCounts(startWorld: WorldPoint, currentWorld: W
 
 function formatTooltipLength(valuePt: number): string {
   const clamped = clampTooltipScalar(valuePt);
-  return `${formatNumber(clamped)}pt (${formatNumber(clamped * CM_PER_PT)}cm)`;
+  return `${formatTooltipLengthCm(clamped)} (${formatNumber(clamped)}pt)`;
+}
+
+function formatTooltipLengthCm(valuePt: number): string {
+  return `${formatNumber(clampTooltipScalar(valuePt) * CM_PER_PT)}cm`;
 }
 
 function clampTooltipScalar(value: number): number {
