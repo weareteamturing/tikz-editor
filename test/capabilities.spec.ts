@@ -135,8 +135,8 @@ function assertRegistryMatchesLayer(
 
   for (const featureId of FEATURE_IDS) {
     const status = capabilityMatrix[featureId][layer];
-    if (status === "none") {
-      expect(registrySet.has(featureId), `${featureId} has ${layer}=none but exists in registry`).toBe(false);
+    if (status === "none" || status === "not-applicable") {
+      expect(registrySet.has(featureId), `${featureId} has ${layer}=${status} but exists in registry`).toBe(false);
     } else {
       expect(registrySet.has(featureId), `${featureId} has ${layer}=${status} but is missing from registry`).toBe(true);
     }

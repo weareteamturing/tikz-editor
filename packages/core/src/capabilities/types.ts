@@ -1,6 +1,6 @@
 import type { FeatureId } from "./feature-ids.js";
 
-export type LayerStatus = "none" | "partial" | "stable";
+export type LayerStatus = "not-applicable" | "none" | "partial" | "stable";
 
 export type CapabilityRow = {
   parser: LayerStatus;
@@ -12,4 +12,3 @@ export type CapabilityRow = {
 };
 
 export type CapabilityMatrix = Record<FeatureId, CapabilityRow>;
-

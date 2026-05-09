@@ -134,8 +134,8 @@ export const capabilityMatrix: CapabilityMatrix = {
   },
   path_operator_curves: {
     parser: "stable",
-    semantic: "partial",
-    svg: "partial",
+    semantic: "stable",
+    svg: "stable",
     edit: "partial",
     fixtures: ["curve_operator"]
   },
@@ -428,8 +428,8 @@ export const capabilityMatrix: CapabilityMatrix = {
   },
   edge_from_parent_operation: {
     parser: "stable",
-    semantic: "partial",
-    svg: "partial",
+    semantic: "stable",
+    svg: "stable",
     edit: "none",
     fixtures: ["tree_edge_from_parent"]
   },
@@ -485,8 +485,8 @@ export const capabilityMatrix: CapabilityMatrix = {
   },
   svg_operation: {
     parser: "stable",
-    semantic: "partial",
-    svg: "partial",
+    semantic: "stable",
+    svg: "stable",
     edit: "none",
     fixtures: ["svg_operation"]
   },
@@ -555,22 +555,22 @@ export const capabilityMatrix: CapabilityMatrix = {
   },
   keyword_ellipse: {
     parser: "stable",
-    semantic: "partial",
-    svg: "partial",
+    semantic: "stable",
+    svg: "stable",
     edit: "none",
     fixtures: ["ellipse_keyword"]
   },
   keyword_arc: {
     parser: "stable",
-    semantic: "partial",
-    svg: "partial",
+    semantic: "stable",
+    svg: "stable",
     edit: "none",
     fixtures: ["arc_keyword"]
   },
   keyword_grid: {
     parser: "stable",
-    semantic: "partial",
-    svg: "partial",
+    semantic: "stable",
+    svg: "stable",
     edit: "none",
     fixtures: ["grid_keyword"]
   },
@@ -590,41 +590,41 @@ export const capabilityMatrix: CapabilityMatrix = {
   },
   keyword_controls: {
     parser: "stable",
-    semantic: "partial",
-    svg: "partial",
+    semantic: "stable",
+    svg: "stable",
     edit: "none",
     fixtures: ["curve_operator"]
   },
   keyword_and: {
     parser: "stable",
-    semantic: "partial",
-    svg: "partial",
+    semantic: "stable",
+    svg: "stable",
     edit: "none",
     fixtures: ["curve_operator"]
   },
   svg_path: {
-    parser: "none",
+    parser: "not-applicable",
     semantic: "stable",
     svg: "stable",
     edit: "none",
     fixtures: ["basic_draw"]
   },
   svg_circle: {
-    parser: "none",
+    parser: "not-applicable",
     semantic: "stable",
     svg: "stable",
     edit: "none",
     fixtures: ["circle_shape"]
   },
   svg_text: {
-    parser: "none",
+    parser: "not-applicable",
     semantic: "stable",
     svg: "stable",
     edit: "stable",
     fixtures: ["node_text"]
   },
   render_pipeline: {
-    parser: "none",
+    parser: "not-applicable",
     semantic: "none",
     svg: "stable",
     edit: "none",
