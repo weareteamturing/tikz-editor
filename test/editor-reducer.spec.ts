@@ -485,6 +485,45 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
     expect(next.lastEditChangedSourceIds).toEqual(["elem-1"]);
   });
 
+  it("keeps source patches for path-attached node moves while disabling changed-id incremental render", () => {
+    const source = "\\draw (0,0) -- node[above] {r} (1,0);";
+    const oldNodeSyntax = "node[above]";
+    const oldNodeFrom = source.indexOf(oldNodeSyntax);
+    const oldNodeTo = oldNodeFrom + oldNodeSyntax.length;
+    const initial: EditorState = {
+      ...makeInitialState(),
+      source,
+      snapshot: { ...makeEmptySnapshot(source), source, editHandles: [] }
+    };
+
+    const next = editorReducer(initial, {
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "movePathAttachedNode",
+        nodeId: "node:0:2",
+        hostPathSourceId: "path:0",
+        pos: 0.6,
+        preserveRegime: true
+      },
+      precomputedResult: {
+        kind: "success",
+        newSource: "\\draw (0,0) -- node[pos=0.6,above] {r} (1,0);",
+        patches: [
+          {
+            oldSpan: { from: oldNodeFrom, to: oldNodeTo },
+            newSpan: { from: oldNodeFrom, to: oldNodeFrom + "node[pos=0.6,above]".length },
+            replacement: "node[pos=0.6,above]"
+          }
+        ],
+        changedSourceIds: ["node:0:2"]
+      }
+    });
+
+    expect(next.lastEditChangedSourceIds).toBeNull();
+    expect(next.lastEditPatches).toHaveLength(1);
+    expect(applySourcePatches(source, next.lastEditPatches ?? [])).toBe(next.source);
+  });
+
   it("is a no-op when an edit action rewrites to the same source text", () => {
     const { state: initial } = makeStateWithHandle();
 

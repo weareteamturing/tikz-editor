@@ -784,6 +784,7 @@ export function SourcePanel() {
     if (!editorRef.current) return;
 
     const updateListener = EditorView.updateListener.of((update) => {
+      const externalSourceSync = findExternalSourceSyncAnnotation(update.transactions);
       if (update.docChanged) {
         const appliedByColorPicker = colorPickerApplyingRef.current;
         colorPickerApplyingRef.current = false;
@@ -816,7 +817,7 @@ export function SourcePanel() {
           };
         });
 
-        if (!findExternalSourceSyncAnnotation(update.transactions)) {
+        if (!externalSourceSync) {
           const nextSource = update.state.doc.toString();
           dispatch({ type: "CODE_EDITED", source: nextSource });
         }
@@ -828,6 +829,10 @@ export function SourcePanel() {
 
       if (ignoreNextSelectionSyncRef.current) {
         ignoreNextSelectionSyncRef.current = false;
+        return;
+      }
+
+      if (externalSourceSync) {
         return;
       }
 

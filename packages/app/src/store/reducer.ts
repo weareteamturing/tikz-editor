@@ -714,10 +714,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         action.action.kind === "movePathAttachedNode"
           ? null
           : (result.changedSourceIds ?? null);
-      const incrementalPatches =
-        action.action.kind === "movePathAttachedNode"
-          ? null
-          : result.patches;
+      const incrementalPatches = result.patches;
 
       if (result.newSource === activeDoc.source) {
         if (actionWarning) {
