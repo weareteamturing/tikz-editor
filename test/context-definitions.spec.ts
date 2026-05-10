@@ -121,6 +121,26 @@ describe("context definitions", () => {
     ).toBe(false);
   });
 
+  it("parses grouped macro aliases and skips comments inside balanced command bodies", () => {
+    const definitions = collectContextDefinitions(String.raw`\let\foo={target macro}
+\newcommand{\withcomment}{before % ignored closing brace }
+after \{escaped\}}`);
+
+    const alias = definitions.find((statement) => statement.kind === "MacroAlias");
+    expect(alias?.kind).toBe("MacroAlias");
+    if (alias?.kind === "MacroAlias") {
+      expect(alias.nameRaw).toBe("\\foo");
+      expect(alias.targetRaw).toBe("target macro");
+    }
+
+    const command = definitions.find((statement) => statement.kind === "MacroCommandDefinition");
+    expect(command?.kind).toBe("MacroCommandDefinition");
+    if (command?.kind === "MacroCommandDefinition") {
+      expect(command.bodyRaw).toContain("after \\{escaped\\}");
+      expect(command.bodyRaw).toContain("% ignored closing brace }");
+    }
+  });
+
   it("collects typed context statements like colorlet and style definitions", () => {
     const definitions = collectContextDefinitions(String.raw`\colorlet{alternativebarcolor}{black!15}
 \tikzset{my style/.style={fill=alternativebarcolor}}

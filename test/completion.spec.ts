@@ -26,6 +26,28 @@ describe("collectSymbols", () => {
     expect(symbols.styleNames).toEqual(expect.arrayContaining(["accent", "box", "helper", "legacy"]));
   });
 
+  it("collects standalone node command names and normalizes namespaced styles", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \tikzset{
+    /tikz/nsbox/.style={draw},
+    /pgf/nshelper/.prefix style={line width=1pt},
+    plain={not a style}
+  }
+  \pgfkeys{\broken without close
+  \tikzstyle broken
+  \node[draw] (standalone) at (0,0) {S};
+  \node (bad name) at (1,0) {Bad};
+\end{tikzpicture}`;
+    const parseResult = parseTikz(source, { recover: true });
+
+    const symbols = collectSymbols({ parseResult });
+
+    expect(symbols.nodeNames).toContain("standalone");
+    expect(symbols.nodeNames).toContain("bad name");
+    expect(symbols.styleNames).toEqual(expect.arrayContaining(["nsbox", "nshelper"]));
+    expect(symbols.styleNames).not.toContain("plain");
+  });
+
   it("collects node names from to/edge operation node payloads", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) to node (edgeLabel) {E} (1,1);
@@ -34,6 +56,59 @@ describe("collectSymbols", () => {
 
     const symbols = collectSymbols({ parseResult });
     expect(symbols.nodeNames).toContain("edgeLabel");
+  });
+
+  it("infers node names from unnamed parsed node templates", () => {
+    const parseResult = {
+      source: "",
+      figure: {
+        body: [
+          {
+            kind: "Path",
+            items: [
+              {
+                kind: "Node",
+                id: "node:0",
+                span: { from: 0, to: 0 },
+                raw: "node (templateName) {T}",
+                templateRaw: "node (templateName) {T}",
+                aliases: ["", "aliasName"],
+                textSource: "group",
+                textSpan: { from: 0, to: 0 },
+                text: "T"
+              },
+              {
+                kind: "Node",
+                id: "node:1",
+                span: { from: 0, to: 0 },
+                raw: "node (same) at (same) {S}",
+                templateRaw: "node (same) {S}",
+                atRaw: "(same)",
+                textSource: "group",
+                textSpan: { from: 0, to: 0 },
+                text: "S"
+              },
+              {
+                kind: "Node",
+                id: "node:2",
+                span: { from: 0, to: 0 },
+                raw: "node {N}",
+                templateRaw: "node {N}",
+                textSource: "group",
+                textSpan: { from: 0, to: 0 },
+                text: "N"
+              }
+            ]
+          }
+        ]
+      }
+    };
+
+    const symbols = collectSymbols({ parseResult: parseResult as never });
+
+    expect(symbols.nodeNames).toContain("templateName");
+    expect(symbols.nodeNames).toContain("aliasName");
+    expect(symbols.nodeNames).not.toContain("same");
   });
 
   it("returns empty collections without a parse result", () => {

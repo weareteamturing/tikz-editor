@@ -48,12 +48,16 @@ export function renderTikzToSvg(source: string, opts: RenderTikzOptions = {}): R
 
 export async function renderTikzToSvgAsync(source: string, opts: RenderTikzOptions = {}): Promise<RenderTikzToSvgResult> {
   const renderDiagnostics: RenderDiagnostic[] = [];
-  const providedEngine = opts.textEngine ?? opts.evaluate?.textEngine ?? opts.svg?.textEngine ?? null;
+  const hasExplicitTextEngine = Object.prototype.hasOwnProperty.call(opts, "textEngine");
+  const providedEngine = hasExplicitTextEngine
+    ? opts.textEngine
+    : opts.evaluate?.textEngine ?? opts.svg?.textEngine;
   let textEngine = providedEngine;
+  const shouldCreateDefaultTextEngine = textEngine === undefined;
   const browserRuntime = hasBrowserDomGlobals();
   const useDefaultNodeTextValidator = opts.validateNodeText ?? true;
   const hasUserMacros = containsUserMacroDefinitions(source);
-  if (!textEngine && !browserRuntime && mathJaxEngineUnavailable) {
+  if (shouldCreateDefaultTextEngine && !browserRuntime && mathJaxEngineUnavailable) {
     renderDiagnostics.push({
       code: "mathjax-engine-unavailable",
       message:
@@ -61,7 +65,8 @@ export async function renderTikzToSvgAsync(source: string, opts: RenderTikzOptio
         "MathJax text engine is unavailable in this runtime; using plain SVG text fallback.",
       severity: "warning"
     });
-  } else if (!textEngine && (!mathJaxEngineUnavailable || browserRuntime)) {
+    textEngine = null;
+  } else if (shouldCreateDefaultTextEngine && (!mathJaxEngineUnavailable || browserRuntime)) {
     try {
       textEngine = await createMathJaxNodeTextEngine();
       if (!browserRuntime) {

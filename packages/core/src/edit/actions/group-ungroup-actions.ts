@@ -42,15 +42,9 @@ export function applyGroupElementsAction(
 
   const parentKey = selectedRefs[0].parentKey;
   const parentRefs = (snapshot.byParentKey.get(parentKey) ?? []).slice().sort((left, right) => left.index - right.index);
-  if (parentRefs.length === 0) {
-    return { kind: "unsupported", reason: "Could not resolve the selected statements' parent scope." };
-  }
 
   const selectedIdSet = new Set(selectedRefs.map((ref) => ref.id));
   const selectedOrdered = parentRefs.filter((ref) => selectedIdSet.has(ref.id));
-  if (selectedOrdered.length < 2) {
-    return { kind: "unsupported", reason: "Group requires at least two selected statements." };
-  }
 
   const siblingIds = parentRefs.map((ref) => ref.id);
   const constraints = collectSiblingDependencyConstraints(source, siblingIds, parseOptions);
@@ -94,10 +88,7 @@ export function applyGroupElementsAction(
     parseOptions
   });
   const applied = applyTextReplacements(source, [{ span: replacement.span, text: replacement.text }]);
-  const appliedReplacement = applied.applied[0];
-  if (!appliedReplacement) {
-    return { kind: "unsupported", reason: "Grouping did not produce a source update." };
-  }
+  const appliedReplacement = applied.applied[0]!;
 
   const scopeSpan: Span = {
     from: appliedReplacement.newSpan.from + replacement.scopeLocalSpan.from,
@@ -148,10 +139,7 @@ export function applyUngroupElementsAction(
     .join(separator);
 
   const applied = applyTextReplacements(source, [{ span: ref.span, text: replacementText }]);
-  const appliedReplacement = applied.applied[0];
-  if (!appliedReplacement) {
-    return { kind: "unsupported", reason: "Ungroup did not produce a source update." };
-  }
+  const appliedReplacement = applied.applied[0]!;
 
   let selectedSourceIds: string[] | undefined;
   if (replacementText.length > 0) {
@@ -247,10 +235,7 @@ function totalSiblingMovement(
   let movement = 0;
   for (let index = 0; index < expandedOrder.length; index += 1) {
     const id = expandedOrder[index];
-    const oldIndex = oldIndexById.get(id);
-    if (oldIndex == null) {
-      continue;
-    }
+    const oldIndex = oldIndexById.get(id)!;
     movement += Math.abs(index - oldIndex);
   }
   return movement;
@@ -285,9 +270,6 @@ function collectSiblingDependencyConstraints(
   siblingIds: readonly string[],
   parseOptions: EditParseOptions
 ): DependencyConstraint[] {
-  if (siblingIds.length === 0) {
-    return [];
-  }
   const siblingIdSet = new Set(siblingIds);
   const parsed = parseTikzForEdit(source, {
     ...parseOptions,
@@ -392,10 +374,7 @@ function buildGroupReplacement(input: {
   const groupedBody = selectedRefs
     .map((ref) => reindentBlock(source.slice(ref.span.from, ref.span.to), childIndent))
     .join(newline);
-  const scopeText =
-    groupedBody.length > 0
-      ? `\\begin{scope}${newline}${groupedBody}${newline}${indent}\\end{scope}`
-      : `\\begin{scope}${newline}${indent}\\end{scope}`;
+  const scopeText = `\\begin{scope}${newline}${groupedBody}${newline}${indent}\\end{scope}`;
 
   let text = "";
   let scopeLocalFrom = -1;
@@ -413,11 +392,6 @@ function buildGroupReplacement(input: {
       continue;
     }
     text += snippetsById.get(item) ?? "";
-  }
-
-  if (scopeLocalFrom < 0 || scopeLocalTo < 0) {
-    scopeLocalFrom = 0;
-    scopeLocalTo = 0;
   }
 
   return {
@@ -489,27 +463,12 @@ function resolveStatementIdBySpan(
 ): string | null {
   const snapshot = parseStatementSnapshot(source, parseOptions);
 
-  let exact: StatementRef | null = null;
   for (const ref of snapshot.all) {
     if (ref.span.from === span.from && ref.span.to === span.to) {
-      exact = ref;
-      break;
+      return ref.id;
     }
   }
-  if (exact) {
-    return exact.id;
-  }
-
-  let bestContaining: StatementRef | null = null;
-  for (const ref of snapshot.all) {
-    if (ref.span.from <= span.from && ref.span.to >= span.to) {
-      if (!bestContaining || (ref.span.to - ref.span.from) < (bestContaining.span.to - bestContaining.span.from)) {
-        bestContaining = ref;
-      }
-    }
-  }
-
-  return bestContaining?.id ?? null;
+  return null;
 }
 
 function resolveStatementSeparator(
@@ -521,9 +480,6 @@ function resolveStatementSeparator(
   for (let index = 0; index < parentRefs.length - 1; index += 1) {
     const left = parentRefs[index];
     const right = parentRefs[index + 1];
-    if (!left || !right) {
-      continue;
-    }
 
     const gap = source.slice(left.span.to, right.span.from);
     if (gap.includes("\n")) {
@@ -581,9 +537,6 @@ function normalizeStatementIds(elementIds: readonly string[]): string[] {
   const seen = new Set<string>();
   const normalized: string[] = [];
   for (const rawId of elementIds) {
-    if (typeof rawId !== "string") {
-      continue;
-    }
     const parsed = parseEditableTargetId(rawId);
     if (parsed.kind !== "statement") {
       continue;

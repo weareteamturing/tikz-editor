@@ -326,6 +326,332 @@ describe("incremental parser session", () => {
     expect(result.stats.strategy).toBe("full");
     expect(["statement-structure-changed", "statement-parse-error"]).toContain(result.stats.fallbackReason);
   });
+
+  it("reuses cached parses and falls back for non-incremental session inputs", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const seeded = parseWithContext(source);
+    const statementId = seeded.figure.body[0]?.id;
+    expect(statementId).toBeTruthy();
+    if (!statementId) {
+      throw new Error("Expected a statement to exist");
+    }
+
+    const cold = createIncrementalParseSession();
+    const coldResult = cold.evaluate({
+      source,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: true,
+      trigger: "drag-element",
+      patches: [computeSinglePatch(source, source.replace("(1,0)", "(1.1,0)"))],
+      changedSourceIds: [statementId]
+    });
+    expect(coldResult.stats.strategy).toBe("full");
+    expect(coldResult.stats.fallbackReason).toBe("no-previous-cache");
+
+    const session = createIncrementalParseSession();
+    session.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true, sourceRevision: 4 });
+    const reused = session.evaluate({
+      source,
+      sourceRevision: 5,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: true
+    });
+    expect(reused.stats.strategy).toBe("reused");
+    expect(reused.stats.reusedStatementCount).toBeGreaterThan(0);
+
+    const nextSource = source.replace("(1,0)", "(1.5,0)");
+    const patch = computeSinglePatch(source, nextSource);
+    const nonDrag = session.evaluate({
+      source: nextSource,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: true,
+      trigger: "other",
+      patches: [patch],
+      changedSourceIds: [statementId]
+    });
+    expect(nonDrag.stats.strategy).toBe("full");
+    expect(nonDrag.stats.fallbackReason).toBe("non-drag-trigger");
+
+    session.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true });
+    expect(session.evaluate({
+      source: nextSource,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: true,
+      trigger: "drag-element",
+      patches: [],
+      changedSourceIds: [statementId]
+    }).stats.fallbackReason).toBe("missing-patches");
+
+    expect(session.evaluate({
+      source: nextSource,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: false,
+      trigger: "drag-element",
+      patches: [patch],
+      changedSourceIds: [statementId]
+    }).stats.fallbackReason).toBe("active-figure-mismatch");
+
+    session.reset();
+    const afterReset = session.evaluate({
+      source,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: true,
+      trigger: "drag-handle",
+      patches: [patch],
+      changedSourceIds: [statementId]
+    });
+    expect(afterReset.stats.strategy).toBe("full");
+    expect(afterReset.stats.fallbackReason).toBe("no-previous-cache");
+  });
+
+  it("falls back for active figure and patch ownership mismatches", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}
+\begin{tikzpicture}
+  \draw (0,0) -- (0,1);
+\end{tikzpicture}`;
+    const seeded = parseWithContext(source, "figure:0");
+    const statementId = seeded.figure.body[0]?.id;
+    expect(statementId).toBeTruthy();
+    if (!statementId) {
+      throw new Error("Expected a statement to exist");
+    }
+
+    const session = createIncrementalParseSession();
+    session.prime(seeded, { activeFigureId: "figure:0", includeContextDefinitions: true });
+    const unchangedMismatch = session.evaluate({
+      source,
+      activeFigureId: "figure:1",
+      includeContextDefinitions: true,
+      trigger: "drag-element",
+      patches: [{ oldSpan: { from: 0, to: 0 }, newSpan: { from: 0, to: 0 }, replacement: "" }],
+      changedSourceIds: [statementId]
+    });
+    expect(unchangedMismatch.stats.fallbackReason).toBe("source-unchanged-active-figure-mismatch");
+
+    const nextSource = source.replace("(1,0)", "(1.2,0)");
+    const patch = computeSinglePatch(source, nextSource);
+    session.prime(seeded, { activeFigureId: "figure:0", includeContextDefinitions: true });
+    expect(session.evaluate({
+      source: nextSource,
+      activeFigureId: "figure:1",
+      includeContextDefinitions: true,
+      trigger: "drag-element",
+      patches: [patch],
+      changedSourceIds: [statementId]
+    }).stats.fallbackReason).toBe("active-figure-mismatch");
+
+    session.prime(seeded, { activeFigureId: "figure:0", includeContextDefinitions: true });
+    const secondFigureCoordinate = source.lastIndexOf("(0,1)");
+    const outsideSource = source.slice(0, secondFigureCoordinate) + "(0,1.2)" + source.slice(secondFigureCoordinate + "(0,1)".length);
+    expect(session.evaluate({
+      source: outsideSource,
+      activeFigureId: "figure:0",
+      includeContextDefinitions: true,
+      trigger: "drag-element",
+      patches: [computeSinglePatch(source, outsideSource)],
+      changedSourceIds: [statementId]
+    }).stats.fallbackReason).toBe("patch-outside-active-figure");
+
+    const whitespace = findSpan(source, "\n  ", source.indexOf("\\begin{tikzpicture}"));
+    session.prime(seeded, { activeFigureId: "figure:0", includeContextDefinitions: true });
+    expect(session.evaluate({
+      source,
+      activeFigureId: "figure:0",
+      includeContextDefinitions: true,
+      trigger: "drag-element",
+      patches: [{ oldSpan: whitespace, newSpan: whitespace, replacement: source.slice(whitespace.from, whitespace.to) }],
+      changedSourceIds: [statementId]
+    }).stats.fallbackReason).toBe("patch-overlaps-unknown-statement");
+  });
+
+  it("patches nested scope statements while preserving source ids", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) -- (1,0);
+  \end{scope}
+  \draw (0,0) -- (0,1);
+\end{tikzpicture}`;
+    const nextSource = source.replace("(1,0)", "(1.75,0.25)");
+    const seeded = parseWithContext(source);
+    const full = parseWithContext(nextSource);
+    const scope = seeded.figure.body[0];
+    expect(scope?.kind).toBe("Scope");
+    if (!scope || scope.kind !== "Scope") {
+      throw new Error("Expected a scope statement");
+    }
+    const nestedId = scope.body[0]?.id;
+    expect(nestedId).toBeTruthy();
+    if (!nestedId) {
+      throw new Error("Expected a nested statement id");
+    }
+
+    const session = createIncrementalParseSession();
+    session.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true });
+    const incremental = session.evaluate({
+      source: nextSource,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: true,
+      trigger: "drag-handle",
+      patches: [computeSinglePatch(source, nextSource)],
+      changedSourceIds: [nestedId]
+    });
+
+    expect(incremental.stats.strategy).toBe("incremental");
+    expect(incremental.stats.reparsedStatementCount).toBe(1);
+    expect(normalizeFigureForComparison(incremental.parse.figure)).toEqual(normalizeFigureForComparison(full.figure));
+    const nextScope = incremental.parse.figure.body[0];
+    expect(nextScope?.kind).toBe("Scope");
+    if (nextScope?.kind === "Scope") {
+      expect(nextScope.body[0]?.id).toBe(nestedId);
+    }
+  });
+
+  it("falls back when a patch is owned by a different statement than the changed source id", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,0) -- (0,1);
+\end{tikzpicture}`;
+    const nextSource = source.replace("(0,1)", "(0,1.5)");
+    const seeded = parseWithContext(source);
+    const firstId = seeded.figure.body[0]?.id;
+    expect(firstId).toBeTruthy();
+    if (!firstId) {
+      throw new Error("Expected first statement id");
+    }
+
+    const session = createIncrementalParseSession();
+    session.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true });
+    const result = session.evaluate({
+      source: nextSource,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: true,
+      trigger: "drag-element",
+      patches: [computeSinglePatch(source, nextSource)],
+      changedSourceIds: [firstId]
+    });
+
+    expect(result.stats.strategy).toBe("full");
+    expect(result.stats.fallbackReason).toBe("patch-source-id-mismatch");
+  });
+
+  it("preserves and shifts local diagnostics for unchanged statements during incremental replacement", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node (A) at (0,0) {bad};
+  \draw (A) -- (1,0);
+\end{tikzpicture}`;
+    const seeded = parseTikz(source, {
+      recover: true,
+      includeContextDefinitions: true,
+      nodeTextValidator: ({ node }) => node.text === "bad" ? { code: "bad-node-text", message: "bad text" } : null
+    });
+    const drawId = seeded.figure.body[1]?.id;
+    expect(drawId).toBeTruthy();
+    if (!drawId) {
+      throw new Error("Expected draw statement id");
+    }
+
+    const nextSource = source.replace("(1,0)", "(1.25,0.5)");
+    const session = createIncrementalParseSession();
+    session.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true });
+    const result = session.evaluate({
+      source: nextSource,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: true,
+      trigger: "drag-element",
+      patches: [computeSinglePatch(source, nextSource)],
+      changedSourceIds: [drawId]
+    });
+
+    expect(result.stats.strategy).toBe("incremental");
+    expect(result.parse.diagnostics).toEqual([
+      expect.objectContaining({ code: "bad-node-text", message: "bad text" })
+    ]);
+    expect(result.parse.diagnostics[0]?.span).toEqual(seeded.diagnostics[0]?.span);
+  });
+
+  it("falls back when the cached parse has global diagnostics", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const seeded = parseWithContext(source);
+    const statementId = seeded.figure.body[0]?.id;
+    expect(statementId).toBeTruthy();
+    if (!statementId) {
+      throw new Error("Expected statement id");
+    }
+    const withGlobalDiagnostic = {
+      ...seeded,
+      diagnostics: [
+        ...seeded.diagnostics,
+        {
+          severity: "error" as const,
+          code: "synthetic-global",
+          message: "global problem",
+          span: { from: 0, to: 1 }
+        }
+      ]
+    };
+
+    const nextSource = source.replace("(1,0)", "(1.2,0)");
+    const session = createIncrementalParseSession();
+    session.prime(withGlobalDiagnostic, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true });
+    const result = session.evaluate({
+      source: nextSource,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: true,
+      trigger: "drag-element",
+      patches: [computeSinglePatch(source, nextSource)],
+      changedSourceIds: [statementId]
+    });
+
+    expect(result.stats.strategy).toBe("full");
+    expect(result.stats.fallbackReason).toBe("global-diagnostics");
+  });
+
+  it("keeps nested path item ids stable for to, edge, and child operations", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path (0,0) to node[midway] {x} (1,0) edge node {y} (2,0);
+  \node {root} child { node {a} };
+\end{tikzpicture}`;
+    const nextSource = source
+      .replace("(1,0)", "(1.2,0.4)")
+      .replace("{root}", "{root!}");
+    const seeded = parseWithContext(source);
+    const full = parseWithContext(nextSource);
+    const firstId = seeded.figure.body[0]?.id;
+    const secondId = seeded.figure.body[1]?.id;
+    expect(firstId).toBeTruthy();
+    expect(secondId).toBeTruthy();
+    if (!firstId || !secondId) {
+      throw new Error("Expected path statement ids");
+    }
+
+    const applied = applyReplacements(source, [
+      { span: findSpan(source, "(1,0)"), replacement: "(1.2,0.4)" },
+      { span: findSpan(source, "{root}"), replacement: "{root!}" }
+    ]);
+    expect(applied.source).toBe(nextSource);
+
+    const session = createIncrementalParseSession();
+    session.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true });
+    const result = session.evaluate({
+      source: nextSource,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: true,
+      trigger: "drag-element",
+      patches: applied.patches,
+      changedSourceIds: [firstId, secondId]
+    });
+
+    expect(result.stats.strategy).toBe("incremental");
+    expect(normalizeFigureForComparison(result.parse.figure)).toEqual(normalizeFigureForComparison(full.figure));
+    expect(result.parse.figure.body[0]?.id).toBe(firstId);
+    expect(result.parse.figure.body[1]?.id).toBe(secondId);
+  });
 });
 
 function parseWithContext(source: string, activeFigureId?: string | null) {

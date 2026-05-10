@@ -338,8 +338,6 @@ function buildNodeResizeMutationCandidates(args: {
       }
       return dedupeResizeCandidates(candidates);
     }
-    candidates.push(buildResizeCandidate(new Map([["text width", textWidthMutation]]), false));
-    return dedupeResizeCandidates(candidates);
   }
 
   const widthMutation: OptionMutation =
@@ -947,13 +945,6 @@ function resolvePathRectangleResizeContext(
   }
 
   const [startHandle, oppositeHandle] = pathPointHandles;
-  if (!startHandle || !oppositeHandle) {
-    return {
-      kind: "unsupported",
-      reason: "Resize requires rectangles with explicit start and target coordinates."
-    };
-  }
-
   if (startHandle.rewriteMode === "unsupported" || oppositeHandle.rewriteMode === "unsupported") {
     return {
       kind: "unsupported",
@@ -1447,9 +1438,6 @@ function pickPathShapeResizeOptionTarget(
   }
   for (let index = optionItems.length - 1; index >= 0; index -= 1) {
     const item = optionItems[index];
-    if (!item) {
-      continue;
-    }
     const hasRadiusEntry = item.options.entries.some(
       (entry) =>
         entry.kind === "kv" &&

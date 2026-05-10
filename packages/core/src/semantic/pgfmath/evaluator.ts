@@ -422,12 +422,24 @@ class Parser {
         return this.scalar(0);
       }
       if (normalized === "rnd") {
+        if (this.matchOp("(")) {
+          if (this.matchOp(")") === false) {
+            return this.error("invalid-arity", "rnd() does not accept arguments.");
+          }
+          return this.evaluateFunction(ident, []);
+        }
         if (this.rng == null) {
           return this.error("unsupported-random", "Random functions require an active pgfmath RNG runtime.");
         }
         return this.scalar(this.rng.rnd());
       }
       if (normalized === "rand") {
+        if (this.matchOp("(")) {
+          if (this.matchOp(")") === false) {
+            return this.error("invalid-arity", "rand() does not accept arguments.");
+          }
+          return this.evaluateFunction(ident, []);
+        }
         if (this.rng == null) {
           return this.error("unsupported-random", "Random functions require an active pgfmath RNG runtime.");
         }

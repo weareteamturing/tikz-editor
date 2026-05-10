@@ -4,10 +4,18 @@ import {
   finalizePrefixWidthTable,
   extendTeXControlWordPrefixEnd,
   findNearestPrefixIndexFromTable,
+  hasDanglingMathScriptOperator,
   readPrefixUnitsFromTable,
   scanTeXPrefixState,
+  seedPrefixWidthTable,
   stabilizePrefixForMeasurement
 } from "../packages/core/src/text/prefix-width.js";
+import {
+  buildLineStarts,
+  findLineEndOffset,
+  lineBreakWidthAt,
+  lineForOffset
+} from "../packages/core/src/text/line-map.js";
 import {
   finalizePrefixWidthTable as finalizeMathPrefixWidthTable,
   stabilizePrefixForMeasurement as stabilizeMathPrefixForMeasurement
@@ -88,5 +96,66 @@ describe("prefix width helpers", () => {
 
   it("leaves incomplete fraction math invalid so width can carry forward", () => {
     expect(stabilizeMathPrefixForMeasurement(String.raw`$\frac{n`)).toBe(String.raw`$\frac{n}$`);
+  });
+
+  it("stabilizes escaped tails, unbalanced groups, left-right pairs, and script operators", () => {
+    expect(stabilizePrefixForMeasurement(String.raw`$x^`)).toBe(String.raw`$x^{}$`);
+    expect(stabilizePrefixForMeasurement("\\($x+\\")).toBe(String.raw`\($x+\phantom{}\)`);
+    expect(stabilizePrefixForMeasurement(String.raw`\[x+1`)).toBe(String.raw`\[x+1\]`);
+    expect(stabilizePrefixForMeasurement(String.raw`$\left( x`)).toBe(String.raw`$\left( x\right.$`);
+    expect(stabilizePrefixForMeasurement(String.raw`\textbf{abc`)).toBe(String.raw`\textbf{abc}`);
+    expect(stabilizePrefixForMeasurement("$\\alpha\\")).toBe(String.raw`$\alpha\phantom{}$`);
+
+    expect(scanTeXPrefixState(String.raw`\$ $x`).mathMode).toBe("dollar");
+    expect(scanTeXPrefixState(String.raw`\(x\) $$y$$`).mathMode).toBe("none");
+    expect(hasDanglingMathScriptOperator(String.raw`x\_`)).toBe(false);
+    expect(hasDanglingMathScriptOperator(String.raw`x\\_`)).toBe(true);
+    expect(hasDanglingMathScriptOperator("   ")).toBe(false);
+  });
+
+  it("normalizes invalid prefix width tables before interpolation and lookup", () => {
+    expect(seedPrefixWidthTable(3, 42)).toEqual([0, undefined, undefined, 42]);
+    expect(finalizePrefixWidthTable([], 10)).toEqual([]);
+    expect(finalizePrefixWidthTable([Number.NaN, Number.NaN, Number.NaN], -10)).toEqual([0, 0, 0]);
+
+    const finalized = finalizePrefixWidthTable([0, 80, 40, Number.NaN], 100);
+    expect(finalized).toEqual([0, 80, 80, 100]);
+
+    expect(readPrefixUnitsFromTable(0, 4, 40, [0, 10, 20, 30, 40])).toBe(0);
+    expect(readPrefixUnitsFromTable(2, 4, 40, [0, 10, 20])).toBe(20);
+    expect(readPrefixUnitsFromTable(Number.POSITIVE_INFINITY, 4, 40, [0, 10, 20, 30, 40])).toBe(0);
+    expect(readPrefixUnitsFromTable(3.8, 4, 40, [0, 10, Number.NaN, 30, 40])).toBe(30);
+    expect(findNearestPrefixIndexFromTable(15, 4, 40, [0, 10, Number.NaN, 30, 40])).toBe(2);
+    expect(findNearestPrefixIndexFromTable(15, 0, 40, [0])).toBe(0);
+    expect(findNearestPrefixIndexFromTable(Number.POSITIVE_INFINITY, 4, 40, [0, 10, 20, 30, 40])).toBe(4);
+  });
+
+  it("extends control symbols and clamps prefix ends", () => {
+    const content = String.raw`\% \alpha`;
+
+    expect(extendTeXControlWordPrefixEnd(content, -1)).toBe(0);
+    expect(extendTeXControlWordPrefixEnd(content, 1)).toBe(2);
+    expect(extendTeXControlWordPrefixEnd(content, 4)).toBe(content.length);
+    expect(extendTeXControlWordPrefixEnd(content, 99)).toBe(content.length);
+  });
+});
+
+describe("line map helpers", () => {
+  it("recognizes every supported line break width", () => {
+    expect(lineBreakWidthAt("a\nb", 1)).toBe(1);
+    expect(lineBreakWidthAt("a\r\nb", 1)).toBe(2);
+    expect(lineBreakWidthAt("a\rb", 1)).toBe(1);
+    expect(lineBreakWidthAt("abc", 1)).toBe(0);
+  });
+
+  it("builds line starts and resolves offsets across mixed newlines", () => {
+    const source = "one\r\ntwo\nthree\rfour";
+    const starts = buildLineStarts(source);
+
+    expect(starts).toEqual([0, 5, 9, 15]);
+    expect(lineForOffset(0, starts)).toBe(1);
+    expect(lineForOffset(8, starts)).toBe(2);
+    expect(lineForOffset(15, starts)).toBe(4);
+    expect(findLineEndOffset(source, 5)).toBe(8);
   });
 });

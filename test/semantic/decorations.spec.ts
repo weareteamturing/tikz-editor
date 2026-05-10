@@ -1,9 +1,59 @@
 import { describe, expect, it } from "vitest";
 
+import { worldPoint } from "../../packages/core/src/coords/points.js";
+import { pt } from "../../packages/core/src/coords/scalars.js";
+import { applyDecorationToPath, isDecorationDeferred } from "../../packages/core/src/semantic/decorations/index.js";
+import { decoratePathElements, markDecorationFeature } from "../../packages/core/src/semantic/path/decorate.js";
+import { createPgfRandom } from "../../packages/core/src/semantic/pgfmath/rng.js";
+import { defaultStyle } from "../../packages/core/src/semantic/style/defaults.js";
+import type { DecorationStyle, SceneElement, ScenePath, ScenePathCommand } from "../../packages/core/src/semantic/types.js";
 import {
   evaluateSemantic,
   firstElementOfKind
 } from "./helpers.js";
+
+const SOURCE_REF = { sourceId: "test:path", sourceSpan: { from: 0, to: 0 }, sourceFingerprint: "" };
+
+function makeDecoration(name: string | null, params: Record<string, string> = {}): DecorationStyle {
+  return {
+    enabled: name != null && name !== "none",
+    name,
+    raise: 0,
+    mirror: false,
+    transformRaw: null,
+    pre: "lineto",
+    preLength: 0,
+    post: "lineto",
+    postLength: 0,
+    params
+  };
+}
+
+function makePath(commands: ScenePathCommand[], decoration: DecorationStyle): ScenePath {
+  const style = defaultStyle();
+  return {
+    kind: "Path",
+    id: "test:path",
+    runtimeId: "test:path",
+    sourceRef: SOURCE_REF,
+    style: {
+      ...style,
+      drawExplicit: true,
+      decoration,
+      decorationPreActions: [{ ...makeDecoration("zigzag"), params: { amplitude: "1pt" } }],
+      decorationPostActions: [{ ...makeDecoration("ticks"), params: { amplitude: "1pt" } }]
+    },
+    styleChain: [],
+    commands
+  };
+}
+
+function linePath(decoration: DecorationStyle): ScenePath {
+  return makePath([
+    { kind: "M", to: worldPoint(pt(0), pt(0)) },
+    { kind: "L", to: worldPoint(pt(80), pt(0)) }
+  ], decoration);
+}
 
 describe("semantic evaluator / decorations", () => {
     it("supports decorate option and decoration key without generic unsupported diagnostics", () => {
@@ -219,5 +269,243 @@ describe("semantic evaluator / decorations", () => {
       if (firstPath?.kind === "Path" && secondPath?.kind === "Path") {
         expect(firstPath.commands).toEqual(secondPath.commands);
       }
+    });
+
+    it("clones undecorated paths for none, deferred, and unknown decorations without sharing mutable style state", () => {
+      const disabled = makeDecoration(null);
+      const disabledResult = applyDecorationToPath(linePath(disabled), disabled, "seed:disabled");
+      expect(disabledResult.kind).toBe("decorated");
+
+      const none = makeDecoration("none");
+      const nonePath = linePath(none);
+      const noneResult = applyDecorationToPath(nonePath, none, "seed:none");
+      expect(noneResult.kind).toBe("decorated");
+      const clonedPath = noneResult.elements[0];
+      expect(clonedPath?.kind).toBe("Path");
+      if (clonedPath?.kind === "Path") {
+        expect(clonedPath).not.toBe(nonePath);
+        clonedPath.style.decoration.params.changed = "yes";
+        clonedPath.style.decorationPreActions[0]!.params.changed = "yes";
+        expect(nonePath.style.decoration.params.changed).toBeUndefined();
+        expect(nonePath.style.decorationPreActions[0]!.params.changed).toBeUndefined();
+      }
+
+      const deferred = makeDecoration("markings");
+      const deferredResult = applyDecorationToPath(linePath(deferred), deferred, "seed:deferred");
+      expect(deferredResult).toMatchObject({ kind: "unsupported", reason: "deferred", name: "markings" });
+      expect(isDecorationDeferred(" name=markings ")).toBe(true);
+
+      const unknown = makeDecoration("not a decoration");
+      const unknownResult = applyDecorationToPath(linePath(unknown), unknown, "seed:unknown");
+      expect(unknownResult).toMatchObject({ kind: "unsupported", reason: "unknown", name: "not a decoration" });
+      expect(isDecorationDeferred("not a decoration")).toBe(false);
+    });
+
+    it("applies pre/post decoration ranges and direct shape-mark variants", () => {
+      const decoration = makeDecoration("shape backgrounds", {
+        "shape": "rectangle",
+        "shape width": "6pt",
+        "shape height": "3pt",
+        "shape sep": "bad, 4pt",
+        "segment length": "8pt"
+      });
+      decoration.pre = "moveto";
+      decoration.preLength = 12;
+      decoration.post = "cantor set";
+      decoration.postLength = 18;
+      decoration.transformRaw = "{xshift=1pt,yshift=2pt,shift={(0.1cm,0.2cm)},scale=1.1,xscale=0.8,yscale=1.2,rotate=15}";
+
+      const result = applyDecorationToPath(linePath(decoration), decoration, "seed:ranges");
+      expect(result.kind).toBe("decorated");
+      const path = result.elements[0];
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.id).toContain("shape-backgrounds");
+        expect(path.undecoratedCommands).toHaveLength(2);
+        expect(path.style.decoration.enabled).toBe(false);
+        expect(path.commands.length).toBeGreaterThan(20);
+        expect(path.commands.some((command) => command.kind === "M")).toBe(true);
+      }
+    });
+
+    it("renders less common path morphing and shape decorations through the engine", () => {
+      const cases: Array<{ name: string; params?: Record<string, string> }> = [
+        { name: "straight zigzag", params: { "segment length": "6pt", amplitude: "2pt" } },
+        { name: "saw", params: { "segment length": "7pt", amplitude: "3pt" } },
+        { name: "bent", params: { aspect: "0.25", amplitude: "5pt" } },
+        { name: "waves", params: { "segment length": "10pt", "start radius": "2pt" } },
+        { name: "expanding waves", params: { "segment length": "10pt", "start radius": "2pt" } },
+        { name: "border", params: { angle: "30", amplitude: "3pt", "segment length": "8pt" } },
+        { name: "random steps", params: { amplitude: "3pt", "segment length": "8pt" } },
+        { name: "triangles", params: { "shape size": "5pt", "shape sep": "9pt" } },
+        { name: "footprints", params: { "shape width": "6pt", "shape height": "3pt", "shape sep": "9pt" } },
+        { name: "shape backgrounds", params: { shape: "triangle", "shape size": "5pt", "shape sep": "9pt" } },
+        { name: "shape backgrounds", params: { shape: "circle", "shape width": "6pt", "shape height": "4pt", "shape sep": "9pt" } },
+        { name: "koch curve type 1", params: { "segment length": "20pt" } },
+        { name: "koch curve type 2", params: { "segment length": "20pt" } },
+        { name: "curveto", params: { "segment length": "20pt" } }
+      ];
+
+      for (const testCase of cases) {
+        const decoration = makeDecoration(testCase.name, testCase.params ?? {});
+        const result = applyDecorationToPath(linePath(decoration), decoration, `seed:${testCase.name}`);
+        expect(result.kind).toBe("decorated");
+        const path = result.elements[0];
+        expect(path?.kind).toBe("Path");
+        if (path?.kind === "Path") {
+          expect(path.commands.length, testCase.name).toBeGreaterThan(1);
+        }
+      }
+    });
+
+    it("falls back cleanly for degenerate decoration geometry and sparse transform options", () => {
+      const degenerateCommands: ScenePathCommand[] = [
+        { kind: "M", to: worldPoint(pt(0), pt(0)) },
+        { kind: "L", to: worldPoint(pt(0), pt(0)) }
+      ];
+      for (const name of ["moveto", "brace", "bent", "waves", "bumps"]) {
+        const decoration = makeDecoration(name, { "segment length": "bad", amplitude: "bad" });
+        decoration.transformRaw = "{shift only=true, xshift=bad, shift=bad, scale=bad, rotate=bad}";
+        const result = applyDecorationToPath(makePath(degenerateCommands, decoration), decoration, `seed:degenerate:${name}`);
+        expect(result.kind).toBe("decorated");
+        const path = result.elements[0];
+        expect(path?.kind).toBe("Path");
+        if (path?.kind === "Path") {
+          expect(path.commands).toEqual(degenerateCommands);
+        }
+      }
+    });
+
+    it("decorates converted circle and ellipse elements while preserving non-path elements by mode", () => {
+      const style = {
+        ...defaultStyle(),
+        decoration: makeDecoration("zigzag"),
+        decorationPreActions: [{ ...makeDecoration("zigzag"), params: { amplitude: "1pt" } }],
+        decorationPostActions: [{ ...makeDecoration("ticks"), params: { amplitude: "1pt" } }]
+      };
+      const circle: SceneElement = {
+        kind: "Circle",
+        id: "circle",
+        runtimeId: "circle",
+        sourceRef: SOURCE_REF,
+        style,
+        styleChain: [],
+        center: worldPoint(pt(0), pt(0)),
+        radius: 12
+      };
+      const ellipse: SceneElement = {
+        kind: "Ellipse",
+        id: "ellipse",
+        runtimeId: "ellipse",
+        sourceRef: SOURCE_REF,
+        style,
+        styleChain: [],
+        center: worldPoint(pt(20), pt(0)),
+        rx: 14,
+        ry: 8,
+        rotation: 15
+      };
+      const text: SceneElement = {
+        kind: "Text",
+        id: "text",
+        runtimeId: "text",
+        sourceRef: SOURCE_REF,
+        style,
+        styleChain: [],
+        text: "kept",
+        position: worldPoint(pt(0), pt(0))
+      };
+      const features: string[] = [];
+      const diagnostics: string[] = [];
+
+      const replaced = decoratePathElements(
+        [circle, ellipse, text],
+        makeDecoration(" zigzag "),
+        "replace",
+        "stmt",
+        createPgfRandom(1),
+        (feature, status) => features.push(`${feature}:${status}`),
+        (code) => diagnostics.push(code)
+      );
+
+      expect(replaced.filter((element) => element.kind === "Path")).toHaveLength(2);
+      expect(replaced.at(-1)).toBe(text);
+      expect(features).toContain("decoration_pathmorphing:supported");
+      expect(diagnostics).toEqual([]);
+
+      const collected = decoratePathElements(
+        [text],
+        makeDecoration("unknown decoration"),
+        "collect",
+        "stmt",
+        createPgfRandom(1),
+        (feature, status) => features.push(`${feature}:${status}`),
+        (code) => diagnostics.push(code)
+      );
+      expect(collected).toEqual([]);
+    });
+
+    it("marks every known decoration feature family and ignores empty names", () => {
+      const marked: string[] = [];
+      const mark = (name: string, status: "supported" | "unsupported") => marked.push(`${name}:${status}`);
+
+      for (const name of [
+        "lineto",
+        "text along path",
+        "Koch curve type 2",
+        "triangles",
+        "footprints",
+        "shape backgrounds"
+      ]) {
+        markDecorationFeature(name, "unsupported", mark);
+      }
+      markDecorationFeature(" none ", "unsupported", mark);
+      markDecorationFeature("   ", "unsupported", mark);
+
+      expect(marked).toEqual([
+        "decoration_pathmorphing:unsupported",
+        "decoration_pathreplacing:unsupported",
+        "decoration_fractals:unsupported",
+        "decoration_shape_marks:unsupported",
+        "decoration_footprints:unsupported",
+        "decoration_shape_backgrounds:unsupported"
+      ]);
+    });
+
+    it("reports unsupported decorations from decorated path elements in replace and collect modes", () => {
+      const features: string[] = [];
+      const diagnostics: Array<{ code: string; message: string }> = [];
+      const mark = (feature: string, status: "supported" | "unsupported") => features.push(`${feature}:${status}`);
+      const pushDiagnostic = (code: string, message: string) => diagnostics.push({ code, message });
+      const unknown = makeDecoration("not a decoration");
+      const path = linePath(unknown);
+
+      const replaced = decoratePathElements(
+        [path],
+        unknown,
+        "replace",
+        "stmt",
+        createPgfRandom(1),
+        mark,
+        pushDiagnostic
+      );
+      expect(replaced).toEqual([path]);
+      expect(diagnostics.at(-1)).toMatchObject({
+        code: "unsupported-decoration-name:not a decoration",
+        message: "Decoration `not a decoration` is not implemented; keeping the undecorated path."
+      });
+
+      const deferred = makeDecoration("markings");
+      const collected = decoratePathElements(
+        [linePath(deferred)],
+        deferred,
+        "collect",
+        "stmt",
+        createPgfRandom(1),
+        mark,
+        pushDiagnostic
+      );
+      expect(collected.at(0)?.kind).toBe("Path");
+      expect(diagnostics.at(-1)?.message).toContain("requires dynamic TeX code execution");
     });
 });

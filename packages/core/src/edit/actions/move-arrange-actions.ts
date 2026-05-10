@@ -39,6 +39,10 @@ type EditActionResultLike =
   | { kind: "unsupported"; reason: string }
   | { kind: "error"; message: string };
 
+type KeyValueOptionEntry = Extract<OptionEntry, { kind: "kv" }>;
+type KeyValueOptionCandidate = { entry: KeyValueOptionEntry; index: number };
+type MoveRewriteBatchResult = Exclude<EditActionResultLike, { kind: "error" }>;
+
 export type AlignElementsAction = { elementIds: string[]; mode: AlignMode };
 export type DistributeElementsAction = { elementIds: string[]; axis: DistributeAxis };
 
@@ -124,9 +128,6 @@ export function applyMoveElementsAction(
       matrixPlacementHandlesBySource,
       parseOptions
     );
-    if (byMatrixPlacement.kind === "error") {
-      return byMatrixPlacement;
-    }
     if (byMatrixPlacement.kind === "success" || byMatrixPlacement.kind === "partial") {
       currentSource = byMatrixPlacement.newSource;
       patches.push(...byMatrixPlacement.patches);
@@ -146,9 +147,6 @@ export function applyMoveElementsAction(
       delta,
       parseOptions
     );
-    if (byTreeRootPlacement.kind === "error") {
-      return byTreeRootPlacement;
-    }
     if (byTreeRootPlacement.kind === "success" || byTreeRootPlacement.kind === "partial") {
       currentSource = byTreeRootPlacement.newSource;
       patches.push(...byTreeRootPlacement.patches);
@@ -168,9 +166,6 @@ export function applyMoveElementsAction(
       delta,
       parseOptions
     );
-    if (byScopeTransform.kind === "error") {
-      return byScopeTransform;
-    }
     if (byScopeTransform.kind === "success" || byScopeTransform.kind === "partial") {
       currentSource = byScopeTransform.newSource;
       patches.push(...byScopeTransform.patches);
@@ -346,7 +341,7 @@ function applyMoveMatrixElementsWithPlacementRewrite(
   delta: WorldPoint,
   placementHandlesBySource: ReadonlyMap<string, EditHandle>,
   parseOptions: EditParseOptions
-): EditActionResultLike {
+): MoveRewriteBatchResult {
   let currentSource = source;
   const patches: SourcePatch[] = [];
   const failedElementIds: string[] = [];
@@ -396,7 +391,7 @@ function applyMoveScopeElementsWithTransformRewrite(
   elementIds: readonly string[],
   delta: WorldPoint,
   parseOptions: EditParseOptions
-): EditActionResultLike {
+): MoveRewriteBatchResult {
   let currentSource = source;
   const patches: SourcePatch[] = [];
   const failedElementIds: string[] = [];
@@ -502,7 +497,7 @@ function rewriteSingleScopeShiftInPlace(
   const entries = target.options.entries;
   const shiftEntries = entries
     .map((entry, index) => ({ entry, index }))
-    .filter((candidate) => {
+    .filter((candidate): candidate is KeyValueOptionCandidate => {
       if (candidate.entry.kind !== "kv") {
         return false;
       }
@@ -513,7 +508,7 @@ function rewriteSingleScopeShiftInPlace(
   if (!lastShift) {
     const xyTranslationEntries = entries
       .map((entry, index) => ({ entry, index }))
-      .filter((candidate) => {
+      .filter((candidate): candidate is KeyValueOptionCandidate => {
         if (candidate.entry.kind !== "kv") {
           return false;
         }
@@ -538,11 +533,11 @@ function rewriteSingleScopeShiftInPlace(
     const nextShiftX = context.values.xshift + localDelta.x;
     const nextShiftY = context.values.yshift + localDelta.y;
     const hasXShiftEntry = xyTranslationEntries.some((candidate) => {
-      const key = candidate.entry.kind === "kv" ? normalizeOptionKey(candidate.entry.key) : "";
+      const key = normalizeOptionKey(candidate.entry.key);
       return key === "xshift" || key === "/tikz/xshift";
     });
     const hasYShiftEntry = xyTranslationEntries.some((candidate) => {
-      const key = candidate.entry.kind === "kv" ? normalizeOptionKey(candidate.entry.key) : "";
+      const key = normalizeOptionKey(candidate.entry.key);
       return key === "yshift" || key === "/tikz/yshift";
     });
     const optionMutations = new Map<string, OptionMutation>();
@@ -616,7 +611,7 @@ function resolvePrefixLinearTransform(entries: readonly OptionEntry[], endExclus
 
   for (let index = 0; index < endExclusive; index += 1) {
     const entry = entries[index];
-    if (!entry || entry.kind !== "kv") {
+    if (entry.kind !== "kv") {
       continue;
     }
     const key = normalizeOptionKey(entry.key);
@@ -689,7 +684,7 @@ function applyMoveTreeRootElementsWithPlacementRewrite(
   elementIds: readonly string[],
   delta: WorldPoint,
   parseOptions: EditParseOptions
-): EditActionResultLike {
+): MoveRewriteBatchResult {
   let currentSource = source;
   const patches: SourcePatch[] = [];
   const failedElementIds: string[] = [];
@@ -741,18 +736,8 @@ function rewriteSingleMatrixPlacement(
   const parsed = parseTikzForEdit(source, {
     ...parseOptions,
   });
-  const statement = findPathStatementById(parsed.figure.body, elementId);
-  if (!statement) {
-    return { kind: "unsupported", reason: `Matrix statement ${elementId} was not found` };
-  }
-  if (!isMatrixPathStatement(statement)) {
-    return { kind: "unsupported", reason: `${elementId} is not a matrix statement` };
-  }
-
-  const matrixNode = findPrimaryMatrixNodeItem(statement);
-  if (!matrixNode) {
-    return { kind: "unsupported", reason: `Matrix node item for ${elementId} was not found` };
-  }
+  const statement = findPathStatementById(parsed.figure.body, elementId)!;
+  const matrixNode = findPrimaryMatrixNodeItem(statement)!;
 
   const semantic = evaluateTikzFigure(parsed.figure, source);
   const boundsBySource = collectSourceWorldBounds(semantic.scene.elements);
@@ -789,13 +774,7 @@ function rewriteSingleMatrixPlacement(
   );
   const matrixTarget = resolvePropertyTarget(source, elementId, parseOptions);
   if (matrixTarget.kind === "found" && matrixTarget.target.kind === "matrix-statement") {
-    const bodyOpenOffset = matrixTarget.target.matrixBodyOpenOffset;
-    if (bodyOpenOffset == null) {
-      return {
-        kind: "unsupported",
-        reason: `Could not resolve inline matrix placement position for ${elementId}`
-      };
-    }
+    const bodyOpenOffset = matrixTarget.target.matrixBodyOpenOffset!;
 
     if (atOptionEntry && matrixTarget.target.options && matrixTarget.target.optionsSpan) {
       const optionReplacement = rewriteOptionListMutations(
@@ -849,18 +828,8 @@ function rewriteSingleTreeRootPlacement(
   const parsed = parseTikzForEdit(source, {
     ...parseOptions,
   });
-  const statement = findPathStatementById(parsed.figure.body, elementId);
-  if (!statement) {
-    return { kind: "unsupported", reason: `Tree root statement ${elementId} was not found` };
-  }
-  if (!isTreeRootPathStatement(statement)) {
-    return { kind: "unsupported", reason: `${elementId} is not a tree root statement` };
-  }
-
-  const rootNode = findPrimaryTreeRootNodeItem(statement);
-  if (!rootNode) {
-    return { kind: "unsupported", reason: `Tree root node item for ${elementId} was not found` };
-  }
+  const statement = findPathStatementById(parsed.figure.body, elementId)!;
+  const rootNode = findPrimaryTreeRootNodeItem(statement)!;
 
   const semantic = evaluateTikzFigure(parsed.figure, source);
   const placementHandle = semantic.editHandles.find(
@@ -893,7 +862,13 @@ function rewriteSingleTreeRootPlacement(
       : undefined
   );
 
-  if (rootNode.atSpan) {
+  const atOptionEntry = rootNode.options?.entries
+    .filter((entry): entry is Extract<typeof entry, { kind: "kv" }> => entry.kind === "kv")
+    .find((entry) => normalizeOptionKey(entry.key) === "at");
+  const rootPlacementComesFromOption =
+    atOptionEntry != null && rootNode.atSpan != null && spansEqual(atOptionEntry.span, rootNode.atSpan);
+
+  if (rootNode.atSpan && !rootPlacementComesFromOption) {
     const rewrittenAt = replaceSourceSpan(source, rootNode.atSpan, nextCoordinate);
     if (rewrittenAt) {
       return { kind: "success", source: rewrittenAt.source, patches: [rewrittenAt.patch] };
@@ -904,9 +879,6 @@ function rewriteSingleTreeRootPlacement(
     };
   }
 
-  const atOptionEntry = rootNode.options?.entries
-    .filter((entry): entry is Extract<typeof entry, { kind: "kv" }> => entry.kind === "kv")
-    .find((entry) => normalizeOptionKey(entry.key) === "at");
   if (atOptionEntry) {
     const rewrittenOption = replaceSourceSpan(source, atOptionEntry.span, `at=${nextCoordinate}`);
     if (rewrittenOption) {
@@ -919,14 +891,8 @@ function rewriteSingleTreeRootPlacement(
   }
 
   const insertionOffset = resolveTreeRootNodePlacementInsertionOffset(rootNode, source);
-  const inserted = replaceSourceSpan(source, { from: insertionOffset, to: insertionOffset }, ` at ${nextCoordinate}`);
-  if (inserted) {
-    return { kind: "success", source: inserted.source, patches: [inserted.patch] };
-  }
-  return {
-    kind: "unsupported",
-    reason: `Tree root ${elementId} placement already matches the requested position`
-  };
+  const inserted = replaceSourceSpan(source, { from: insertionOffset, to: insertionOffset }, ` at ${nextCoordinate}`)!;
+  return { kind: "success", source: inserted.source, patches: [inserted.patch] };
 }
 
 function applyElementDeltaMapStrict(
@@ -990,11 +956,11 @@ function applyElementDeltaMapStrict(
       };
     }
 
-      const text = rewriteCoordinate(
-        worldPoint(pt(handle.world.x + delta.x), pt(handle.world.y + delta.y)),
-        handle,
-        source
-      );
+    const text = rewriteCoordinate(
+      worldPoint(pt(handle.world.x + delta.x), pt(handle.world.y + delta.y)),
+      handle,
+      source
+    );
     if (text == null) {
       return {
         kind: "unsupported",
@@ -1068,6 +1034,10 @@ function replaceSourceSpan(
   };
 }
 
+function spansEqual(left: Span, right: Span): boolean {
+  return left.from === right.from && left.to === right.to;
+}
+
 function buildMatrixInlineAtInsertion(source: string, bodyOpenOffset: number, nextCoordinate: string): string {
   const needsLeadingSpace = bodyOpenOffset <= 0 || !/\s/u.test(source[bodyOpenOffset - 1] ?? "");
   return `${needsLeadingSpace ? " " : ""}at ${nextCoordinate} `;
@@ -1098,9 +1068,6 @@ function findInlineAtCoordinateItem(statement: PathStatement): CoordinateItem | 
   for (let index = 0; index < statement.items.length - 1; index += 1) {
     const item = statement.items[index];
     const next = statement.items[index + 1];
-    if (!item || !next) {
-      continue;
-    }
     if (item.kind === "PathKeyword" && item.keyword === "at" && next.kind === "Coordinate") {
       return next;
     }
@@ -1222,9 +1189,6 @@ function normalizeElementIds(elementIds: readonly string[]): string[] {
   const seen = new Set<string>();
   const normalized: string[] = [];
   for (const elementId of elementIds) {
-    if (typeof elementId !== "string") {
-      continue;
-    }
     const id = elementId.trim();
     if (id.length === 0 || seen.has(id)) {
       continue;

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
   expandMacroBindings,
+  isControlSequenceToken,
   type MacroBinding,
   type MacroExpansionTraceEvent,
   type MacroOriginFrame
@@ -114,5 +115,63 @@ describe("macro expansion", () => {
     const explicit = expandMacroBindings(String.raw`\pair[right]{R}`, bindings);
     expect(defaulted).toBe("left/R");
     expect(explicit).toBe("right/R");
+  });
+
+  it("detects expansion cycles and preserves unknown control sequences", () => {
+    const bindings = new Map<string, MacroBinding>([
+      ["\\a", textBinding(String.raw`\b`, "\\a", "macro:a")],
+      ["\\b", textBinding(String.raw`\a`, "\\b", "macro:b")]
+    ]);
+
+    expect(expandMacroBindings(String.raw`pre \a \unknown`, bindings)).toBe(String.raw`pre \a \unknown`);
+    expect(expandMacroBindings("", bindings)).toBe("");
+    expect(expandMacroBindings(String.raw`\a`, new Map())).toBe(String.raw`\a`);
+  });
+
+  it("supports zero-argument callable macros and trailing control-word boundaries", () => {
+    const bindings = new Map<string, MacroBinding>([
+      ["\\word", callableBinding("abc", 0, "\\word", "macro:word")]
+    ]);
+
+    expect(expandMacroBindings(String.raw`\word next`, bindings)).toBe("abc next");
+    expect(expandMacroBindings(String.raw`\wordx`, bindings)).toBe(String.raw`\wordx`);
+    expect(expandMacroBindings(String.raw`\wordtail`, bindings)).toBe(String.raw`\wordtail`);
+    expect(expandMacroBindings(String.raw`\word tail`, bindings)).toBe("abc tail");
+    expect(expandMacroBindings(String.raw`\word{}tail`, bindings)).toBe("abc{}tail");
+    expect(isControlSequenceToken(" \\word ")).toBe(true);
+    expect(isControlSequenceToken("\\word1")).toBe(false);
+  });
+
+  it("leaves callable macros unchanged when required arguments are missing or malformed", () => {
+    const bindings = new Map<string, MacroBinding>([
+      ["\\pair", callableBinding("#1/#2", 2, "\\pair", "macro:pair")]
+    ]);
+
+    expect(expandMacroBindings(String.raw`\pair{A}`, bindings)).toBe(String.raw`\pair{A}`);
+    expect(expandMacroBindings(String.raw`\pair{unterminated`, bindings)).toBe(String.raw`\pair{unterminated`);
+  });
+
+  it("parses control sequence arguments plus escaped and nested bracket/braced arguments", () => {
+    const bindings = new Map<string, MacroBinding>([
+      ["\\wrap", callableBinding("[#1]", 1, "\\wrap", "macro:wrap")],
+      [
+        "\\opt",
+        {
+          kind: "callable",
+          body: "#1/#2",
+          parameterCount: 2,
+          optionalFirstArgDefault: "default",
+          provenance: [makeOrigin("\\opt", "macro:opt", "\\newcommand")]
+        }
+      ],
+      ["\\hash", callableBinding("##/#1/#3/#x", 1, "\\hash", "macro:hash")]
+    ]);
+
+    expect(expandMacroBindings(String.raw`\wrap\alpha`, bindings)).toBe(String.raw`[\alpha]`);
+    expect(expandMacroBindings(String.raw`\wrap{a\{b\}}`, bindings)).toBe(String.raw`[a\{b\}]`);
+    expect(expandMacroBindings(String.raw`\opt[[a\]b]]{R}`, bindings)).toBe(String.raw`[a\]b]/R`);
+    expect(expandMacroBindings(String.raw`\opt[[a[b]]]{R}`, bindings)).toBe("[a[b]]/R");
+    expect(expandMacroBindings(String.raw`\opt[unterminated{R}`, bindings)).toBe(String.raw`\opt[unterminated{R}`);
+    expect(expandMacroBindings(String.raw`\hash{Z}`, bindings)).toBe("#/Z/#3/#x");
   });
 });

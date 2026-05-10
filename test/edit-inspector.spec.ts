@@ -3,8 +3,16 @@ import { renderTikzToSvg } from "../packages/core/src/render/index.js";
 import { applyEditAction } from "../packages/core/src/edit/actions.js";
 import { parseTikz } from "../packages/core/src/parser/index.js";
 import {
+  buildMatrixInspectorDescriptor,
   buildTreeInspectorDescriptor,
+  dashStylePresetFromStyle,
+  fillPatternPresetFromRaw,
+  fillPatternPresetFromResolvedPattern,
+  fillShadingPresetFromStyleName,
   getInspectorDescriptor,
+  lineCapPresetFromStyle,
+  lineJoinPresetFromStyle,
+  lineWidthPresetLabel,
   TIKZPICTURE_GLOBAL_TARGET_ID
 } from "../packages/core/src/edit/inspector.js";
 import {
@@ -25,7 +33,13 @@ import {
   resolveTransformInspectorMutationContext,
   resolveTransformInspectorValues
 } from "../packages/core/src/edit/property-write-builders.js";
-import { resolvePropertyTarget } from "../packages/core/src/edit/property-target.js";
+import {
+  makeForeachTemplateTargetId,
+  makeStyleSourceTargetId,
+  resolveFigurePropertyTargetFromParseResult,
+  resolvePropertyTarget,
+  resolvePropertyTargetFromParseResult
+} from "../packages/core/src/edit/property-target.js";
 import { buildMultiInspectorModel } from "../packages/app/src/ui/inspector-panel/panel-helpers.js";
 
 describe("getInspectorDescriptor", () => {
@@ -1385,6 +1399,56 @@ describe("getInspectorDescriptor", () => {
     expect(pathSection.properties.some((property) => property.id === "path-morphing-aspect")).toBe(false);
   });
 
+  it("parses decoration names from nested, explicit, and disabled decoration options", () => {
+    const cases = [
+      {
+        source: String.raw`\begin{tikzpicture}
+  \draw[decorate=false,decoration={name=zigzag}] (0,0) -- (2,0);
+\end{tikzpicture}`,
+        expected: "none"
+      },
+      {
+        source: String.raw`\begin{tikzpicture}
+  \draw[decorate,decoration={mirror, name=zigzag}] (0,0) -- (2,0);
+\end{tikzpicture}`,
+        expected: "zigzag"
+      },
+      {
+        source: String.raw`\begin{tikzpicture}
+  \draw[decorate,/pgf/decoration/name=bent] (0,0) -- (2,0);
+\end{tikzpicture}`,
+        expected: "bent"
+      },
+      {
+        source: String.raw`\begin{tikzpicture}
+  \draw[decorate,decoration={name=unknown}] (0,0) -- (2,0);
+\end{tikzpicture}`,
+        expected: "custom"
+      }
+    ];
+
+    for (const testCase of cases) {
+      const rendered = renderTikzToSvg(testCase.source);
+      const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+      expect(element).toBeDefined();
+      if (!element) {
+        throw new Error("Expected decorated path element");
+      }
+      const descriptor = getInspectorDescriptor(element, {
+        source: testCase.source,
+        editHandles: rendered.semantic.editHandles
+      });
+      const pathSection = descriptor.sections.find((section) => section.id === "path");
+      expect(pathSection).toBeDefined();
+      if (!pathSection) {
+        throw new Error("Expected path section");
+      }
+      expect(pathSection.properties.find((property) => property.kind === "pathMorphingDecoration")).toMatchObject({
+        value: testCase.expected
+      });
+    }
+  });
+
   it("preserves the untouched custom side when editing the opposite side", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[draw=blue,arrows={Stealth[length=10pt]-Latex}] (0,0) -- (2,0);
@@ -1558,6 +1622,44 @@ describe("getInspectorDescriptor", () => {
     expect(fillSection.properties.some((property) => property.id === "fill-axis-bottom-color")).toBe(true);
   });
 
+  it("shows radial and ball shading color controls", () => {
+    const cases = [
+      {
+        source: String.raw`\begin{tikzpicture}
+  \shade[inner color=red,outer color=blue] (0,0) circle (1);
+\end{tikzpicture}`,
+        expectedIds: ["fill-radial-inner-color", "fill-radial-outer-color"]
+      },
+      {
+        source: String.raw`\begin{tikzpicture}
+  \shade[ball color=green] (0,0) circle (1);
+\end{tikzpicture}`,
+        expectedIds: ["fill-ball-color"]
+      }
+    ];
+
+    for (const testCase of cases) {
+      const rendered = renderTikzToSvg(testCase.source);
+      const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+      expect(element).toBeDefined();
+      if (!element) {
+        throw new Error("Expected shaded path element");
+      }
+      const descriptor = getInspectorDescriptor(element, {
+        source: testCase.source,
+        editHandles: rendered.semantic.editHandles
+      });
+      const fillSection = descriptor.sections.find((section) => section.id === "fill");
+      expect(fillSection).toBeDefined();
+      if (!fillSection) {
+        throw new Error("Expected fill section");
+      }
+      for (const id of testCase.expectedIds) {
+        expect(fillSection.properties.some((property) => property.id === id)).toBe(true);
+      }
+    }
+  });
+
   it("detects pattern fill mode and keeps pattern color syntax aliases", () => {
     const source = String.raw`\begin{tikzpicture}
   \definecolor{brand}{rgb}{0.2,0.4,0.7}
@@ -1653,6 +1755,44 @@ describe("getInspectorDescriptor", () => {
     expect(lineWidth.value).toBeCloseTo(0.6, 6);
   });
 
+  it("shows radius and points controls for dot and star meta-pattern families", () => {
+    const cases = [
+      {
+        source: String.raw`\begin{tikzpicture}
+  \draw[pattern={Dots[distance=5pt,radius=1.5pt,xshift=1pt,yshift=2pt]},pattern color=blue] (0,0) rectangle (1,1);
+\end{tikzpicture}`,
+        expectedIds: ["fill-pattern-radius"]
+      },
+      {
+        source: String.raw`\begin{tikzpicture}
+  \draw[pattern={Stars[distance=6pt,radius=2pt,points=7]},pattern color=blue] (0,0) rectangle (1,1);
+\end{tikzpicture}`,
+        expectedIds: ["fill-pattern-radius", "fill-pattern-points"]
+      }
+    ];
+
+    for (const testCase of cases) {
+      const rendered = renderTikzToSvg(testCase.source);
+      const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+      expect(element).toBeDefined();
+      if (!element) {
+        throw new Error("Expected patterned path element");
+      }
+      const descriptor = getInspectorDescriptor(element, {
+        source: testCase.source,
+        editHandles: rendered.semantic.editHandles
+      });
+      const fillSection = descriptor.sections.find((section) => section.id === "fill");
+      expect(fillSection).toBeDefined();
+      if (!fillSection) {
+        throw new Error("Expected fill section");
+      }
+      for (const id of testCase.expectedIds) {
+        expect(fillSection.properties.some((property) => property.id === id)).toBe(true);
+      }
+    }
+  });
+
   it("maps unsupported shading and pattern values to custom inspector presets", () => {
     const shadingSource = String.raw`\begin{tikzpicture}
   \shade[shading=color wheel] (0,0) rectangle (1,1);
@@ -1703,6 +1843,95 @@ describe("getInspectorDescriptor", () => {
       throw new Error("Expected fill pattern property");
     }
     expect(fillPattern.value).toBe("custom");
+  });
+
+  it("normalizes fill, dash, cap, join, and line-width presets from raw model values", () => {
+    expect(fillShadingPresetFromStyleName("{ axis }")).toBe("axis");
+    expect(fillShadingPresetFromStyleName("radial")).toBe("radial");
+    expect(fillShadingPresetFromStyleName("ball")).toBe("ball");
+    expect(fillShadingPresetFromStyleName("color wheel")).toBe("custom");
+
+    expect(fillPatternPresetFromResolvedPattern(null)).toBe("dots");
+    expect(fillPatternPresetFromResolvedPattern({ kind: "legacy", name: "Grid" } as never)).toBe("grid");
+    expect(fillPatternPresetFromResolvedPattern({ kind: "legacy", name: "not-known" } as never)).toBe("custom");
+    expect(fillPatternPresetFromResolvedPattern({ kind: "meta-hatch" } as never)).toBe("Hatch");
+    expect(fillPatternPresetFromRaw("")).toBe("dots");
+    expect(fillPatternPresetFromRaw("{Dots[distance={(1,2)}, radius=2pt]}")).toBe("Dots");
+    expect(fillPatternPresetFromRaw("Stars[points=7]")).toBe("Stars");
+    expect(fillPatternPresetFromRaw("unknown family")).toBe("custom");
+
+    expect(lineWidthPresetLabel(0.4)).toBe("thin");
+    expect(lineWidthPresetLabel(123)).toBeNull();
+    expect(dashStylePresetFromStyle(null, 1)).toBe("solid");
+    expect(dashStylePresetFromStyle([], 1)).toBe("solid");
+    expect(dashStylePresetFromStyle([3, 3], 1)).toBe("dashed");
+    expect(dashStylePresetFromStyle([4, 2], 1)).toBe("densely dashed");
+    expect(dashStylePresetFromStyle([6, 4], 1)).toBe("loosely dashed");
+    expect(dashStylePresetFromStyle([1, 2], 1)).toBe("dotted");
+    expect(dashStylePresetFromStyle([1, 1], 1)).toBe("densely dotted");
+    expect(dashStylePresetFromStyle([1, 4], 1)).toBe("loosely dotted");
+    expect(dashStylePresetFromStyle([1, 2, 3], 1)).toBe("custom");
+    expect(dashStylePresetFromStyle([5, 5], 1)).toBe("custom");
+    expect(lineCapPresetFromStyle("round")).toBe("round");
+    expect(lineCapPresetFromStyle("invalid" as never)).toBe("custom");
+    expect(lineJoinPresetFromStyle("bevel")).toBe("bevel");
+    expect(lineJoinPresetFromStyle("invalid" as never)).toBe("custom");
+  });
+
+  it("resolves fill mode from flag, disabled, and corner-color option states", () => {
+    const cases = [
+      {
+        source: String.raw`\begin{tikzpicture}
+  \draw[pattern] (0,0) rectangle (1,1);
+\end{tikzpicture}`,
+        mode: "pattern",
+        shading: "axis",
+        pattern: "dots"
+      },
+      {
+        source: String.raw`\begin{tikzpicture}
+  \draw[pattern=none,shade=false,fill=yellow] (0,0) rectangle (1,1);
+\end{tikzpicture}`,
+        mode: "solid",
+        shading: "axis",
+        pattern: "dots"
+      },
+      {
+        source: String.raw`\begin{tikzpicture}
+  \shade[lower left=red,upper right=blue] (0,0) rectangle (1,1);
+\end{tikzpicture}`,
+        mode: "gradient",
+        shading: "custom",
+        pattern: "dots"
+      }
+    ];
+
+    for (const testCase of cases) {
+      const rendered = renderTikzToSvg(testCase.source);
+      const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+      expect(element).toBeDefined();
+      if (!element) {
+        throw new Error("Expected path element");
+      }
+      const descriptor = getInspectorDescriptor(element, {
+        source: testCase.source,
+        editHandles: rendered.semantic.editHandles
+      });
+      const fillSection = descriptor.sections.find((section) => section.id === "fill");
+      expect(fillSection).toBeDefined();
+      if (!fillSection) {
+        throw new Error("Expected fill section");
+      }
+      expect(fillSection.properties.find((property) => property.kind === "fillMode")).toMatchObject({ value: testCase.mode });
+      const fillShading = fillSection.properties.find((property) => property.kind === "fillShading");
+      const fillPattern = fillSection.properties.find((property) => property.kind === "fillPattern");
+      if (fillShading) {
+        expect(fillShading).toMatchObject({ value: testCase.shading });
+      }
+      if (fillPattern) {
+        expect(fillPattern).toMatchObject({ value: testCase.pattern });
+      }
+    }
   });
 
   it("builds deterministic fill mode mutations that clear conflicting paint keys", () => {
@@ -2735,6 +2964,95 @@ describe("getInspectorDescriptor", () => {
     expect(next).toContain("signal to=west");
   });
 
+  it("exposes adaptive controls for the remaining supported node shapes", () => {
+    const cases: Array<{ shape: string; options: string; expected: string[] }> = [
+      {
+        shape: "regular polygon",
+        options: "regular polygon,regular polygon sides=6,shape border rotate=15",
+        expected: ["node-shape-regular-polygon-sides", "node-shape-regular-polygon-border-rotate"]
+      },
+      {
+        shape: "isosceles triangle",
+        options: "isosceles triangle,isosceles triangle apex angle=50,isosceles triangle stretches",
+        expected: ["node-shape-isosceles-triangle-apex-angle", "node-shape-isosceles-triangle-stretches"]
+      },
+      {
+        shape: "kite",
+        options: "kite,kite upper vertex angle=110,kite lower vertex angle=70",
+        expected: ["node-shape-kite-upper-vertex-angle", "node-shape-kite-lower-vertex-angle"]
+      },
+      {
+        shape: "dart",
+        options: "dart,dart tip angle=35,dart tail angle=80",
+        expected: ["node-shape-dart-tip-angle", "node-shape-dart-tail-angle"]
+      },
+      {
+        shape: "circular sector",
+        options: "circular sector,circular sector angle=120",
+        expected: ["node-shape-circular-sector-angle"]
+      },
+      {
+        shape: "cylinder",
+        options: "cylinder,aspect=1.7",
+        expected: ["node-shape-cylinder-aspect"]
+      },
+      {
+        shape: "cloud",
+        options: "cloud,aspect=1.3,cloud puffs=12,cloud puff arc=110,cloud ignores aspect",
+        expected: [
+          "node-shape-cloud-aspect",
+          "node-shape-cloud-puffs",
+          "node-shape-cloud-puff-arc",
+          "node-shape-cloud-ignores-aspect"
+        ]
+      },
+      {
+        shape: "starburst",
+        options: "starburst,starburst points=13,starburst point height=5pt,random starburst=4",
+        expected: [
+          "node-shape-starburst-points",
+          "node-shape-starburst-point-height",
+          "node-shape-starburst-random-seed"
+        ]
+      },
+      {
+        shape: "single arrow",
+        options: "single arrow,single arrow tip angle=45,single arrow head extend=4pt,single arrow head indent=2pt",
+        expected: [
+          "node-shape-single-arrow-tip-angle",
+          "node-shape-single-arrow-head-extend",
+          "node-shape-single-arrow-head-indent"
+        ]
+      },
+      {
+        shape: "double arrow",
+        options: "double arrow,double arrow tip angle=50,double arrow head extend=4pt,double arrow head indent=2pt",
+        expected: [
+          "node-shape-double-arrow-tip-angle",
+          "node-shape-double-arrow-head-extend",
+          "node-shape-double-arrow-head-indent"
+        ]
+      }
+    ];
+
+    for (const testCase of cases) {
+      const source = String.raw`\begin{tikzpicture}
+  \node[${testCase.options}] at (0,0) {A};
+\end{tikzpicture}`;
+      const rendered = renderTikzToSvg(source);
+      const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+      expect(text).toBeDefined();
+      if (!text) {
+        throw new Error(`Expected text element for ${testCase.shape}`);
+      }
+      const descriptor = getInspectorDescriptor(text, { source, editHandles: rendered.semantic.editHandles });
+      const propertyIds = descriptor.sections.flatMap((section) => section.properties.map((property) => property.id));
+      for (const id of testCase.expected) {
+        expect(propertyIds).toContain(id);
+      }
+    }
+  });
+
   it("clears the conflicting star adaptive key when editing ratio vs point height", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[star,star points=5,star point ratio=1.65] at (0,0) {A};
@@ -3191,6 +3509,202 @@ describe("getInspectorDescriptor", () => {
 });
 
 describe("resolvePropertyTarget – matrix cells", () => {
+  it("resolves style-source and global targets across standalone style syntaxes", () => {
+    expect(resolvePropertyTarget(String.raw`\tikz { \draw (0,0); }`, "   ")).toMatchObject({
+      kind: "not-found",
+      reason: "Missing element id"
+    });
+
+    const global = resolvePropertyTarget(String.raw`\tikz[scale=2] \draw (0,0);`, TIKZPICTURE_GLOBAL_TARGET_ID);
+    expect(global.kind).toBe("found");
+    if (global.kind !== "found") {
+      throw new Error("Expected inline tikzpicture target");
+    }
+    expect(global.target.kind).toBe("figure");
+    expect(global.target.insertOffset).toBeGreaterThan(0);
+
+    const source = String.raw`\tikzset{foo/.style={draw, fill=red}}
+\pgfkeys{/tikz/bar/.style=[rounded corners, blue]}
+\tikzstyle{legacy}=[dashed, line width=1pt]
+\tikzstyle{legacy bare}=dashed, line width=1pt
+foo/.append style={solid, fill=blue}
+foo/.prefix style=[very thick]
+empty/.style=
+bare/.style=draw,green
+broken`;
+    const styleSnippets = [
+      String.raw`\tikzset{foo/.style={draw, fill=red}}`,
+      String.raw`\pgfkeys{/tikz/bar/.style=[rounded corners, blue]}`,
+      String.raw`\tikzstyle{legacy}=[dashed, line width=1pt]`,
+      String.raw`\tikzstyle{legacy bare}=dashed, line width=1pt`,
+      String.raw`foo/.append style={solid, fill=blue}`,
+      String.raw`foo/.prefix style=[very thick]`,
+      String.raw`empty/.style=`,
+      String.raw`bare/.style=draw,green`
+    ];
+
+    for (const snippet of styleSnippets) {
+      const from = source.indexOf(snippet);
+      const targetId = makeStyleSourceTargetId({ from, to: from + snippet.length });
+      const resolved = resolvePropertyTarget(source, targetId);
+      expect(resolved.kind).toBe("found");
+      if (resolved.kind !== "found") {
+        throw new Error(`Expected style source target for ${snippet}`);
+      }
+      expect(resolved.target.kind).toBe("style-source");
+      expect(resolved.target.optionsSpan).toBeDefined();
+      expect(resolved.target.insertOffset).toBeGreaterThanOrEqual(resolved.target.optionsSpan?.from ?? 0);
+    }
+
+    expect(resolvePropertyTarget(source, "__style_source__:bad:4").kind).toBe("not-found");
+    expect(resolvePropertyTarget(source, makeStyleSourceTargetId({ from: -1, to: 3 })).kind).toBe("not-found");
+    const brokenFrom = source.indexOf("broken");
+    expect(resolvePropertyTarget(source, makeStyleSourceTargetId({ from: brokenFrom, to: brokenFrom + "broken".length }))).toMatchObject({
+      kind: "not-found"
+    });
+  });
+
+  it("resolves parse-result, operation, nested node, adornment, scope, and foreach-template targets", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[xshift=1cm]
+    \draw[blue] (0,0) to[bend left] node[above, label={[red]north:L}] {T} (1,0)
+      edge[red] node[below] {E} (2,0)
+      coordinate[pos=.5] (M)
+      svg[scale=1] {M 0 0 L 1 1}
+      child { node[draw] {C} };
+  \end{scope}
+  \foreach \x in {1,2} {
+    \node[draw] (N\x) at (\x,0) {N\x};
+    \foreach \y in {1,2} { \node[fill=red] (N\x-\y) at (\x,\y) {N}; }
+  }
+\end{tikzpicture}`;
+    const parseResult = parseTikz(source, { recover: true });
+    expect(resolvePropertyTargetFromParseResult(source, parseResult, "")).toMatchObject({ kind: "not-found" });
+
+    const scope = parseResult.figure.body.find((statement) => statement.kind === "Scope");
+    if (!scope || scope.kind !== "Scope") {
+      throw new Error("Expected scope");
+    }
+    const path = scope.body.find((statement) => statement.kind === "Path");
+    if (!path || path.kind !== "Path") {
+      throw new Error("Expected path");
+    }
+
+    expect(resolvePropertyTargetFromParseResult(source, parseResult, scope.id)).toMatchObject({
+      kind: "found",
+      target: { kind: "style-source" }
+    });
+    expect(resolvePropertyTargetFromParseResult(source, parseResult, path.id)).toMatchObject({
+      kind: "found",
+      target: { kind: "path-statement", pathCommand: "draw" }
+    });
+
+    const to = path.items.find((item) => item.kind === "ToOperation");
+    const edge = path.items.find((item) => item.kind === "EdgeOperation");
+    const coordinate = path.items.find((item) => item.kind === "CoordinateOperation");
+    const svg = path.items.find((item) => item.kind === "SvgOperation");
+    const child = path.items.find((item) => item.kind === "ChildOperation");
+    if (!to || to.kind !== "ToOperation" || !edge || edge.kind !== "EdgeOperation" || !coordinate || coordinate.kind !== "CoordinateOperation" || !svg || svg.kind !== "SvgOperation" || !child || child.kind !== "ChildOperation") {
+      throw new Error("Expected rich path operations");
+    }
+
+    expect(resolvePropertyTargetFromParseResult(source, parseResult, to.id)).toMatchObject({ kind: "found", target: { kind: "to-operation" } });
+    expect(resolvePropertyTargetFromParseResult(source, parseResult, edge.id)).toMatchObject({ kind: "found", target: { kind: "edge-operation" } });
+    expect(resolvePropertyTargetFromParseResult(source, parseResult, coordinate.id)).toMatchObject({ kind: "found", target: { kind: "coordinate-operation" } });
+    expect(resolvePropertyTargetFromParseResult(source, parseResult, svg.id)).toMatchObject({ kind: "found", target: { kind: "svg-operation" } });
+
+    const nestedToNode = to.nodes?.[0];
+    const nestedEdgeNode = edge.nodes?.[0];
+    if (!nestedToNode || !nestedEdgeNode) {
+      throw new Error("Expected operation nodes");
+    }
+    expect(resolvePropertyTargetFromParseResult(source, parseResult, nestedToNode.id)).toMatchObject({ kind: "found", target: { kind: "node-item" } });
+    expect(resolvePropertyTargetFromParseResult(source, parseResult, nestedEdgeNode.id)).toMatchObject({ kind: "found", target: { kind: "node-item" } });
+    expect(resolvePropertyTargetFromParseResult(source, parseResult, `node-adornment:${nestedToNode.id}:label:0`)).toMatchObject({
+      kind: "found",
+      target: { kind: "node-adornment", adornmentKind: "label" }
+    });
+
+    const foreach = parseResult.figure.body.find((statement) => statement.kind === "Foreach");
+    if (!foreach || foreach.kind !== "Foreach") {
+      throw new Error("Expected foreach");
+    }
+    const foreachTarget = resolvePropertyTarget(source, makeForeachTemplateTargetId(foreach.id, "path:0"));
+    expect(foreachTarget).toMatchObject({
+      kind: "found",
+      target: { kind: "foreach-template", foreachLocalTargetId: "path:0" }
+    });
+
+    const nestedForeachTarget = resolvePropertyTarget(source, makeForeachTemplateTargetId(foreach.id, "path:0", ["foreach:0"]));
+    expect(nestedForeachTarget).toMatchObject({
+      kind: "not-found"
+    });
+
+    expect(resolvePropertyTarget(source, "__foreach_template__:::")).toMatchObject({ kind: "not-found" });
+    expect(resolvePropertyTarget(source, makeForeachTemplateTargetId(foreach.id, "missing"))).toMatchObject({ kind: "not-found" });
+  });
+
+  it("covers defensive property-target resolution failures and delegated analysis views", () => {
+    const delegated = resolvePropertyTarget("same", "delegated-id", {
+      activeFigureId: "fig",
+      analysisView: {
+        source: "same",
+        activeFigureId: "fig",
+        resolvePropertyTarget: (id: string) => ({ kind: "not-found", reason: `delegated:${id}` })
+      }
+    } as never);
+    expect(delegated).toEqual({ kind: "not-found", reason: "delegated:delegated-id" });
+
+    expect(resolveFigurePropertyTargetFromParseResult("", {
+      figure: { span: { from: 0, to: 0 } }
+    } as never)).toMatchObject({ kind: "not-found" });
+    expect(resolveFigurePropertyTargetFromParseResult("\\draw (0,0);", {
+      figure: { span: { from: 0, to: "\\draw (0,0);".length } }
+    } as never)).toMatchObject({ kind: "not-found" });
+
+    const styleSource = String.raw`\tikzset
+\tikzset{unterminated
+\tikzstyle{missing}
+\tikzstyle{empty}= ;
+not a style/.unknown={draw}`;
+    for (const snippet of [
+      String.raw`\tikzset`,
+      String.raw`\tikzset{unterminated`,
+      String.raw`\tikzstyle{missing}`,
+      String.raw`\tikzstyle{empty}= ;`,
+      String.raw`not a style/.unknown={draw}`
+    ]) {
+      const from = styleSource.indexOf(snippet);
+      const resolved = resolvePropertyTarget(styleSource, makeStyleSourceTargetId({ from, to: from + snippet.length }));
+      expect(resolved.kind).toBe("not-found");
+    }
+
+    const matrixSource = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \matrix[matrix] { A & B \\ };
+    \node {plain};
+  \end{scope}
+\end{tikzpicture}`;
+    expect(resolvePropertyTarget(matrixSource, "node:0:0:matrix-cell:0:1")).toMatchObject({ kind: "not-found" });
+    expect(resolvePropertyTarget(matrixSource, "missing:matrix-cell:1:1")).toMatchObject({ kind: "not-found" });
+    expect(resolvePropertyTarget(matrixSource, "node:0:1:matrix-cell:1:1")).toMatchObject({ kind: "not-found" });
+    expect(resolvePropertyTarget(matrixSource, "node:0:0:matrix-cell:10:1")).toMatchObject({ kind: "not-found" });
+
+    const treeSource = String.raw`\begin{tikzpicture}
+  \path node {root} child { edge from parent node {edge} node {after edge} };
+\end{tikzpicture}`;
+    for (const id of [
+      ":tree-child:1:child:0",
+      "path:0:tree-child:",
+      "path:0:tree-child:x:child:0",
+      "path:0:tree-child:1:",
+      "missing:tree-child:1:child:0",
+      "path:0:tree-child:2:child:0"
+    ]) {
+      expect(resolvePropertyTarget(treeSource, id)).toMatchObject({ kind: "not-found" });
+    }
+  });
+
   it("resolves matrix statement ids to matrix-statement targets", () => {
     const source = String.raw`\begin{tikzpicture}
   \matrix[matrix of nodes,row sep=2mm,column sep=3mm] {
@@ -3208,6 +3722,37 @@ describe("resolvePropertyTarget – matrix cells", () => {
     expect(resolved.target.optionsSpan).toBeDefined();
     expect(resolved.target.matrixKind).toBe("nodes");
     expect(resolved.target.matrixTextMode).toBe("text");
+  });
+
+  it("builds matrix descriptors with transform, spacing, and paint controls", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[xshift=1pt,yshift=2pt,rotate=15,matrix of nodes,row sep=1pt,column sep=3pt,draw=red,fill=blue] {
+    A & B \\
+  };
+\end{tikzpicture}`;
+    const descriptor = buildMatrixInspectorDescriptor(source, "path:0");
+    expect(descriptor).toBeDefined();
+    if (!descriptor) {
+      throw new Error("Expected matrix descriptor");
+    }
+    expect(descriptor.sections.find((section) => section.id === "transform")?.properties.map((property) => property.id)).toEqual([
+      "xshift",
+      "yshift",
+      "xscale",
+      "yscale",
+      "rotate"
+    ]);
+    const matrixSection = descriptor.sections.find((section) => section.id === "matrix");
+    expect(matrixSection).toBeDefined();
+    if (!matrixSection) {
+      throw new Error("Expected matrix section");
+    }
+    expect(matrixSection.properties.find((property) => property.id === "matrix-row-sep")).toMatchObject({ value: 1 });
+    expect(matrixSection.properties.find((property) => property.id === "matrix-column-sep")).toMatchObject({ value: 3 });
+    expect(matrixSection.properties.find((property) => property.id === "matrix-draw")).toMatchObject({ value: "red" });
+    expect(matrixSection.properties.find((property) => property.id === "matrix-fill")).toMatchObject({ value: "blue" });
+    expect(buildMatrixInspectorDescriptor(source, "missing")).toBeNull();
+    expect(buildMatrixInspectorDescriptor(String.raw`\begin{tikzpicture}\draw (0,0);\end{tikzpicture}`, "path:0")).toBeNull();
   });
 
   it("resolves matrix-cell synthetic ids to cell text spans", () => {

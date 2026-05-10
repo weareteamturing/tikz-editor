@@ -1,15 +1,35 @@
 import { describe, expect, it } from "vitest";
-import type { SceneCircle, SceneElement, ScenePath, ScenePathCommand } from "../packages/core/src/semantic/types.js";
+import type {
+  SceneCircle,
+  SceneElement,
+  SceneEllipse,
+  ScenePath,
+  ScenePathCommand,
+  SceneText
+} from "../packages/core/src/semantic/types.js";
 import {
   buildSnapContext,
+  collectSelectionGeometry,
+  collectSelectionGeometryFromBounds,
+  collectSourceWorldBounds,
   pickGridStepPt,
   selectionSnapPointsFromBounds,
   snapHandlePosition,
   snapKeyboardNudge,
   snapSelectionTranslation,
+  snapToolPointer,
   snapToNextMultiple
 } from "../packages/core/src/edit/snapping/index.js";
-import type { SelectionGeometry } from "../packages/core/src/edit/snapping/types.js";
+import { buildVisibleGaps, createGapSnapLines } from "../packages/core/src/edit/snapping/gap-snaps.js";
+import {
+  boundsFromPoints,
+  boundsIntersect,
+  collectSourceReferenceBounds,
+  expandBounds,
+  rangeIntersection,
+  shiftPathCommand
+} from "../packages/core/src/edit/snapping/geometry.js";
+import type { Gap, SelectionGeometry } from "../packages/core/src/edit/snapping/types.js";
 import { wb, wp } from "./coords-helpers.js";
 
 function makeCircle(sourceId: string, centerX: number, centerY: number, radius: number): SceneElement {
@@ -49,11 +69,78 @@ function makePath(sourceId: string, commands: ScenePathCommand[]): SceneElement 
   return path;
 }
 
+function makeEllipse(sourceId: string, centerX: number, centerY: number, rx: number, ry: number): SceneElement {
+  const ellipse: SceneEllipse = {
+    kind: "Ellipse",
+    id: `ellipse:${sourceId}`,
+    runtimeId: `runtime:ellipse:${sourceId}`,
+    sourceRef: {
+      sourceId,
+      sourceSpan: { from: 0, to: 0 },
+      sourceFingerprint: "test-fingerprint"
+    },
+    style: {} as SceneEllipse["style"],
+    styleChain: [],
+    center: wp(centerX, centerY),
+    rx,
+    ry,
+    rotation: 30
+  };
+
+  return ellipse;
+}
+
+function makeText(sourceId: string, text: string, x: number, y: number): SceneElement {
+  const textElement: SceneText = {
+    kind: "Text",
+    id: `text:${sourceId}`,
+    runtimeId: `runtime:text:${sourceId}`,
+    sourceRef: {
+      sourceId,
+      sourceSpan: { from: 0, to: 0 },
+      sourceFingerprint: "test-fingerprint"
+    },
+    style: { fontSize: 10 } as SceneText["style"],
+    styleChain: [],
+    position: wp(x, y),
+    text,
+    rotation: 45
+  };
+
+  return textElement;
+}
+
 function selectionFromBounds(minX: number, minY: number, maxX: number, maxY: number): SelectionGeometry {
   const bounds = wb(minX, minY, maxX, maxY);
   return {
     bounds,
     snapPoints: selectionSnapPointsFromBounds(bounds)
+  };
+}
+
+function gapBetween(
+  startBounds: Gap["startBounds"],
+  endBounds: Gap["endBounds"],
+  axis: "x" | "y"
+): Gap {
+  if (axis === "x") {
+    return {
+      startBounds,
+      endBounds,
+      startSide: [wp(startBounds.maxX, startBounds.minY), wp(startBounds.maxX, startBounds.maxY)],
+      endSide: [wp(endBounds.minX, endBounds.minY), wp(endBounds.minX, endBounds.maxY)],
+      overlap: [Math.max(startBounds.minY, endBounds.minY), Math.min(startBounds.maxY, endBounds.maxY)],
+      length: endBounds.minX - startBounds.maxX
+    };
+  }
+
+  return {
+    startBounds,
+    endBounds,
+    startSide: [wp(startBounds.minX, startBounds.maxY), wp(startBounds.maxX, startBounds.maxY)],
+    endSide: [wp(endBounds.minX, endBounds.minY), wp(endBounds.maxX, endBounds.minY)],
+    overlap: [Math.max(startBounds.minX, endBounds.minX), Math.min(startBounds.maxX, endBounds.maxX)],
+    length: endBounds.minY - startBounds.maxY
   };
 }
 
@@ -128,6 +215,26 @@ describe("edit snapping core", () => {
     expect(snapped.lines).toEqual([]);
   });
 
+  it("bypasses selection translation snapping when ctrl/cmd modifier is active", () => {
+    const context = buildSnapContext({
+      sceneElements: [makeCircle("ref", 100, 100, 5)],
+      selectedSourceIds: [],
+      zoom: 1,
+      settings: { grid: { enabled: false }, gaps: { enabled: false } }
+    });
+    const rawDelta = wp(7, 7);
+
+    const snapped = snapSelectionTranslation({
+      context,
+      selection: selectionFromBounds(90, 90, 94, 94),
+      rawDelta,
+      modifiers: { ctrlOrMeta: true }
+    });
+
+    expect(snapped.snappedDelta).toEqual(rawDelta);
+    expect(snapped.lines).toEqual([]);
+  });
+
   it("recomputes exact guide lines after snapping", () => {
     const scene = [makeCircle("ref", 100, 100, 5)];
     const context = buildSnapContext({
@@ -171,6 +278,23 @@ describe("edit snapping core", () => {
 
     expect(snapped.snappedPoint?.x).toBeCloseTo(gridStep, 6);
     expect(snapped.lines).toEqual([]);
+  });
+
+  it("snaps selection translations to the grid when no point or gap target is nearer", () => {
+    const context = buildSnapContext({
+      sceneElements: [],
+      selectedSourceIds: [],
+      zoom: 1
+    });
+
+    const snapped = snapSelectionTranslation({
+      context,
+      selection: selectionFromBounds(3, 5, 13, 15),
+      rawDelta: wp(0, 0)
+    });
+
+    expect(snapped.snappedDelta?.x).toBeCloseTo(-3, 6);
+    expect(snapped.snappedDelta?.y).toBeCloseTo(-5, 6);
   });
 
   it("snaps to explicit guide lines", () => {
@@ -333,6 +457,73 @@ describe("edit snapping core", () => {
     expect(snapped.lines).toEqual([]);
   });
 
+  it("falls back to the raw keyboard step when the anchor is already on the next grid multiple", () => {
+    const snapped = snapKeyboardNudge({
+      anchor: wp(4, 4),
+      axis: "y",
+      direction: 1,
+      step: 2
+    });
+
+    expect(snapped.snappedDelta).toEqual(wp(0, 2));
+  });
+
+  it("snaps anchored tool pointers with only the movable pointer as the snap driver", () => {
+    const context = buildSnapContext({
+      sceneElements: [makeCircle("target", 50, 50, 5)],
+      selectedSourceIds: [],
+      zoom: 1,
+      settings: { grid: { enabled: false }, gaps: { enabled: false } }
+    });
+
+    const snapped = snapToolPointer({
+      context,
+      kind: "rect-corner",
+      anchor: wp(50, 50),
+      pointer: wp(54, 50)
+    });
+
+    expect(snapped.snappedPoint).toEqual(wp(55, 50));
+    expect(snapped.lines.some((line) => line.type === "pointer")).toBe(true);
+  });
+
+  it("bypasses tool pointer snapping when ctrl/cmd is active", () => {
+    const context = buildSnapContext({
+      sceneElements: [makeCircle("target", 50, 50, 5)],
+      selectedSourceIds: [],
+      zoom: 1,
+      settings: { grid: { enabled: false }, gaps: { enabled: false } }
+    });
+
+    const pointer = wp(54, 50);
+    const snapped = snapToolPointer({
+      context,
+      kind: "node",
+      pointer,
+      modifiers: { ctrlOrMeta: true }
+    });
+
+    expect(snapped.snappedPoint).toEqual(pointer);
+    expect(snapped.lines).toEqual([]);
+  });
+
+  it("uses the generic tool pointer path for unanchored shape tools", () => {
+    const context = buildSnapContext({
+      sceneElements: [makeCircle("target", 50, 50, 5)],
+      selectedSourceIds: [],
+      zoom: 1,
+      settings: { grid: { enabled: false }, gaps: { enabled: false } }
+    });
+
+    const snapped = snapToolPointer({
+      context,
+      kind: "circle-edge",
+      pointer: wp(54, 50)
+    });
+
+    expect(snapped.snappedPoint).toEqual(wp(55, 50));
+  });
+
   it("does not suggest snap targets when only selected-source geometry exists", () => {
     const scene = [makeCircle("self", 10, 10, 5)];
     const context = buildSnapContext({
@@ -459,5 +650,180 @@ describe("edit snapping core", () => {
         expect(allowedPointKeys.has(toKey(point.x, point.y))).toBe(true);
       }
     }
+  });
+
+  it("collects transformed bounds across paths, ellipses, text, and matrix cells", () => {
+    const transformedCircle = makeCircle("circle", 5, 5, 5);
+    transformedCircle.transform = { a: 1, b: 0, c: 0, d: 1, e: 10, f: -2 };
+
+    const matrixText = makeText("cell", "ab\nc", 30, 10);
+    matrixText.matrixCell = { matrixSourceId: "matrix", row: 0, column: 0 };
+
+    const scene = [
+      transformedCircle,
+      makeEllipse("ellipse", 20, 20, 6, 2),
+      makePath("curve", [
+        { kind: "M", to: wp(0, 0) },
+        { kind: "C", c1: wp(10, 30), c2: wp(20, -10), to: wp(30, 0) },
+        { kind: "A", rx: 4, ry: 6, xAxisRotation: 0, largeArc: false, sweep: true, to: wp(40, 5) },
+        { kind: "Z" }
+      ]),
+      matrixText,
+      {
+        ...makeCircle("ignored", 0, 0, 100),
+        adornment: {
+          targetId: "target",
+          kind: "label",
+          ownerSourceId: "owner",
+          ownerNodeId: "node",
+          adornmentIndex: 0,
+          optionSpan: { from: 0, to: 0 },
+          valueSpan: { from: 0, to: 0 },
+          textSpan: { from: 0, to: 0 },
+          angleRaw: "0",
+          distancePt: 0,
+          defaultDistancePt: 0,
+          distanceExplicit: false
+        }
+      },
+      { ...makeCircle("   ", 0, 0, 1) }
+    ];
+
+    const boundsBySource = collectSourceWorldBounds(scene);
+    expect(boundsBySource.get("circle")).toMatchObject({ minX: 10, minY: -2, maxX: 20, maxY: 8 });
+    expect(boundsBySource.has("ignored")).toBe(false);
+    expect(boundsBySource.has("")).toBe(false);
+    expect(boundsBySource.get("ellipse")?.maxX).toBeGreaterThan(25);
+    expect(boundsBySource.get("curve")?.maxY).toBeGreaterThanOrEqual(30);
+    expect(boundsBySource.get("matrix")).toMatchObject({
+      minX: boundsBySource.get("cell")?.minX,
+      minY: boundsBySource.get("cell")?.minY,
+      maxX: boundsBySource.get("cell")?.maxX,
+      maxY: boundsBySource.get("cell")?.maxY
+    });
+
+    const selection = collectSelectionGeometry(scene, ["circle", "matrix"]);
+    expect(selection?.bounds.minX).toBeCloseTo(10, 6);
+    expect(selection?.snapPoints).toHaveLength(5);
+    expect(collectSelectionGeometryFromBounds(boundsBySource, ["missing"])).toBeNull();
+    expect(collectSourceReferenceBounds(scene).get("matrix")).toMatchObject({
+      minX: boundsBySource.get("cell")?.minX
+    });
+  });
+
+  it("covers primitive snapping geometry helpers and command shifting", () => {
+    expect(boundsFromPoints(wp(5, -1), wp(-2, 7))).toEqual(wb(-2, -1, 5, 7));
+    expect(expandBounds(wb(0, 1, 2, 3), 4)).toEqual(wb(-4, -3, 6, 7));
+    expect(boundsIntersect(wb(0, 0, 1, 1), wb(2, 2, 3, 3))).toBe(false);
+    expect(rangeIntersection([0, 1], [2, 3])).toBeNull();
+
+    expect(shiftPathCommand({ kind: "Z" }, wp(3, 4))).toEqual({ kind: "Z" });
+    expect(shiftPathCommand({ kind: "M", to: wp(1, 2) }, wp(3, 4))).toEqual({ kind: "M", to: wp(4, 6) });
+    expect(shiftPathCommand({ kind: "A", rx: 1, ry: 2, xAxisRotation: 0, largeArc: false, sweep: true, to: wp(1, 2) }, wp(3, 4))).toMatchObject({ to: wp(4, 6) });
+    expect(shiftPathCommand({ kind: "C", c1: wp(0, 0), c2: wp(1, 1), to: wp(2, 2) }, wp(3, 4))).toMatchObject({
+      c1: wp(3, 4),
+      c2: wp(4, 5),
+      to: wp(5, 6)
+    });
+  });
+
+  it("returns null selection bounds for empty paths and estimates unrotated text bounds", () => {
+    const emptyPath = makePath("empty", [{ kind: "Z" }]);
+    const text = makeText("plain", "", 10, 10);
+    text.rotation = 0;
+    const boundsBySource = collectSourceWorldBounds([emptyPath, text]);
+
+    expect(boundsBySource.has("empty")).toBe(false);
+    expect(boundsBySource.get("plain")).toMatchObject({ minX: 10, maxX: 10, minY: 4.25, maxY: 15.75 });
+  });
+
+  it("generates vertical center and equal gap guides with axis gating", () => {
+    const scene = [
+      makeCircle("top", 5, 5, 5),
+      makeCircle("bottom", 5, 45, 5),
+      makeCircle("left", -30, 5, 5),
+      makeCircle("right", 40, 5, 5)
+    ];
+
+    const context = buildSnapContext({
+      sceneElements: scene,
+      selectedSourceIds: [],
+      zoom: 1,
+      settings: { points: { enabled: false }, grid: { enabled: false } }
+    });
+
+    const selection = selectionFromBounds(0, 13, 10, 23);
+    const vertical = snapSelectionTranslation({
+      context,
+      selection,
+      rawDelta: wp(0, 0),
+      enabledAxis: "y"
+    });
+
+    expect(vertical.snappedDelta?.y).toBeCloseTo(7, 6);
+    expect(vertical.snappedDelta?.x).toBe(0);
+    expect(vertical.lines.some((line) => line.type === "gap" && line.direction === "vertical")).toBe(true);
+
+    const horizontalBlocked = snapSelectionTranslation({
+      context,
+      selection,
+      rawDelta: wp(0, 0),
+      enabledAxis: "x"
+    });
+
+    expect(horizontalBlocked.snappedDelta?.y).toBe(0);
+  });
+
+  it("creates equal gap line geometry for left, top, and bottom side candidates", () => {
+    const left = { ...wb(0, 0, 10, 10), sourceId: "left" };
+    const right = { ...wb(30, 0, 40, 10), sourceId: "right" };
+    const top = { ...wb(0, 0, 10, 10), sourceId: "top" };
+    const bottom = { ...wb(0, 30, 10, 40), sourceId: "bottom" };
+    const horizontalGap = gapBetween(left, right, "x");
+    const verticalGap = gapBetween(top, bottom, "y");
+    const horizontalLines = createGapSnapLines(wb(15, 0, 20, 10), [
+      { kind: "gap", axis: "x", direction: "side_left", gap: horizontalGap, offset: 0 }
+    ]);
+    const verticalLines = createGapSnapLines(wb(0, 15, 10, 20), [
+      { kind: "gap", axis: "y", direction: "side_top", gap: verticalGap, offset: 0 },
+      { kind: "gap", axis: "y", direction: "side_bottom", gap: verticalGap, offset: 0 }
+    ]);
+    const lines = [...horizontalLines, ...verticalLines];
+
+    expect(lines).toHaveLength(3);
+    expect(lines.some((line) => line.type === "gap" && line.direction === "horizontal")).toBe(true);
+    expect(lines.some((line) => line.type === "gap" && line.direction === "vertical")).toBe(true);
+  });
+
+  it("drops gap snap candidates that no longer overlap the snapped selection", () => {
+    const left = { ...wb(0, 0, 10, 10), sourceId: "left" };
+    const right = { ...wb(30, 0, 40, 10), sourceId: "right" };
+    const gap = gapBetween(left, right, "x");
+
+    const lines = createGapSnapLines(wb(20, 20, 25, 25), [
+      { kind: "gap", axis: "x", direction: "center_horizontal", gap, offset: 0 }
+    ]);
+
+    expect(lines).toEqual([]);
+  });
+
+  it("honors visible gap pair limits and requires overlapping opposing sides", () => {
+    const referenceBounds = [
+      { ...wb(0, 0, 10, 10), sourceId: "a" },
+      { ...wb(20, 30, 30, 40), sourceId: "no-overlap" },
+      { ...wb(40, 0, 50, 10), sourceId: "b" },
+      { ...wb(80, 0, 90, 10), sourceId: "c" }
+    ];
+
+    const limited = buildVisibleGaps(referenceBounds, 1);
+    expect(limited.horizontal).toHaveLength(0);
+
+    const unlimited = buildVisibleGaps(referenceBounds, 100);
+    expect(unlimited.horizontal.map((gap) => [gap.startBounds.sourceId, gap.endBounds.sourceId])).toEqual([
+      ["a", "b"],
+      ["a", "c"],
+      ["b", "c"]
+    ]);
+    expect(unlimited.vertical).toHaveLength(0);
   });
 });

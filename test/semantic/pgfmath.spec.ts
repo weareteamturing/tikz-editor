@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { evaluatePgfMathExpression } from "../../packages/core/src/semantic/pgfmath/evaluator.js";
+import {
+  convertQuantityToLength,
+  evaluatePgfMathExpression,
+  formatPgfMathNumber
+} from "../../packages/core/src/semantic/pgfmath/evaluator.js";
 import { createPgfRandom } from "../../packages/core/src/semantic/pgfmath/rng.js";
+import { withPgfMathRuntime } from "../../packages/core/src/semantic/pgfmath/runtime.js";
 import { evaluateSemantic, elementsOfKind } from "./helpers.js";
 
 function evaluateScalar(input: string, seed = 1): number {
@@ -13,6 +18,25 @@ function evaluateScalar(input: string, seed = 1): number {
   return result.quantity.value;
 }
 
+function evaluateLength(input: string): number {
+  const result = evaluatePgfMathExpression(input, { rng: createPgfRandom(1) });
+  expect(result.ok).toBe(true);
+  if (!result.ok) {
+    return Number.NaN;
+  }
+  expect(result.quantity.kind).toBe("length");
+  return result.quantity.value;
+}
+
+function expectPgfMathFailure(input: string, code: string): void {
+  const result = evaluatePgfMathExpression(input, { rng: createPgfRandom(1) });
+  expect(result.ok, input).toBe(false);
+  if (!result.ok) {
+    expect(result.code).toBe(code);
+    expect(result.message.length).toBeGreaterThan(0);
+  }
+}
+
 describe("semantic evaluator / pgfmath", () => {
   it("respects unary and exponent precedence", () => {
     expect(evaluateScalar("-2^2")).toBe(-4);
@@ -22,16 +46,53 @@ describe("semantic evaluator / pgfmath", () => {
 
   it("supports comparisons, logical operators, and ternary expressions", () => {
     expect(evaluateScalar("1 < 2 ? 7 : 9")).toBe(7);
+    expect(evaluateScalar("1 > 2 ? 7 : 9")).toBe(9);
     expect(evaluateScalar("(1 > 2) || (3 == 3) ? 5 : 6")).toBe(5);
+    expect(evaluateScalar("(1 != 2) && (3 >= 3) && (2 <= 2)")).toBe(1);
     expect(evaluateScalar("!0 ? 11 : 12")).toBe(11);
   });
 
   it("supports scalar math functions and constants", () => {
     expect(evaluateScalar("sin(30)")).toBeCloseTo(0.5, 6);
+    expect(evaluateScalar("cos(60) + tan(45)")).toBeCloseTo(1.5, 6);
     expect(evaluateScalar("atan2(1,1)")).toBeCloseTo(45, 6);
+    expect(evaluateScalar("acos(0) + atan(1)")).toBeCloseTo(135, 6);
     expect(evaluateScalar("sqrt(9) + abs(-2) + ln(e)")).toBeCloseTo(6, 6);
+    expect(evaluateScalar("log10(100) + log2(8)")).toBe(5);
+    expect(evaluateScalar("round(1.5) + floor(1.9) + ceil(1.1) + int(-1.9)")).toBe(4);
+    expect(evaluateScalar("frac(1.25) + sign(-4) + sign(0) + sign(4)")).toBeCloseTo(0.25, 6);
+    expect(evaluateScalar("deg(pi) + rad(180)")).toBeCloseTo(180 + Math.PI, 6);
+    expect(evaluateScalar("scalar(5pt)")).toBe(5);
+    expect(evaluateScalar("pow(2,3) + mod(7,4)")).toBe(11);
     expect(evaluateScalar("min(4,2,8) + max(1,6,3)")).toBe(8);
     expect(evaluateScalar("Mod(-3,5)")).toBe(2);
+    expect(evaluateScalar("5!")).toBe(120);
+  });
+
+  it("supports length units and scalar/length operations", () => {
+    expect(evaluateLength("1cm + 2mm")).toBeCloseTo(34.1433070866, 6);
+    expect(evaluateLength("2 * 5pt")).toBe(10);
+    expect(evaluateLength("5pt * 2")).toBe(10);
+    expect(evaluateLength("6pt / 2")).toBe(3);
+    expect(evaluateScalar("6pt / 3pt")).toBe(2);
+    expect(evaluateLength("(2pt)^3")).toBe(8);
+    expect(evaluateScalar("3.5r")).toBeCloseTo((3.5 * 180) / Math.PI, 6);
+    expect(evaluateScalar("(3)r")).toBeCloseTo((3 * 180) / Math.PI, 6);
+    expect(evaluateScalar("3 r")).toBeCloseTo((3 * 180) / Math.PI, 6);
+  });
+
+  it("formats finite pgfmath numbers without negative zero or floating noise", () => {
+    expect(formatPgfMathNumber(Number.POSITIVE_INFINITY)).toBe("0");
+    expect(formatPgfMathNumber(-0)).toBe("0");
+    expect(formatPgfMathNumber(1.0000000001)).toBe("1");
+    expect(formatPgfMathNumber(1.2345000000001)).toBe("1.2345");
+  });
+
+  it("converts scalar and length quantities to target lengths", () => {
+    expect(convertQuantityToLength({ kind: "length", value: 12 }, "cm")).toBe(12);
+    expect(convertQuantityToLength({ kind: "scalar", value: 2 }, "cm")).toBeCloseTo(56.905511811, 6);
+    expect(convertQuantityToLength({ kind: "scalar", value: 2 }, "pt")).toBe(2);
+    expect(convertQuantityToLength({ kind: "scalar", value: 2 }, "zz" as "cm")).toBeNull();
   });
 
   it("supports seeded random functions with deterministic sequences", () => {
@@ -49,6 +110,40 @@ describe("semantic evaluator / pgfmath", () => {
       expect(randomB.quantity.value).toBeGreaterThanOrEqual(1);
       expect(randomB.quantity.value).toBeLessThanOrEqual(10);
     }
+
+    const swapped = evaluatePgfMathExpression("random(10,1)", { rng: createPgfRandom(1) });
+    const bareCall = evaluatePgfMathExpression("random()", { rng: createPgfRandom(1) });
+    const randIdent = evaluatePgfMathExpression("rand", { rng: createPgfRandom(1) });
+    const randCall = evaluatePgfMathExpression("rand()", { rng: createPgfRandom(1) });
+    expect(swapped.ok).toBe(true);
+    expect(bareCall.ok).toBe(true);
+    expect(randIdent.ok).toBe(true);
+    expect(randCall.ok).toBe(true);
+    if (swapped.ok && bareCall.ok && randIdent.ok && randCall.ok) {
+      expect(swapped.quantity.value).toBeGreaterThanOrEqual(1);
+      expect(swapped.quantity.value).toBeLessThanOrEqual(10);
+      expect(bareCall.quantity.value).toBeCloseTo(0.69621, 6);
+      expect(randIdent.quantity.value).toBeCloseTo(-0.30379, 6);
+      expect(randCall.quantity.value).toBeCloseTo(-0.30379, 6);
+    }
+
+    expect(createPgfRandom(Number.POSITIVE_INFINITY).getSeed()).toBe(1);
+    expect(createPgfRandom(0).getSeed()).toBe(1);
+    expect(createPgfRandom(2147483647).getSeed()).toBe(1);
+    expect(createPgfRandom(30845).nextRaw()).toBe(2147459745);
+  });
+
+  it("uses the active pgfmath runtime RNG when no explicit RNG is supplied", () => {
+    const rng = createPgfRandom(1);
+
+    const result = withPgfMathRuntime({ rng }, () => evaluatePgfMathExpression("random(1,10)"));
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.quantity.value).toBeGreaterThanOrEqual(1);
+      expect(result.quantity.value).toBeLessThanOrEqual(10);
+      expect(rng.getSeed()).toBe(69621);
+    }
   });
 
   it("reports unsupported syntax for quoted expressions", () => {
@@ -56,6 +151,75 @@ describe("semantic evaluator / pgfmath", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("unsupported-syntax");
+    }
+  });
+
+  it("reports parse, arity, domain, and type errors precisely", () => {
+    const failures = [
+      ["", "empty"],
+      ["{1+2}{3}", "unsupported-syntax"],
+      ["1 + @", "token"],
+      [".", "token"],
+      ["1..2", "unexpected-token"],
+      ["1e+", "invalid-domain"],
+      ["1 +", "unexpected-token"],
+      ["(1+2", "unexpected-token"],
+      ["(@)", "token"],
+      ["1 ? 2", "unexpected-token"],
+      ["1 ? @ : 2", "token"],
+      ["0 ? 1 : @", "token"],
+      ["1 || @", "token"],
+      ["1 && @", "token"],
+      ["1 < @", "token"],
+      ["1 * @", "token"],
+      ["2 ^ @", "token"],
+      ["+@", "token"],
+      ["-@", "token"],
+      ["!@", "token"],
+      ["foo", "unknown-function"],
+      ["pi()", "unexpected-token"],
+      ["sin(1,2)", "invalid-arity"],
+      ["min()", "invalid-arity"],
+      ["min(2pt)", "invalid-operation"],
+      ["random(1,2,3)", "invalid-arity"],
+      ["random(2pt)", "invalid-operation"],
+      ["random(1,2pt)", "invalid-operation"],
+      ["rnd(1)", "invalid-arity"],
+      ["rand(1)", "invalid-arity"],
+      ["1 / 0", "division-by-zero"],
+      ["sqrt(-1)", "invalid-domain"],
+      ["asin(2)", "invalid-domain"],
+      ["exp(1000)", "invalid-domain"],
+      ["171!", "invalid-domain"],
+      ["2.5!", "invalid-domain"],
+      ["2pt + 3", "invalid-operation"],
+      ["2pt * 3pt", "invalid-operation"],
+      ["3 / 2pt", "invalid-operation"],
+      ["2pt ^ 0.5", "invalid-operation"],
+      ["2pt ^ 2pt", "invalid-operation"],
+      ["2pt!", "invalid-operation"],
+      ["2pt r", "invalid-operation"],
+      ["2pt < 3", "invalid-operation"],
+      ["sin(2pt)", "invalid-operation"],
+      ["atan2(1)", "invalid-arity"],
+      ["atan2(1pt,2)", "invalid-operation"],
+      ["atan2(1,2pt)", "invalid-operation"],
+      ["mod(1,0)", "invalid-domain"],
+      ["scalar()", "invalid-arity"],
+      ["unknown(1)", "unknown-function"],
+      ["foo(1 2)", "unexpected-token"]
+    ] as const;
+
+    for (const [input, code] of failures) {
+      expectPgfMathFailure(input, code);
+    }
+
+    for (const input of ["rnd", "rand", "rnd()", "rand()", "random()"]) {
+      const result = evaluatePgfMathExpression(input);
+      expect(result.ok, input).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe("unsupported-random");
+      }
     }
   });
 

@@ -177,8 +177,18 @@ function collapseDeleteTargets(targets: DeleteTarget[]): DeleteTarget[] {
 function normalizeDeleteSpan(source: string, span: Span, scope: DeleteTarget["scope"]): Span {
   let from = clampOffset(span.from, source.length);
   let to = clampOffset(span.to, source.length);
-  if (to < from) {
-    [from, to] = [to, from];
+
+  if (scope === "path-item") {
+    const hadTrailingWhitespace = to < source.length && (source[to] === " " || source[to] === "\t");
+    while (to < source.length && (source[to] === " " || source[to] === "\t")) {
+      to += 1;
+    }
+    if (!hadTrailingWhitespace) {
+      while (from > 0 && (source[from - 1] === " " || source[from - 1] === "\t")) {
+        from -= 1;
+      }
+    }
+    return { from, to };
   }
 
   while (from > 0 && (source[from - 1] === " " || source[from - 1] === "\t")) {
@@ -188,17 +198,15 @@ function normalizeDeleteSpan(source: string, span: Span, scope: DeleteTarget["sc
     to += 1;
   }
 
-  if (scope === "statement") {
-    if (to < source.length && source[to] === "\r") {
-      to += 1;
-    }
-    if (to < source.length && source[to] === "\n") {
-      to += 1;
-    } else if (from > 0 && source[from - 1] === "\n") {
+  if (to < source.length && source[to] === "\r") {
+    to += 1;
+  }
+  if (to < source.length && source[to] === "\n") {
+    to += 1;
+  } else if (from > 0 && source[from - 1] === "\n") {
+    from -= 1;
+    if (from > 0 && source[from - 1] === "\r") {
       from -= 1;
-      if (from > 0 && source[from - 1] === "\r") {
-        from -= 1;
-      }
     }
   }
 
@@ -234,15 +242,11 @@ function normalizeAdornmentDeleteSpan(source: string, span: Span): Span {
 }
 
 function clampOffset(value: number, sourceLength: number): number {
-  if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(sourceLength, Math.trunc(value)));
 }
 
 function collectDeletedNamedNodes(statements: Statement[], targets: readonly DeleteTarget[]): Set<string> {
   const names = new Set<string>();
-  if (targets.length === 0) {
-    return names;
-  }
 
   const withinDeletedTarget = (span: Span): boolean =>
     targets.some((target) => span.from >= target.span.from && span.to <= target.span.to);
@@ -294,10 +298,7 @@ function pruneFitReferencesAfterDelete(
     const fitEntry = resolved.target.options.entries.find(
       (entry): entry is Extract<typeof entry, { kind: "kv" }> =>
         entry.kind === "kv" && normalizeOptionKey(entry.key) === "fit"
-    );
-    if (!fitEntry) {
-      continue;
-    }
+    )!;
 
     const nextFitValue = pruneFitValueRaw(fitEntry.valueRaw, deletedNodeNames);
     if (nextFitValue.kind === "unchanged") {
@@ -311,10 +312,7 @@ function pruneFitReferencesAfterDelete(
     } else {
       mutations.set("fit", { kind: "set", value: nextFitValue.value });
     }
-    const rewritten = applyOptionMutationsToTarget(currentSource, resolved.target, mutations);
-    if (!rewritten) {
-      continue;
-    }
+    const rewritten = applyOptionMutationsToTarget(currentSource, resolved.target, mutations)!;
     currentSource = rewritten.source;
     patches.push(rewritten.patch);
     changedSourceIds.add(fitNodeId);
@@ -480,9 +478,6 @@ function normalizeElementIds(elementIds: readonly string[]): string[] {
   const seen = new Set<string>();
   const normalized: string[] = [];
   for (const elementId of elementIds) {
-    if (typeof elementId !== "string") {
-      continue;
-    }
     const id = elementId.trim();
     if (id.length === 0 || seen.has(id)) {
       continue;

@@ -44,10 +44,7 @@ export function applyAddTreeChildAction(
     if (resolvedParent.target.treeChildForeach) {
       return { kind: "unsupported", reason: "Tree child insertion is not supported for child foreach expansions." };
     }
-    const childBodySpan = resolvedParent.target.treeChildBodySpan;
-    if (!childBodySpan) {
-      return { kind: "unsupported", reason: "The selected tree child body span could not be resolved." };
-    }
+    const childBodySpan = resolvedParent.target.treeChildBodySpan!;
     const insertOffset = resolveBodyCloseInsertOffset(source, childBodySpan);
     const newline = detectPreferredNewline(source, insertOffset);
     const parentIndent = lineIndentAtOffset(source, resolvedParent.target.span.from);
@@ -62,10 +59,7 @@ export function applyAddTreeChildAction(
   const parsed = parseTikzForEdit(source, {
     ...parseOptions,
   });
-  const rootStatement = findPathStatementById(parsed.figure.body, parentSourceId);
-  if (!rootStatement) {
-    return { kind: "unsupported", reason: `Tree root statement ${parentSourceId} was not found.` };
-  }
+  const rootStatement = findPathStatementById(parsed.figure.body, parentSourceId)!;
 
   const hasNode = rootStatement.items.some((item) => item.kind === "Node");
   if (!hasNode) {
@@ -74,15 +68,10 @@ export function applyAddTreeChildAction(
 
   const rootChildren = collectDirectChildrenWithAbsoluteSpans(source, rootStatement);
   const insertionAnchor = resolveRootInsertionAnchor(source, rootStatement, rootChildren, action.afterChildIndex);
-  if (!insertionAnchor) {
-    return { kind: "unsupported", reason: "Could not resolve an insertion point for the selected tree root." };
-  }
 
   const newline = detectPreferredNewline(source, insertionAnchor.offset);
   const rootLineIndent = lineIndentAtOffset(source, rootStatement.span.from);
-  const childIndent =
-    insertionAnchor.childIndent
-    ?? (rootLineIndent.length > 0 ? `${rootLineIndent}  ` : "  ");
+  const childIndent = insertionAnchor.childIndent;
   return applyInsertion(source, insertionAnchor.offset, `${newline}${childIndent}${NEW_CHILD_SNIPPET}`);
 }
 
@@ -151,9 +140,6 @@ export function applyRemoveTreeChildAction(
 
 function applyInsertion(source: string, offset: number, insertion: string): EditActionResultLike {
   const updated = replaceSpan(source, { from: offset, to: offset }, insertion);
-  if (updated.source === source) {
-    return { kind: "unsupported", reason: "Tree edit would not change the source." };
-  }
   return {
     kind: "success",
     newSource: updated.source,
@@ -192,10 +178,7 @@ function resolveRootInsertionAnchor(
     }
   }
 
-  const lastChild = children[children.length - 1];
-  if (!lastChild) {
-    return null;
-  }
+  const lastChild = children[children.length - 1]!;
   return {
     offset: skipHorizontalWhitespace(source, lastChild.span.to),
     childIndent: lineIndentAtOffset(source, lastChild.span.from)
@@ -220,18 +203,12 @@ function resolveBodyCloseInsertOffset(source: string, bodySpan: Span): number {
   while (cursor >= from && /\s/u.test(source[cursor] ?? "")) {
     cursor -= 1;
   }
-  if (cursor >= from && source[cursor] === "}") {
-    return cursor;
-  }
-  return to;
+  return cursor;
 }
 
 function normalizeTreeChildDeleteSpan(source: string, span: Span): Span {
   let from = clampOffset(span.from, source.length);
   let to = clampOffset(span.to, source.length);
-  if (to < from) {
-    [from, to] = [to, from];
-  }
 
   while (from > 0 && (source[from - 1] === " " || source[from - 1] === "\t")) {
     from -= 1;
@@ -262,11 +239,7 @@ function collectDirectChildrenWithAbsoluteSpans(
   const children = statement.items.filter((item): item is ChildOperationItem => item.kind === "ChildOperation");
   const collected: Array<{ child: ChildOperationItem; span: Span }> = [];
   for (const child of children) {
-    const absolute = absolutizeSpan(source, child.span, statement.span, child.raw);
-    if (!absolute) {
-      continue;
-    }
-    collected.push({ child, span: absolute });
+    collected.push({ child, span: child.span });
   }
   return collected;
 }
@@ -290,9 +263,6 @@ function skipHorizontalWhitespace(source: string, offset: number): number {
 }
 
 function clampOffset(value: number, length: number): number {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
   return Math.max(0, Math.min(length, Math.trunc(value)));
 }
 
@@ -310,32 +280,4 @@ function findPathStatementById(statements: readonly Statement[], sourceId: strin
     }
   }
   return null;
-}
-
-function absolutizeSpan(
-  source: string,
-  span: Span | undefined,
-  parentSpan: Span,
-  raw: string
-): Span | null {
-  if (!span) {
-    return null;
-  }
-  if (raw.length > 0 && source.slice(span.from, span.to) === raw) {
-    return span;
-  }
-  if (raw.length > 0) {
-    const parentSlice = source.slice(parentSpan.from, parentSpan.to);
-    const relativeOffset = parentSlice.indexOf(raw);
-    if (relativeOffset >= 0) {
-      return {
-        from: parentSpan.from + relativeOffset,
-        to: parentSpan.from + relativeOffset + raw.length
-      };
-    }
-  }
-  return {
-    from: parentSpan.from + span.from,
-    to: parentSpan.from + span.to
-  };
 }

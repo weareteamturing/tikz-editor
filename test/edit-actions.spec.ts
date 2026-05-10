@@ -1,22 +1,30 @@
 import { describe, expect, it } from "vitest";
 import type { WorldPoint } from "../packages/core/src/coords/points.js";
+import { frameToWorldTransform } from "../packages/core/src/coords/transforms.js";
 import type { EditHandle } from "../packages/core/src/semantic/types.js";
 import type { NodeTextEngine } from "../packages/core/src/text/types.js";
-import { identityMatrix } from "../packages/core/src/semantic/transform.js";
+import { identityMatrix, scaleMatrix } from "../packages/core/src/semantic/transform.js";
 import {
   applyEditAction,
   PATH_ATTACHED_NODE_EDIT_NOOP_REASON,
   PROPERTY_WRITE_CLEANUP_NOOP_REASON
 } from "../packages/core/src/edit/actions.js";
+import { isUngroupableScopeStatement } from "../packages/core/src/edit/actions/group-ungroup-actions.js";
 import { resolveDraggedPathAttachedNodeDirection } from "../packages/core/src/edit/actions/path-attached-node-actions.js";
+import {
+  PIN_EDGE_DASH_PROPERTY_KEY,
+  PIN_EDGE_DRAW_PROPERTY_KEY,
+  PIN_EDGE_LINE_WIDTH_PROPERTY_KEY
+} from "../packages/core/src/edit/adornment-keys.js";
 import { PT_PER_CM } from "../packages/core/src/edit/format.js";
-import { TIKZPICTURE_GLOBAL_TARGET_ID } from "../packages/core/src/edit/property-target.js";
+import { makeStyleSourceTargetId, TIKZPICTURE_GLOBAL_TARGET_ID } from "../packages/core/src/edit/property-target.js";
 import { computeSourceFingerprint } from "../packages/core/src/utils/source-fingerprint.js";
 import { renderTikzToSvg } from "../packages/core/src/render/index.js";
 import { parseTikz } from "../packages/core/src/parser/index.js";
 import { evaluateTikzFigure } from "../packages/core/src/semantic/evaluate.js";
 import { collectSourceWorldBounds } from "../packages/core/src/edit/snapping/geometry.js";
 import { applySourcePatches } from "../packages/core/src/edit/source-patches.js";
+import { renameSnippetDeclaredNames } from "../packages/core/src/edit/name-conflicts.js";
 import { wb, wp } from "./coords-helpers.js";
 
 const cm = (v: number) => v * PT_PER_CM;
@@ -390,6 +398,20 @@ describe("applyEditAction – patch replay invariants", () => {
 // ── moveElement ────────────────────────────────────────────────────────────────
 
 describe("applyEditAction – moveElement", () => {
+  it("returns unsupported for empty or duplicate-normalized moveElements selections", () => {
+    const source = "\\draw (1,2) -- (3,4);";
+    const result = applyEditAction(source, [], {
+      kind: "moveElements",
+      elementIds: [" ", "", " "] as string[],
+      delta: wp(cm(1), cm(1))
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind === "unsupported") {
+      expect(result.reason).toContain("No element ids");
+    }
+  });
+
   it("rejects stale handles when moving elements with opaque source identities", () => {
     const source = "\\draw (1,2) -- (3,4);";
     const sourceFingerprint = `source-revision:doc-a:7:${source.length}`;
@@ -494,6 +516,62 @@ describe("applyEditAction – moveElement", () => {
     expect(result.kind).toBe("unsupported");
   });
 
+  it("returns unsupported when every selected handle is non-rewritable", () => {
+    const source = "\\draw (A) -- (B);";
+    const firstRaw = "(A)";
+    const secondRaw = "(B)";
+    const firstFrom = source.indexOf(firstRaw);
+    const secondFrom = source.indexOf(secondRaw);
+    const first = makeHandle(source, {
+      world: wp(0, 0),
+      sourceSpan: { from: firstFrom, to: firstFrom + firstRaw.length },
+      sourceId: "path:0",
+      coordinateForm: "named",
+      rewriteMode: "unsupported"
+    });
+    const second = makeHandle(source, {
+      world: wp(1, 1),
+      sourceSpan: { from: secondFrom, to: secondFrom + secondRaw.length },
+      sourceId: "path:0",
+      coordinateForm: "named",
+      rewriteMode: "unsupported"
+    });
+
+    const result = applyEditAction(source, [first, second], {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: wp(1, 1)
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind === "unsupported") {
+      expect(result.reason).toContain("All handles");
+    }
+  });
+
+  it("skips handles whose source text no longer matches the current span", () => {
+    const source = "\\draw (1,2) -- (3,4);";
+    const raw = "(1,2)";
+    const from = source.indexOf(raw);
+    const handle = makeHandle(source, {
+      world: wp(cm(1), cm(2)),
+      sourceSpan: { from, to: from + raw.length },
+      sourceId: "path:0",
+      sourceText: "(9,9)"
+    });
+
+    const result = applyEditAction(source, [handle], {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: wp(cm(1), cm(1))
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind === "unsupported") {
+      expect(result.reason).toContain("No coordinate rewrites");
+    }
+  });
+
   it("returns partial when some handles are unsupported", () => {
     const source = "\\draw (0,0) .. controls (A) .. (1,2);";
     const unsupportedRaw = "(A)";
@@ -525,6 +603,40 @@ describe("applyEditAction – moveElement", () => {
       expect(result.skippedHandles).toHaveLength(1);
       expect(result.newSource).toBe("\\draw (0,0) .. controls (A) .. (2,2);");
     }
+  });
+
+  it("returns partial for moveElements when only some handles on a selected element rewrite", () => {
+    const source = "\\draw (0,0) .. controls (A) .. (1,2);";
+    const unsupportedRaw = "(A)";
+    const unsupportedFrom = source.indexOf(unsupportedRaw);
+    const unsupported = makeHandle(source, {
+      world: wp(cm(0), cm(0)),
+      sourceSpan: { from: unsupportedFrom, to: unsupportedFrom + unsupportedRaw.length },
+      sourceId: "path:0",
+      kind: "path-control",
+      coordinateForm: "named",
+      rewriteMode: "unsupported"
+    });
+    const supportedRaw = "(1,2)";
+    const supportedFrom = source.lastIndexOf(supportedRaw);
+    const supported = makeHandle(source, {
+      world: wp(cm(1), cm(2)),
+      sourceSpan: { from: supportedFrom, to: supportedFrom + supportedRaw.length },
+      sourceId: "path:0"
+    });
+
+    const result = applyEditAction(source, [unsupported, supported], {
+      kind: "moveElements",
+      elementIds: ["path:0"],
+      delta: wp(cm(1), cm(0))
+    });
+
+    expect(result.kind).toBe("partial");
+    if (result.kind !== "partial") return;
+    expect(result.reason).toContain("unsupported coordinate forms");
+    expect(result.skippedHandles).toEqual([unsupported.id]);
+    expect(result.newSource).toBe("\\draw (0,0) .. controls (A) .. (2,2);");
+    expectPatchesReconstructSource(source, result);
   });
 
   it("applies patches in correct order (handles at different offsets)", () => {
@@ -747,6 +859,35 @@ describe("applyEditAction – moveElement", () => {
     expect(result.newSource).not.toContain(",,");
   });
 
+  it("formats matrix placement through a provided frame-local placement handle", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] at (0,0) {
+    A \\
+  };
+\end{tikzpicture}`;
+    const raw = "(0,0)";
+    const from = source.indexOf(raw);
+    const placementHandle = makeHandle(source, {
+      kind: "node-position",
+      world: wp(0, 0),
+      sourceSpan: { from, to: from + raw.length },
+      sourceId: "path:0",
+      frame: frameToWorldTransform(2, 0, 0, 1, 0, 0),
+      transform: scaleMatrix(2, 1)
+    });
+
+    const result = applyEditAction(source, [placementHandle], {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: wp(cm(2), 0)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("at (1,0)");
+    expectPatchesReconstructSource(source, result);
+  });
+
   it("moves scopes by rewriting xshift and yshift options", () => {
     const source = String.raw`\begin{tikzpicture}
   \begin{scope}[xshift=2pt, yshift=3pt]
@@ -806,6 +947,270 @@ describe("applyEditAction – moveElement", () => {
     expectPatchesReconstructSource(source, result);
   });
 
+  it("ignores non-translation flags before scope xshift and yshift entries", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[draw, xshift=2pt, yshift=3pt]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(4, 6)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("draw");
+    expect(result.newSource).toContain("xshift=6pt");
+    expect(result.newSource).toContain("yshift=9pt");
+    expectPatchesReconstructSource(source, result);
+  });
+
+  it("moves scopes through rotated and anisotropic transform prefixes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[rotate=90, xscale=2, yscale=4, shift={(1pt,2pt)}]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(8, -4)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toMatch(/shift=\{\(-1pt,0pt\)\}|shift=\(-1pt,0pt\)/);
+    expectPatchesReconstructSource(source, result);
+  });
+
+  it("ignores non-transform flags while applying scope transform prefixes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[draw,scale=2,shift={(1pt,2pt)}]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(4, 6)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("draw");
+    expect(result.newSource).toMatch(/shift=\{\(3pt,5pt\)\}|shift=\(3pt,5pt\)/);
+    expectPatchesReconstructSource(source, result);
+  });
+
+  it("falls back to absolute scope shifts when a transform prefix is not numeric", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[rotate=\angle, xshift=2pt, yshift=3pt]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(4, -6)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("rotate=\\angle");
+    expect(result.newSource).toContain("xshift=6pt");
+    expect(result.newSource).toContain("yshift=-3pt");
+    expectPatchesReconstructSource(source, result);
+  });
+
+  it("falls back to absolute scope shifts for nonnumeric scale prefixes", () => {
+    const scaleSource = String.raw`\begin{tikzpicture}
+  \begin{scope}[scale=\s, shift={(2pt,3pt)}]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const scale = applyEditAction(scaleSource, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(4, -6)
+    });
+
+    expect(scale.kind).toBe("success");
+    if (scale.kind !== "success") return;
+    expect(scale.newSource).toContain("scale=\\s");
+    expect(scale.newSource).not.toContain("shift={");
+    expect(scale.newSource).toContain("xshift=2pt");
+    expect(scale.newSource).toContain("yshift=-3pt");
+    expectPatchesReconstructSource(scaleSource, scale);
+
+    const xscaleSource = String.raw`\begin{tikzpicture}
+  \begin{scope}[xscale=\sx, shift={(2pt,3pt)}]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const xscale = applyEditAction(xscaleSource, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(4, -6)
+    });
+
+    expect(xscale.kind).toBe("success");
+    if (xscale.kind !== "success") return;
+    expect(xscale.newSource).toContain("xscale=\\sx");
+    expect(xscale.newSource).not.toContain("shift={");
+    expect(xscale.newSource).toContain("xshift=2pt");
+    expect(xscale.newSource).toContain("yshift=-3pt");
+    expectPatchesReconstructSource(xscaleSource, xscale);
+
+    const yscaleSource = String.raw`\begin{tikzpicture}
+  \begin{scope}[yscale=\sy, xshift=2pt]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const yscale = applyEditAction(yscaleSource, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(4, 6)
+    });
+
+    expect(yscale.kind).toBe("success");
+    if (yscale.kind !== "success") return;
+    expect(yscale.newSource).toContain("yscale=\\sy");
+    expect(yscale.newSource).toContain("xshift=6pt");
+    expect(yscale.newSource).toContain("yshift=6pt");
+    expectPatchesReconstructSource(yscaleSource, yscale);
+  });
+
+  it("removes implicit scope shift components when a move cancels them out", () => {
+    const xOnly = String.raw`\begin{tikzpicture}
+  \begin{scope}[xshift=2pt]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const movedXOnly = applyEditAction(xOnly, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(-2, 0)
+    });
+
+    expect(movedXOnly.kind).toBe("success");
+    if (movedXOnly.kind !== "success") return;
+    expect(movedXOnly.newSource).toContain("xshift=0pt");
+    expect(movedXOnly.newSource).not.toContain("yshift");
+    expectPatchesReconstructSource(xOnly, movedXOnly);
+
+    const yOnly = String.raw`\begin{tikzpicture}
+  \begin{scope}[yshift=3pt]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const movedYOnly = applyEditAction(yOnly, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(0, -3)
+    });
+
+    expect(movedYOnly.kind).toBe("success");
+    if (movedYOnly.kind !== "success") return;
+    expect(movedYOnly.newSource).not.toContain("xshift");
+    expect(movedYOnly.newSource).toContain("yshift=0pt");
+    expectPatchesReconstructSource(yOnly, movedYOnly);
+  });
+
+  it("rejects no-op scope moves for each scope placement rewrite path", () => {
+    const withoutOptions = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const noOptions = applyEditAction(withoutOptions, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(0, 0)
+    });
+    expect(noOptions.kind).toBe("unsupported");
+    if (noOptions.kind === "unsupported") {
+      expect(noOptions.reason).toContain("already matches");
+    }
+
+    const xshiftSource = String.raw`\begin{tikzpicture}
+  \begin{scope}[xshift=2pt]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const xshift = applyEditAction(xshiftSource, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(0, 0)
+    });
+    expect(xshift.kind).toBe("unsupported");
+    if (xshift.kind === "unsupported") {
+      expect(xshift.reason).toContain("already matches");
+    }
+
+    const shiftSource = String.raw`\begin{tikzpicture}
+  \begin{scope}[shift=(2pt,3pt)]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const shift = applyEditAction(shiftSource, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(0, 0)
+    });
+    expect(shift.kind).toBe("unsupported");
+    if (shift.kind === "unsupported") {
+      expect(shift.reason).toContain("already matches");
+    }
+  });
+
+  it("falls back to xshift and yshift when a scope shift prefix is not invertible", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[scale=0, shift=(2pt,3pt)]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(4, 6)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("scale=0");
+    expect(result.newSource).not.toContain("shift=(");
+    expect(result.newSource).toContain("xshift=2pt");
+    expect(result.newSource).toContain("yshift=9pt");
+    expectPatchesReconstructSource(source, result);
+  });
+
+  it("falls back to xshift and yshift when scope transform prefixes are not invertible", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[scale=0, xshift=2pt]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(4, 6)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("xshift=6pt");
+    expect(result.newSource).toContain("yshift=6pt");
+    expectPatchesReconstructSource(source, result);
+  });
+
   it("moves scopes without options by inserting xshift and yshift", () => {
     const source = String.raw`\begin{tikzpicture}
   \begin{scope}
@@ -822,6 +1227,25 @@ describe("applyEditAction – moveElement", () => {
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("\\begin{scope}[xshift=4pt, yshift=-6pt]");
+    expectPatchesReconstructSource(source, result);
+  });
+
+  it("moves scopes with unrelated options by adding shift keys", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[draw]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(4, -6)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\begin{scope}[draw, xshift=4pt, yshift=-6pt]");
     expectPatchesReconstructSource(source, result);
   });
 
@@ -853,6 +1277,96 @@ describe("applyEditAction – moveElement", () => {
     expectPatchesReconstructSource(source, result);
   });
 
+  it("returns partial when a scope moves but another selected element cannot", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[xshift=1pt]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElements",
+      elementIds: ["missing-path", "scope:0"],
+      delta: wp(3, 2)
+    });
+
+    expect(result.kind).toBe("partial");
+    if (result.kind !== "partial") return;
+    expect(result.newSource).toContain("xshift=4pt");
+    expect(result.reason).toContain("No handles found");
+    expect(result.changedSourceIds).toEqual(["missing-path", "scope:0", "path:1"]);
+    expectPatchesReconstructSource(source, result);
+  });
+
+  it("expands changed ids for nested moved scopes without duplicates", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[xshift=1pt]
+    \draw (0,0) -- (1,0);
+    \begin{scope}
+      \draw (2,0) -- (3,0);
+    \end{scope}
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElements",
+      elementIds: ["scope:0", "scope:0"],
+      delta: wp(2, 0)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("xshift=3pt");
+    expect(result.changedSourceIds).toEqual(["scope:0", "path:1", "scope:2", "path:3"]);
+    expectPatchesReconstructSource(source, result);
+  });
+
+  it("returns unsupported when matrix placement is already at the requested position", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] at (0,0) {
+    A \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: wp(0, 0)
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind === "unsupported") {
+      expect(result.reason).toContain("already matches");
+    }
+  });
+
+  it("rewrites tree root at options and rejects no-op tree root moves", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node[draw,at={(0,0)}] {Root}
+    child { node {Leaf} };
+\end{tikzpicture}`;
+
+    const moved = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: wp(cm(1), cm(2))
+    });
+    expect(moved.kind).toBe("success");
+    if (moved.kind !== "success") return;
+    expect(moved.newSource).toContain("at=(1,2)");
+    expectPatchesReconstructSource(source, moved);
+
+    const noOp = applyEditAction(moved.newSource, [], {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: wp(0, 0)
+    });
+    expect(noOp.kind).toBe("unsupported");
+    if (noOp.kind === "unsupported") {
+      expect(noOp.reason).toContain("already matches");
+    }
+  });
+
   it("prefers rewriting inline at when both inline and option placement are present", () => {
     const source = String.raw`\begin{tikzpicture}
   \matrix[matrix of nodes,at={(10,10)}] at (0,0) {
@@ -870,6 +1384,27 @@ describe("applyEditAction – moveElement", () => {
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("at={(10,10)}");
     expect(result.newSource).toContain("] at (1,2)");
+  });
+
+  it("returns partial when only the matrix portion of a mixed moveElements selection can move", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] at (0,0) {
+    A \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElements",
+      elementIds: ["missing-path", "path:0"],
+      delta: wp(cm(1), cm(1))
+    });
+
+    expect(result.kind).toBe("partial");
+    if (result.kind !== "partial") return;
+    expect(result.newSource).toContain("at (1,1)");
+    expect(result.reason).toContain("No handles found");
+    expect(result.changedSourceIds).toEqual(["missing-path", "path:0"]);
+    expectPatchesReconstructSource(source, result);
   });
 });
 
@@ -964,6 +1499,20 @@ describe("applyEditAction – node adornments", () => {
     expect(result.newSource).toContain("label=right:L");
   });
 
+  it("rejects missing adornment deletion targets", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,pin=above:P,label=right:L] at (0,0) {A};
+\end{tikzpicture}`;
+
+    expect(applyEditAction(source, [], {
+      kind: "deleteAdornment",
+      targetId: "node-adornment:missing"
+    })).toEqual({
+      kind: "unsupported",
+      reason: "Selected adornment could not be resolved for deletion."
+    });
+  });
+
   it("preserves pin edge options when editing pin text", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[draw,pin={[pin edge={draw=blue,dashed,line width=1pt}]above:P}] at (0,0) {A};
@@ -1009,6 +1558,19 @@ describe("applyEditAction – alignElements", () => {
   \draw (0,0) -- (1,0);
   \draw (2,2) -- (3,2);
 \end{tikzpicture}`;
+
+  it("returns unsupported when fewer than two unique elements are selected", () => {
+    const result = applyEditAction(source, [], {
+      kind: "alignElements",
+      elementIds: ["path:0", "path:0", " "],
+      mode: "left"
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind === "unsupported") {
+      expect(result.reason).toContain("at least 2");
+    }
+  });
 
   it("aligns left/center/right using selection bounds", () => {
     const left = applyEditAction(source, [], {
@@ -1110,6 +1672,23 @@ describe("applyEditAction – alignElements", () => {
 });
 
 describe("applyEditAction – distributeElements", () => {
+  it("returns unsupported when fewer than three unique elements are selected", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (2,0) -- (3,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "distributeElements",
+      elementIds: ["path:0", "path:1", "path:1"],
+      axis: "horizontal"
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind === "unsupported") {
+      expect(result.reason).toContain("at least 3");
+    }
+  });
+
   it("distributes horizontal gaps with endpoints fixed", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
@@ -1228,6 +1807,237 @@ describe("applyEditAction – setProperty", () => {
       expect(result.newSource).toContain("\\draw[blue, line width=1.2pt] (0,0) -- (1,0);");
       expect(result.patches).toHaveLength(1);
     }
+  });
+
+  it("rejects empty setProperty keys", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[blue] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "   ",
+      value: "red"
+    });
+
+    expect(result).toEqual({
+      kind: "error",
+      message: "Cannot set an empty option key"
+    });
+  });
+
+  it("returns unsupported for no-op setProperty writes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[blue] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "draw",
+      value: "blue",
+      clearKeys: ["", "draw"]
+    });
+
+    expect(result).toEqual({
+      kind: "unsupported",
+      reason: "setProperty would not change the source."
+    });
+  });
+
+  it("disables and enables multiline command options by comment toggling exact source text", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[
+    blue,
+    line width={max(1pt,2pt)},
+    decoration={markings, mark=at position 0.5 with {\arrow{>}}},
+    % keep this note
+  ] (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const disabled = applyEditAction(
+      source,
+      [],
+      {
+        kind: "setProperty",
+        elementId: "path:0",
+        level: "command",
+        key: "line width",
+        value: "ignored",
+        commentMode: "disable",
+        commentSourceText: "line width={max(1pt,2pt)},"
+      },
+      { parseOptions: { indentSize: 4 } }
+    );
+
+    expect(disabled.kind).toBe("success");
+    if (disabled.kind !== "success") {
+      throw new Error("Expected comment disable to succeed");
+    }
+    expect(disabled.newSource).toContain("    % line width={max(1pt,2pt)},");
+    expect(disabled.newSource).toContain("    % keep this note");
+    expect(disabled.newSource).toContain("decoration={markings, mark=at position 0.5 with {\\arrow{>}}}");
+
+    const enabled = applyEditAction(disabled.newSource, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "line width",
+      value: "ignored",
+      commentMode: "enable",
+      commentSourceText: "% line width={max(1pt,2pt)},"
+    });
+
+    expect(enabled.kind).toBe("success");
+    if (enabled.kind !== "success") {
+      throw new Error("Expected comment enable to succeed");
+    }
+    expect(enabled.newSource).toContain("  line width={max(1pt,2pt)},");
+    expect(enabled.newSource).not.toContain("% line width={max(1pt,2pt)}");
+  });
+
+  it("comment toggles inline options and preserves escaped percent signs", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[draw=blue, text={100\% sure}, dashed] (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "dashed",
+      value: "ignored",
+      commentMode: "disable"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected inline comment toggle to succeed");
+    }
+    expect(result.newSource).toContain("text={100\\% sure}");
+    expect(result.newSource).toContain("% dashed,");
+  });
+
+  it("reports unsupported comment toggles for missing or ineligible matches", () => {
+    const noMatch = applyEditAction(String.raw`\begin{tikzpicture}
+  \draw[blue] (0,0) -- (1,0);
+\end{tikzpicture}`, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "fill",
+      value: "ignored",
+      commentMode: "disable"
+    });
+    expect(noMatch).toEqual({
+      kind: "unsupported",
+      reason: "Could not find a matching declaration to toggle."
+    });
+
+    const noOptions = applyEditAction(String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "draw",
+      value: "ignored",
+      commentMode: "disable"
+    });
+    expect(noOptions).toEqual({
+      kind: "unsupported",
+      reason: "No writable option list is available for comment toggling."
+    });
+  });
+
+  it("rejects empty comment-toggle keys", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[blue] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: " ",
+      value: "ignored",
+      commentMode: "disable"
+    });
+
+    expect(result).toEqual({
+      kind: "error",
+      message: "Cannot toggle an empty option key"
+    });
+  });
+
+  it("rejects comment toggles for matrix-cell property targets", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & |[draw=red]| B \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node:0:0:matrix-cell:1:2",
+      level: "command",
+      key: "draw",
+      value: "ignored",
+      commentMode: "disable"
+    });
+
+    expect(result).toEqual({
+      kind: "unsupported",
+      reason: "Property comment toggles are unavailable for this source target."
+    });
+  });
+
+  it("comment toggles style-source entries in bare option values", () => {
+    const source = String.raw`\begin{tikzpicture}[accent/.style={draw=red, fill=blue}]
+  \draw[accent] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const styleStart = source.indexOf("accent/.style");
+    const styleEnd = source.indexOf("}]", styleStart) + 1;
+    const styleTargetId = makeStyleSourceTargetId({ from: styleStart, to: styleEnd });
+
+    const disabled = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: styleTargetId,
+      level: "named-style",
+      key: "draw",
+      value: "ignored",
+      commentMode: "disable"
+    });
+
+    expect(disabled.kind).toBe("success");
+    if (disabled.kind !== "success") {
+      throw new Error("Expected style-source disable to succeed");
+    }
+    expect(disabled.newSource).toContain(String.raw`accent/.style={
+  % draw=red,
+  fill=blue
+}`);
+
+    const enabledStart = disabled.newSource.indexOf("accent/.style");
+    const enabledEnd = disabled.newSource.indexOf("}", enabledStart) + 1;
+    const enabledTargetId = makeStyleSourceTargetId({ from: enabledStart, to: enabledEnd });
+    const enabled = applyEditAction(disabled.newSource, [], {
+      kind: "setProperty",
+      elementId: enabledTargetId,
+      level: "named-style",
+      key: "draw",
+      value: "ignored",
+      commentMode: "enable"
+    });
+
+    expect(enabled.kind).toBe("success");
+    if (enabled.kind !== "success") {
+      throw new Error("Expected style-source enable to succeed");
+    }
+    expect(enabled.newSource).toContain(String.raw`accent/.style={
+  draw=red,
+  fill=blue
+}`);
   });
 
   it("supports writing named line width flags while clearing numeric line width", () => {
@@ -1611,6 +2421,48 @@ ${Array.from({ length: 5000 }, (_, index) => `  % large document filler ${index}
       throw new Error("Expected matrix-cell setProperty insertion to succeed");
     }
     expect(result.newSource).toContain("A & |[draw=red]| B");
+  });
+
+  it("rejects empty matrix-cell setProperty keys", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & B \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node:0:0:matrix-cell:1:2",
+      level: "command",
+      key: " ",
+      value: "red"
+    });
+
+    expect(result).toEqual({
+      kind: "error",
+      message: "Cannot set an empty option key"
+    });
+  });
+
+  it("rejects clearing absent matrix-cell options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & B \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node:0:0:matrix-cell:1:2",
+      level: "command",
+      key: "draw",
+      value: ""
+    });
+
+    expect(result).toEqual({
+      kind: "unsupported",
+      reason: "setProperty would not change the source."
+    });
   });
 
   it("updates existing matrix-cell option prefixes", () => {
@@ -2320,6 +3172,42 @@ ${Array.from({ length: 5000 }, (_, index) => `  % large document filler ${index}
 });
 
 describe("applyEditAction – resizeElement", () => {
+  it("returns specific unsupported reasons for invalid resize targets and roles", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const missingId = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "   ",
+      role: "right",
+      newWorld: wp(10, 0)
+    });
+    expect(missingId.kind).toBe("unsupported");
+    if (missingId.kind === "unsupported") {
+      expect(missingId.reason).toContain("Missing element id");
+    }
+
+    const unknown = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "missing",
+      role: "right",
+      newWorld: wp(10, 0)
+    });
+    expect(unknown.kind).toBe("unsupported");
+
+    const badRole = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "center" as never,
+      newWorld: wp(10, 0)
+    });
+    expect(badRole.kind).toBe("unsupported");
+    if (badRole.kind === "unsupported") {
+      expect(badRole.reason).toContain("Unsupported resize role");
+    }
+  });
+
   it("writes minimum width and minimum height when growing from a corner", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[draw] at (0,0) {A};
@@ -2391,6 +3279,54 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).toContain("shape=diamond");
     expect(/minimum (width|height)=/.test(result.newSource)).toBe(true);
     expect(result.newSource).not.toContain("minimum width=2.2cm, minimum height=1.4cm");
+  });
+
+  it("resizes diamond nodes from side handles using companion dimensions", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,shape=diamond,aspect=2] at (0,0) {};
+\end{tikzpicture}`;
+
+    const horizontal = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: wp(120, 0)
+    });
+
+    expect(horizontal.kind).toBe("success");
+    if (horizontal.kind !== "success") return;
+    expect(horizontal.newSource).toContain("minimum width=");
+    expect(horizontal.newSource).not.toContain("minimum height=");
+
+    const vertical = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "top",
+      newWorld: wp(0, 100)
+    });
+
+    expect(vertical.kind).toBe("success");
+    if (vertical.kind !== "success") return;
+    expect(vertical.newSource).toContain("minimum height=");
+  });
+
+  it("scales explicit diamond minimum dimensions during side resize", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,shape=diamond,minimum width=40pt,minimum height=20pt] at (0,0) {};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: wp(120, 0)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("minimum width=");
+    expect(result.newSource).toContain("minimum height=");
+    expect(result.newSource).not.toContain("minimum width=40pt,minimum height=20pt");
   });
 
   it("can prefer a single constraint when resizing dependent shapes", () => {
@@ -2521,6 +3457,39 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).toContain("minimum width=100pt");
     const textWidthMatch = /text width=([0-9.]+)pt/.exec(result.newSource);
     expect(textWidthMatch).not.toBeNull();
+  });
+
+  it("uses node inner sep overrides when resizing text-width nodes", () => {
+    const innerSepSource = String.raw`\begin{tikzpicture}
+  \node[draw,text width=2cm,inner sep=10pt] at (0,0) {This is wrapped text};
+\end{tikzpicture}`;
+    const innerSep = applyEditAction(innerSepSource, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: wp(120, 0)
+    });
+
+    expect(innerSep.kind).toBe("success");
+    if (innerSep.kind !== "success") return;
+    const innerSepWidth = Number(/text width=([0-9.]+)pt/.exec(innerSep.newSource)?.[1]);
+    expect(innerSepWidth).toBeLessThan(240);
+
+    const innerXSepSource = String.raw`\begin{tikzpicture}
+  \node[draw,text width=2cm,inner xsep=8pt] at (0,0) {This is wrapped text};
+\end{tikzpicture}`;
+    const innerXSep = applyEditAction(innerXSepSource, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: wp(120, 0)
+    });
+
+    expect(innerXSep.kind).toBe("success");
+    if (innerXSep.kind !== "success") return;
+    const innerXSepWidth = Number(/text width=([0-9.]+)pt/.exec(innerXSep.newSource)?.[1]);
+    expect(innerXSepWidth).toBeLessThan(240);
+    expect(innerXSepWidth).toBeGreaterThan(innerSepWidth);
   });
 
   it("updates text width horizontally and minimum height vertically for corner resize", () => {
@@ -2680,6 +3649,40 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).toContain("y radius=1cm");
   });
 
+  it("rewrites the last circle option list that owns a radius", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) circle [draw=blue] [radius=1cm];
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: wp(cm(1.5), cm(1.2))
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("circle [draw=blue] [radius=1.5cm]");
+  });
+
+  it("preserves formatted ellipse payload coordinates", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) ellipse ( 1cm and 0.5cm );
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: wp(cm(2), cm(1))
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("ellipse ( 2cm and 1cm )");
+  });
+
   it("preserves ellipse aspect ratio when preserveAspect is enabled", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) ellipse [x radius=1cm, y radius=0.5cm];
@@ -2717,6 +3720,24 @@ describe("applyEditAction – resizeElement", () => {
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("x radius=2cm");
     expect(result.newSource).toContain("y radius=1cm");
+  });
+
+  it("rejects preserving ellipse aspect ratio without explicit radii", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) ellipse;
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: wp(cm(2), cm(1)),
+      preserveAspect: true
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind !== "unsupported") return;
+    expect(result.reason).toContain("explicit ellipse radii");
   });
 
   it("resizes ellipse statements where y radius is larger than x radius", () => {
@@ -2868,6 +3889,28 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).not.toContain("minimum height");
   });
 
+  it("rejects no-op node resizes at the existing unrotated corner", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {A};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const bounds = collectSourceWorldBounds(semantic.scene.elements).get("path:0");
+    expect(bounds).toBeDefined();
+    if (!bounds) return;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: wp(bounds.maxX, bounds.minY)
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind !== "unsupported") return;
+    expect(result.reason).toContain("would not change");
+  });
+
   it("resizes nodes with label/pin adornments using only the node geometry", () => {
     const plainSource = String.raw`\begin{tikzpicture}
   \node[draw] at (0,0) {A};
@@ -2990,6 +4033,51 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).toContain("\\draw[rotate=45] (0,0) circle (2.26cm);");
   });
 
+  it("keeps side-only circle resizes circular using explicit radius options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) circle [radius=1cm];
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "top",
+      newWorld: wp(0, cm(1.5))
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("circle [radius=1.5cm]");
+  });
+
+  it("rejects invalid and no-op circle resizes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) circle (1cm);
+\end{tikzpicture}`;
+
+    const badRole = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "center" as never,
+      newWorld: wp(cm(1), 0)
+    });
+    expect(badRole.kind).toBe("unsupported");
+    if (badRole.kind === "unsupported") {
+      expect(badRole.reason).toContain("Unsupported resize role");
+    }
+
+    const noOp = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: wp(cm(1), 0)
+    });
+    expect(noOp.kind).toBe("unsupported");
+    if (noOp.kind === "unsupported") {
+      expect(noOp.reason).toContain("would not change");
+    }
+  });
+
   it("inserts per-shape radius options when circle radius is inherited from statement options", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[radius=1cm] (0,0) circle;
@@ -3005,6 +4093,107 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("circle[radius=1.5cm]");
+  });
+
+  it("adds radius entries to an existing circle option list without radius keys", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) circle [draw=blue];
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: wp(cm(1.25), cm(1.25))
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("circle [draw=blue, x radius=1.25cm, y radius=1.25cm]");
+  });
+
+  it("normalizes circle x/y radius options back to a single radius", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) circle [x radius=1cm, y radius=0.5cm];
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: wp(cm(2), 0)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("x radius=2cm");
+    expect(result.newSource).toContain("y radius=0.5cm");
+  });
+
+  it("expands ellipse radius shorthand into x and y radius options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) ellipse [radius=1cm];
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: wp(cm(2), 0)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("x radius=2cm");
+    expect(result.newSource).toContain("y radius=1cm");
+    expect(result.newSource).not.toContain("[radius=1cm]");
+  });
+
+  it("rejects single-axis ellipse resize when no explicit radius can be inferred", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) ellipse;
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: wp(cm(2), 0)
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind !== "unsupported") return;
+    expect(result.reason).toContain("explicit circle/ellipse radii");
+  });
+
+  it("preserves ellipse aspect ratio for side-only drags", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) ellipse [x radius=1cm, y radius=0.5cm];
+\end{tikzpicture}`;
+
+    const horizontal = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: wp(cm(2), 0),
+      preserveAspect: true
+    });
+    expect(horizontal.kind).toBe("success");
+    if (horizontal.kind !== "success") return;
+    expect(horizontal.newSource).toContain("x radius=2cm");
+    expect(horizontal.newSource).toContain("y radius=1cm");
+
+    const vertical = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "top",
+      newWorld: wp(0, cm(1.5)),
+      preserveAspect: true
+    });
+    expect(vertical.kind).toBe("success");
+    if (vertical.kind !== "success") return;
+    expect(vertical.newSource).toContain("x radius=3cm");
+    expect(vertical.newSource).toContain("y radius=1.5cm");
   });
 
   it("resizes rectangle statements using opposite-corner anchoring", () => {
@@ -3058,6 +4247,117 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).toContain("\\draw (-1,0) rectangle +(3,2);");
   });
 
+  it("resizes rectangle statements from side handles without moving the opposite side", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) rectangle (2,1);
+\end{tikzpicture}`;
+
+    const right = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: wp(cm(3), cm(0.5))
+    });
+    expect(right.kind).toBe("success");
+    if (right.kind !== "success") return;
+    expect(right.newSource).toContain("\\draw (0,0) rectangle (3,1);");
+
+    const top = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "top",
+      newWorld: wp(cm(1), cm(2))
+    });
+    expect(top.kind).toBe("success");
+    if (top.kind !== "success") return;
+    expect(top.newSource).toContain("\\draw (0,0) rectangle (2,2);");
+  });
+
+  it("rejects invalid and no-op rectangle resizes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) rectangle (2,1);
+\end{tikzpicture}`;
+
+    const badRole = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "center" as never,
+      newWorld: wp(cm(1), cm(0.5))
+    });
+    expect(badRole.kind).toBe("unsupported");
+    if (badRole.kind === "unsupported") {
+      expect(badRole.reason).toContain("Unsupported resize role");
+    }
+
+    const noOp = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: wp(cm(2), cm(0.5))
+    });
+    expect(noOp.kind).toBe("unsupported");
+    if (noOp.kind === "unsupported") {
+      expect(noOp.reason).toContain("would not change");
+    }
+  });
+
+  it("rejects rectangles without explicit editable start and target coordinates", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw rectangle (2,1);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: wp(cm(3), cm(0.5))
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind !== "unsupported") return;
+    expect(result.reason).toContain("explicit start and target coordinates");
+  });
+
+  it("rejects rectangle resize when rectangle coordinates are not rewritable", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \coordinate (A) at (0,0);
+  \coordinate (B) at (2,1);
+  \draw (A) rectangle (B);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:2",
+      role: "right",
+      newWorld: wp(cm(3), cm(0.5))
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind !== "unsupported") return;
+    expect(result.reason).toContain("rewritable rectangle coordinates");
+  });
+
+  it("resizes rectangles inside nested scopes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \begin{scope}
+      \draw (0,0) rectangle (2,1);
+    \end{scope}
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:2",
+      role: "top-right",
+      newWorld: wp(cm(3), cm(2))
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw (0,0) rectangle (3,2);");
+  });
+
   it("resizes scopes by rewriting scale and compensating shift", () => {
     const source = String.raw`\begin{tikzpicture}
   \begin{scope}
@@ -3081,6 +4381,235 @@ describe("applyEditAction – resizeElement", () => {
     expect(xshiftMatch ? Number(xshiftMatch[1]) : Number.NaN).toBeLessThan(-20);
     expect(result.newSource).not.toContain("yshift=");
     expect(result.changedSourceIds).toEqual(["scope:0", "path:1"]);
+  });
+
+  it("resizes scopes by replacing existing transform options while preserving other options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[draw=blue,xscale=2,yshift=5pt]
+    \draw (0,0) rectangle (2,1);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "scope:0",
+      role: "bottom-right",
+      newWorld: wp(cm(3), cm(-2))
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("[draw=blue");
+    expect(result.newSource).not.toContain("yshift=5pt");
+    expect(result.newSource).toContain("xscale=");
+    expect(result.newSource).toContain("yscale=");
+  });
+
+  it("expands changed ids for nested scope resizes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) rectangle (2,1);
+    \begin{scope}
+      \draw (3,0) rectangle (4,1);
+    \end{scope}
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "scope:0",
+      role: "right",
+      newWorld: wp(cm(5), cm(0.5))
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.changedSourceIds).toEqual(["scope:0", "path:1", "scope:2", "path:3"]);
+  });
+
+  it("resizes scopes from left and bottom side handles", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) rectangle (2,1);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const left = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "scope:0",
+      role: "left",
+      newWorld: wp(cm(-1), cm(0.5))
+    });
+    expect(left.kind).toBe("success");
+    if (left.kind !== "success") return;
+    expect(left.newSource).toContain("xscale=1.5");
+
+    const bottom = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "scope:0",
+      role: "bottom",
+      newWorld: wp(cm(1), cm(-1))
+    });
+    expect(bottom.kind).toBe("success");
+    if (bottom.kind !== "success") return;
+    expect(bottom.newSource).toContain("yscale=2");
+  });
+
+  it("rejects no-op scope resizes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) rectangle (2,1);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "scope:0",
+      role: "right",
+      newWorld: wp(cm(2), cm(0.5))
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind !== "unsupported") return;
+    expect(result.reason).toContain("would not change");
+  });
+
+  it("rejects non-finite scope resize transforms", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) rectangle (2,1);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "scope:0",
+      role: "right",
+      newWorld: wp(cm(3), cm(0.5)),
+      referenceScopeTransform: {
+        xscale: Number.POSITIVE_INFINITY,
+        yscale: 1,
+        xshift: 0,
+        yshift: 0
+      }
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind !== "unsupported") return;
+    expect(result.reason).toContain("non-finite transform");
+  });
+
+  it("rejects degenerate, rotated, and invalid-role scope resizes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[rotate=30]
+    \draw (0,0) rectangle (2,1);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const rotated = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "scope:0",
+      role: "right",
+      newWorld: wp(cm(3), 0)
+    });
+    expect(rotated.kind).toBe("unsupported");
+    if (rotated.kind === "unsupported") {
+      expect(rotated.reason).toContain("non-rotated scopes");
+    }
+
+    const degenerate = applyEditAction(source.replace("[rotate=30]", ""), [], {
+      kind: "resizeElement",
+      elementId: "scope:0",
+      role: "right",
+      newWorld: wp(cm(3), 0),
+      referenceBounds: { minX: 0, minY: 0, maxX: 0, maxY: 10 }
+    });
+    expect(degenerate.kind).toBe("unsupported");
+    if (degenerate.kind === "unsupported") {
+      expect(degenerate.reason).toContain("non-zero bounds");
+    }
+
+    const badRole = applyEditAction(source.replace("[rotate=30]", ""), [], {
+      kind: "resizeElement",
+      elementId: "scope:0",
+      role: "center" as never,
+      newWorld: wp(cm(3), 0)
+    });
+    expect(badRole.kind).toBe("unsupported");
+    if (badRole.kind === "unsupported") {
+      expect(badRole.reason).toContain("Unsupported resize role");
+    }
+  });
+
+  it("preserves aspect ratio when resizing scopes from a corner", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) rectangle (2,1);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "scope:0",
+      role: "bottom-right",
+      newWorld: wp(cm(4), cm(-1.2)),
+      preserveAspect: true
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("xscale=2");
+    expect(result.newSource).toContain("yscale=2");
+  });
+
+  it("falls back from diamond side-specific resize when minimum size is set", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,shape=diamond,minimum size=40pt] at (0,0) {};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: wp(120, 0)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("minimum size=40pt");
+    expect(result.newSource).toContain("minimum width=");
+  });
+
+  it("infers diamond companion dimensions from one explicit minimum dimension", () => {
+    const widthOnlySource = String.raw`\begin{tikzpicture}
+  \node[draw,shape=diamond,aspect=2,minimum width=40pt] at (0,0) {};
+\end{tikzpicture}`;
+    const vertical = applyEditAction(widthOnlySource, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "top",
+      newWorld: wp(0, 120)
+    });
+
+    expect(vertical.kind).toBe("success");
+    if (vertical.kind !== "success") return;
+    expect(vertical.newSource).toContain("minimum width=40pt");
+    expect(vertical.newSource).toContain("minimum height=");
+
+    const heightOnlySource = String.raw`\begin{tikzpicture}
+  \node[draw,shape=diamond,aspect=2,minimum height=20pt] at (0,0) {};
+\end{tikzpicture}`;
+    const horizontal = applyEditAction(heightOnlySource, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: wp(120, 0)
+    });
+
+    expect(horizontal.kind).toBe("success");
+    if (horizontal.kind !== "success") return;
+    expect(horizontal.newSource).toContain("minimum width=");
+    expect(horizontal.newSource).toContain("minimum height=20pt");
   });
 
   it("keeps the opposite scope edges fixed in semantic bounds during referenced top-right resize", () => {
@@ -3298,6 +4827,28 @@ describe("applyEditAction – addElement", () => {
 });
 
 describe("applyEditAction – deleteElement", () => {
+  it("rejects empty and unresolved delete selections", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    expect(applyEditAction(source, [], {
+      kind: "deleteElements",
+      elementIds: [" ", " "]
+    })).toEqual({
+      kind: "unsupported",
+      reason: "No element ids were provided for deleteElements"
+    });
+
+    expect(applyEditAction(source, [], {
+      kind: "deleteElements",
+      elementIds: ["missing", "missing"]
+    })).toEqual({
+      kind: "unsupported",
+      reason: "No deletable source span was found for the selected element(s)"
+    });
+  });
+
   it("deletes a whole path statement", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
@@ -3315,6 +4866,56 @@ describe("applyEditAction – deleteElement", () => {
       expect(result.newSource).toContain("\\draw (0,1) -- (1,1);");
       expect(result.patches).toHaveLength(1);
     }
+  });
+
+  it("deletes nested scope statements and CRLF trailing statements cleanly", () => {
+    const nestedSource = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) -- (1,0);
+  \end{scope}
+  \draw (0,1) -- (1,1);
+\end{tikzpicture}`;
+
+    const nested = applyEditAction(nestedSource, [], {
+      kind: "deleteElement",
+      elementId: "path:1"
+    });
+    expect(nested.kind).toBe("success");
+    if (nested.kind !== "success") {
+      throw new Error("Expected nested statement deletion to succeed");
+    }
+    expect(nested.newSource).not.toContain("(0,0) -- (1,0)");
+    expect(nested.newSource).toContain("\\begin{scope}");
+
+    const crlfSource = "\\begin{tikzpicture}\r\n  \\draw (0,0) -- (1,0);\r\n  \\draw (0,1) -- (1,1);\r\n\\end{tikzpicture}";
+    const crlf = applyEditAction(crlfSource, [], {
+      kind: "deleteElement",
+      elementId: "path:1"
+    });
+    expect(crlf.kind).toBe("success");
+    if (crlf.kind !== "success") {
+      throw new Error("Expected CRLF trailing statement deletion to succeed");
+    }
+    expect(crlf.newSource).toBe("\\begin{tikzpicture}\r\n  \\draw (0,0) -- (1,0);\r\n\\end{tikzpicture}");
+  });
+
+  it("deletes a single node path as a whole statement", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node {Only};
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "deleteElement",
+      elementId: "node:0:0"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected single-node path deletion to succeed");
+    }
+    expect(result.newSource).not.toContain("Only");
+    expect(result.newSource).toContain("\\draw (0,0) -- (1,0);");
   });
 
   it("deletes multiple elements in one action", () => {
@@ -3355,6 +4956,124 @@ describe("applyEditAction – deleteElement", () => {
     }
     expect(result.newSource).not.toContain("(a)");
     expect(result.newSource).toContain("fit=(b)");
+  });
+
+  it("deletes a node item from a compound path without removing the path", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) node[above] {A} -- (1,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "deleteElement",
+      elementId: "node:0:1"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      return;
+    }
+    expect(result.newSource).toContain("\\draw (0,0) -- (1,0);");
+    expect(result.newSource).not.toContain("node[above]");
+  });
+
+  it("deletes path items with leading whitespace when there is no trailing gap", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0)--node[midway]{A}(1,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "deleteElement",
+      elementId: "node:0:2"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected compact node deletion to succeed");
+    }
+    expect(result.newSource).toContain("\\draw (0,0)--(1,0);");
+  });
+
+  it("deletes a path-attached node inside a to operation", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) to node[midway] {label} (1,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "deleteElement",
+      elementId: "to-node:0:1:0"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      return;
+    }
+    expect(result.newSource).toContain("\\draw (0,0) to (1,0);");
+    expect(result.newSource).not.toContain("label");
+  });
+
+  it("collapses overlapping statement and child selections before deletion", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) node {A};
+  \draw (1,0) -- (2,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "deleteElements",
+      elementIds: ["path:0", "node:0:1", "path:0"]
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      return;
+    }
+    expect(result.patches).toHaveLength(1);
+    expect(result.newSource).not.toContain("node {A}");
+    expect(result.newSource).toContain("\\draw (1,0) -- (2,0);");
+  });
+
+  it("removes fit and rotate fit when deleted names exhaust the fit list", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[alias=oldA] (a) at (0,0) {};
+  \node[draw,fit={(oldA.south) (a)},rotate fit=30] (f) {};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "deleteElement",
+      elementId: "path:0"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      return;
+    }
+    expect(result.newSource).not.toContain("fit=");
+    expect(result.newSource).not.toContain("rotate fit");
+    expect(result.changedSourceIds).toEqual(["node:0:1"]);
+  });
+
+  it("prunes deleted tree node names from mixed fit lists without touching malformed fits", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child { node (leaf) {leaf} };
+  \node[draw,fit={(leaf) (0,0) (\ignored)}] (mixed) {};
+  \node[draw,fit={not-a-coordinate}] (textfit) {};
+  \node[draw,fit={}] (emptyfit) {};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "deleteElement",
+      elementId: "path:0"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected tree delete with fit pruning to succeed");
+    }
+    expect(result.newSource).not.toContain("node (leaf)");
+    expect(result.newSource).toContain("fit={(0,0) (\\ignored)}");
+    expect(result.newSource).toContain("fit={not-a-coordinate}");
+    expect(result.newSource).toContain("fit={}");
+    expect(result.changedSourceIds).toEqual(["node:0:1"]);
   });
 });
 
@@ -3548,6 +5267,39 @@ describe("applyEditAction – reorderElements", () => {
 });
 
 describe("applyEditAction – group/ungroup", () => {
+  it("rejects too-small, unresolved, and cross-parent group selections", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \begin{scope}
+    \draw (0,1) -- (1,1);
+  \end{scope}
+\end{tikzpicture}`;
+
+    expect(applyEditAction(source, [], {
+      kind: "groupElements",
+      elementIds: ["path:0"]
+    })).toEqual({
+      kind: "unsupported",
+      reason: "Group requires at least two selected statements."
+    });
+
+    expect(applyEditAction(source, [], {
+      kind: "groupElements",
+      elementIds: ["path:0", "missing"]
+    })).toEqual({
+      kind: "unsupported",
+      reason: "Group requires at least two selected statements."
+    });
+
+    const crossParent = applyEditAction(source, [], {
+      kind: "groupElements",
+      elementIds: ["path:0", "path:2"]
+    });
+    expect(crossParent.kind).toBe("unsupported");
+    if (crossParent.kind !== "unsupported") return;
+    expect(crossParent.reason).toContain("same parent scope");
+  });
+
   it("groups contiguous sibling statements into a scope", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
@@ -3732,9 +5484,99 @@ describe("applyEditAction – group/ungroup", () => {
     if (result.kind !== "unsupported") return;
     expect(result.reason).toContain("without options");
   });
+
+  it("rejects invalid ungroup selections and non-scope statements", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    expect(applyEditAction(source, [], {
+      kind: "ungroupElements",
+      elementIds: []
+    })).toEqual({
+      kind: "unsupported",
+      reason: "Ungroup currently requires exactly one selected scope."
+    });
+
+    expect(applyEditAction(source, [], {
+      kind: "ungroupElements",
+      elementIds: ["path:0"]
+    })).toEqual({
+      kind: "unsupported",
+      reason: "Ungroup currently supports scope selections only."
+    });
+  });
+
+  it("ungroups empty and root-level scopes without inventing indentation", () => {
+    const emptyScope = String.raw`\begin{tikzpicture}
+  \begin{scope}[]
+  \end{scope}
+\end{tikzpicture}`;
+
+    const emptyResult = applyEditAction(emptyScope, [], {
+      kind: "ungroupElements",
+      elementIds: ["scope:0"]
+    });
+    expect(emptyResult.kind).toBe("success");
+    if (emptyResult.kind !== "success") {
+      throw new Error("Expected empty scope ungroup to succeed");
+    }
+    expect(emptyResult.newSource).not.toContain("\\begin{scope}");
+    expect(emptyResult.selectedSourceIds).toBeUndefined();
+
+    const rootLevel = String.raw`\begin{tikzpicture}
+\begin{scope}
+\draw (0,0) -- (1,0);
+\end{scope}
+\end{tikzpicture}`;
+    const rootResult = applyEditAction(rootLevel, [], {
+      kind: "ungroupElements",
+      elementIds: ["scope:0"]
+    });
+    expect(rootResult.kind).toBe("success");
+    if (rootResult.kind !== "success") return;
+    expect(rootResult.newSource).toContain("\n\\draw (0,0) -- (1,0);\n\\end{tikzpicture}");
+  });
+
+  it("classifies ungroupable scopes by option shape", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[name=ok]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+  \begin{scope}[shift={(1,0)}]
+    \draw (0,1) -- (1,1);
+  \end{scope}
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+    const scopes = parsed.figure.body.filter((statement) => statement.kind === "Scope");
+
+    expect(scopes.map((scope) => isUngroupableScopeStatement(scope))).toEqual([true, false]);
+  });
 });
 
 describe("applyEditAction – duplicateElements", () => {
+  it("rejects empty and unresolved duplicate selections", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    expect(applyEditAction(source, [], {
+      kind: "duplicateElements",
+      elementIds: [" ", " "]
+    })).toEqual({
+      kind: "unsupported",
+      reason: "No element ids were provided for duplicateElements."
+    });
+
+    expect(applyEditAction(source, [], {
+      kind: "duplicateElements",
+      elementIds: ["missing"]
+    })).toEqual({
+      kind: "unsupported",
+      reason: "No duplicable statements were found for the selected element ids."
+    });
+  });
+
   it("duplicates selected statements after the same-parent anchor with default down-right offset", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
@@ -3789,9 +5631,205 @@ describe("applyEditAction – duplicateElements", () => {
     if (result.kind !== "success" && result.kind !== "partial") return;
     expect(result.newSource).toContain("\\node[draw] (My Node 3) at (0.25, 1.25) {C};");
   });
+
+  it("renames declared names across nested pasted snippets and rewrites references", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[alias={Alias}, name path={(Route)}, name path global=Trail] (A) at (0,0) {A};
+  \node (A2) at (1,0) {A2};
+  \node (Alias2) at (2,0) {Alias2};
+  \path[name path local=Local] (A) -- (A2);
+\end{tikzpicture}`;
+
+    expect(renameSnippetDeclaredNames(source, [])).toEqual([]);
+    expect(renameSnippetDeclaredNames(source, ["  \n  "])).toEqual(["  \n  "]);
+    expect(renameSnippetDeclaredNames(source, ["\\draw (0,0) -- (1,0);"])).toEqual(["\\draw (0,0) -- (1,0);"]);
+
+    const [renamed] = renameSnippetDeclaredNames(source, [
+      String.raw`\begin{scope}[name path={Route}, alias=(Alias)]
+  \node[alias={Alias}, name path local={(Local)}] (A) at (0,0) {A};
+  \coordinate (A2) at (1,0);
+  \path (A) edge node[alias=Alias] (B) {edge} (A2);
+  \node (Root) {root} child { node[alias={Alias}] (Leaf) {leaf} edge from parent node (Edge Label) {} };
+  \node (Placed) [right=of A, below=of Alias] {P};
+  \draw[name path global=Trail] (A) -- (Alias);
+\end{scope}`
+    ]);
+
+    expect(renamed).toContain("name path={Route2}");
+    expect(renamed).toContain("alias=(Alias3)");
+    expect(renamed).toContain("\\node[alias={Alias3}, name path local={(Local2)}] (A3)");
+    expect(renamed).toContain("\\coordinate (A4) at");
+    expect(renamed).toContain("(A3) edge node[alias=Alias3] (B)");
+    expect(renamed).toContain("node[alias={Alias3}] (Leaf)");
+    expect(renamed).toContain("edge from parent node (Edge Label)");
+    expect(renamed).toContain("[right=of A3, below=of Alias3]");
+    expect(renamed).toContain("(A3) -- (Alias3)");
+    expect(renamed).toContain("name path global=Trail2");
+  });
+
+  it("duplicates without offset when delta is zero and falls back for non-finite components", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const zero = applyEditAction(source, [], {
+      kind: "duplicateElements",
+      elementIds: ["path:0"],
+      delta: wp(0, 0)
+    });
+    expect(zero.kind).toBe("success");
+    if (zero.kind !== "success") {
+      throw new Error("Expected zero-offset duplicate to succeed");
+    }
+    expect((zero.newSource.match(/\\draw \(0,0\) -- \(1,0\);/g) ?? []).length).toBe(2);
+
+    const fallback = applyEditAction(source, [], {
+      kind: "duplicateElements",
+      elementIds: ["path:0"],
+      delta: wp(Number.POSITIVE_INFINITY, Number.NaN)
+    });
+    expect(fallback.kind === "success" || fallback.kind === "partial").toBe(true);
+    if (fallback.kind !== "success" && fallback.kind !== "partial") return;
+    expect(fallback.newSource).toContain("\\draw (0.25,-0.25) -- (1.25,-0.25);");
+  });
+
+  it("duplicates unmovable named-reference paths as partial inserts", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node (A) at (0,0) {A};
+  \node (B) at (1,0) {B};
+  \draw (A) -- (B);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "duplicateElements",
+      elementIds: ["path:2"]
+    });
+
+    expect(result.kind).toBe("partial");
+    if (result.kind !== "partial") {
+      throw new Error("Expected named-reference duplicate to be partial");
+    }
+    expect(result.reason).toContain("Could not offset");
+    expect(result.newSource).toContain("\\draw (A) -- (B);\n  \\draw (A) -- (B);");
+    expectPatchesReconstructSource(source, result);
+  });
 });
 
 describe("applyEditAction – repeatElements", () => {
+  it("rejects empty, no-op, and non-finite repeat requests", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const empty = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: [" ", "path:0", "path:0"],
+      columns: 1,
+      rows: 1,
+      horizontalStep: cm(1),
+      verticalStep: cm(1)
+    });
+    expect(empty).toEqual({
+      kind: "unsupported",
+      reason: "Repeat needs more than one row or column."
+    });
+
+    const missingSelection = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: [" "],
+      columns: 2,
+      rows: 1,
+      horizontalStep: cm(1),
+      verticalStep: cm(1)
+    });
+    expect(missingSelection).toEqual({
+      kind: "unsupported",
+      reason: "Select at least one authored element to repeat."
+    });
+
+    const nonFiniteStep = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0"],
+      columns: 2,
+      rows: 1,
+      horizontalStep: Number.POSITIVE_INFINITY,
+      verticalStep: cm(1)
+    });
+    expect(nonFiniteStep).toEqual({
+      kind: "error",
+      message: "Repeat step values must be finite numbers."
+    });
+
+    const nonFiniteColumns = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0"],
+      columns: Number.NaN,
+      rows: 2,
+      horizontalStep: cm(1),
+      verticalStep: cm(1)
+    });
+    expect(nonFiniteColumns.kind).toBe("success");
+    if (nonFiniteColumns.kind === "success") {
+      expect(nonFiniteColumns.newSource).toContain(String.raw`\foreach \j in {0, ..., 1}`);
+      expect(nonFiniteColumns.newSource).not.toContain(String.raw`\foreach \i`);
+    }
+  });
+
+  it("rejects repeat selections that are missing, existing foreach statements, or cross-parent", () => {
+    const missingSource = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const missing = applyEditAction(missingSource, [], {
+      kind: "repeatElements",
+      elementIds: ["path:99"],
+      columns: 2,
+      rows: 1,
+      horizontalStep: cm(1),
+      verticalStep: cm(1)
+    });
+    expect(missing.kind).toBe("unsupported");
+    if (missing.kind === "unsupported") {
+      expect(missing.reason).toContain("direct authored statement");
+    }
+
+    const foreachSource = String.raw`\begin{tikzpicture}
+  \foreach \x in {0,1} {
+    \draw (\x,0) -- ++(1,0);
+  }
+\end{tikzpicture}`;
+    const existingForeach = applyEditAction(foreachSource, [], {
+      kind: "repeatElements",
+      elementIds: ["foreach:0"],
+      columns: 2,
+      rows: 1,
+      horizontalStep: cm(1),
+      verticalStep: cm(1)
+    });
+    expect(existingForeach.kind).toBe("unsupported");
+    if (existingForeach.kind === "unsupported") {
+      expect(existingForeach.reason).toContain("foreach");
+    }
+
+    const crossParentSource = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \begin{scope}
+    \draw (0,1) -- (1,1);
+  \end{scope}
+\end{tikzpicture}`;
+    const crossParent = applyEditAction(crossParentSource, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0", "path:2"],
+      columns: 2,
+      rows: 1,
+      horizontalStep: cm(1),
+      verticalStep: cm(1)
+    });
+    expect(crossParent.kind).toBe("unsupported");
+    if (crossParent.kind === "unsupported") {
+      expect(crossParent.reason).toContain("same parent scope");
+    }
+  });
+
   it("repeats a single draw statement by rewriting path coordinates", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
@@ -3812,6 +5850,125 @@ describe("applyEditAction – repeatElements", () => {
     expect(result.newSource).toContain(String.raw`\draw (\i*2cm,0) -- (1cm+\i*2cm,0);`);
     expect(result.newSource).not.toContain("shift=");
     expect(parseTikz(result.newSource, { recover: true }).diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+  });
+
+  it("rewrites coordinate options, xyz coordinates, and to/edge coordinate targets", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw ([xshift=1pt] 0,0,2) to[out=20,in=160] (1,0) edge (2,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0"],
+      columns: 2,
+      rows: 2,
+      horizontalStep: cm(1),
+      verticalStep: cm(0.5)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(String.raw`([xshift=1pt] \i*1cm,-\j*0.5cm,2)`);
+    expect(result.newSource).toContain(String.raw`to[out=20,in=160] (1cm+\i*1cm,-\j*0.5cm)`);
+    expect(result.newSource).toContain(String.raw`edge (2cm+\i*1cm,-\j*0.5cm)`);
+    expect(parseTikz(result.newSource, { recover: true }).diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+  });
+
+  it("falls back to a shifted scope for relative and polar coordinates", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- ++(1,0) -- (45:1);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0"],
+      columns: 2,
+      rows: 1,
+      horizontalStep: cm(2),
+      verticalStep: cm(1)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(String.raw`\begin{scope}[shift={(\i*2cm,0)}]`);
+    expect(result.newSource).toContain(String.raw`\draw (0,0) -- ++(1,0) -- (45:1);`);
+  });
+
+  it("keeps named-node declaration coordinates unshifted while shifting the node placement", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (A) at (0,0) node[draw] (A) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0"],
+      columns: 2,
+      rows: 1,
+      horizontalStep: cm(2),
+      verticalStep: cm(1)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(String.raw`\draw (A) at (\i*2cm,0) node[draw] (A) {A};`);
+  });
+
+  it("chooses fallback loop variables when the snippet already uses preferred names", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw node {\i \col \x \dx \xx \j \row \y \dy \yy \v1} (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0"],
+      columns: 2,
+      rows: 2,
+      horizontalStep: cm(1),
+      verticalStep: cm(1)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(String.raw`\foreach \v2 in {0, ..., 1}`);
+    expect(result.newSource).toContain(String.raw`\foreach \v3 in {0, ..., 1}`);
+  });
+
+  it("normalizes zero step repeats without adding zero-offset expressions", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (1,2) -- (3,4);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0"],
+      columns: 2,
+      rows: 1,
+      horizontalStep: 0,
+      verticalStep: cm(1)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(String.raw`\draw (1cm,2) -- (3cm,4);`);
+    expect(result.newSource).not.toContain("*0cm");
+  });
+
+  it("preserves CRLF newlines in repeat rewrites", () => {
+    const source = "\\begin{tikzpicture}\r\n  \\draw (0,0) -- (1,0);\r\n\\end{tikzpicture}";
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0"],
+      columns: 2,
+      rows: 1,
+      horizontalStep: cm(1),
+      verticalStep: cm(1)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\r\n");
+    expect(result.newSource).not.toContain("\n  \\draw (0,0)");
   });
 
   it("repeats a node with at-placement by rewriting the at coordinate", () => {
@@ -4044,6 +6201,20 @@ describe("applyEditAction – repeatElements", () => {
 });
 
 describe("applyEditAction – pasteStatements", () => {
+  it("rejects empty paste snippets", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    expect(applyEditAction(source, [], {
+      kind: "pasteStatements",
+      snippets: ["   ", "\n"]
+    })).toEqual({
+      kind: "unsupported",
+      reason: "No snippets were provided for pasteStatements."
+    });
+  });
+
   it("pastes snippets after anchor and returns selected source ids", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
@@ -4098,9 +6269,98 @@ describe("applyEditAction – pasteStatements", () => {
     expect(result.newSource).toContain("\\node[draw] (C2) at (0.25, 1.25) {C};");
     expect(result.newSource).toContain("\\draw (C2) -- ++");
   });
+
+  it("pastes with zero offset and preserves CRLF insertion style", () => {
+    const source = "\\begin{tikzpicture}\r\n  \\draw (0,0) -- (1,0);\r\n\\end{tikzpicture}";
+
+    const result = applyEditAction(source, [], {
+      kind: "pasteStatements",
+      snippets: ["\\draw (2,2) -- (3,2);"],
+      delta: wp(0, 0)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected zero-offset CRLF paste to succeed");
+    }
+    expect(result.newSource).toContain("  \\draw (2,2) -- (3,2);");
+    expect(result.newSource).toContain("\r\n\\end{tikzpicture}");
+  });
+
+  it("returns partial when pasted named-reference coordinates cannot be offset", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "pasteStatements",
+      snippets: ["\\draw (A) -- (B);"]
+    });
+
+    expect(result.kind).toBe("partial");
+    if (result.kind !== "partial") {
+      throw new Error("Expected named-reference paste to be partial");
+    }
+    expect(result.reason).toContain("Could not offset");
+    expect(result.newSource).toContain("\\draw (A) -- (B);");
+  });
 });
 
 describe("applyEditAction – adornment placement", () => {
+  it("rejects adornment actions when the target cannot be resolved", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node at (0,0) {A};
+\end{tikzpicture}`;
+
+    expect(applyEditAction(source, [], {
+      kind: "duplicateAdornment",
+      targetId: "node-adornment:missing"
+    }).kind).toBe("unsupported");
+    expect(applyEditAction(source, [], {
+      kind: "moveAdornment",
+      targetId: "node-adornment:missing",
+      ownerPoint: wp(0, 0),
+      newWorld: wp(1, 0)
+    }).kind).toBe("unsupported");
+    expect(applyEditAction(source, [], {
+      kind: "addNodeAdornment",
+      nodeId: "node:missing",
+      adornmentKind: "label",
+      angle: "above",
+      text: "X"
+    }).kind).toBe("unsupported");
+  });
+
+  it("inserts a new pin by creating a node option list when none exists", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node (A) at (0,0) {A};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+    const statement = parsed.figure.body.find((entry) => entry.kind === "Path");
+    if (!statement || statement.kind !== "Path") {
+      throw new Error("Expected node path statement");
+    }
+    const node = statement.items.find((item) => item.kind === "Node");
+    if (!node || node.kind !== "Node") {
+      throw new Error("Expected node item");
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "addNodeAdornment",
+      nodeId: node.id,
+      adornmentKind: "pin",
+      angle: "right",
+      text: "P"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected adornment insertion to create options");
+    }
+    expect(result.newSource).toContain(String.raw`[pin=right:P]{A}`);
+    expect(result.selectedSourceIds).toEqual([`node-adornment:${node.id}:pin:0`]);
+  });
+
   it("inserts a new label inside an existing node option list", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[draw] (A) at (-1, -1) {A};
@@ -4146,6 +6406,39 @@ describe("applyEditAction – adornment placement", () => {
     expect(result.changedSourceIds).toEqual(["path:0"]);
   });
 
+  it("moves adornments using explicit overrides and computed compass angles", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,label=right:L] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const explicit = applyEditAction(source, [], {
+      kind: "moveAdornment",
+      targetId: "node-adornment:node:0:2:label:0",
+      ownerPoint: wp(0, 0),
+      newWorld: wp(-10, 0),
+      angleRaw: "123",
+      distancePt: 42
+    });
+    expect(explicit.kind).toBe("success");
+    if (explicit.kind !== "success") {
+      throw new Error("Expected explicit adornment move to succeed");
+    }
+    expect(explicit.newSource).toContain("label distance=42pt");
+    expect(explicit.newSource).toContain("123:L");
+
+    const computed = applyEditAction(source, [], {
+      kind: "moveAdornment",
+      targetId: "node-adornment:node:0:2:label:0",
+      ownerPoint: wp(0, 0),
+      newWorld: wp(-10, -10)
+    });
+    expect(computed.kind).toBe("success");
+    if (computed.kind !== "success") {
+      throw new Error("Expected computed adornment move to succeed");
+    }
+    expect(computed.newSource).toContain("below left:L");
+  });
+
   it("does not serialize synthetic every-pin styles when rewriting a pin repeatedly", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[draw,pin=above:Pin] at (0,0) {A};
@@ -4178,6 +6471,70 @@ describe("applyEditAction – adornment placement", () => {
       throw new Error("Expected second pin rewrite to succeed");
     }
     expect(secondRewrite.newSource).not.toContain("every pin");
+  });
+
+  it("rewrites pin-edge dash mode without disturbing other pin-edge options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,pin={[pin edge={draw=blue,dashed,line width=1pt},fill=yellow]above:P}] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node-adornment:node:0:2:pin:0",
+      level: "command",
+      key: PIN_EDGE_DASH_PROPERTY_KEY,
+      value: "densely dotted",
+      clearKeys: ["dashed"]
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected pin-edge dash rewrite to succeed");
+    }
+    expect(result.newSource).toContain("pin edge={draw=blue, line width=1pt, densely dotted}");
+    expect(result.newSource).not.toContain("pin edge={draw=blue,dashed");
+    expect(result.newSource).toContain("fill=yellow");
+  });
+
+  it("removes pin-edge entirely when the last pin-edge style is cleared", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,pin={[pin edge={draw=blue}]above:P}] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node-adornment:node:0:2:pin:0",
+      level: "command",
+      key: PIN_EDGE_DRAW_PROPERTY_KEY,
+      value: ""
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected pin-edge draw removal to succeed");
+    }
+    expect(result.newSource).not.toContain("pin edge");
+    expect(result.newSource).toContain("pin=above:P");
+  });
+
+  it("rewrites pin-edge line width while normalizing braced pin-edge payloads", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,pin={[pin edge=dashed]above:P}] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node-adornment:node:0:2:pin:0",
+      level: "command",
+      key: PIN_EDGE_LINE_WIDTH_PROPERTY_KEY,
+      value: "2pt"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected pin-edge line width rewrite to succeed");
+    }
+    expect(result.newSource).toContain("pin edge={dashed, line width=2pt}");
   });
 });
 
@@ -4339,6 +6696,31 @@ describe("applyEditAction – path-attached nodes", () => {
     expect(result.newSource).not.toContain("below");
   });
 
+  it("removes swap when an auto-side node is dragged back to its base side", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node[auto,swap,pos=0.25] {A};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const statement = parsed.figure.body[0];
+    if (!statement || statement.kind !== "Path") throw new Error("Expected path statement");
+    const node = statement.items.find((item) => item.kind === "Node");
+    if (!node || node.kind !== "Node") throw new Error("Expected node item");
+
+    const result = applyEditAction(source, [], {
+      kind: "movePathAttachedNode",
+      nodeId: node.id,
+      hostPathSourceId: statement.id,
+      pos: 0.25,
+      preserveRegime: true,
+      sideUpdate: { kind: "auto-side", side: "left" }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("node[auto, near start] {A}");
+    expect(result.newSource).not.toContain("swap");
+  });
+
   it("ignores directional distance updates for auto regime", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (2,0) node[auto] {A};
@@ -4397,6 +6779,73 @@ describe("applyEditAction – path-attached nodes", () => {
     expect(slopedResult.newSource).toContain("node[below, sloped] {A}");
   });
 
+  it("rejects incompatible path-attached inspector side values by regime", () => {
+    const autoSource = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node[auto] {A};
+\end{tikzpicture}`;
+    const autoParsed = parseTikz(autoSource);
+    const autoStatement = autoParsed.figure.body[0];
+    if (!autoStatement || autoStatement.kind !== "Path") throw new Error("Expected path statement");
+    const autoNode = autoStatement.items.find((item) => item.kind === "Node");
+    if (!autoNode || autoNode.kind !== "Node") throw new Error("Expected auto node item");
+
+    const badAutoSide = applyEditAction(autoSource, [], {
+      kind: "setProperty",
+      elementId: autoNode.id,
+      level: "command",
+      key: "__path_attached_node_side__",
+      value: "above"
+    });
+    expect(badAutoSide.kind).toBe("error");
+
+    const explicitSource = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node[base left] {A};
+\end{tikzpicture}`;
+    const explicitParsed = parseTikz(explicitSource);
+    const explicitStatement = explicitParsed.figure.body[0];
+    if (!explicitStatement || explicitStatement.kind !== "Path") throw new Error("Expected path statement");
+    const explicitNode = explicitStatement.items.find((item) => item.kind === "Node");
+    if (!explicitNode || explicitNode.kind !== "Node") throw new Error("Expected explicit node item");
+
+    const badExplicitSide = applyEditAction(explicitSource, [], {
+      kind: "setProperty",
+      elementId: explicitNode.id,
+      level: "command",
+      key: "__path_attached_node_side__",
+      value: "above"
+    });
+    expect(badExplicitSide.kind).toBe("error");
+  });
+
+  it("rejects invalid path-attached inspector positions and neutral side edits", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node[pos=0.4] {A};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const statement = parsed.figure.body[0];
+    if (!statement || statement.kind !== "Path") throw new Error("Expected path statement");
+    const node = statement.items.find((item) => item.kind === "Node");
+    if (!node || node.kind !== "Node") throw new Error("Expected node item");
+
+    const invalidPosition = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: node.id,
+      level: "command",
+      key: "__path_attached_node_position_value__",
+      value: "not-a-number"
+    });
+    expect(invalidPosition.kind).toBe("error");
+
+    const neutralSide = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: node.id,
+      level: "command",
+      key: "__path_attached_node_side__",
+      value: "left"
+    });
+    expect(neutralSide.kind).toBe("unsupported");
+  });
+
   it("supports resizeElement rewrites for path-attached nodes", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[->] (0,0) -- node[above,draw] {A} (2,0);
@@ -4418,6 +6867,28 @@ describe("applyEditAction – path-attached nodes", () => {
     if (result.kind !== "success") return;
     expect(result.newSource).toMatch(/node\[[^\]]*above[^\]]*draw/);
     expect(result.newSource).toContain("minimum width=");
+  });
+
+  it("supports resizeElement rewrites for edge-attached nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path (0,0) edge node[draw] {A} (2,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const statement = parsed.figure.body[0];
+    if (!statement || statement.kind !== "Path") throw new Error("Expected path statement");
+    const edge = statement.items.find((item) => item.kind === "EdgeOperation");
+    if (!edge || edge.kind !== "EdgeOperation" || !edge.nodes?.[0]) throw new Error("Expected edge node");
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: edge.nodes[0].id,
+      role: "bottom-right",
+      newWorld: wp(60, 40)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("node[draw, minimum width=");
   });
 
   it("drops non-binding minimum width when shrinking a path-attached node at intrinsic floor", () => {
@@ -4627,6 +7098,169 @@ describe("applyEditAction – updateNodeText", () => {
     expect(result.newSource).toContain("child { node {New} }");
   });
 
+  it("rejects tree child actions for empty, unresolved, non-tree, and foreach-expanded targets", () => {
+    const plainSource = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    expect(applyEditAction(plainSource, [], {
+      kind: "addTreeChild",
+      parentSourceId: ""
+    }).kind).toBe("unsupported");
+    expect(applyEditAction(plainSource, [], {
+      kind: "addTreeChild",
+      parentSourceId: "path:0"
+    }).kind).toBe("unsupported");
+    expect(applyEditAction(plainSource, [], {
+      kind: "addTreeChild",
+      parentSourceId: "missing"
+    })).toEqual({
+      kind: "unsupported",
+      reason: "Could not resolve tree parent missing."
+    });
+    expect(applyEditAction(plainSource, [], {
+      kind: "addTreeChild",
+      parentSourceId: TIKZPICTURE_GLOBAL_TARGET_ID
+    })).toEqual({
+      kind: "unsupported",
+      reason: "Tree child insertion requires selecting a tree root or tree child."
+    });
+    expect(applyEditAction(plainSource, [], {
+      kind: "addTreeSibling",
+      siblingSourceId: ""
+    }).kind).toBe("unsupported");
+    expect(applyEditAction(plainSource, [], {
+      kind: "addTreeSibling",
+      siblingSourceId: "path:0",
+      position: "after"
+    })).toEqual({
+      kind: "unsupported",
+      reason: "Could not resolve tree sibling path:0."
+    });
+    expect(applyEditAction(plainSource, [], {
+      kind: "removeTreeChild",
+      childSourceId: ""
+    }).kind).toBe("unsupported");
+    expect(applyEditAction(plainSource, [], {
+      kind: "removeTreeChild",
+      childSourceId: "path:0"
+    })).toEqual({
+      kind: "unsupported",
+      reason: "Could not resolve tree child path:0."
+    });
+
+    const foreachSource = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child foreach \x in {A,B} { node {\x} };
+\end{tikzpicture}`;
+    const parsed = parseTikz(foreachSource, { recover: true });
+    const path = parsed.figure.body.find((statement) => statement.kind === "Path");
+    if (!path || path.kind !== "Path") {
+      throw new Error("Expected path statement");
+    }
+    const childOperation = path.items.find((item) => item.kind === "ChildOperation");
+    if (!childOperation || childOperation.kind !== "ChildOperation") {
+      throw new Error("Expected child operation");
+    }
+    const syntheticChildId = `${path.id}:tree-child:1:${childOperation.id}`;
+    expect(applyEditAction(foreachSource, [], {
+      kind: "addTreeChild",
+      parentSourceId: syntheticChildId
+    }).kind).toBe("unsupported");
+    expect(applyEditAction(foreachSource, [], {
+      kind: "addTreeSibling",
+      siblingSourceId: syntheticChildId,
+      position: "after"
+    }).kind).toBe("unsupported");
+    expect(applyEditAction(foreachSource, [], {
+      kind: "removeTreeChild",
+      childSourceId: syntheticChildId
+    }).kind).toBe("unsupported");
+  });
+
+  it("inserts root children after explicit child indices with fallback to the last child", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child { node {left} }
+    child { node {right} };
+\end{tikzpicture}`;
+
+    const afterFirst = applyEditAction(source, [], {
+      kind: "addTreeChild",
+      parentSourceId: "path:0",
+      afterChildIndex: 0
+    });
+    expect(afterFirst.kind).toBe("success");
+    if (afterFirst.kind !== "success") {
+      throw new Error("Expected indexed root child insertion");
+    }
+    expect(afterFirst.newSource).toMatch(/node \{left\}[\s\S]*child \{ node \{New\} \}[\s\S]*node \{right\}/);
+
+    const afterOutOfRange = applyEditAction(source, [], {
+      kind: "addTreeChild",
+      parentSourceId: "path:0",
+      afterChildIndex: 99
+    });
+    expect(afterOutOfRange.kind).toBe("success");
+    if (afterOutOfRange.kind !== "success") {
+      throw new Error("Expected fallback root child insertion");
+    }
+    expect(afterOutOfRange.newSource).toMatch(/node \{right\}[\s\S]*child \{ node \{New\} \}/);
+  });
+
+  it("adds the first child to a CRLF tree root before trailing semicolon whitespace", () => {
+    const source = "\\begin{tikzpicture}\r\n  \\path node {root}   ;\r\n\\end{tikzpicture}";
+    const parsed = parseTikz(source);
+    const statement = parsed.figure.body[0];
+    if (!statement || statement.kind !== "Path") throw new Error("Expected path statement");
+
+    const result = applyEditAction(source, [], {
+      kind: "addTreeChild",
+      parentSourceId: statement.id
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected addTreeChild on childless root to succeed");
+    }
+    expect(result.newSource).toContain("\\path node {root}   \r\n    child { node {New} };");
+    renderTikzToSvg(result.newSource);
+  });
+
+  it("adds children to tree roots nested inside scopes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \path node {root};
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "addTreeChild",
+      parentSourceId: "path:1"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected nested root child insertion to succeed");
+    }
+    expect(result.newSource).toContain("    \\path node {root}\n      child { node {New} };");
+  });
+
+  it("adds a child to a semicolonless tree root at the statement tail", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "addTreeChild",
+      parentSourceId: "path:0"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected semicolonless root child insertion to succeed");
+    }
+    expect(result.newSource).toContain("node {root}\n\n    child { node {New} }");
+  });
+
   it("adds a nested child when a tree child is selected", () => {
     const source = String.raw`\begin{tikzpicture}
   \path node {root}
@@ -4714,6 +7348,29 @@ describe("applyEditAction – updateNodeText", () => {
     }
     expect(result.newSource).toContain("child { node {left} }");
     expect(result.newSource).not.toContain("node {right}");
+  });
+
+  it("removes a selected CRLF tree child together with surrounding line whitespace", () => {
+    const source = "\\begin{tikzpicture}\r\n  \\path node {root}\r\n    child { node {left} }\r\n    child { node {right} };\r\n\\end{tikzpicture}";
+    const rendered = renderTikzToSvg(source);
+    const leftText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "left"
+    );
+    if (!leftText || leftText.kind !== "Text" || !leftText.treeChild) {
+      throw new Error("Expected left tree child text element");
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "removeTreeChild",
+      childSourceId: leftText.treeChild.childSourceId
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected CRLF removeTreeChild to succeed");
+    }
+    expect(result.newSource).not.toContain("node {left}");
+    expect(result.newSource).toContain("\r\n    child { node {right} };");
   });
 
   it("keeps nested tree structure valid when adding children to deep descendants", () => {

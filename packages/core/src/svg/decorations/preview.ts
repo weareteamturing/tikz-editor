@@ -58,7 +58,7 @@ export function renderPathMorphingDecorationPreviewSvg(
     requiredTikzLibraries: [],
     elements: applyPathMorphingDecoration(path, style.decoration)
   };
-  const bounds = computeSceneBounds(figure.elements);
+  const bounds = computeDecorationPreviewBounds(figure.elements);
   if (bounds) {
     figure.bounds = bounds;
   }
@@ -98,7 +98,7 @@ function roundToHundredths(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-function computeSceneBounds(elements: readonly SceneElement[]): SceneFigure["bounds"] | undefined {
+export function computeDecorationPreviewBounds(elements: readonly SceneElement[]): SceneFigure["bounds"] | undefined {
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;

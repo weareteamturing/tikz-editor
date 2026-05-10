@@ -76,10 +76,6 @@ export function getRepeatSelectionEligibility(
   if (refs.length !== normalizedIds.length) {
     return { kind: "ineligible", reason: "Repeat currently requires a direct authored statement selection." };
   }
-  if (refs.some((ref) => ref.statement.kind === "Foreach")) {
-    return { kind: "ineligible", reason: "Repeat is not available for existing foreach statements." };
-  }
-
   const parentKeys = new Set(refs.map((ref) => ref.parentKey));
   if (parentKeys.size !== 1) {
     return { kind: "ineligible", reason: "Repeat currently requires statements from the same parent scope." };
@@ -87,9 +83,6 @@ export function getRepeatSelectionEligibility(
 
   const first = refs[0];
   const last = refs[refs.length - 1];
-  if (!first || !last) {
-    return { kind: "ineligible", reason: "Select at least one authored element to repeat." };
-  }
   for (let index = 1; index < refs.length; index += 1) {
     if (refs[index].index !== refs[index - 1].index + 1) {
       return { kind: "ineligible", reason: "Repeat currently requires one contiguous authored block." };
@@ -143,10 +136,7 @@ export function applyRepeatElementsAction(
       text: replacementText
     }
   ]);
-  const inserted = applied.applied[0];
-  if (!inserted) {
-    return { kind: "error", message: "Failed to apply repeat source rewrite." };
-  }
+  const inserted = applied.applied[0]!;
 
   const replacementSpan = inserted.newSpan;
   const nextSnapshot = parseStatementSnapshot(applied.source, parseOptions);
@@ -263,7 +253,7 @@ function wrapRepeatedBlockInScope(
   const first = refs[0];
   const last = refs[refs.length - 1];
   const block = source.slice(first.span.from, last.span.to);
-  const shiftTuple = buildShiftTuple(xLoop, yLoop);
+  const shiftTuple = buildShiftTuple(xLoop, yLoop)!;
   const scopeOptions = shiftTuple ? `[shift={${shiftTuple}}]` : "";
   return `\\begin{scope}${scopeOptions}\n${reindentSnippet(block, "  ")}\n\\end{scope}`;
 }
@@ -525,10 +515,7 @@ function applyInlineScopeShift(
   yLoop: RepeatLoop | null,
   parseOptions: EditParseOptions
 ): string | null {
-  const shiftTuple = buildShiftTuple(xLoop, yLoop);
-  if (!shiftTuple) {
-    return source;
-  }
+  const shiftTuple = buildShiftTuple(xLoop, yLoop)!;
 
   const result = applySetPropertyAction(
     source,

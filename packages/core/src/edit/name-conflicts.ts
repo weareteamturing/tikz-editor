@@ -112,6 +112,15 @@ function collectDeclaredNamesFromPathStatement(
 ): void {
   collectDeclaredNamesFromPathItems(statement.items, target);
 
+  if (statement.command === "coordinate") {
+    for (const item of statement.items) {
+      if (item.kind === "Coordinate" && item.form === "named") {
+        addName(item.x, target);
+      }
+    }
+    return;
+  }
+
   if (statement.command !== "node") {
     return;
   }

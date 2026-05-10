@@ -370,6 +370,58 @@ describe("render pipeline", () => {
     expect(result.svg.svg).toContain("data-test='ready'");
   });
 
+  it("honors explicit null textEngine in async rendering", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node at (0,0) {$x^2$};
+\end{tikzpicture}`;
+
+    const result = await renderTikzToSvgAsync(source, {
+      textEngine: null
+    });
+
+    expect(result.renderDiagnostics).toEqual([]);
+    expect(result.svg.svg).toContain("<text");
+    expect(result.svg.svg).not.toContain('data-text-renderer="mathjax"');
+  });
+
+  it("uses custom validators for node text but skips matrices and user macro sources", async () => {
+    const validatedTexts: string[] = [];
+    const validatingEngine: NodeTextEngine = {
+      validate: (text) => {
+        validatedTexts.push(text);
+        return text.includes("_") ? { code: "synthetic-invalid", message: "invalid test text" } : null;
+      },
+      measure: () => null,
+      renderFromCache: () => null
+    };
+
+    const invalidNode = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node at (0,0) {A_};
+\end{tikzpicture}`, {
+      textEngine: validatingEngine
+    });
+    expect(invalidNode.parse.diagnostics.some((diagnostic) => diagnostic.code === "synthetic-invalid")).toBe(true);
+    expect(validatedTexts).toEqual(["A_"]);
+
+    validatedTexts.length = 0;
+    await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] at (0,0) {
+    A_ & B_ \\
+  };
+\end{tikzpicture}`, {
+      textEngine: validatingEngine
+    });
+    expect(validatedTexts).toEqual([]);
+
+    await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \def\labelText{A_}
+  \node at (0,0) {\labelText};
+\end{tikzpicture}`, {
+      textEngine: validatingEngine
+    });
+    expect(validatedTexts).toEqual([]);
+  });
+
   it("reports invalid node TeX as parser errors while preserving rendering", async () => {
     const source = String.raw`\begin{tikzpicture}
   \node[draw] at (0,0) {A_};

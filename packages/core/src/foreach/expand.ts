@@ -77,7 +77,6 @@ type ExpandContext = {
   statementMacroAttribution: WeakMap<Statement, MacroOriginFrameType[]>;
   macroBindings: Map<string, MacroBinding>;
   breakforeachWarned: Set<string>;
-  source: string;
   templateLocalIdByExpandedId: Map<string, string>;
 };
 
@@ -106,7 +105,6 @@ export function expandForeachFigure(
     statementMacroAttribution: new WeakMap<Statement, MacroOriginFrameType[]>(),
     macroBindings,
     breakforeachWarned: new Set<string>(),
-    source: _source,
     templateLocalIdByExpandedId: new Map<string, string>()
   };
 
@@ -909,23 +907,7 @@ function tryExpandMacroStatement(
     return null;
   }
 
-  // The parser may not capture macro arguments (e.g., \mynode{red}{3} is parsed
-  // as UnknownStatement with raw="\mynode" and the {red}{3} is lost).
-  // Read ahead in the source to grab trailing arguments for callable macros.
-  const macroName = statement.raw.trim();
-  const binding = context.macroBindings.get(macroName);
-
-  let raw: string;
-  if (binding && binding.kind === "callable" && context.source.length > 0) {
-    // Read from the source starting at the macro name through any trailing brace args
-    const sourceFromMacro = context.source.slice(statement.span.from);
-    // Find end of arguments by scanning past the macro name + brace groups
-    const argsEnd = findEndOfMacroInvocation(sourceFromMacro, macroName.length, binding);
-    raw = sourceFromMacro.slice(0, argsEnd);
-  } else {
-    raw = statement.raw;
-  }
-
+  const raw = statement.raw;
   const expanded = expandTexConditionals(expandMacroBindings(raw, context.macroBindings));
   if (expanded === raw) {
     return null;
@@ -988,80 +970,6 @@ function tryExpandMacroStatement(
   }
 
   return result;
-}
-
-function findEndOfMacroInvocation(source: string, afterName: number, binding: MacroBinding): number {
-  if (binding.kind !== "callable") {
-    return afterName;
-  }
-
-  let cursor = afterName;
-  let argsFound = 0;
-  const totalArgs = binding.parameterCount;
-
-  // Skip whitespace before first arg
-  while (cursor < source.length && /\s/.test(source[cursor])) {
-    cursor += 1;
-  }
-
-  // Handle optional first argument
-  if (binding.optionalFirstArgDefault != null && source[cursor] === "[") {
-    cursor = skipBracketGroup(source, cursor);
-    argsFound += 1;
-  } else if (binding.optionalFirstArgDefault != null) {
-    // No optional arg provided, use default — don't consume anything
-    argsFound += 1;
-  }
-
-  // Parse required brace arguments
-  while (argsFound < totalArgs && cursor < source.length) {
-    while (cursor < source.length && /\s/.test(source[cursor])) {
-      cursor += 1;
-    }
-    if (cursor >= source.length) break;
-
-    if (source[cursor] === "{") {
-      cursor = skipBraceGroup(source, cursor);
-    } else if (source[cursor] === "\\") {
-      // Single control sequence as arg
-      cursor += 1;
-      while (cursor < source.length && /[a-zA-Z@]/.test(source[cursor])) {
-        cursor += 1;
-      }
-    } else {
-      // Single character arg
-      cursor += 1;
-    }
-    argsFound += 1;
-  }
-
-  return cursor;
-}
-
-function skipBraceGroup(source: string, start: number): number {
-  let depth = 0;
-  let cursor = start;
-  while (cursor < source.length) {
-    const ch = source[cursor];
-    if (ch === "\\") { cursor += 2; continue; }
-    if (ch === "{") { depth += 1; }
-    if (ch === "}") { depth -= 1; if (depth === 0) return cursor + 1; }
-    cursor += 1;
-  }
-  return cursor;
-}
-
-function skipBracketGroup(source: string, start: number): number {
-  let depth = 0;
-  let cursor = start;
-  while (cursor < source.length) {
-    const ch = source[cursor];
-    if (ch === "\\") { cursor += 2; continue; }
-    if (ch === "[") { depth += 1; }
-    if (ch === "]") { depth -= 1; if (depth === 0) return cursor + 1; }
-    cursor += 1;
-  }
-  return cursor;
 }
 
 function reindexStatements(

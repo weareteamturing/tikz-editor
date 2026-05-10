@@ -439,12 +439,14 @@ function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: Wo
   }
 
   const transform = geometry.anchorTransform;
+  let mappingTransform = transform;
   const localDirection = (() => {
     if (!transform) {
       return direction;
     }
     const inverse = inverseMatrix(transform);
     if (!inverse) {
+      mappingTransform = undefined;
       return direction;
     }
     return applyMatrixToVector(inverse, direction);
@@ -456,10 +458,10 @@ function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: Wo
     return geometry.center;
   }
   const fromLocal = (point: WorldVector): WorldPoint => {
-    if (!transform) {
+    if (!mappingTransform) {
       return worldPoint(pt(geometry.center.x + point.x), pt(geometry.center.y + point.y));
     }
-    const mapped = applyMatrixToVector(transform, point);
+    const mapped = applyMatrixToVector(mappingTransform, point);
     return worldPoint(pt(geometry.center.x + mapped.x), pt(geometry.center.y + mapped.y));
   };
 

@@ -125,6 +125,41 @@ describe("expandTexConditionals", () => {
     it("empty input", () => {
       expect(expandTexConditionals("")).toBe("");
     });
+
+    it("stops after max passes when conditionals keep changing", () => {
+      expect(expandTexConditionals("\\ifnum 1=1 \\ifnum 1=1 x\\fi\\fi", 1)).toBe("\\ifnum 1=1 x\\fi");
+    });
+  });
+
+  describe("malformed and defensive inputs", () => {
+    it("leaves malformed primitive conditionals unchanged", () => {
+      expect(expandTexConditionals("\\ifnum x<1 yes\\fi")).toBe("\\ifnum x<1 yes\\fi");
+      expect(expandTexConditionals("\\ifnum 1?2 yes\\fi")).toBe("\\ifnum 1?2 yes\\fi");
+      expect(expandTexConditionals("\\ifnum 1<z yes\\fi")).toBe("\\ifnum 1<z yes\\fi");
+      expect(expandTexConditionals("\\ifodd x yes\\fi")).toBe("\\ifodd x yes\\fi");
+      expect(expandTexConditionals("\\ifx\\foo")).toBe("\\ifx\\foo");
+    });
+
+    it("leaves malformed ifthenelse groups unchanged", () => {
+      expect(expandTexConditionals("\\ifthenelse x {yes}{no}")).toBe("\\ifthenelse x {yes}{no}");
+      expect(expandTexConditionals("\\ifthenelse{1=1} yes {no}")).toBe("\\ifthenelse{1=1} yes {no}");
+      expect(expandTexConditionals("\\ifthenelse{1=1}{yes} no")).toBe("\\ifthenelse{1=1}{yes} no");
+      expect(expandTexConditionals("\\ifthenelse{1=1}{yes}{no")).toBe("\\ifthenelse{1=1}{yes}{no");
+    });
+
+    it("handles plus-signed integers, nested top-level operators, and non-relax suffixes", () => {
+      expect(expandTexConditionals("\\ifnum +3=3 yes\\else no\\fi")).toBe("yes");
+      expect(expandTexConditionals("\\ifodd +4 yes\\else no\\fi")).toBe(" no");
+      expect(expandTexConditionals("\\ifnum 1=1\\relaxation yes\\else no\\fi")).toBe("\\relaxation yes");
+      expect(expandTexConditionals("\\ifthenelse{\\equal{a \\AND b}{a \\AND b} \\AND \\isodd{bad}}{yes}{no}")).toBe("no");
+      expect(expandTexConditionals("\\ifthenelse{\\equal{a}{b} \\OR fallback}{yes}{no}")).toBe("yes");
+    });
+
+    it("preserves unterminated blocks and non-conditional control sequences while scanning", () => {
+      expect(expandTexConditionals("\\ifnum 1=1 true \\foo\\bar")).toBe("\\ifnum 1=1 true \\foo\\bar");
+      expect(expandTexConditionals("\\ifnum 1=1 outer \\ifnum 2=2 inner\\fi")).toBe("\\ifnum 1=1 outer \\ifnum 2=2 inner\\fi");
+      expect(expandTexConditionals("\\ifnum 1=1 \\ifnum 2=2 inner\\else other\\fi\\else no\\fi")).toBe("inner");
+    });
   });
 
   describe("foreach-like usage", () => {

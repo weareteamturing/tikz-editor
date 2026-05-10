@@ -114,9 +114,6 @@ export function applyPasteStatementsAction(
     trailingNewline: !anchorRef,
     newline: detectPreferredNewline(source, insertionWorldPoint.offset)
   });
-  if (insertion.text.length === 0 || insertion.snippetSpans.length === 0) {
-    return { kind: "unsupported", reason: "No non-empty statements were available to paste." };
-  }
 
   const applied = applyTextReplacements(source, [
     {
@@ -124,10 +121,7 @@ export function applyPasteStatementsAction(
       text: insertion.text
     }
   ]);
-  const appliedInsertion = applied.applied[0];
-  if (!appliedInsertion) {
-    return { kind: "error", message: "Failed to apply pasted source snippets." };
-  }
+  const appliedInsertion = applied.applied[0]!;
 
   const insertedSpans = insertion.snippetSpans.map((span) => ({
     from: appliedInsertion.newSpan.from + span.from,
@@ -189,9 +183,6 @@ export function applyDuplicateElementsAction(
       snapshot,
       group.refs.map((ref) => ref.id)
     );
-    if (currentRefs.length === 0) {
-      continue;
-    }
 
     const resolvedGroups = groupStatementRefsByParent(currentRefs);
     for (const resolvedGroup of resolvedGroups) {
@@ -204,18 +195,12 @@ export function applyDuplicateElementsAction(
         partialSkippedHandles.push(...shifted.skippedHandles);
       }
 
-      const anchor = orderedRefs[orderedRefs.length - 1];
-      if (!anchor) {
-        continue;
-      }
+      const anchor = orderedRefs[orderedRefs.length - 1]!;
 
       const insertion = formatSnippetsForInsertion(
         renamedSnippets,
         lineIndentAtOffset(currentSource, anchor.span.from)
       );
-      if (insertion.text.length === 0 || insertion.snippetSpans.length === 0) {
-        continue;
-      }
 
       const applied = applyTextReplacements(currentSource, [
         {
@@ -223,10 +208,7 @@ export function applyDuplicateElementsAction(
           text: insertion.text
         }
       ]);
-      const appliedInsertion = applied.applied[0];
-      if (!appliedInsertion) {
-        continue;
-      }
+      const appliedInsertion = applied.applied[0]!;
 
       patches.push(...applied.patches);
       currentSource = applied.source;
@@ -238,10 +220,6 @@ export function applyDuplicateElementsAction(
         }))
       );
     }
-  }
-
-  if (insertedSpans.length === 0) {
-    return { kind: "unsupported", reason: "Duplicate operation produced no inserted statements." };
   }
 
   const selectedSourceIds = mapSpansToStatementIdsWithSnapshot(
@@ -277,9 +255,6 @@ function offsetSnippetsByDelta(
   const normalized = snippets
     .map((snippet) => snippet.replace(/\r\n?/g, "\n").trimEnd())
     .filter((snippet) => snippet.trim().length > 0);
-  if (normalized.length === 0) {
-    return { snippets: [], skippedHandles: [] };
-  }
   if (Math.abs(delta.x) <= 1e-9 && Math.abs(delta.y) <= 1e-9) {
     return { snippets: normalized, skippedHandles: [] };
   }
@@ -397,27 +372,6 @@ function mapSpansToStatementIdsWithSnapshot(snapshot: StatementSnapshot, spans: 
   const ids: string[] = [];
 
   for (const span of spans) {
-    const exact = snapshot.all.find((ref) => ref.span.from === span.from && ref.span.to === span.to);
-    if (exact && !seen.has(exact.id)) {
-      seen.add(exact.id);
-      ids.push(exact.id);
-      continue;
-    }
-
-    let bestContained = null;
-    for (const ref of snapshot.all) {
-      if (ref.span.from <= span.from && ref.span.to >= span.to) {
-        if (!bestContained || (ref.span.to - ref.span.from) < (bestContained.span.to - bestContained.span.from)) {
-          bestContained = ref;
-        }
-      }
-    }
-    if (bestContained && !seen.has(bestContained.id)) {
-      seen.add(bestContained.id);
-      ids.push(bestContained.id);
-      continue;
-    }
-
     let bestOverlap: { id: string; overlap: number } | null = null;
     for (const ref of snapshot.all) {
       const overlap = Math.max(0, Math.min(span.to, ref.span.to) - Math.max(span.from, ref.span.from));

@@ -506,9 +506,6 @@ function buildOpenedClosedPathBody(
   const parts = [analysis.anchors[anchorIndex].raw];
   for (const segmentIndex of orderedSegments) {
     const segment = analysis.segments[segmentIndex];
-    if (!segment || segment.closesPath) {
-      continue;
-    }
     parts.push(segment.raw);
   }
   const closingSegment = analysis.segments.find(
@@ -527,13 +524,10 @@ function buildReversedPathBody(source: string, analysis: ExplicitPathAnalysis): 
 
   if (!analysis.closed) {
     const lastAnchor = analysis.anchors[analysis.anchors.length - 1];
-    if (!lastAnchor) {
-      return null;
-    }
     const parts = [lastAnchor.raw];
     for (let index = analysis.segments.length - 1; index >= 0; index -= 1) {
       const segment = analysis.segments[index];
-      if (!segment || segment.closesPath) {
+      if (segment.closesPath) {
         continue;
       }
       const reversed = reversedSegmentText(source, analysis, segment);
@@ -560,7 +554,7 @@ function buildReversedPathBody(source: string, analysis: ExplicitPathAnalysis): 
 
   for (let index = analysis.segments.length - 1; index >= 0; index -= 1) {
     const segment = analysis.segments[index];
-    if (!segment || segment.closesPath) {
+    if (segment.closesPath) {
       continue;
     }
     const reversed = reversedSegmentText(source, analysis, segment, { useCycleTarget: index === 0 });
@@ -632,9 +626,6 @@ function buildClosedPathBodyAfterDeletedPoint(
   nextSegment: ExplicitPathAnalysis["segments"][number],
   replacementSegment: string
 ): string | null {
-  if (analysis.anchors.length <= 2) {
-    return null;
-  }
   if (anchorIndex !== 0) {
     const bodyParts = [analysis.anchors[0].raw];
     for (const segment of analysis.segments) {
@@ -650,11 +641,7 @@ function buildClosedPathBodyAfterDeletedPoint(
     return bodyParts.join(" ");
   }
 
-  const firstRemainingAnchor = analysis.anchors[1];
-  if (!firstRemainingAnchor) {
-    return null;
-  }
-  const bodyParts = [firstRemainingAnchor.raw];
+  const bodyParts = [analysis.anchors[1].raw];
   for (const segment of analysis.segments) {
     if (segment === previousSegment || segment === nextSegment) {
       continue;
@@ -674,10 +661,6 @@ function buildLineSegmentsSmoothReplacement(
   anchor: WorldPoint,
   afterAnchor: WorldPoint
 ): [string, string] | null {
-  if (previousSegment.kind !== "line" || nextSegment.kind !== "line") {
-    return null;
-  }
-
   const firstTargetRaw = analysis.anchors[previousSegment.endAnchorIndex]?.raw;
   const secondTargetRaw = analysis.anchors[nextSegment.endAnchorIndex]?.raw;
   if (!firstTargetRaw || !secondTargetRaw) {

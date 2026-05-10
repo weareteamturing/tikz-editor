@@ -818,6 +818,58 @@ describe("semantic evaluator / coordinates and path ops", () => {
       }
     });
 
+    it("samples closed paths and ellipse geometry for named intersections", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \path [name path=box] (0,0) -- (2,0) -- (2,2) -- (0,2) -- cycle;
+    \path [name path=cut] (1,-1) -- (1,3);
+    \path [name path=ellipse] (4,1) ellipse (1cm and 0.5cm);
+    \path [name path=line] (3,1) -- (5,1);
+    \draw [name intersections={of=box and cut, by={lower,upper}}] (lower) -- (upper);
+    \draw [name intersections={of=ellipse and line, by={left,right}}] (left) -- (right);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-path:"))).toBe(false);
+
+      const drawn = result.scene.elements.filter((element) => element.kind === "Path" && element.style.stroke != null);
+      expect(drawn.length).toBeGreaterThanOrEqual(2);
+      const vertical = drawn.find((path) =>
+        path.kind === "Path" &&
+        path.commands.some((command) => command.kind === "M" && Math.abs(command.to.x - 28.4528) < 0.1)
+      );
+      const horizontal = drawn.find((path) =>
+        path.kind === "Path" &&
+        path.commands.some((command) => command.kind === "M" && command.to.x > 80)
+      );
+      expect(vertical?.kind).toBe("Path");
+      expect(horizontal?.kind).toBe("Path");
+    });
+
+    it("reports unknown named paths from name intersections", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \path [name path=known] (0,0) -- (1,1);
+    \path [name intersections={of=known and missing, by=p}];
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-path:missing")).toBe(true);
+    });
+
+    it("uses name-intersections total macros and sort-by ordering", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \path [name path=box] (0,0) -- (2,0) -- (2,2) -- (0,2) -- cycle;
+    \path [name path=cut] (1,-1) -- (1,3);
+    \path [name intersections={of=box and cut, by={first,second}, sort by=cut, total=\n}];
+    \draw (first) -- (second);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+      const drawn = result.scene.elements.filter((element) => element.kind === "Path" && element.style.stroke != null);
+      expect(drawn.some((path) => path.kind === "Path" && path.commands.some((command) => command.kind === "L"))).toBe(true);
+    });
+
     it("projects xyz coordinates onto 2d output and warns when z contributes", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw (0,0,1) -- (1,1,0);
@@ -1071,6 +1123,30 @@ describe("semantic evaluator / coordinates and path ops", () => {
       const paths = elementsOfKind(result.scene.elements, "Path");
       expect(paths.some((path) => path.id.includes("scene-grid-"))).toBe(true);
       expect(paths.some((path) => path.commands.some((command) => command.kind === "C"))).toBe(true);
+    });
+
+    it("supports parabola bend variants and reports invalid parabola forms", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) parabola [bend at start] (1,0);
+    \draw (0,1) parabola [bend at end] (1,1);
+    \draw (0,2) parabola [bend pos=bad, bend=+(0.25,0.5)] (1,2);
+    \draw (0,3) parabola [bend=(0.5,3.5)] (1,3);
+    \draw (0,4) parabola bend (0.5,4.5) (1,4);
+    \draw (0,5) -- (1,5) parabola cycle;
+    \draw (0,6) parabola [bend pos=NaN, bend=] (1,6);
+    \draw (0,7) parabola [bend=bad] (1,7);
+    \draw (0,4) parabola bend;
+    \draw parabola (1,5);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-parabola")).toBe(true);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parabola-without-start")).toBe(true);
+      const parabolaPaths = elementsOfKind(result.scene.elements, "Path").filter((path) =>
+        path.commands.some((command) => command.kind === "C")
+      );
+      expect(parabolaPaths.length).toBeGreaterThanOrEqual(3);
+      expect(parabolaPaths.some((path) => path.commands.length >= 2)).toBe(true);
     });
 
     it("supports arc variants and grid step variants", () => {
@@ -1548,6 +1624,39 @@ describe("semantic evaluator / coordinates and path ops", () => {
       }
     });
 
+    it("supports to-cycle closure and implicit move-to-target paths", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) -- (1,0) to cycle;
+    \draw to (2,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const paths = elementsOfKind(result.scene.elements, "Path");
+      const closedPath = paths.find((path) => path.commands.some((command) => command.kind === "Z"));
+      const implicitTargetHandle = result.editHandles.find(
+        (handle) => handle.kind === "path-point" && Math.abs(handle.world.x - 56.9055) <= 1e-3
+      );
+      expect(closedPath).toBeDefined();
+      expect(implicitTargetHandle).toBeDefined();
+      if (closedPath) {
+        expect(closedPath.commands.some((command) => command.kind === "L")).toBe(true);
+      }
+    });
+
+    it("reports invalid to-operation targets without dropping the previous path", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) -- (1,0) to (missing);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:missing")).toBe(true);
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.commands.some((command) => command.kind === "L")).toBe(true);
+      }
+    });
+
     it("accepts `to path` edge options without unsupported-style diagnostics", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw (0,0) edge[to path={-- (\tikztotarget) \tikztonodes}] (2,0);
@@ -1629,6 +1738,162 @@ describe("semantic evaluator / coordinates and path ops", () => {
         const inDistance = Math.hypot(cubic.c2.x - cubic.to.x, cubic.c2.y - cubic.to.y);
         expect(outDistance).toBeCloseTo(56.9055, 2);
         expect(inDistance).toBeCloseTo(56.9055, 2);
+      }
+    });
+
+    it("uses shared looseness and bend-right flag shorthands for to-curves", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) to[out=0,in=180,looseness=2] (2,0);
+    \draw (0,-1) to[bend right] (2,-1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const cubics = elementsOfKind(result.scene.elements, "Path")
+        .flatMap((path) => path.commands)
+        .filter((command) => command.kind === "C");
+      expect(cubics).toHaveLength(2);
+      const [loose, bent] = cubics;
+      if (loose?.kind === "C" && bent?.kind === "C") {
+        const looseDistance = Math.hypot(loose.c1.x, loose.c1.y);
+        expect(looseDistance).toBeCloseTo(44.557, 3);
+        expect(bent.c1.y).toBeLessThan(-28.4528);
+        expect(bent.c2.y).toBeLessThan(-28.4528);
+      }
+    });
+
+    it("ignores invalid to-curve option values while preserving valid curve options", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) to[out=,in=abc,relative=maybe,distance=-1pt,out=0] (2,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind !== "Path") {
+        return;
+      }
+      const move = path.commands[0];
+      const cubic = path.commands.find((command) => command.kind === "C");
+      expect(move?.kind).toBe("M");
+      expect(cubic?.kind).toBe("C");
+      if (move?.kind === "M" && cubic?.kind === "C") {
+        expect(cubic.c1.y).toBeCloseTo(move.to.y, 4);
+        expect(cubic.c2.y).toBeGreaterThan(move.to.y);
+      }
+    });
+
+    it("treats empty relative values as true for to-angle edit metadata", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) to[out=0,in=180,relative=] (1,1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const outHandle = result.editHandles.find(
+        (handle) => handle.kind === "path-control" && handle.curveEdit?.kind === "to-angle" && handle.curveEdit.role === "out"
+      );
+      expect(outHandle?.curveEdit?.kind).toBe("to-angle");
+      if (outHandle?.curveEdit?.kind === "to-angle") {
+        expect(outHandle.curveEdit.relative).toBe(true);
+        expect(outHandle.curveEdit.baseHeading).toBeCloseTo(45, 1);
+      }
+    });
+
+    it("applies per-side looseness and distance clamps to to-curve controls", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) to[out=0,in=180,out looseness=8,in looseness=0.1,out max distance=20pt,in min distance=12pt] (4,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind !== "Path") {
+        return;
+      }
+      const move = path.commands[0];
+      const cubic = path.commands.find((command) => command.kind === "C");
+      expect(move?.kind).toBe("M");
+      expect(cubic?.kind).toBe("C");
+      if (move?.kind === "M" && cubic?.kind === "C") {
+        const outDistance = Math.hypot(cubic.c1.x - move.to.x, cubic.c1.y - move.to.y);
+        const inDistance = Math.hypot(cubic.c2.x - cubic.to.x, cubic.c2.y - cubic.to.y);
+        expect(outDistance).toBeCloseTo(20, 3);
+        expect(inDistance).toBeCloseTo(12, 3);
+      }
+    });
+
+    it("applies one-sided min/max and exact distances independently", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) to[out=45,in=135,min distance=8pt,max distance=30pt,in distance=14pt,out min distance=24pt] (1,0);
+    \draw (0,-1) to[out=45,in=135,out distance=18pt,in max distance=10pt] (1,-1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const cubics = elementsOfKind(result.scene.elements, "Path")
+        .flatMap((path) => path.commands)
+        .filter((command) => command.kind === "C");
+      expect(cubics).toHaveLength(2);
+      const [first, second] = cubics;
+      if (first?.kind === "C" && second?.kind === "C") {
+        const firstOutDistance = Math.hypot(first.c1.x, first.c1.y);
+        const firstInDistance = Math.hypot(first.c2.x - first.to.x, first.c2.y - first.to.y);
+        const secondOutDistance = Math.hypot(second.c1.x, second.c1.y + 28.4528);
+        const secondInDistance = Math.hypot(second.c2.x - second.to.x, second.c2.y - second.to.y);
+        expect(firstOutDistance).toBeCloseTo(24, 3);
+        expect(firstInDistance).toBeCloseTo(14, 3);
+        expect(secondOutDistance).toBeCloseTo(18, 3);
+        expect(secondInDistance).toBeCloseTo(10, 3);
+      }
+    });
+
+    it("keeps absolute to-angles when `relative=false` is explicit", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) to[out=0,in=180,relative=false] (1,1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind !== "Path") {
+        return;
+      }
+      const move = path.commands[0];
+      const cubic = path.commands.find((command) => command.kind === "C");
+      expect(move?.kind).toBe("M");
+      expect(cubic?.kind).toBe("C");
+      if (move?.kind === "M" && cubic?.kind === "C") {
+        expect(cubic.c1.y).toBeCloseTo(move.to.y, 4);
+      }
+    });
+
+    it("emits to-curve edit handle metadata for angle and bend modes", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) to[out=20,in=160,relative=on] (2,0);
+    \draw (0,-1) to[bend left=75] (2,-1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const angleHandles = result.editHandles.filter(
+        (handle) => handle.kind === "path-control" && handle.curveEdit?.kind === "to-angle"
+      );
+      const bendHandles = result.editHandles.filter(
+        (handle) => handle.kind === "path-bend" && handle.curveEdit?.kind === "to-bend"
+      );
+      expect(angleHandles).toHaveLength(2);
+      expect(bendHandles).toHaveLength(1);
+      expect(angleHandles.map((handle) => handle.curveEdit?.kind === "to-angle" ? handle.curveEdit.role : null).sort()).toEqual([
+        "in",
+        "out"
+      ]);
+      for (const handle of angleHandles) {
+        if (handle.curveEdit?.kind === "to-angle") {
+          expect(handle.curveEdit.relative).toBe(true);
+          expect(handle.curveEdit.baseHeading).toBeCloseTo(0, 6);
+        }
+      }
+      const bendHandle = bendHandles[0];
+      if (bendHandle?.curveEdit?.kind === "to-bend") {
+        expect(bendHandle.curveEdit.baseHeading).toBeCloseTo(0, 6);
+        expect(bendHandle.world.y).toBeGreaterThan(bendHandle.curveEdit.startWorld.y);
       }
     });
 

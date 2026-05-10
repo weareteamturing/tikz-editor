@@ -291,6 +291,30 @@ describe("semantic evaluator / graph operations", () => {
     expect(edges.length).toBeGreaterThanOrEqual(2 + 4);
   });
 
+  it("supports graph operator option aliases, color pairs, and ranged shore names", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph [color class=red, color class=green] {
+    [clique=red] a [red], b [red], c [red];
+    [cycle=green] d [green], e [green], f [green];
+    [path] g, h, i;
+    [matching={red,green}] a, b, d, e;
+    [matching and star={red,green}] b, c, e, f;
+  };
+  \graph {
+    subgraph I_nm [V={3,...,1}, W={c,...,a}, name shore V={name=Left}, name shore W={name=Right}];
+  };
+  \path (Left 3) edge (Right a);
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-graph-syntax")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:Left 3")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:Right a")).toBe(false);
+    const texts = elementsOfKind(result.scene.elements, "Text").map((text) => text.text);
+    expect(texts).toEqual(expect.arrayContaining(["3", "2", "1", "c", "b", "a"]));
+    expect(elementsOfKind(result.scene.elements, "Path").length).toBeGreaterThanOrEqual(4);
+  });
+
   it("supports I_nm numeric shorthands with shore naming", () => {
     const source = String.raw`\begin{tikzpicture}
   \graph { subgraph I_nm [n=2, m=2] };

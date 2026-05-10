@@ -1,6 +1,6 @@
 import { parseOptionListRaw } from "../../options/parse.js";
 import { applyOptionMutationsToTarget, normalizeOptionKey, rewriteOptionListMutations, type OptionMutation } from "../option-mutations.js";
-import { TREE_CHILD_LAYOUT_WRITABLE_KEYS, TREE_CHILD_NODE_READONLY_KEYS } from "../tree-editing.js";
+import { TREE_CHILD_LAYOUT_WRITABLE_KEYS } from "../tree-editing.js";
 import { resolvePropertyTarget } from "../property-target.js";
 import type { PropertyTarget, PropertyTargetOptionsFormat } from "../property-target.js";
 import { replaceSpan } from "../patch.js";
@@ -131,9 +131,6 @@ function applySetPropertyCommentToggle(
   action: SetPropertyAction,
   parseOptions: EditParseOptions
 ): EditActionResultLike {
-  if (!action.commentMode) {
-    return { kind: "unsupported", reason: "No comment toggle mode was provided." };
-  }
   if (target.kind === "node-adornment" || target.kind === "tree-child" || target.kind === "matrix-cell") {
     return { kind: "unsupported", reason: "Property comment toggles are unavailable for this source target." };
   }
@@ -159,13 +156,11 @@ function applySetPropertyCommentToggle(
     if (index !== matchingIndex) {
       return item;
     }
-    if (action.commentMode === "disable" && item.kind === "entry") {
-      return { kind: "disabled-entry", text: item.text, normalizedKey: item.normalizedKey };
+    const toggleItem = item as Extract<CommentToggleItem, { kind: "entry" | "disabled-entry" }>;
+    if (action.commentMode === "disable") {
+      return { kind: "disabled-entry", text: toggleItem.text, normalizedKey: toggleItem.normalizedKey };
     }
-    if (action.commentMode === "enable" && item.kind === "disabled-entry") {
-      return { kind: "entry", text: item.text, normalizedKey: item.normalizedKey };
-    }
-    return item;
+    return { kind: "entry", text: toggleItem.text, normalizedKey: toggleItem.normalizedKey };
   });
 
   const replacement = serializeCommentToggleItems(
@@ -173,9 +168,6 @@ function applySetPropertyCommentToggle(
     format,
     resolveCommentToggleSerializationContext(rawSite, format, parseOptions.indentSize)
   );
-  if (replacement === rawSite) {
-    return { kind: "unsupported", reason: "setProperty would not change the source." };
-  }
 
   const updated = replaceSpan(source, target.optionsSpan, replacement);
   return {
@@ -194,9 +186,6 @@ function parseCommentToggleItems(rawSite: string, format: PropertyTargetOptionsF
     for (const fragment of fragments) {
       if (fragment.kind === "code") {
         const token = stripTrailingComma(fragment.text.trim());
-        if (token.length === 0) {
-          continue;
-        }
         items.push({
           kind: "entry",
           text: token,
@@ -206,9 +195,6 @@ function parseCommentToggleItems(rawSite: string, format: PropertyTargetOptionsF
       }
 
       const normalizedComment = normalizeCommentLine(fragment.text);
-      if (normalizedComment.length === 0) {
-        continue;
-      }
       const disabledToken = disabledTokenFromComment(normalizedComment);
       if (disabledToken) {
         items.push({
@@ -363,22 +349,11 @@ function isEscapedAt(input: string, index: number): boolean {
 }
 
 function normalizeCommentLine(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) {
-    return "";
-  }
-  if (trimmed.startsWith("%")) {
-    return trimmed;
-  }
-  return `% ${trimmed}`;
+  return raw.trim();
 }
 
 function disabledTokenFromComment(commentLine: string): string | null {
-  const trimmed = commentLine.trim();
-  if (!trimmed.startsWith("%")) {
-    return null;
-  }
-  const body = trimmed.slice(1).trim();
+  const body = commentLine.trim().slice(1).trim();
   if (!body.endsWith(",")) {
     return null;
   }
@@ -500,12 +475,6 @@ function serializeCommentToggleItems(
       context.hadNewline || context.lineIndent.length > 0 || hasCommentLine || lines.length > 1;
     return shouldWrapMultiline ? `\n${serialized}\n` : serialized;
   }
-  if (format === "braced") {
-    if (lines.length === 0) {
-      return "{}";
-    }
-    return `{\n${lines.join("\n")}\n}`;
-  }
   if (lines.length === 0) {
     return "[]";
   }
@@ -525,14 +494,7 @@ function applyTreeChildSetProperty(
   if (key.length === 0) {
     return { kind: "error", message: "Cannot set an empty option key" };
   }
-  const childOptionSite = key.length > 0 && TREE_CHILD_LAYOUT_WRITABLE_KEYS.has(key);
-  const nodeOptionSite = key.length > 0 && !childOptionSite;
-  if (!childOptionSite && !nodeOptionSite) {
-    return { kind: "unsupported", reason: `Tree child property '${action.key}' is not editable yet.` };
-  }
-  if (TREE_CHILD_NODE_READONLY_KEYS.has(key)) {
-    return { kind: "unsupported", reason: `Tree child property '${action.key}' is read-only.` };
-  }
+  const childOptionSite = TREE_CHILD_LAYOUT_WRITABLE_KEYS.has(key);
 
   const mutations = createOptionMutationsFromSetProperty(action, key);
   const removePrimaryKey = action.value.trim().length === 0;
@@ -586,11 +548,8 @@ function applyMatrixCellSetProperty(
 
   const mutations = createOptionMutationsFromSetProperty(action, key);
 
-  const cellSpan = target.cellSpan;
-  const textSpan = target.textSpan;
-  if (!cellSpan || !textSpan) {
-    return { kind: "unsupported", reason: "Matrix cell source spans are unavailable." };
-  }
+  const cellSpan = target.cellSpan!;
+  const textSpan = target.textSpan!;
 
   if (target.optionSpan) {
     const optionSpan = target.optionSpan;
@@ -613,9 +572,6 @@ function applyMatrixCellSetProperty(
       return { kind: "unsupported", reason: "Could not remove matrix-cell option prefix safely." };
     }
     const updated = replaceSpan(source, prefixSpan, "");
-    if (updated.source === source) {
-      return { kind: "unsupported", reason: "setProperty would not change the source." };
-    }
     return {
       kind: "success",
       newSource: updated.source,
@@ -635,15 +591,9 @@ function applyMatrixCellSetProperty(
 
   const seedOptions = parseOptionListRaw("[]", textSpan.from);
   const serializedOptions = rewriteOptionListMutations(seedOptions, setMutations, undefined, "bracketed");
-  if (serializedOptions.length === 0) {
-    return { kind: "unsupported", reason: "setProperty would not change the source." };
-  }
   const insertion = `|${serializedOptions}| `;
   const insertionSpan: Span = { from: textSpan.from, to: textSpan.from };
   const updated = replaceSpan(source, insertionSpan, insertion);
-  if (updated.source === source) {
-    return { kind: "unsupported", reason: "setProperty would not change the source." };
-  }
   return {
     kind: "success",
     newSource: updated.source,
@@ -715,15 +665,9 @@ function applyOptionMutationsAtSite(
       setMutations.set(mutationKey, mutation);
     }
   }
-  if (setMutations.size === 0) {
-    return { kind: "unsupported", reason: "setProperty would not change the source." };
-  }
 
   const seedOptions = parseOptionListRaw("[]", insertOffset);
   const serializedOptions = rewriteOptionListMutations(seedOptions, setMutations, undefined, "bracketed");
-  if (serializedOptions.length === 0) {
-    return { kind: "unsupported", reason: "setProperty would not change the source." };
-  }
   const updated = replaceSpan(source, { from: insertOffset, to: insertOffset }, serializedOptions);
   return {
     kind: "success",

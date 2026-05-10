@@ -137,8 +137,11 @@ function parseMacroInvocationArgs(
   const values: string[] = [];
   if (optionalFirstArgDefault != null) {
     cursor = skipWhitespace(input, cursor);
-    const optionalArg = parseOptionalBracketArgument(input, cursor);
-    if (optionalArg) {
+    if (input[cursor] === "[") {
+      const optionalArg = parseOptionalBracketArgument(input, cursor);
+      if (!optionalArg) {
+        return null;
+      }
       values.push(optionalArg.value);
       cursor = optionalArg.nextIndex;
     } else {
