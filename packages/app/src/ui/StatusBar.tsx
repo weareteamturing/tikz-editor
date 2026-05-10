@@ -17,6 +17,7 @@ export function StatusBar() {
   const activeFigureId = useEditorStore((s) => s.activeFigureId);
   const currentDocument = useEditorStore((s) => s.documents[s.activeDocumentId] ?? null);
   const canvasTransform = useEditorStore((s) => s.canvasTransform);
+  const canvasFitToContentScale = useEditorStore((s) => s.canvasFitToContentScale);
   const fitToContentModeActive = useEditorStore((s) => s.fitToContentModeActive);
   const showGrid = useEditorStore((s) => s.showGrid);
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
@@ -44,10 +45,16 @@ export function StatusBar() {
   const activeFigureIndex = activeFigureId ? figures.findIndex((figure) => figure.id === activeFigureId) : -1;
   const showFigureContext = figures.length > 1 && activeFigureIndex >= 0;
   const zoomPercent = Math.round((canvasTransform.scale / ACTUAL_SIZE_SCALE) * 100);
-  const sliderZoomPercent = Math.max(MIN_ZOOM_PERCENT, Math.min(MAX_ZOOM_PERCENT, zoomPercent));
-  const zoomOptions = ZOOM_LEVELS.includes(zoomPercent as typeof ZOOM_LEVELS[number])
-    ? ZOOM_LEVELS
-    : [...ZOOM_LEVELS, zoomPercent].sort((left, right) => left - right);
+  const fitToContentDoubleZoomPercent = canvasFitToContentScale == null
+    ? MAX_ZOOM_PERCENT
+    : Math.ceil((canvasFitToContentScale / ACTUAL_SIZE_SCALE) * 200);
+  const maxZoomPercent = Math.max(MAX_ZOOM_PERCENT, fitToContentDoubleZoomPercent, zoomPercent);
+  const sliderZoomPercent = Math.max(MIN_ZOOM_PERCENT, Math.min(maxZoomPercent, zoomPercent));
+  const zoomOptions = [...new Set([
+    ...ZOOM_LEVELS.filter((level) => level <= maxZoomPercent),
+    maxZoomPercent,
+    zoomPercent
+  ])].sort((left, right) => left - right);
 
   const requestZoomPercent = (percent: number) => {
     if (!Number.isFinite(percent)) {
@@ -214,7 +221,7 @@ export function StatusBar() {
           className={css.zoomSlider}
           type="range"
           min={MIN_ZOOM_PERCENT}
-          max={MAX_ZOOM_PERCENT}
+          max={maxZoomPercent}
           step={1}
           value={sliderZoomPercent}
           aria-label="Zoom"

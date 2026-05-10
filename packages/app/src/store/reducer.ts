@@ -62,6 +62,7 @@ function initialUiState(): WorkspaceEphemeralState {
     creationFillColor: DEFAULT_CREATION_FILL_COLOR,
     fitToContentRequestToken: 0,
     fitToContentModeActive: true,
+    canvasFitToContentScale: null,
     zoomRequestToken: 0,
     zoomRequestDirection: null,
     zoomScaleRequestToken: 0,
@@ -1116,6 +1117,15 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (ui.fitToContentModeActive === action.active) return state;
       ui = { ...ui, fitToContentModeActive: action.active };
       break;
+
+    case "SET_CANVAS_FIT_TO_CONTENT_SCALE": {
+      const nextScale = action.scale != null && Number.isFinite(action.scale) && action.scale > 0
+        ? action.scale
+        : null;
+      if (ui.canvasFitToContentScale === nextScale) return state;
+      ui = { ...ui, canvasFitToContentScale: nextScale };
+      break;
+    }
 
     case "REQUEST_ZOOM":
       ui = {

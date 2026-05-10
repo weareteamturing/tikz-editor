@@ -157,6 +157,8 @@ export type WorkspaceEphemeralState = {
   fitToContentRequestToken: number;
   /** Whether the canvas is tracking content bounds as the view changes. */
   fitToContentModeActive: boolean;
+  /** Current canvas scale produced by fit-to-content, when measurable. */
+  canvasFitToContentScale: number | null;
   /** Monotonic token used to request zoom operations from CanvasPanel. */
   zoomRequestToken: number;
   zoomRequestDirection: ZoomRequestDirection | null;
@@ -241,6 +243,8 @@ export type EditorState = {
   fitToContentRequestToken: number;
   /** Whether the canvas is tracking content bounds as the view changes. */
   fitToContentModeActive: boolean;
+  /** Current canvas scale produced by fit-to-content, when measurable. */
+  canvasFitToContentScale: number | null;
   /** Monotonic token used to request zoom operations from CanvasPanel. */
   zoomRequestToken: number;
   zoomRequestDirection: ZoomRequestDirection | null;
@@ -364,6 +368,7 @@ export type EditorAction =
   | { type: "TOGGLE_SNAP_MODE"; mode: SnapMode }
   | { type: "REQUEST_FIT_TO_CONTENT" }
   | { type: "SET_FIT_TO_CONTENT_MODE"; active: boolean }
+  | { type: "SET_CANVAS_FIT_TO_CONTENT_SCALE"; scale: number | null }
   | { type: "REQUEST_ZOOM"; direction: ZoomRequestDirection }
   | { type: "REQUEST_ZOOM_SCALE"; scale: number }
   | { type: "SET_CANVAS_STATUS_HINT"; hint: string | null }

@@ -226,6 +226,32 @@ const CANVAS_DRAG_CURSOR_LOCK_CLASS = "is-dragging-canvas-cursor-lock";
 const IMPORTED_SVG_TARGET_RATIO = 0.3;
 const IMPORTED_SVG_MIN_SCALE = 0.2;
 const IMPORTED_SVG_MAX_SCALE = 3;
+
+function computeFitToContentScale(
+  fitViewBox: SvgViewBox | null | undefined,
+  viewportWidth: number,
+  viewportHeight: number
+): number | null {
+  if (
+    !fitViewBox ||
+    viewportWidth <= 0 ||
+    viewportHeight <= 0 ||
+    fitViewBox.width <= 0 ||
+    fitViewBox.height <= 0
+  ) {
+    return null;
+  }
+
+  const availableWidth = Math.max(1, viewportWidth - FIT_PADDING * 2);
+  const availableHeight = Math.max(1, viewportHeight - FIT_PADDING * 2);
+
+  return clamp(
+    Math.min(availableWidth / fitViewBox.width, availableHeight / fitViewBox.height),
+    MIN_SCALE,
+    MAX_SCALE
+  );
+}
+
 const DESKTOP_SVG_CLIPBOARD_FORMATS = [
   "image/svg+xml",
   "public.svg-image",
@@ -1642,6 +1668,19 @@ export const CanvasPanel = memo(function CanvasPanel({
     canvasTransform
   });
 
+  const fitToContentScale = useMemo(
+    () => computeFitToContentScale(
+      baseSvgResult?.viewBox ?? svgResult?.viewBox,
+      viewportSize.width,
+      viewportSize.height
+    ),
+    [baseSvgResult, svgResult, viewportSize.height, viewportSize.width]
+  );
+  useEffect(() => {
+    dispatch({ type: "SET_CANVAS_FIT_TO_CONTENT_SCALE", scale: fitToContentScale });
+  }, [dispatch, fitToContentScale]);
+  const maxZoomScale = Math.max(MAX_SCALE, fitToContentScale == null ? MAX_SCALE : fitToContentScale * 2);
+
   const fitToContent = useCallback((): boolean => {
     const fitViewBox = baseSvgResult?.viewBox ?? svgResult?.viewBox;
     if (!fitViewBox || !viewportRef.current) return false;
@@ -1649,23 +1688,10 @@ export const CanvasPanel = memo(function CanvasPanel({
     const viewportWidth = viewportRef.current.clientWidth;
     const viewportHeight = viewportRef.current.clientHeight;
 
-    if (
-      viewportWidth <= 0 ||
-      viewportHeight <= 0 ||
-      fitViewBox.width <= 0 ||
-      fitViewBox.height <= 0
-    ) {
+    const scale = computeFitToContentScale(fitViewBox, viewportWidth, viewportHeight);
+    if (scale == null) {
       return false;
     }
-
-    const availableWidth = Math.max(1, viewportWidth - FIT_PADDING * 2);
-    const availableHeight = Math.max(1, viewportHeight - FIT_PADDING * 2);
-
-    const scale = clamp(
-      Math.min(availableWidth / fitViewBox.width, availableHeight / fitViewBox.height),
-      MIN_SCALE,
-      MAX_SCALE
-    );
 
     const translateX = (viewportWidth - fitViewBox.width * scale) / 2;
     const translateY = (viewportHeight - fitViewBox.height * scale) / 2;
@@ -1796,7 +1822,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     const centerX = viewportRef.current.clientWidth / 2;
     const centerY = viewportRef.current.clientHeight / 2;
     const zoomFactor = zoomRequestDirection === "in" ? 1.15 : 1 / 1.15;
-    const nextScale = clamp(currentTransform.scale * zoomFactor, MIN_SCALE, MAX_SCALE);
+    const nextScale = clamp(currentTransform.scale * zoomFactor, MIN_SCALE, maxZoomScale);
     if (Math.abs(nextScale - currentTransform.scale) < 1e-9) {
       return;
     }
@@ -1817,6 +1843,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     canvasTransformRef,
     dispatchCanvasTransform,
     fitToContentModeActiveRef,
+    maxZoomScale,
     setFitToContentModeActive,
     svgResult,
     zoomRequestDirection,
@@ -1837,7 +1864,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     }
 
     const currentTransform = canvasTransformRef.current;
-    const nextScale = clamp(zoomScaleRequestValue, MIN_SCALE, MAX_SCALE);
+    const nextScale = clamp(zoomScaleRequestValue, MIN_SCALE, maxZoomScale);
     if (Math.abs(nextScale - currentTransform.scale) < 1e-9) {
       return;
     }
@@ -1860,6 +1887,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     canvasTransformRef,
     dispatchCanvasTransform,
     fitToContentModeActiveRef,
+    maxZoomScale,
     setFitToContentModeActive,
     svgResult,
     zoomScaleRequestToken,
@@ -3271,7 +3299,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     dispatchCanvasTransform,
     zoomSpeed,
     MIN_SCALE,
-    MAX_SCALE,
+    MAX_SCALE: maxZoomScale,
     setFitToContentModeActive
   });
 
