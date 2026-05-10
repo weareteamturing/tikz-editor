@@ -16,8 +16,8 @@ describe("tool capability status", () => {
   it("treats add tools as supported when parse/semantic/svg support is stable", () => {
     expect(getToolCapabilityStatus("addLine").status).toBe("supported");
     expect(getToolCapabilityStatus("addArrow").status).toBe("supported");
-    expect(getToolCapabilityStatus("addBezier").status).toBe("partial");
-    expect(getToolCapabilityStatus("addGrid").status).toBe("partial");
+    expect(getToolCapabilityStatus("addBezier").status).toBe("supported");
+    expect(getToolCapabilityStatus("addGrid").status).toBe("supported");
     expect(getToolCapabilityStatus("addRect").status).toBe("supported");
     expect(getToolCapabilityStatus("addEllipse").status).toBe("supported");
     expect(getToolCapabilityStatus("addCircle").status).toBe("supported");

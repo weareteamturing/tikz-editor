@@ -1428,7 +1428,9 @@ export function App() {
       },
       setCanvasTransform: (transform) => {
         dispatch({ type: "SET_FIT_TO_CONTENT_MODE", active: false });
-        dispatch({ type: "SET_CANVAS_TRANSFORM", transform });
+        requestAnimationFrame(() => {
+          dispatch({ type: "SET_CANVAS_TRANSFORM", transform });
+        });
       },
       getSceneTextDebug: () => {
         const elements = snapshotRef.current.scene?.elements ?? [];

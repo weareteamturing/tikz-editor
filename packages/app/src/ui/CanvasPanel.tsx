@@ -837,8 +837,10 @@ export const CanvasPanel = memo(function CanvasPanel({
   const [pendingNativeContextMenuRequest, setPendingNativeContextMenuRequest] =
     useState<PendingNativeContextMenuRequest | null>(null);
   const [expandedDensePathSourceId, setExpandedDensePathSourceId] = useState<string | null>(null);
+  const fitToContentModeActiveRef = useRef(fitToContentModeActive);
   const setFitToContentModeActive = useCallback(
     (active: boolean) => {
+      fitToContentModeActiveRef.current = active;
       dispatch({ type: "SET_FIT_TO_CONTENT_MODE", active });
     },
     [dispatch]
@@ -1219,7 +1221,6 @@ export const CanvasPanel = memo(function CanvasPanel({
   const canvasTransformRef = useRef(canvasTransform);
   const selectedElementIdsRef = useRef(selectedElementIds);
   const svgResultRef = useRef(svgResult);
-  const fitToContentModeActiveRef = useRef(fitToContentModeActive);
   const sourceBoundsSvgRef = useRef<SourceBoundsMap>(new Map<string, SvgBounds>());
   const liveResizeFramesRef = useRef(new Map<string, ReturnType<typeof resolveResizeFrameForSource>>());
   const previousViewBoxRef = useRef<SvgViewBox | null>(null);
@@ -1298,7 +1299,6 @@ export const CanvasPanel = memo(function CanvasPanel({
   const visitedFigureKeysRef = useRef(new Set<string>());
   const previousFigureViewportKeyRef = useRef<string | null>(null);
   const pendingFirstVisitAutoFitKeyRef = useRef<string | null>(null);
-  const skipNextViewportStatePersistKeyRef = useRef<string | null>(null);
 
   // Cache viewport boundary once on drag-start, clear on drag-end (avoids getBoundingClientRect per frame)
   if (dragTooltip && !dragTooltipBoundaryRef.current && viewportRef.current) {
@@ -1708,7 +1708,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     }
   }, [tabOrder]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const pendingAutoFit = pendingFirstVisitAutoFitKeyRef.current === activeFigureViewportKey;
     if (previousFigureViewportKeyRef.current === activeFigureViewportKey && !pendingAutoFit) {
       return;
@@ -1719,7 +1719,6 @@ export const CanvasPanel = memo(function CanvasPanel({
       const previousTransform = canvasTransformRef.current;
       saveFigureViewportState(previousKey, previousTransform, fitToContentModeActiveRef.current);
     }
-    skipNextViewportStatePersistKeyRef.current = activeFigureViewportKey;
 
     const savedState = viewportStateByFigureKeyRef.current.get(activeFigureViewportKey);
     if (savedState) {
@@ -1753,10 +1752,6 @@ export const CanvasPanel = memo(function CanvasPanel({
   }, [activeFigureViewportKey, dispatchCanvasTransform, fitToContent, saveFigureViewportState, setFitToContentModeActive]);
 
   useEffect(() => {
-    if (skipNextViewportStatePersistKeyRef.current === activeFigureViewportKey) {
-      skipNextViewportStatePersistKeyRef.current = null;
-      return;
-    }
     if (previousFigureViewportKeyRef.current !== activeFigureViewportKey) {
       return;
     }
@@ -3621,6 +3616,9 @@ export const CanvasPanel = memo(function CanvasPanel({
 
   useEffect(() => {
     if (!fitToContentModeActive) {
+      return;
+    }
+    if (!fitToContentModeActiveRef.current) {
       return;
     }
     if (!svgResult) {

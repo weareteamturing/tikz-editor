@@ -383,13 +383,23 @@ function getPlainTextMeasureContext(): CanvasRenderingContext2D | null {
     return plainTextMeasureContext;
   }
 
+  const userAgent = (globalThis as { navigator?: { userAgent?: string } }).navigator?.userAgent;
+  if (typeof userAgent === "string" && userAgent.includes("jsdom")) {
+    plainTextMeasureContext = null;
+    return plainTextMeasureContext;
+  }
+
   const documentLike = (globalThis as { document?: { createElement?: (tagName: string) => unknown } }).document;
   if (typeof documentLike?.createElement !== "function") {
     return null;
   }
 
   const canvas = documentLike.createElement("canvas") as { getContext?: (contextId: "2d") => CanvasRenderingContext2D | null };
-  plainTextMeasureContext = typeof canvas?.getContext === "function" ? canvas.getContext("2d") : null;
+  try {
+    plainTextMeasureContext = typeof canvas?.getContext === "function" ? canvas.getContext("2d") : null;
+  } catch {
+    plainTextMeasureContext = null;
+  }
   return plainTextMeasureContext;
 }
 
