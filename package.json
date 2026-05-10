@@ -40,6 +40,7 @@
     "dev:landing": "npm run -w @tikz-editor/landing dev",
     "dev:desktop": "npm run -w @tikz-editor/desktop tauri:dev",
     "build:landing": "npm run -w @tikz-editor/landing build",
+    "capture:landing-screenshots": "npm run -w @tikz-editor/landing capture:screenshots --",
     "build:desktop": "npm run -w @tikz-editor/desktop tauri:build",
     "test:e2e": "npm run -w @tikz-editor/web test:e2e --",
     "test:e2e:ci": "npm run -w @tikz-editor/web test:e2e:ci --",
