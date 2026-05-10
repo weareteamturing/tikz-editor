@@ -18,6 +18,7 @@
     "typecheck": "npx tsc -p tsconfig.json --noEmit && node scripts/check-coordinate-typing.mjs",
     "build": "npm run -w @tikz-editor/core build",
     "test": "npm run generate:grammar && vitest run",
+    "test:coverage": "npm run generate:grammar && vitest run --coverage",
     "test:capabilities": "npm run generate:grammar && vitest run test/capabilities.spec.ts",
     "test:watch": "npm run generate:grammar && vitest",
     "test:corpus": "npm run generate:grammar && vitest run test/corpus.spec.ts",
@@ -56,6 +57,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.13.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "@vitest/eslint-plugin": "^1.6.16",
     "eslint": "^10.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",
