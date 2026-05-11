@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { editorReducer, makeInitialState, DEFAULT_SOURCE } from "../packages/app/src/store/reducer.js";
 import type { EditorAction, EditorState } from "../packages/app/src/store/types.js";
 import { makeEmptySnapshot } from "../packages/app/src/compute.js";
+import { PROPERTY_WRITE_CLEANUP_NOOP_REASON } from "../packages/core/src/edit/actions.js";
 import type { WorldPoint } from "../packages/core/src/coords/points.js";
 import type { EditHandle } from "../packages/core/src/semantic/types.js";
 import { identityMatrix } from "../packages/core/src/semantic/transform.js";
@@ -1125,6 +1126,195 @@ describe("editorReducer – TOGGLE_DEV_PANEL", () => {
   });
 });
 
+describe("editorReducer – branch edge cases", () => {
+  it("keeps document actions no-op for missing or unchanged targets", () => {
+    const initial = makeInitialState();
+    expect(editorReducer(initial, { type: "SWITCH_DOCUMENT", documentId: "missing" })).toBe(initial);
+    expect(editorReducer(initial, { type: "CLOSE_DOCUMENT", documentId: "missing" })).toBe(initial);
+    expect(editorReducer(initial, { type: "REORDER_TABS", fromId: initial.activeDocumentId, toId: initial.activeDocumentId })).toBe(initial);
+    expect(editorReducer(initial, { type: "SET_ACTIVE_FIGURE", figureId: null })).toBe(initial);
+    expect(editorReducer(initial, { type: "COMPUTE_REQUESTED", requestId: "req-missing", documentId: "missing" })).toBe(initial);
+  });
+
+  it("handles close, reorder, active figure, and disk replacement fallbacks", () => {
+    const initial = makeInitialState();
+    const withSecond = editorReducer(initial, { type: "NEW_DOCUMENT", source: "second", title: "Second" });
+    const firstId = initial.activeDocumentId;
+    const secondId = withSecond.activeDocumentId;
+
+    const figureChanged = editorReducer(withSecond, { type: "SET_ACTIVE_FIGURE", figureId: "figure:1", documentId: secondId });
+    expect(figureChanged.activeFigureId).toBe("figure:1");
+
+    const reordered = editorReducer(figureChanged, { type: "REORDER_TABS", fromId: secondId, toId: firstId });
+    expect(reordered.tabOrder[0]).toBe(secondId);
+
+    const replacedSameSource = editorReducer(reordered, {
+      type: "REPLACE_DOCUMENT_SOURCE_FROM_DISK",
+      documentId: secondId,
+      source: "second",
+      diskRevision: { hash: "disk" }
+    });
+    expect(replacedSameSource.sourceRevision).toBe(reordered.sourceRevision);
+    expect(replacedSameSource.documents[secondId]?.title).toBe("Second");
+
+    const closedInactive = editorReducer(replacedSameSource, { type: "CLOSE_DOCUMENT", documentId: firstId });
+    expect(closedInactive.activeDocumentId).toBe(secondId);
+    expect(closedInactive.recentDocumentIds).not.toContain(firstId);
+  });
+
+  it("applies current, stale, and rejected compute snapshots correctly", () => {
+    const source = "\\draw (0,0)--(1,1);";
+    const initial = editorReducer(makeInitialState(), { type: "CODE_EDITED", source });
+    const requested = editorReducer(initial, { type: "COMPUTE_REQUESTED", requestId: "req-1" });
+    const activeHandleId = "handle-1";
+    const withHandle = {
+      ...requested,
+      activeHandleId,
+      documents: {
+        ...requested.documents,
+        [requested.activeDocumentId]: {
+          ...requested.documents[requested.activeDocumentId]!,
+          activeHandleId
+        }
+      }
+    };
+    const currentSnapshot = {
+      ...makeEmptySnapshot(source),
+      source,
+      figures: [{ id: "figure:0" }, { id: "figure:1" }],
+      editHandles: [{ id: activeHandleId }]
+    };
+
+    const ready = editorReducer(withHandle, {
+      type: "SNAPSHOT_READY",
+      requestId: "req-1",
+      snapshot: currentSnapshot
+    });
+    expect(ready.pendingRequestId).toBeNull();
+    expect(ready.activeFigureId).toBe("figure:0");
+    expect(ready.activeHandleId).toBe(activeHandleId);
+
+    const staleIgnored = editorReducer(ready, {
+      type: "SNAPSHOT_READY",
+      requestId: "stale",
+      snapshot: { ...makeEmptySnapshot("ignored"), source: "ignored" }
+    });
+    expect(staleIgnored).toBe(ready);
+
+    const dragging = editorReducer(ready, { type: "SET_ACTIVE_CANVAS_DRAG", kind: "element" });
+    const staleDrag = editorReducer(dragging, {
+      type: "SNAPSHOT_READY",
+      requestId: "stale",
+      snapshot: { ...makeEmptySnapshot("drag-source"), source: "drag-source", figures: [{ id: "figure:9" }] }
+    });
+    expect(staleDrag.snapshot.source).toBe("drag-source");
+    expect(staleDrag.pendingRequestId).toBeNull();
+    expect(staleDrag.activeHandleId).toBeNull();
+  });
+
+  it("records history labels for precomputed edit-action families and no-ops cleanup warnings", () => {
+    let state = makeInitialState();
+    const cases: Array<[string, HistoryEntry["kind"]]> = [
+      ["splitPath", "path-edit"],
+      ["groupElements", "add-element"],
+      ["ungroupElements", "delete"],
+      ["reorderElements", "reorder"],
+      ["alignElements", "align"],
+      ["distributeElements", "distribute"],
+      ["resizeElement", "resize"]
+    ];
+
+    for (const [kind, expectedHistoryKind] of cases) {
+      const previousSource = state.source;
+      const nextSource = `${previousSource}\n% ${kind}`;
+      state = editorReducer(state, {
+        type: "APPLY_EDIT_ACTION",
+        action: { kind } as never,
+        precomputedSource: previousSource,
+        precomputedResult: {
+          kind: "success",
+          newSource: nextSource,
+          patches: [{
+            oldSpan: { from: previousSource.length, to: previousSource.length },
+            newSpan: { from: nextSource.length, to: nextSource.length },
+            replacement: `\n% ${kind}`
+          }]
+        }
+      } as EditorAction);
+      expect(state.history[state.historyIndex]?.kind).toBe(expectedHistoryKind);
+    }
+
+    const cleanupNoop = editorReducer(state, {
+      type: "APPLY_EDIT_ACTION",
+      action: { kind: "cleanupPropertyWrites" },
+      precomputedResult: {
+        kind: "unsupported",
+        reason: PROPERTY_WRITE_CLEANUP_NOOP_REASON
+      }
+    } as EditorAction);
+    expect(cleanupNoop).toBe(state);
+  });
+
+  it("covers selection and UI no-op branches", () => {
+    const initial = makeInitialState();
+    const selected = editorReducer(initial, { type: "SELECT", id: "path:0", additive: false });
+    expect(editorReducer(selected, { type: "SELECT", id: "path:0", additive: false })).toBe(selected);
+    const focused = editorReducer(selected, { type: "SET_FOCUSED_SCOPE", scopeId: "scope:0" });
+    expect(editorReducer(focused, { type: "SET_FOCUSED_SCOPE", scopeId: "scope:0" })).toBe(focused);
+    const handle = editorReducer(focused, { type: "SET_ACTIVE_HANDLE", handleId: "handle:0" });
+    expect(editorReducer(handle, { type: "SET_ACTIVE_HANDLE", handleId: "handle:0" })).toBe(handle);
+
+    const drag = editorReducer(handle, { type: "SET_ACTIVE_CANVAS_DRAG", kind: "element" });
+    expect(editorReducer(drag, { type: "SET_ACTIVE_CANVAS_DRAG", kind: "element" })).toBe(drag);
+    const scrub = editorReducer(drag, { type: "SET_ACTIVE_SOURCE_SCRUB", sourceId: "path:0" });
+    expect(editorReducer(scrub, { type: "SET_ACTIVE_SOURCE_SCRUB", sourceId: "path:0" })).toBe(scrub);
+    const textEdit = editorReducer(scrub, { type: "SET_ACTIVE_CANVAS_TEXT_EDIT", sourceId: "node:0" });
+    expect(editorReducer(textEdit, { type: "SET_ACTIVE_CANVAS_TEXT_EDIT", sourceId: "node:0" })).toBe(textEdit);
+  });
+
+  it("normalizes scalar UI settings and rejects invalid values", () => {
+    let state = makeInitialState();
+    expect(editorReducer(state, { type: "SET_BUCKET_FILL_COLOR", value: "   " })).toBe(state);
+    state = editorReducer(state, { type: "SET_BUCKET_FILL_COLOR", value: " Red!50 " });
+    expect(state.bucketFillColor).toBe("red!50");
+    expect(editorReducer(state, { type: "SET_BUCKET_FILL_COLOR", value: "red!50" })).toBe(state);
+
+    expect(editorReducer(state, { type: "SET_CREATION_STROKE_COLOR", value: "" })).toBe(state);
+    state = editorReducer(state, { type: "SET_CREATION_STROKE_COLOR", value: " Blue " });
+    expect(state.creationStrokeColor).toBe("blue");
+    expect(editorReducer(state, { type: "SET_CREATION_STROKE_COLOR", value: "blue" })).toBe(state);
+
+    state = editorReducer(state, { type: "SET_CREATION_FILL_COLOR", value: " Green " });
+    expect(state.creationFillColor).toBe("green");
+    expect(editorReducer(state, { type: "SET_CREATION_FILL_COLOR", value: "green" })).toBe(state);
+
+    expect(editorReducer(state, { type: "REQUEST_ZOOM_SCALE", scale: 0 })).toBe(state);
+    const zoomed = editorReducer(state, { type: "REQUEST_ZOOM_SCALE", scale: 1.5 });
+    expect(zoomed.zoomScaleRequestValue).toBe(1.5);
+    const fitScale = editorReducer(zoomed, { type: "SET_CANVAS_FIT_TO_CONTENT_SCALE", scale: 2 });
+    expect(fitScale.canvasFitToContentScale).toBe(2);
+    expect(editorReducer(fitScale, { type: "SET_CANVAS_FIT_TO_CONTENT_SCALE", scale: 2 })).toBe(fitScale);
+    const invalidFitScale = editorReducer(fitScale, { type: "SET_CANVAS_FIT_TO_CONTENT_SCALE", scale: Number.NaN });
+    expect(invalidFitScale.canvasFitToContentScale).toBeNull();
+  });
+
+  it("handles sidebar, zoom, and assistant-locked tool-mode edge branches", () => {
+    const initial = makeInitialState();
+    expect(editorReducer(initial, { type: "SET_RIGHT_SIDEBAR_TAB", tab: "inspector" })).toBe(initial);
+
+    const zoomed = editorReducer(initial, { type: "REQUEST_ZOOM", direction: "in" });
+    expect(zoomed.zoomRequestToken).toBe(initial.zoomRequestToken + 1);
+    expect(zoomed.zoomRequestDirection).toBe("in");
+
+    const locked = editorReducer(initial, {
+      type: "ASSISTANT_TURN_STATUS",
+      status: "starting",
+      turnId: "turn-locked"
+    });
+    expect(editorReducer(locked, { type: "SET_TOOL_MODE", mode: "addNode" })).toBe(locked);
+  });
+});
+
 describe("editorReducer – assistant integration", () => {
   it("applies assistant source updates to the active document", () => {
     const initial = makeInitialState();
@@ -1171,5 +1361,148 @@ describe("editorReducer – assistant integration", () => {
     });
     expect(afterEdit.source).toBe(initial.source);
     expect(afterEdit.documents[afterEdit.activeDocumentId]?.assistantLockReason).toBeTruthy();
+  });
+
+  it("updates assistant thread metadata, items, deltas, approvals, and error state", () => {
+    let state = makeInitialState();
+    const activeDoc = () => state.documents[state.activeDocumentId]!;
+    state = editorReducer(state, {
+      type: "ASSISTANT_THREAD_READY",
+      threadId: "thread-1",
+      workspacePath: "/tmp/ws",
+      figurePath: "/tmp/ws/figure.tex",
+      previewPath: "/tmp/ws/current.png"
+    });
+    expect(activeDoc().assistantThreadId).toBe("thread-1");
+
+    state = editorReducer(state, {
+      type: "ASSISTANT_THREAD_LOADED",
+      state: {
+        threadId: "thread-2",
+        workspacePath: "/tmp/ws2",
+        figurePath: "/tmp/ws2/figure.tex",
+        previewPath: "/tmp/ws2/current.png",
+        items: [{ type: "agentMessage", id: "agent-1", text: "hello" }]
+      }
+    });
+    expect(activeDoc().assistantThreadId).toBe("thread-2");
+    expect(activeDoc().assistantItems).toHaveLength(1);
+
+    state = {
+      ...state,
+      documents: {
+        ...state.documents,
+        [state.activeDocumentId]: {
+          ...state.documents[state.activeDocumentId]!,
+          assistantItems: [
+            { type: "userMessage", id: "optimistic-user-message:1", content: [] },
+            ...activeDoc().assistantItems
+          ]
+        }
+      }
+    };
+    state = editorReducer(state, {
+      type: "ASSISTANT_ITEM_STARTED",
+      item: { type: "userMessage", id: "user-1", content: [{ type: "text", text: "actual" }] }
+    });
+    expect(activeDoc().assistantItems.map((item) => item.id)).toEqual(["agent-1", "user-1"]);
+
+    state = editorReducer(state, {
+      type: "ASSISTANT_ITEM_UPDATED",
+      item: { type: "agentMessage", id: "agent-1", text: "hello world" }
+    });
+    expect(activeDoc().assistantItems.find((item) => item.id === "agent-1")).toMatchObject({ text: "hello world" });
+
+    for (const [item, deltaType, expected] of [
+      [{ type: "plan", id: "plan-1", text: "" }, "item/plan/delta", { text: " plan" }],
+      [{ type: "reasoning", id: "reason-1" }, "item/reasoning/summaryTextDelta", { summary: " plan" }],
+      [{ type: "reasoning", id: "reason-2" }, "item/reasoning/textDelta", { content: " plan" }],
+      [{ type: "commandExecution", id: "cmd-1" }, "item/commandExecution/outputDelta", { aggregatedOutput: " plan" }]
+    ] as const) {
+      state = editorReducer(state, { type: "ASSISTANT_ITEM_COMPLETED", item });
+      state = editorReducer(state, {
+        type: "ASSISTANT_ITEM_DELTA",
+        itemId: item.id,
+        deltaType,
+        delta: " plan"
+      });
+      expect(activeDoc().assistantItems.find((entry) => entry.id === item.id)).toMatchObject(expected);
+    }
+
+    const missingDelta = editorReducer(state, {
+      type: "ASSISTANT_ITEM_DELTA",
+      itemId: "missing",
+      deltaType: "item/agentMessage/delta",
+      delta: "ignored"
+    });
+    expect(missingDelta).toBe(state);
+
+    state = editorReducer(state, {
+      type: "ASSISTANT_APPROVAL_REQUESTED",
+      approval: { kind: "command", requestId: "approval-1", itemId: "cmd-1", threadId: "thread-2", turnId: "turn-1" }
+    });
+    state = editorReducer(state, {
+      type: "ASSISTANT_APPROVAL_REQUESTED",
+      approval: { kind: "command", requestId: "approval-1", itemId: "cmd-1", threadId: "thread-2", turnId: "turn-2" }
+    });
+    expect(activeDoc().assistantPendingApprovals).toHaveLength(1);
+    expect(activeDoc().assistantPendingApprovals[0]?.turnId).toBe("turn-2");
+
+    state = editorReducer(state, { type: "ASSISTANT_APPROVAL_CLEARED", requestId: "approval-1" });
+    expect(activeDoc().assistantPendingApprovals).toEqual([]);
+
+    state = editorReducer(state, { type: "ASSISTANT_SET_ERROR", message: "failed" });
+    expect(activeDoc().assistantError).toBe("failed");
+    state = editorReducer(state, { type: "ASSISTANT_NEW_CHAT" });
+    expect(activeDoc().assistantThreadId).toBeNull();
+    expect(activeDoc().assistantError).toBeNull();
+  });
+
+  it("handles assistant status and repeated source update edge cases", () => {
+    const initial = makeInitialState();
+    const failed = editorReducer(initial, {
+      type: "ASSISTANT_TURN_STATUS",
+      status: "failed",
+      error: "bad turn"
+    });
+    expect(failed.documents[failed.activeDocumentId]?.assistantTurnStatus).toBe("failed");
+    expect(failed.documents[failed.activeDocumentId]?.assistantCurrentTurnId).toBeNull();
+    expect(failed.documents[failed.activeDocumentId]?.assistantError).toBe("bad turn");
+
+    const idle = editorReducer(failed, {
+      type: "ASSISTANT_TURN_STATUS",
+      status: "idle"
+    });
+    expect(idle.documents[idle.activeDocumentId]?.assistantCurrentTurnId).toBeNull();
+    expect(idle.documents[idle.activeDocumentId]?.assistantLockReason).toBeNull();
+
+    const unchangedSource = editorReducer(idle, {
+      type: "ASSISTANT_SOURCE_UPDATED",
+      source: idle.source,
+      revisionToken: "same-source"
+    });
+    expect(unchangedSource.source).toBe(idle.source);
+    expect(unchangedSource.documents[unchangedSource.activeDocumentId]?.assistantLastSourceRevision).toBe("same-source");
+
+    const warned = {
+      ...unchangedSource,
+      lastEditWarningMessage: "old warning",
+      lastEditWarningToken: 3,
+      documents: {
+        ...unchangedSource.documents,
+        [unchangedSource.activeDocumentId]: {
+          ...unchangedSource.documents[unchangedSource.activeDocumentId]!,
+          lastEditWarningMessage: "old warning",
+          lastEditWarningToken: 3
+        }
+      }
+    };
+    const updated = editorReducer(warned, {
+      type: "ASSISTANT_SOURCE_UPDATED",
+      source: "assistant edit",
+      revisionToken: "new-source"
+    });
+    expect(updated.lastEditWarningMessage).toBeNull();
+    expect(updated.lastEditWarningToken).toBe(4);
   });
 });

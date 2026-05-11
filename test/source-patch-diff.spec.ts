@@ -26,6 +26,23 @@ describe("deriveSingleSourcePatch", () => {
 
     expect(patches).toBeNull();
   });
+
+  it("allows short replacements even when a longer edit would share interior runs", () => {
+    expect(deriveSingleSourcePatch("abcdef", "abcZef")).toEqual([
+      {
+        oldSpan: { from: 3, to: 4 },
+        newSpan: { from: 3, to: 4 },
+        replacement: "Z"
+      }
+    ]);
+    expect(deriveSingleSourcePatch("abcXYZdef", "abcUVWdef")).toEqual([
+      {
+        oldSpan: { from: 3, to: 6 },
+        newSpan: { from: 3, to: 6 },
+        replacement: "UVW"
+      }
+    ]);
+  });
 });
 
 function applyPatch(source: string, patches: ReadonlyArray<{
