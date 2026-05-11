@@ -33,7 +33,13 @@ export type DuplicateElementsAction = {
 };
 
 type EditActionResultLike =
-  | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[] }
+  | {
+      kind: "success";
+      newSource: string;
+      patches: SourcePatch[];
+      selectedSourceIds?: string[];
+      changedSourceIds?: string[];
+    }
   | {
       kind: "partial";
       newSource: string;
@@ -41,6 +47,7 @@ type EditActionResultLike =
       skippedHandles: string[];
       reason: string;
       selectedSourceIds?: string[];
+      changedSourceIds?: string[];
     }
   | { kind: "unsupported"; reason: string }
   | { kind: "error"; message: string };
@@ -131,6 +138,7 @@ export function applyPasteStatementsAction(
     getStatementSnapshot(applied.source, parseOptions, caches),
     insertedSpans
   );
+  const changedSourceIds = selectedSourceIds.length > 0 ? selectedSourceIds : undefined;
 
   if (shifted.partialReason) {
     return {
@@ -139,7 +147,8 @@ export function applyPasteStatementsAction(
       patches: applied.patches,
       skippedHandles: shifted.skippedHandles,
       reason: shifted.partialReason,
-      selectedSourceIds: selectedSourceIds.length > 0 ? selectedSourceIds : undefined
+      selectedSourceIds: changedSourceIds,
+      changedSourceIds
     };
   }
 
@@ -147,7 +156,8 @@ export function applyPasteStatementsAction(
     kind: "success",
     newSource: applied.source,
     patches: applied.patches,
-    selectedSourceIds: selectedSourceIds.length > 0 ? selectedSourceIds : undefined
+    selectedSourceIds: changedSourceIds,
+    changedSourceIds
   };
 }
 
@@ -226,6 +236,7 @@ export function applyDuplicateElementsAction(
     getStatementSnapshot(currentSource, parseOptions, caches),
     insertedSpans
   );
+  const changedSourceIds = selectedSourceIds.length > 0 ? selectedSourceIds : undefined;
   if (partialReasons.length > 0) {
     return {
       kind: "partial",
@@ -233,7 +244,8 @@ export function applyDuplicateElementsAction(
       patches,
       skippedHandles: deps.uniqueStrings(partialSkippedHandles),
       reason: deps.uniqueStrings(partialReasons).join(" "),
-      selectedSourceIds: selectedSourceIds.length > 0 ? selectedSourceIds : undefined
+      selectedSourceIds: changedSourceIds,
+      changedSourceIds
     };
   }
 
@@ -241,7 +253,8 @@ export function applyDuplicateElementsAction(
     kind: "success",
     newSource: currentSource,
     patches,
-    selectedSourceIds: selectedSourceIds.length > 0 ? selectedSourceIds : undefined
+    selectedSourceIds: changedSourceIds,
+    changedSourceIds
   };
 }
 

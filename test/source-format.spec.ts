@@ -141,6 +141,21 @@ blue
 \end{tikzpicture}`);
   });
 
+  it("keeps blank-line runs when requested and clamps unusual max line lengths", () => {
+    const source = "\n\\begin{tikzpicture}\n\n\\draw[draw=red,fill=blue] (0,0) -- (1,0);\n\\end{tikzpicture}";
+
+    expect(formatTikzSource(source, { collapseBlankLines: false })).toBe(
+      "\n\\begin{tikzpicture}\n\n  \\draw[draw=red, fill=blue] (0,0) -- (1,0);\n\\end{tikzpicture}"
+    );
+    expect(formatTikzSource(source, { maxLineLength: Number.POSITIVE_INFINITY })).toContain(
+      "\\draw[draw=red, fill=blue]"
+    );
+    expect(formatTikzSource(source, { maxLineLength: 1 })).toContain(
+      "  \\draw[\n    draw=red,\n    fill=blue\n  ]"
+    );
+    expect(formatTikzSource(source, { maxLineLength: 999 })).toContain("\\draw[draw=red, fill=blue]");
+  });
+
   it("does not reflow option lists containing comments", () => {
     const source = String.raw`\begin{tikzpicture}
 \draw[draw=red, % keep this
@@ -151,6 +166,53 @@ line width=2pt, fill=blue] (0,0) -- (1,1);
     expect(formatted).toBe(String.raw`\begin{tikzpicture}
   \draw[draw=red, % keep this
     line width=2pt, fill=blue] (0,0) -- (1,1);
+\end{tikzpicture}`);
+  });
+
+  it("leaves incomplete and single-entry option lists untouched", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw[draw (0,0) -- (1,0);
+\node[draw] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const formatted = formatTikzSource(source);
+    expect(formatted).toBe(String.raw`\begin{tikzpicture}
+  \draw[draw (0,0) -- (1,0);
+  \node[draw] at (0,0) {A};
+\end{tikzpicture}`);
+  });
+
+  it("normalizes only top-level option commas and equals through nested syntax", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw[shift = {(1,2)}, decorate/.style={markings, mark=at position 0.5 with {\arrow{>}}}, path picture={\node[draw=red] {};}, draw = blue] (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const formatted = formatTikzSource(source, { maxLineLength: 240 });
+    expect(formatted).toBe(String.raw`\begin{tikzpicture}
+  \draw[shift={(1,2)}, decorate/.style={markings, mark=at position 0.5 with {\arrow{>}}}, path picture={\node[draw=red] {};}, draw=blue] (0,0) -- (1,0);
+\end{tikzpicture}`);
+  });
+
+  it("dedents leading braces and option closers on continued lines", () => {
+    const source = String.raw`\begin{tikzpicture}
+\node {
+text
+}
+[
+draw
+]
+at (0,0) {A};
+\end{tikzpicture}`;
+
+    const formatted = formatTikzSource(source);
+    expect(formatted).toBe(String.raw`\begin{tikzpicture}
+  \node {
+    text
+  }
+    [
+    draw
+  ]
+    at (0,0) {A};
 \end{tikzpicture}`);
   });
 

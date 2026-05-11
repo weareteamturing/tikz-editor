@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { worldPoint as makeWorldPoint } from "../../packages/core/src/coords/points.js";
 import { pt } from "../../packages/core/src/coords/scalars.js";
 import { worldTransform } from "../../packages/core/src/coords/transforms.js";
-import type { CoordinateItem } from "../../packages/core/src/ast/types.js";
+import type { CoordinateItem, PathOptionItem, PathStatement } from "../../packages/core/src/ast/types.js";
 import type { OptionListAst, OptionEntry } from "../../packages/core/src/options/types.js";
 import type { PlacementSegment } from "../../packages/core/src/semantic/path/types.js";
 import {
@@ -11,6 +11,11 @@ import {
   parseCoordinateOperation,
   parseEllipseRadiiFromCoordinateRaw
 } from "../../packages/core/src/semantic/path/parsers.js";
+import {
+  appendArcCommand,
+  extractArcParameters,
+  parseArcShorthand
+} from "../../packages/core/src/semantic/path/arc.js";
 import {
   extractGridStepsFromOptionList,
   extractGridStepsFromOptionLists,
@@ -22,7 +27,11 @@ import {
 } from "../../packages/core/src/semantic/path/evaluate-coordinate-helpers.js";
 import { parseSvgPathOperation } from "../../packages/core/src/semantic/path/svg.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "../../packages/core/src/semantic/path/segments.js";
-import { collectPathIntersectionDirectives } from "../../packages/core/src/semantic/path/intersections.js";
+import {
+  applyNameIntersectionsDirective,
+  collectPathIntersectionDirectives,
+  registerNamedPath
+} from "../../packages/core/src/semantic/path/intersections.js";
 import {
   cloneAdornmentOwnerGeometry,
   extractNodeAdornmentPlan,
@@ -44,6 +53,10 @@ import {
   stripOptionListBrackets,
   trimRightIndex
 } from "../../packages/core/src/semantic/path/graph-parse-utils.js";
+import {
+  resolveSizeAwareGraphNodePoints,
+  type RuntimeGraphNode
+} from "../../packages/core/src/semantic/path/graph-size-aware-placement.js";
 import {
   currentAnchorForDirection,
   parseDirectionalKey,
@@ -67,11 +80,14 @@ import {
 import { defaultStyle } from "../../packages/core/src/semantic/style/defaults.js";
 import {
   createSemanticContext,
+  readContextMacroBinding,
+  readNamedCoordinate,
+  writeContextMacroBinding,
   writeNamedCoordinate,
   writeNamedNodeGeometry,
   type NamedNodeGeometry
 } from "../../packages/core/src/semantic/context.js";
-import type { ScenePathCommand } from "../../packages/core/src/semantic/types.js";
+import type { SceneCircle, SceneElement, SceneEllipse, ScenePath, ScenePathCommand } from "../../packages/core/src/semantic/types.js";
 
 const span = { from: 0, to: 0 };
 const identity = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
@@ -112,6 +128,98 @@ function coordinate(item: Partial<CoordinateItem>): CoordinateItem {
   } as CoordinateItem;
 }
 
+function pathOption(entries: OptionEntry[]): PathOptionItem {
+  return {
+    kind: "PathOption",
+    id: "path-option",
+    raw: "",
+    span,
+    options: options(...entries),
+    optionsSpan: span
+  } as PathOptionItem;
+}
+
+function sourceRef(sourceId: string) {
+  return {
+    sourceId,
+    sourceSpan: span,
+    sourceFingerprint: "test-fingerprint"
+  };
+}
+
+function scenePath(sourceId: string, commands: ScenePathCommand[]): ScenePath {
+  return {
+    kind: "Path",
+    id: `path:${sourceId}`,
+    runtimeId: `runtime:path:${sourceId}`,
+    sourceRef: sourceRef(sourceId),
+    style: {} as ScenePath["style"],
+    styleChain: [],
+    commands
+  };
+}
+
+function sceneCircle(sourceId: string, centerX: number, centerY: number, radius: number): SceneCircle {
+  return {
+    kind: "Circle",
+    id: `circle:${sourceId}`,
+    runtimeId: `runtime:circle:${sourceId}`,
+    sourceRef: sourceRef(sourceId),
+    style: {} as SceneCircle["style"],
+    styleChain: [],
+    center: p(centerX, centerY),
+    radius
+  };
+}
+
+function sceneEllipse(sourceId: string, centerX: number, centerY: number, rx: number, ry: number, rotation = 0): SceneEllipse {
+  return {
+    kind: "Ellipse",
+    id: `ellipse:${sourceId}`,
+    runtimeId: `runtime:ellipse:${sourceId}`,
+    sourceRef: sourceRef(sourceId),
+    style: {} as SceneEllipse["style"],
+    styleChain: [],
+    center: p(centerX, centerY),
+    rx,
+    ry,
+    rotation
+  };
+}
+
+function graphRuntimeNode(
+  nodeIndex: number,
+  logicalWidth: number,
+  logicalDepth: number,
+  overrides: Partial<RuntimeGraphNode["placementHint"]> = {}
+): RuntimeGraphNode {
+  return {
+    nodeIndex,
+    defaultPoint: p(logicalWidth * 10, logicalDepth * 10),
+    syntheticNode: {
+      kind: "Node",
+      id: `graph-node:${nodeIndex}`,
+      raw: "A",
+      templateRaw: "A",
+      span,
+      textSource: "group",
+      textSpan: span,
+      text: "A"
+    },
+    placementHint: {
+      mode: "grid",
+      logicalWidth,
+      logicalDepth,
+      level: logicalWidth + logicalDepth + 1,
+      chainShift: { x: 10, y: 0 },
+      groupShift: { x: 0, y: 10 },
+      chainSepDistance: 4,
+      groupSepDistance: 5,
+      ...overrides
+    }
+  };
+}
+
 describe("semantic path helper parsers", () => {
   it("parses coordinate operations and rejects non-coordinate forms", () => {
     expect(parseCoordinateOperation("coordinate (foo) at (1,2)")).toEqual({ name: "foo" });
@@ -134,6 +242,49 @@ describe("semantic path helper parsers", () => {
     expect(ellipse?.ry).toEqual({ value: 2, applyFrameTransform: false });
     expect(parseEllipseRadiiFromCoordinateRaw("(1,2)")).toBeNull();
     expect(parseEllipseRadiiFromCoordinateRaw("(bad and 2pt)")).toBeNull();
+  });
+
+  it("parses arc parameters, shorthand syntax, diagnostics, and transformed arcs", () => {
+    const diagnostics: string[] = [];
+    const pushDiagnostic = (_code: string, message: string) => diagnostics.push(message);
+    expect(
+      extractArcParameters(
+        pathOption([
+          flag("ignored"),
+          kv("start angle", "10"),
+          kv("delta angle", "45"),
+          kv("radius", "2pt"),
+          kv("x radius", "bad")
+        ]),
+        pushDiagnostic,
+        { radius: 3 } as never
+      )
+    ).toMatchObject({ startAngle: 10, endAngle: 55, rx: 2, ry: 2 });
+    expect(extractArcParameters(pathOption([kv("end angle", "20"), kv("radius", "1pt")]), pushDiagnostic, {} as never)).toBeNull();
+    expect(extractArcParameters(pathOption([kv("start angle", "0"), kv("radius", "1pt")]), pushDiagnostic, {} as never)).toBeNull();
+    expect(extractArcParameters(pathOption([kv("start angle", "0"), kv("end angle", "90")]), pushDiagnostic, {} as never)).toBeNull();
+    expect(diagnostics).toEqual([
+      "Arc requires a start angle.",
+      "Arc requires an end angle or delta angle.",
+      "Arc requires `radius` or both `x radius` and `y radius`."
+    ]);
+
+    expect(parseArcShorthand("(0:90:1cm and 2pt)")).toMatchObject({ startAngle: 0, endAngle: 90 });
+    expect(parseArcShorthand("(0:90:bad and 2pt)")).toBeNull();
+    expect(parseArcShorthand("(0:bad:1cm)")).toBeNull();
+    expect(parseArcShorthand("(0:90:bad)")).toBeNull();
+    expect(parseArcShorthand("(0:90)")).toBeNull();
+    expect(parseArcShorthand("0:90:1cm")).toBeNull();
+
+    const commands: ScenePathCommand[] = [];
+    const normal = appendArcCommand(commands, p(1, 0), { startAngle: 0, endAngle: 270, rx: 1, ry: 2 });
+    const reflected = appendArcCommand(commands, p(1, 0), { startAngle: 0, endAngle: -90, rx: 1, ry: 2 }, { a: -1, b: 0, c: 0, d: 1 });
+    const singular = appendArcCommand(commands, p(0, 0), { startAngle: 0, endAngle: 90, rx: 0, ry: 0 }, { a: 0, b: 0, c: 0, d: 0 });
+    expect(normal.endpoint).toBeDefined();
+    expect(reflected.endpoint).toBeDefined();
+    expect(singular.endpoint).toBeDefined();
+    expect(commands[0]).toMatchObject({ kind: "A", largeArc: true, sweep: true });
+    expect(commands[1]).toMatchObject({ kind: "A", sweep: true });
   });
 });
 
@@ -296,6 +447,31 @@ describe("semantic path segment helpers", () => {
 });
 
 describe("semantic label and quote helpers", () => {
+  it("handles empty adornment inputs and label quote defaults", () => {
+    expect(extractNodeAdornmentPlan(undefined)).toEqual({ mainOptions: undefined, adornments: [] });
+    expect(stripAdornmentInternalStyleOptions(undefined)).toBeUndefined();
+    expect(extractToLikeOptionPlan({ id: "edge", options: undefined } as never).generatedNodes).toEqual([]);
+
+    const plan = extractNodeAdornmentPlan(
+      options(
+        flag("quotes mean label"),
+        kv("label position", "below right"),
+        kv("label distance", "bad"),
+        unknown('"Plain quote"'),
+        unknown('"Styled quote"{text=blue}'),
+        unknown('"unterminated'),
+        unknown("'"),
+        kv("label", "{:{Fallback angle}}"),
+        kv("label", "{[name=keep]center:}"),
+        flag("quotes mean pin")
+      )
+    );
+
+    expect(plan.mainOptions?.entries.map((entry) => entry.raw)).toEqual(["\"unterminated", "'"]);
+    expect(plan.adornments.map((adornment) => adornment.text)).toEqual(["Plain quote", "Styled quote", "Fallback angle"]);
+    expect(plan.adornments.map((adornment) => adornment.angleRaw)).toEqual(["below right", "below right", "below right"]);
+  });
+
   it("extracts node adornments, quote shorthand, defaults, and retained main options", () => {
     const plan = extractNodeAdornmentPlan(
       options(
@@ -438,6 +614,46 @@ describe("semantic label and quote helpers", () => {
       (entry) => entry.kind === "kv" && entry.key === "anchor"
     )).toBe(true);
 
+    for (const [angle, expectedAnchor] of [
+      ["45", "south west"],
+      ["90", "south"],
+      ["135", "south east"],
+      ["180", "east"],
+      ["225", "north east"],
+      ["270", "north"],
+      ["315", "north west"],
+      ["-10", "north west"]
+    ] as const) {
+      const directionalSpec = extractNodeAdornmentPlan(options(kv("label", `{${angle}:{${angle}}}`))).adornments[0];
+      if (!directionalSpec) {
+        throw new Error("Expected directional label spec");
+      }
+      const directional = materializeNodeAdornment({
+        spec: directionalSpec,
+        context,
+        mainNodeNameRaw: "missing",
+        ownerId: `missing-${angle}`,
+        adornmentIndex: 0
+      });
+      expect(directional.node.options?.entries.some(
+        (entry) => entry.kind === "kv" && entry.key === "anchor" && entry.valueRaw === expectedAnchor
+      )).toBe(true);
+    }
+
+    const explicitPlacementSpec = extractNodeAdornmentPlan(options(kv("label", "{[anchor=south,at={(1pt,2pt)},name=manual]45:{Manual}}"))).adornments[0];
+    if (!explicitPlacementSpec) {
+      throw new Error("Expected explicit placement label spec");
+    }
+    const explicitPlacement = materializeNodeAdornment({
+      spec: explicitPlacementSpec,
+      context,
+      mainNodeNameRaw: "A",
+      ownerId: "manual",
+      adornmentIndex: 0
+    });
+    expect(explicitPlacement.node.options?.entries.filter((entry) => entry.kind === "kv" && entry.key === "anchor")).toHaveLength(1);
+    expect(explicitPlacement.node.options?.entries.filter((entry) => entry.kind === "kv" && entry.key === "at")).toHaveLength(1);
+
     writeNamedCoordinate(context, "singularCircle", p(10, 20));
     writeNamedNodeGeometry(context, "singularCircle", {
       ...baseGeometry,
@@ -460,7 +676,10 @@ describe("semantic path intersection directives", () => {
   it("collects named paths and parses rich name-intersections directives", () => {
     const collected = collectPathIntersectionDirectives([
       options(
+        flag("draw"),
+        kv("stroke", "red"),
         kv("name path", "{ outer }"),
+        kv("name path local", "{}"),
         kv("name path global", "outer"),
         kv("name intersections", "{of={outer} and {inner}, by={[near] first, second}, name={hit}, sort by={outer}, total=\\hitCount}")
       )
@@ -475,6 +694,23 @@ describe("semantic path intersection directives", () => {
       byNames: ["first", "second"],
       sortBy: "outer",
       totalMacro: "\\hitCount"
+    });
+
+    const nested = collectPathIntersectionDirectives([
+      options(
+        kv(
+          "name intersections",
+          String.raw`{ignored, of={left \(kept\)} and {right {kept}}, by={[style={[inner option]}] alpha, [draw] beta}, name={}, sort by={}, total={\totalMacro extra}}`
+        )
+      )
+    ]);
+    expect(nested.diagnostics).toEqual([]);
+    expect(nested.nameIntersections).toMatchObject({
+      firstPathName: "left \\(kept\\)",
+      secondPathName: "right {kept}",
+      prefix: "intersection",
+      byNames: ["alpha", "beta"],
+      totalMacro: "\\totalMacro"
     });
   });
 
@@ -494,6 +730,154 @@ describe("semantic path intersection directives", () => {
     ]);
     expect(unmatchedBracket.nameIntersections?.byNames).toEqual(["{[style first, second}, total=notAMacro"]);
     expect(unmatchedBracket.nameIntersections?.totalMacro).toBeUndefined();
+  });
+
+  it("registers sampled paths and applies intersection directives", () => {
+    const context = createSemanticContext(defaultStyle(), identityTransform);
+    const nonGeometry = {
+      kind: "Text",
+      id: "text:ignored",
+      runtimeId: "runtime:text:ignored",
+      sourceRef: sourceRef("text"),
+      style: {} as Extract<SceneElement, { kind: "Text" }>["style"],
+      styleChain: [],
+      position: p(0, 0),
+      text: "ignored"
+    } satisfies SceneElement;
+
+    expect(registerNamedPath("{}", [scenePath("empty", [{ kind: "M", to: p(0, 0) }])], context)).toBe(false);
+    expect(registerNamedPath(" first ", [
+      scenePath("first", [
+        { kind: "M", to: p(0, 0) },
+        { kind: "L", to: p(10, 10) },
+        { kind: "M", to: p(0, 10) },
+        { kind: "L", to: p(10, 0) },
+        { kind: "Z" }
+      ]),
+      nonGeometry
+    ], context)).toBe(true);
+    expect(registerNamedPath("second", [
+      scenePath("second", [
+        { kind: "M", to: p(4, -2) },
+        { kind: "L", to: p(4, 12) }
+      ])
+    ], context)).toBe(true);
+
+    expect(
+      applyNameIntersectionsDirective(
+        {
+          firstPathName: "missing",
+          secondPathName: "second",
+          prefix: "hit",
+          byNames: [],
+          span
+        },
+        context
+      )
+    ).toEqual(["unknown-named-path:missing"]);
+    expect(
+      applyNameIntersectionsDirective(
+        {
+          firstPathName: "first",
+          secondPathName: "missing",
+          prefix: "hit",
+          byNames: [],
+          span
+        },
+        context
+      )
+    ).toEqual(["unknown-named-path:missing"]);
+
+    expect(
+      applyNameIntersectionsDirective(
+        {
+          firstPathName: "first",
+          secondPathName: "second",
+          prefix: "hit",
+          byNames: ["aliasA", "", "aliasB"],
+          sortBy: "first",
+          totalMacro: "\\hits",
+          span
+        },
+        context
+      )
+    ).toEqual([]);
+    expect(readNamedCoordinate(context, "hit-1")).toMatchObject({ x: 4 });
+    expect(readNamedCoordinate(context, "hit-2")).toMatchObject({ x: 4 });
+    expect(readNamedCoordinate(context, "aliasA")).toMatchObject({ x: 4 });
+    expect(readNamedCoordinate(context, "aliasB")).toBeUndefined();
+    expect(readContextMacroBinding(context, "\\hits")?.value).toBe("2");
+
+    expect(registerNamedPath("empty", [scenePath("just-move", [{ kind: "M", to: p(0, 0) }])], context)).toBe(true);
+    expect(
+      applyNameIntersectionsDirective(
+        {
+          firstPathName: "empty",
+          secondPathName: "second",
+          prefix: "none",
+          byNames: [],
+          totalMacro: "\\none",
+          span
+        },
+        context
+      )
+    ).toEqual([]);
+    expect(readContextMacroBinding(context, "\\none")?.value).toBe("0");
+  });
+
+  it("samples curved, circular, and elliptical named paths for intersections", () => {
+    const context = createSemanticContext(defaultStyle(), identityTransform);
+    registerNamedPath("curve", [
+      scenePath("curve", [
+        { kind: "M", to: p(0, 0) },
+        { kind: "C", c1: p(5, 12), c2: p(5, -12), to: p(10, 0) }
+      ])
+    ], context);
+    registerNamedPath("curve-again", [
+      scenePath("curve-again", [
+        { kind: "M", to: p(0, 0) },
+        { kind: "C", c1: p(5, -12), c2: p(5, 12), to: p(10, 0) }
+      ])
+    ], context);
+    registerNamedPath("horizontal", [
+      scenePath("horizontal", [
+        { kind: "M", to: p(-10, 0) },
+        { kind: "L", to: p(10, 0) },
+        { kind: "A", rx: 1, ry: 1, xAxisRotation: 0, largeArc: false, sweep: true, to: p(11, 0) }
+      ])
+    ], context);
+    registerNamedPath("rounds", [
+      sceneCircle("circle", 0, 0, 4),
+      sceneCircle("flat-circle", 0, 0, 0),
+      sceneEllipse("ellipse", 0, 0, 6, 3, 30),
+      sceneEllipse("flat-ellipse", 0, 0, 0, 3)
+    ], context);
+
+    applyNameIntersectionsDirective(
+      {
+        firstPathName: "curve",
+        secondPathName: "curve-again",
+        prefix: "curve-hit",
+        byNames: [],
+        span
+      },
+      context
+    );
+    applyNameIntersectionsDirective(
+      {
+        firstPathName: "rounds",
+        secondPathName: "horizontal",
+        prefix: "round-hit",
+        byNames: [],
+        sortBy: "horizontal",
+        span
+      },
+      context
+    );
+
+    expect(readNamedCoordinate(context, "curve-hit-1")).toBeDefined();
+    expect(readNamedCoordinate(context, "round-hit-1")).toBeDefined();
+    expect(readNamedCoordinate(context, "round-hit-2")).toBeDefined();
   });
 });
 
@@ -616,6 +1000,62 @@ describe("semantic graph parse helpers", () => {
   });
 });
 
+describe("semantic size-aware graph placement", () => {
+  it("rejects unsupported hint sets and resolves compatible grid placements", () => {
+    const context = createSemanticContext(defaultStyle(), identityTransform);
+    const statement = {
+      kind: "Path",
+      id: "graph-statement",
+      span,
+      command: "draw",
+      items: []
+    } as PathStatement;
+
+    expect(resolveSizeAwareGraphNodePoints([], statement, context, defaultStyle()).size).toBe(0);
+    expect(resolveSizeAwareGraphNodePoints([{ ...graphRuntimeNode(0, 0, 0), placementHint: undefined }], statement, context, defaultStyle()).size).toBe(0);
+    expect(resolveSizeAwareGraphNodePoints([graphRuntimeNode(0, 0, 0, { mode: "circular" })], statement, context, defaultStyle()).size).toBe(0);
+    expect(resolveSizeAwareGraphNodePoints([graphRuntimeNode(0, 0, 0, { chainSepDistance: null, groupSepDistance: null })], statement, context, defaultStyle()).size).toBe(0);
+    expect(
+      resolveSizeAwareGraphNodePoints(
+        [
+          graphRuntimeNode(0, 0, 0),
+          graphRuntimeNode(1, 1, 0, { chainShift: { x: 11, y: 0 } })
+        ],
+        statement,
+        context,
+        defaultStyle()
+      ).size
+    ).toBe(0);
+    expect(resolveSizeAwareGraphNodePoints([graphRuntimeNode(0, 0, 0, { chainShift: { x: 0, y: 0 } })], statement, context, defaultStyle()).size).toBe(0);
+
+    const resolved = resolveSizeAwareGraphNodePoints(
+      [
+        graphRuntimeNode(0, 0, 0),
+        graphRuntimeNode(1, 2, 0),
+        graphRuntimeNode(2, 2, 2)
+      ],
+      statement,
+      context,
+      defaultStyle()
+    );
+    expect(resolved.size).toBe(3);
+    expect(resolved.get(0)).toMatchObject({ x: 0, y: 0 });
+    expect((resolved.get(1)?.x ?? 0) > 10).toBe(true);
+    expect((resolved.get(2)?.y ?? 0) > 10).toBe(true);
+
+    const fallbackStep = resolveSizeAwareGraphNodePoints(
+      [
+        graphRuntimeNode(0, 0, 0, { groupSepDistance: null }),
+        graphRuntimeNode(1, 0, 2, { groupSepDistance: null })
+      ],
+      statement,
+      context,
+      defaultStyle()
+    );
+    expect(fallbackStep.get(1)?.y).toBeCloseTo(20, 6);
+  });
+});
+
 describe("semantic node positioning helpers", () => {
   it("parses directional keys, anchors, and node distance values", () => {
     expect(parseDirectionalKey(" Above Left ")).toEqual({ direction: "above left", legacyOf: false });
@@ -688,6 +1128,11 @@ describe("semantic evaluate-plot helpers", () => {
   };
 
   it("extracts and evaluates plot coordinate entries with relative current-point semantics", () => {
+    expect(extractPlotCoordinateEntries(String.raw` junk + (1,\(kept\)), ++(2,(3)), trailing `)).toEqual([
+      { raw: String.raw`(1,\(kept\))`, relativePrefix: "+" },
+      { raw: "(2,(3))", relativePrefix: "++" }
+    ]);
+    expect(extractPlotCoordinateEntries("{ , }")).toEqual([]);
     expect(extractPlotCoordinateEntries(String.raw`{ junk +(1,0), ++(2,0), (3,0) }`)).toEqual([
       { raw: "(1,0)", relativePrefix: "+" },
       { raw: "(2,0)", relativePrefix: "++" },
@@ -791,6 +1236,34 @@ describe("semantic evaluate-plot helpers", () => {
     }
   });
 
+  it("emits connected and single-point plot handler edge cases", () => {
+    for (const handler of ["sharp-cycle", "smooth", "smooth-cycle", "const-left", "const-right", "const-mid", "jump-left", "jump-right", "jump-mid", "ybar-interval", "xbar-interval"] as const) {
+      const geometryElements = [];
+      const settings = {
+        ...createDefaultPlotSettings(),
+        handler,
+        mark: handler.includes("mid") ? "x" : handler.includes("right") ? "*" : "+"
+      };
+      const result = emitPlotPath({
+        statementId: `single-${handler}`,
+        item: plotItem,
+        points: [p(1, 2)],
+        settings,
+        connectFrom: p(0, 0),
+        style: {},
+        styleChain: [],
+        geometryElements,
+        markFeature: () => undefined,
+        activeRoundedCorners: null,
+        setCurrentPoint: () => undefined,
+        setPathStartPoint: () => undefined
+      });
+
+      expect(geometryElements.length).toBeGreaterThan(0);
+      expect(result.lastPlacementSegment).not.toBeNull();
+    }
+  });
+
   it("handles empty plots, expression sampling, binding restore, and raw coordinate evaluation", () => {
     const geometryElements = [];
     let current: WorldPoint | null = p(5, 5);
@@ -823,6 +1296,7 @@ describe("semantic evaluate-plot helpers", () => {
     const settings = { ...createDefaultPlotSettings(), variable: "\\t", samplesAt: [0, 0.5, 1] };
     const bindings = new Map();
     bindings.set("\\t", { kind: "text", value: "old", provenance: [] });
+    writeContextMacroBinding(context, "\\t", { kind: "text", value: "context-old", provenance: [] });
     expect(buildPlotExpressionEntries({
       context,
       consumerStatementId: "stmt",
@@ -830,6 +1304,7 @@ describe("semantic evaluate-plot helpers", () => {
       settings,
       macroBindings: bindings
     })).toEqual([{ raw: "(old,old)" }, { raw: "(old,old)" }, { raw: "(old,old)" }]);
+    expect(readContextMacroBinding(context, "\\t", "stmt")?.value).toBe("context-old");
 
     let rawCurrent: WorldPoint | null = null;
     const evaluated = defaultEvaluateCoordinateRaw(

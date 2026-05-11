@@ -224,7 +224,7 @@ export function closestPointOnPlacementSegment(segment: PlacementSegment, point:
 export function resolvePathAttachedNodeRegime(
   options: OptionListAst | undefined,
   styleChain: readonly StyleChainEntry[] = []
-): ScenePathAttachment["regime"] | null {
+): ScenePathAttachment["regime"] {
   const explicitDirection = resolveExplicitPathDirection(options);
   if (explicitDirection) {
     return explicitDirection;

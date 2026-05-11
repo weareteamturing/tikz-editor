@@ -42,6 +42,18 @@ describe("semantic evaluator / coordinates and path ops", () => {
       }
     });
 
+    it("reports invalid polar and current-point-free relative coordinates", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw +(1,0);
+    \draw (bad:1cm) -- (45:bad);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "relative-coordinate-without-current-point")).toBe(true);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-polar-coordinate:(bad:1cm)")).toBe(true);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-polar-coordinate:(45:bad)")).toBe(true);
+    });
+
     it("keeps `+` relative bases while advancing the drawn path cursor", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw (0,0) +(0:1) -- +(90:1) -- +(180:1);
@@ -729,6 +741,16 @@ describe("semantic evaluator / coordinates and path ops", () => {
         expect(line.to.x).toBeCloseTo(28.4528, 3);
         expect(line.to.y).toBeCloseTo(28.4528, 3);
       }
+    });
+
+    it("reports invalid explicit intersection coordinates with malformed line endpoints", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (intersection cs:first line={(missing)--(2,2)}, second line={(0,2)--(2,0)});
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:missing")).toBe(true);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("invalid-explicit-coordinate:"))).toBe(true);
     });
 
     it("supports name path and name intersections with alias naming", () => {

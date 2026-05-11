@@ -337,6 +337,26 @@ describe("svg emitter", () => {
     expect(patternDefs.length).toBe(1);
   });
 
+  it("emits colored predefined legacy pattern variants", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[pattern={horizontal lines light gray}] (0,0) rectangle (1,1);
+  \draw[pattern={horizontal lines gray}] (1,0) rectangle (2,1);
+  \draw[pattern={horizontal lines dark gray}] (2,0) rectangle (3,1);
+  \draw[pattern={horizontal lines light blue}] (3,0) rectangle (4,1);
+  \draw[pattern={horizontal lines dark blue}] (4,0) rectangle (5,1);
+  \draw[pattern={crosshatch dots gray}] (5,0) rectangle (6,1);
+  \draw[pattern={crosshatch dots light steel blue}] (6,0) rectangle (7,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const patternDefs = emitted.svg.match(/<pattern id="tikz-pattern-[^"]+"/g) ?? [];
+    expect(patternDefs.length).toBe(7);
+    expect(emitted.svg).toContain("#afc3dd");
+    expect(emitted.svg.match(/fill="url\(#tikz-pattern-[^"]+\)"/g)?.length ?? 0).toBe(7);
+  });
+
   it("reports unsupported shading names while falling back to fill color", () => {
     const source = String.raw`\begin{tikzpicture}
   \shade[shading=color wheel] (0,0) rectangle (1,1);

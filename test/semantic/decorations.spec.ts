@@ -243,6 +243,55 @@ describe("semantic evaluator / decorations", () => {
       }
     });
 
+    it("handles text-along-path edge cases for empty text, raw alignment, and short paths", () => {
+      const empty = applyDecorationToPath(
+        linePath(makeDecoration("text along path", { text: "   " })),
+        makeDecoration("text along path", { text: "   " }),
+        "seed:text-empty"
+      );
+      expect(empty).toMatchObject({ kind: "decorated", elements: [] });
+
+      const style = {
+        ...defaultStyle(),
+        stroke: "#123456",
+        textColor: null,
+        decoration: makeDecoration("text along path", {
+          text: String.raw`i,. A\space!z`,
+          "text color": ".",
+          "reverse path": "off",
+          "text align": "right"
+        }),
+        decorationPreActions: [],
+        decorationPostActions: []
+      };
+      const result = applyDecorationToPath(
+        {
+          ...linePath(style.decoration),
+          style
+        },
+        style.decoration,
+        "seed:text-options"
+      );
+      expect(result.kind).toBe("decorated");
+      const textElements = result.elements.filter((element) => element.kind === "Text");
+      expect(textElements.length).toBeGreaterThan(3);
+      expect(textElements[0]?.kind).toBe("Text");
+      if (textElements[0]?.kind === "Text") {
+        expect(textElements[0].style.textColor).toBe("#123456");
+      }
+
+      const tooLong = applyDecorationToPath(
+        makePath([
+          { kind: "M", to: worldPoint(pt(0), pt(0)) },
+          { kind: "L", to: worldPoint(pt(6), pt(0)) }
+        ], makeDecoration("text along path", { text: "too long for path", "text align": "{align=diagonal,left indent=bad,right indent=bad}" })),
+        makeDecoration("text along path", { text: "too long for path", "text align": "{align=diagonal,left indent=bad,right indent=bad}" }),
+        "seed:text-short"
+      );
+      expect(tooLong.kind).toBe("decorated");
+      expect(tooLong.elements.length).toBeLessThan("too long for path".length);
+    });
+
     it("keeps the original path for postaction text-along-path decorations", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw[postaction={decorate,decoration={text along path,text={AB}}}] (0,0) -- (3,0);
@@ -328,12 +377,158 @@ describe("semantic evaluator / decorations", () => {
       }
     });
 
+    it("falls back to lineto for blank pre/post decorations and keeps closed full-path replacements closed", () => {
+      const squareCommands: ScenePathCommand[] = [
+        { kind: "M", to: worldPoint(pt(0), pt(0)) },
+        { kind: "L", to: worldPoint(pt(40), pt(0)) },
+        { kind: "L", to: worldPoint(pt(40), pt(40)) },
+        { kind: "Z" }
+      ];
+      const fullDecoration = makeDecoration("lineto", { "segment length": "12pt" });
+      const fullResult = applyDecorationToPath(makePath(squareCommands, fullDecoration), fullDecoration, "seed:closed-full");
+      expect(fullResult.kind).toBe("decorated");
+      const closedPath = fullResult.elements[0];
+      expect(closedPath?.kind).toBe("Path");
+      if (closedPath?.kind === "Path") {
+        expect(closedPath.commands.at(-1)?.kind).toBe("Z");
+      }
+
+      const rangedDecoration = makeDecoration("zigzag", { "segment length": "10pt", amplitude: "2pt" });
+      rangedDecoration.pre = "";
+      rangedDecoration.preLength = 8;
+      rangedDecoration.post = "name=";
+      rangedDecoration.postLength = 8;
+      rangedDecoration.transformRaw = "{shift only=0,shift={(bad,1pt)},xscale=2,yscale=0.5,rotate=90}";
+      const rangedResult = applyDecorationToPath(linePath(rangedDecoration), rangedDecoration, "seed:blank-ranges");
+      expect(rangedResult.kind).toBe("decorated");
+      const rangedPath = rangedResult.elements[0];
+      expect(rangedPath?.kind).toBe("Path");
+      if (rangedPath?.kind === "Path") {
+        expect(rangedPath.commands.length).toBeGreaterThan(8);
+      }
+    });
+
+    it("handles exhausted text-path ranges, boolean variants, and current-color fallbacks", () => {
+      const zeroLengthDecoration = makeDecoration("text along path", { text: "A" });
+      const zeroLength = applyDecorationToPath(
+        makePath([
+          { kind: "M", to: worldPoint(pt(0), pt(0)) },
+          { kind: "L", to: worldPoint(pt(0), pt(0)) }
+        ], zeroLengthDecoration),
+        zeroLengthDecoration,
+        "seed:text-zero-length"
+      );
+      expect(zeroLength).toMatchObject({ kind: "decorated", elements: [] });
+
+      const exhaustedDecoration = makeDecoration("text along path", {
+        text: "A",
+        "text align": "{align=left,left indent=80pt,right indent=2pt}"
+      });
+      const exhausted = applyDecorationToPath(linePath(exhaustedDecoration), exhaustedDecoration, "seed:text-exhausted");
+      expect(exhausted).toMatchObject({ kind: "decorated", elements: [] });
+
+      const fillFallbackDecoration = makeDecoration("text along path", {
+        text: "`;Il A",
+        "text color": ".",
+        "reverse path": "0",
+        "text align": "center"
+      });
+      const fillFallbackStyle = {
+        ...defaultStyle(),
+        stroke: null,
+        fill: "#abcdef",
+        textColor: null,
+        decoration: fillFallbackDecoration,
+        decorationPreActions: [],
+        decorationPostActions: []
+      };
+      const fillFallback = applyDecorationToPath(
+        { ...linePath(fillFallbackDecoration), style: fillFallbackStyle },
+        fillFallbackDecoration,
+        "seed:text-fill-fallback"
+      );
+      expect(fillFallback.kind).toBe("decorated");
+      const fillText = fillFallback.elements.find((element) => element.kind === "Text");
+      expect(fillText?.kind).toBe("Text");
+      if (fillText?.kind === "Text") {
+        expect(fillText.style.textColor).toBe("#abcdef");
+      }
+
+      const blackFallbackDecoration = makeDecoration("text along path", {
+        text: "Z",
+        "text color": ".",
+        "reverse path": "yes"
+      });
+      const blackFallbackStyle = {
+        ...defaultStyle(),
+        stroke: null,
+        fill: null,
+        textColor: null,
+        decoration: blackFallbackDecoration,
+        decorationPreActions: [],
+        decorationPostActions: []
+      };
+      const blackFallback = applyDecorationToPath(
+        { ...linePath(blackFallbackDecoration), style: blackFallbackStyle },
+        blackFallbackDecoration,
+        "seed:text-black-fallback"
+      );
+      expect(blackFallback.kind).toBe("decorated");
+      const blackText = blackFallback.elements.find((element) => element.kind === "Text");
+      expect(blackText?.kind).toBe("Text");
+      if (blackText?.kind === "Text") {
+        expect(blackText.style.textColor).toBe("#000000");
+      }
+    });
+
+    it("covers direct text-align keys, fallback booleans, unknown pre-actions, and short straight zigzags", () => {
+      const directAlignDecoration = makeDecoration("text along path", {
+        text: "AB",
+        "reverse path": "maybe",
+        "text align/align": "center",
+        "text align/left indent": "4pt",
+        "text align/right indent": "4pt",
+        "text align": "}"
+      });
+      const directAlign = applyDecorationToPath(linePath(directAlignDecoration), directAlignDecoration, "seed:direct-align");
+      expect(directAlign.kind).toBe("decorated");
+      expect(directAlign.elements.filter((element) => element.kind === "Text")).toHaveLength(2);
+
+      const unknownPre = makeDecoration("zigzag", { "segment length": "8pt" });
+      unknownPre.pre = "not a pre-decoration";
+      unknownPre.preLength = 10;
+      const unknownPreResult = applyDecorationToPath(linePath(unknownPre), unknownPre, "seed:unknown-pre");
+      expect(unknownPreResult.kind).toBe("decorated");
+      const unknownPrePath = unknownPreResult.elements[0];
+      expect(unknownPrePath?.kind).toBe("Path");
+      if (unknownPrePath?.kind === "Path") {
+        expect(unknownPrePath.commands.length).toBeGreaterThan(4);
+      }
+
+      const shortStraight = makeDecoration("straight zigzag", { "segment length": "40pt" });
+      const shortStraightResult = applyDecorationToPath(
+        makePath([
+          { kind: "M", to: worldPoint(pt(0), pt(0)) },
+          { kind: "L", to: worldPoint(pt(10), pt(0)) }
+        ], shortStraight),
+        shortStraight,
+        "seed:short-straight"
+      );
+      expect(shortStraightResult.kind).toBe("decorated");
+      const shortStraightPath = shortStraightResult.elements[0];
+      expect(shortStraightPath?.kind).toBe("Path");
+      if (shortStraightPath?.kind === "Path") {
+        expect(shortStraightPath.commands).toHaveLength(2);
+      }
+    });
+
     it("renders less common path morphing and shape decorations through the engine", () => {
       const cases: Array<{ name: string; params?: Record<string, string> }> = [
         { name: "straight zigzag", params: { "segment length": "6pt", amplitude: "2pt" } },
         { name: "saw", params: { "segment length": "7pt", amplitude: "3pt" } },
         { name: "bent", params: { aspect: "0.25", amplitude: "5pt" } },
         { name: "waves", params: { "segment length": "10pt", "start radius": "2pt" } },
+        { name: "coil", params: { "segment length": "10pt", amplitude: "2pt" } },
         { name: "expanding waves", params: { "segment length": "10pt", "start radius": "2pt" } },
         { name: "border", params: { angle: "30", amplitude: "3pt", "segment length": "8pt" } },
         { name: "random steps", params: { amplitude: "3pt", "segment length": "8pt" } },

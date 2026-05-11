@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { WorldPoint } from "../../packages/core/src/coords/points.js";
 import type { EditHandle } from "../../packages/core/src/semantic/types.js";
 import { identityMatrix, scaleMatrix, rotationMatrix, multiplyMatrix, translationMatrix } from "../../packages/core/src/semantic/transform.js";
-import { rewriteCoordinate } from "../../packages/core/src/edit/rewrite.js";
+import { rewriteCoordinate, supportsUnsupportedCoordinateDetach } from "../../packages/core/src/edit/rewrite.js";
 import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
 import type { SourceRef } from "../../packages/core/src/semantic/types.js";
 import { wp } from "../coords-helpers.js";
@@ -278,6 +278,35 @@ describe("rewriteCoordinate", () => {
       expect(result).toBe("([xshift=3pt] 2, 1)");
     });
 
+    it("rewrites relative polar coordinates and rejects relative xyz coordinates", () => {
+      const source = "\\draw (0,0) -- ++(45:1) -- ++(1,2,3);";
+      const polarRaw = "(45:1)";
+      const polarFrom = source.indexOf(polarRaw);
+      const polarHandle = makeHandle({
+        world: wp(cm(1), cm(1)),
+        sourceRef: { sourceSpan: { from: polarFrom, to: polarFrom + polarRaw.length } },
+        coordinateForm: "polar",
+        rewriteMode: "delta",
+        relativePrefix: "++",
+        relativeBase: wp(cm(1), cm(1))
+      });
+
+      expect(rewriteCoordinate(wp(cm(1), cm(4)), polarHandle, source)).toBe("(90:3)");
+
+      const xyzRaw = "(1,2,3)";
+      const xyzFrom = source.indexOf(xyzRaw);
+      const xyzHandle = makeHandle({
+        world: wp(cm(1), cm(2)),
+        sourceRef: { sourceSpan: { from: xyzFrom, to: xyzFrom + xyzRaw.length } },
+        coordinateForm: "xyz",
+        rewriteMode: "delta",
+        relativePrefix: "++",
+        relativeBase: wp(0, 0)
+      });
+
+      expect(rewriteCoordinate(wp(cm(2), cm(3)), xyzHandle, source)).toBeNull();
+    });
+
     it("returns null when relativeBase is missing", () => {
       const source = "\\draw ++(1,1);";
       const handle = makeHandle({
@@ -290,6 +319,30 @@ describe("rewriteCoordinate", () => {
       });
       const result = rewriteCoordinate(wp(cm(2), cm(2)), handle, source);
       expect(result).toBeNull();
+    });
+
+    it("returns null for malformed delta handles and singular delta transforms", () => {
+      const source = "\\draw ++(1,1);";
+      const directHandle = makeHandle({
+        world: wp(cm(1), cm(1)),
+        sourceRef: { sourceSpan: { from: 8, to: 13 } },
+        coordinateForm: "cartesian",
+        rewriteMode: "direct"
+      }) as EditHandle & { rewriteMode: "delta" };
+
+      expect(rewriteCoordinate(wp(cm(2), cm(2)), { ...directHandle, rewriteMode: "delta" }, source)).toBeNull();
+
+      const singularHandle = makeHandle({
+        world: wp(cm(1), cm(1)),
+        sourceRef: { sourceSpan: { from: 8, to: 13 } },
+        coordinateForm: "cartesian",
+        rewriteMode: "delta",
+        relativePrefix: "++",
+        relativeBase: wp(0, 0),
+        transform: scaleMatrix(0, 1)
+      });
+
+      expect(rewriteCoordinate(wp(cm(2), cm(2)), singularHandle, source)).toBeNull();
     });
   });
 
@@ -319,6 +372,24 @@ describe("rewriteCoordinate", () => {
       expect(result).toBe("(2,2)");
     });
 
+    it("detaches frame-local named path endpoints in local source units", () => {
+      const source = "\\draw[xscale=2] (A);";
+      const handle = makeHandle({
+        world: wp(cm(2), cm(1)),
+        sourceRef: { sourceSpan: { from: source.indexOf("(A)"), to: source.indexOf("(A)") + 3 } },
+        kind: "path-point",
+        coordinateForm: "named",
+        rewriteMode: "unsupported",
+        transform: scaleMatrix(2, 1),
+        coordinateSpace: "frame-local",
+        frame: scaleMatrix(2, 1),
+        local: wp(cm(1), cm(1))
+      });
+
+      expect(supportsUnsupportedCoordinateDetach(handle)).toBe(true);
+      expect(rewriteCoordinate(wp(cm(6), cm(4)), handle, source)).toBe("(3,4)");
+    });
+
     it("returns null for unsupported non-endpoint handles", () => {
       const source = "\\draw (A) .. controls (B) .. (C);";
       const handle = makeHandle({
@@ -342,6 +413,90 @@ describe("rewriteCoordinate", () => {
       });
       const result = rewriteCoordinate(wp(cm(2), cm(2)), handle, source);
       expect(result).toBeNull();
+    });
+
+    it("returns null for malformed unsupported and direct coordinate handles", () => {
+      const source = "\\draw (A) -- (1,2) -- (45:1);";
+      const malformedNamed = {
+        ...makeHandle({
+          world: wp(cm(1), cm(1)),
+          sourceRef: { sourceSpan: { from: 6, to: 9 } },
+          kind: "path-point",
+          coordinateForm: "named",
+          rewriteMode: "unsupported"
+        }),
+        handleType: "path-attachment"
+      } as unknown as EditHandle;
+
+      expect(rewriteCoordinate(wp(cm(2), cm(2)), malformedNamed, source)).toBeNull();
+
+      const worldOnlyCartesian = makeHandle({
+        world: wp(cm(1), cm(2)),
+        sourceRef: { sourceSpan: { from: source.indexOf("(1,2)"), to: source.indexOf("(1,2)") + 5 } },
+        coordinateForm: "cartesian",
+        rewriteMode: "unsupported",
+        coordinateSpace: "world-only"
+      } as Partial<EditHandle> & { world: WorldPoint });
+
+      expect(rewriteCoordinate(wp(cm(2), cm(3)), { ...worldOnlyCartesian, rewriteMode: "direct" }, source)).toBeNull();
+
+      const worldOnlyPolar = {
+        ...worldOnlyCartesian,
+        coordinateForm: "polar",
+        sourceRef: { sourceId: "test-source-id", sourceFingerprint: "test", sourceSpan: { from: source.indexOf("(45:1)"), to: source.indexOf("(45:1)") + 6 } }
+      } as EditHandle;
+
+      expect(rewriteCoordinate(wp(0, cm(2)), worldOnlyPolar, source)).toBeNull();
+    });
+
+    it("returns null when singular transforms prevent direct coordinate rewrites", () => {
+      const source = "\\draw (1,2) -- (45:1);";
+      const cartesianRaw = "(1,2)";
+      const cartesianFrom = source.indexOf(cartesianRaw);
+      const polarRaw = "(45:1)";
+      const polarFrom = source.indexOf(polarRaw);
+
+      const singularCartesian = makeHandle({
+        world: wp(cm(1), cm(2)),
+        sourceRef: { sourceSpan: { from: cartesianFrom, to: cartesianFrom + cartesianRaw.length } },
+        coordinateForm: "cartesian",
+        transform: scaleMatrix(0, 1)
+      });
+      const singularPolar = makeHandle({
+        world: wp(cm(1), cm(1)),
+        sourceRef: { sourceSpan: { from: polarFrom, to: polarFrom + polarRaw.length } },
+        coordinateForm: "polar",
+        transform: scaleMatrix(0, 1)
+      });
+
+      expect(rewriteCoordinate(wp(cm(2), cm(3)), singularCartesian, source)).toBeNull();
+      expect(rewriteCoordinate(wp(cm(2), cm(3)), singularPolar, source)).toBeNull();
+    });
+
+    it("adds inline node at insertion with source-aware spacing", () => {
+      const source = "\\node[draw]circle;";
+      const insertBeforeWord = makeHandle({
+        world: wp(0, 0),
+        sourceRef: { sourceSpan: { from: 11, to: 11 } },
+        coordinateForm: "cartesian",
+        insertion: { kind: "node-inline-at" }
+      });
+      const insertAtEnd = makeHandle({
+        world: wp(0, 0),
+        sourceRef: { sourceSpan: { from: source.length, to: source.length } },
+        coordinateForm: "cartesian",
+        insertion: { kind: "node-inline-at" }
+      });
+      const insertAfterWhitespace = makeHandle({
+        world: wp(0, 0),
+        sourceRef: { sourceSpan: { from: 12, to: 12 } },
+        coordinateForm: "cartesian",
+        insertion: { kind: "node-inline-at" }
+      });
+
+      expect(rewriteCoordinate(wp(cm(1), cm(2)), insertBeforeWord, source)).toBe(" at (1,2) ");
+      expect(rewriteCoordinate(wp(cm(1), cm(2)), insertAtEnd, source)).toBe(" at (1,2)");
+      expect(rewriteCoordinate(wp(cm(1), cm(2)), insertAfterWhitespace, "\\node[draw] circle;")).toBe("at (1,2) ");
     });
   });
 
@@ -513,6 +668,97 @@ describe("rewriteCoordinate", () => {
       );
 
       expect(result).toBe("above right={-0.23cm and 1cm} of A");
+    });
+
+    it("uses anchor extents when rewriting all cardinal positioning directions", () => {
+      const base = {
+        targetNodeName: "A",
+        targetCenter: wp(0, 0),
+        currentCenter: wp(0, 0),
+        legacyOf: false,
+        targetAnchorHW: cm(0.2),
+        targetAnchorHH: cm(0.3),
+        currentAnchorHW: cm(0.4),
+        currentAnchorHH: cm(0.5)
+      };
+
+      for (const [direction, point, expected] of [
+        ["left", wp(cm(-2), 0), "left=1.4cm of A"],
+        ["above", wp(0, cm(2)), "above=1.2cm of A"],
+        ["below", wp(0, cm(-2)), "below=1.2cm of A"]
+      ] as const) {
+        const handle = makeHandle({
+          world: wp(0, 0),
+          sourceRef: { sourceSpan: { from: 0, to: direction.length } },
+          sourceText: direction,
+          rewriteMode: "positioning",
+          positioningContext: {
+            ...base,
+            direction
+          }
+        });
+
+        expect(rewriteCoordinate(point, handle, direction)).toBe(expected);
+      }
+    });
+
+    it("keeps the original direction when candidate cardinal shifts do not fit", () => {
+      const source = "above right={1cm and 1cm} of A";
+      const handle = makeHandle({
+        world: wp(cm(1), cm(1)),
+        sourceRef: { sourceSpan: { from: 0, to: source.length } },
+        sourceText: source,
+        rewriteMode: "positioning",
+        positioningContext: {
+          direction: "above right",
+          targetNodeName: "A",
+          targetCenter: wp(0, 0),
+          currentCenter: wp(0, 0),
+          legacyOf: false,
+          targetAnchorHW: cm(10),
+          targetAnchorHH: 0,
+          currentAnchorHW: cm(10),
+          currentAnchorHH: 0,
+          anchorOffsetsByDirection: {
+            above: {
+              targetAnchor: wp(cm(-2), 0),
+              currentAnchor: wp(0, 0)
+            }
+          }
+        }
+      });
+
+      expect(rewriteCoordinate(wp(cm(0.1), cm(3)), handle, source)).toBe("above right={3cm and -19.9cm} of A");
+    });
+
+    it("handles unknown and malformed positioning contexts defensively", () => {
+      const source = "beside=1cm of A";
+      const unknownDirection = makeHandle({
+        world: wp(0, 0),
+        sourceRef: { sourceSpan: { from: 0, to: source.length } },
+        sourceText: source,
+        rewriteMode: "positioning",
+        positioningContext: {
+          direction: "beside",
+          targetNodeName: "A",
+          targetCenter: wp(0, 0),
+          currentCenter: wp(0, 0),
+          legacyOf: false,
+          targetAnchorHW: 0,
+          targetAnchorHH: 0,
+          currentAnchorHW: 0,
+          currentAnchorHH: 0
+        }
+      });
+
+      expect(rewriteCoordinate(wp(0, 0), unknownDirection, source)).toBeNull();
+
+      const malformed = {
+        ...unknownDirection,
+        handleType: "coordinate"
+      } as unknown as EditHandle;
+
+      expect(rewriteCoordinate(wp(cm(1), 0), malformed, source)).toBeNull();
     });
   });
 });

@@ -107,14 +107,6 @@ export function greedyBreakParagraph(
       continue;
     }
 
-    if (index === lineStart) {
-      errors.push(
-        `Forced overflow line at run ${lineStart}; token width exceeds target width.`
-      );
-      index++;
-      width = runWidth(model, lineStart);
-    }
-
     lines.push({
       lineIndex,
       startRun: lineStart,

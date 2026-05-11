@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { applyEditAction } from "../packages/core/src/edit/actions.js";
 import { PT_PER_CM } from "../packages/core/src/edit/format.js";
+import {
+  analyzeExplicitPathStatement,
+  buildPathBodyFromSegments,
+  resolveActivePathPointHandle,
+  resolveEligibleExplicitPath,
+  resolvePathControlHandle
+} from "../packages/core/src/edit/path-editing.js";
+import type { PathStatement } from "../packages/core/src/ast/types.js";
+import type { EditHandle } from "../packages/core/src/semantic/types.js";
 import { renderTikzToSvg } from "../packages/core/src/render/index.js";
 import { wp } from "./coords-helpers.js";
 
@@ -18,6 +27,211 @@ function handleIdFor(source: string, rendered: ReturnType<typeof renderTikzToSvg
 }
 
 describe("path edit actions", () => {
+  it("rejects malformed explicit paths with precise analysis reasons", () => {
+    const cases = [
+      {
+        body: "\\draw -- (1,0);",
+        reason: "Only explicit coordinate"
+      },
+      {
+        body: "\\draw (0,0) -- cycle -- (1,0);",
+        reason: "Cycle must be the last"
+      },
+      {
+        body: "\\draw (0,0) -- node[midway]{} (1,0);",
+        reason: "inline nodes"
+      },
+      {
+        body: "\\draw (0,0) [red] -- (1,0);",
+        reason: "mid-path options"
+      },
+      {
+        body: "\\draw (0,0) (1,0);",
+        reason: "coordinates"
+      },
+      {
+        body: "\\draw (0,0) -- --;",
+        reason: "Paths using `--`"
+      },
+      {
+        body: "\\draw (0,0) to (1,0);",
+        reason: "to-operations"
+      },
+      {
+        body: "\\draw (0,0) edge (1,0);",
+        reason: "edge operations"
+      },
+      {
+        body: "\\draw (0,0) child { node {x} };",
+        reason: "child operations"
+      },
+      {
+        body: "\\draw (0,0) coordinate (C);",
+        reason: "coordinate operations"
+      },
+      {
+        body: "\\draw (0,0) .. (1,0);",
+        reason: "cubic segments"
+      },
+      {
+        body: "\\draw (0,0) .. controls -- (1,0);",
+        reason: "cubic segments"
+      },
+      {
+        body: "\\draw (0,0) .. controls (1,0) and -- (2,0);",
+        reason: "cubic segments"
+      },
+      {
+        body: "\\draw (0,0) .. controls (1,0) (2,0);",
+        reason: "cubic segments"
+      },
+      {
+        body: "\\draw (0,0) .. controls (1,0) .. node {} (2,0);",
+        reason: "cubic segments"
+      },
+      {
+        body: "\\draw (0,0) .. controls (1,0) .. cycle -- (2,0);",
+        reason: "terminal `cycle`"
+      },
+      {
+        body: "\\draw (0,0) .. controls (1,0) .. (2,0) node {};",
+        reason: "cubic segments"
+      }
+    ];
+
+    for (const entry of cases) {
+      const source = String.raw`\begin{tikzpicture}
+  ${entry.body}
+\end{tikzpicture}`;
+      const result = resolveEligibleExplicitPath(source, "path:0");
+      expect(result).toMatchObject({
+        kind: "ineligible",
+        reason: expect.stringContaining(entry.reason)
+      });
+    }
+  });
+
+  it("handles sparse synthetic path analyses defensively", () => {
+    const emptyStatement = {
+      kind: "Path",
+      id: "path:synthetic",
+      span: { from: 0, to: 0 },
+      options: [],
+      items: []
+    } as unknown as PathStatement;
+
+    expect(analyzeExplicitPathStatement("", emptyStatement)).toEqual({
+      kind: "ineligible",
+      reason: "Path has no editable items."
+    });
+
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const eligible = resolveEligibleExplicitPath(source, "path:0");
+    expect(eligible.kind).toBe("eligible");
+    if (eligible.kind !== "eligible") {
+      throw new Error("Expected editable path");
+    }
+
+    const body = buildPathBodyFromSegments(eligible.analysis, source, 0, [0, 99]);
+    expect(body).toBe("(0,0) -- (1,0)");
+  });
+
+  it("reports precise path-point handle resolution failures", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const eligibility = resolveEligibleExplicitPath(source, "path:0");
+    expect(eligibility.kind).toBe("eligible");
+    if (eligibility.kind !== "eligible") {
+      throw new Error("Expected editable path");
+    }
+    const handle = rendered.semantic.editHandles.find(
+      (candidate) => source.slice(candidate.sourceRef.sourceSpan.from, candidate.sourceRef.sourceSpan.to) === "(0,0)"
+    );
+    expect(handle).toBeDefined();
+    if (!handle) {
+      throw new Error("Expected endpoint handle");
+    }
+
+    expect(resolveActivePathPointHandle(rendered.semantic.editHandles, eligibility.analysis, null, source)).toMatchObject({
+      kind: "missing",
+      reason: expect.stringContaining("Choose")
+    });
+    expect(resolveActivePathPointHandle(rendered.semantic.editHandles, eligibility.analysis, "missing", source)).toMatchObject({
+      kind: "missing",
+      reason: expect.stringContaining("no longer available")
+    });
+    expect(resolveActivePathPointHandle([{ ...handle, sourceRef: { ...handle.sourceRef, sourceId: "path:1" } }], eligibility.analysis, handle.id, source)).toMatchObject({
+      kind: "missing",
+      reason: expect.stringContaining("does not belong")
+    });
+    expect(resolveActivePathPointHandle([{ ...handle, kind: "node-position" }], eligibility.analysis, handle.id, source)).toMatchObject({
+      kind: "missing",
+      reason: expect.stringContaining("anchor point")
+    });
+    expect(resolveActivePathPointHandle([handle, { ...handle, id: "duplicate" }], eligibility.analysis, handle.id, source)).toMatchObject({
+      kind: "missing",
+      reason: expect.stringContaining("expanded source")
+    });
+    expect(resolveActivePathPointHandle([{ ...handle, sourceText: "(9,9)" }], eligibility.analysis, handle.id, source)).toMatchObject({
+      kind: "missing",
+      reason: expect.stringContaining("stale")
+    });
+
+    const operatorFrom = source.indexOf("--");
+    const operatorHandle = {
+      ...handle,
+      sourceRef: {
+        ...handle.sourceRef,
+        sourceSpan: { from: operatorFrom, to: operatorFrom + 2 }
+      },
+      sourceText: "--"
+    };
+    expect(resolveActivePathPointHandle([operatorHandle], eligibility.analysis, handle.id, source)).toMatchObject({
+      kind: "missing",
+      reason: expect.stringContaining("not an editable anchor")
+    });
+  });
+
+  it("rejects stale and expanded cubic control handles", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) .. controls (1,0) and (2,1) .. (3,1);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const eligibility = resolveEligibleExplicitPath(source, "path:0");
+    expect(eligibility.kind).toBe("eligible");
+    if (eligibility.kind !== "eligible") {
+      throw new Error("Expected editable cubic path");
+    }
+    const segment = eligibility.analysis.segments[0];
+    if (!segment || segment.kind !== "cubic") {
+      throw new Error("Expected cubic segment controls");
+    }
+    const control = eligibility.analysis.statement.items[segment.control1Index];
+    if (!control || control.kind !== "Coordinate") {
+      throw new Error("Expected first control coordinate");
+    }
+    const controlHandle = rendered.semantic.editHandles.find(
+      (candidate) =>
+        candidate.kind === "path-control"
+        && candidate.sourceRef.sourceSpan.from === control.span.from
+        && candidate.sourceRef.sourceSpan.to === control.span.to
+    );
+    expect(controlHandle).toBeDefined();
+    if (!controlHandle) {
+      throw new Error("Expected path-control handle");
+    }
+
+    expect(resolvePathControlHandle(rendered.semantic.editHandles, "path:0", control, source)).toBe(controlHandle);
+    expect(resolvePathControlHandle([], "path:0", control, source)).toBeNull();
+    expect(resolvePathControlHandle([controlHandle, { ...controlHandle, id: "duplicate" }], "path:0", control, source)).toBeNull();
+    expect(resolvePathControlHandle([{ ...controlHandle, sourceText: "(9,9)" }], "path:0", control, source)).toBeNull();
+    expect(resolvePathControlHandle([{ ...controlHandle, kind: "path-point" } as EditHandle], "path:0", control, source)).toBeNull();
+  });
+
   it("splits an open polyline at an interior point", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0) -- (2,0);
@@ -59,6 +273,17 @@ describe("path edit actions", () => {
     });
     expect(missing.kind).toBe("unsupported");
 
+    const staleSource = source.replace("(1,0)", "(9,0)");
+    const stale = applyEditAction(staleSource, rendered.semantic.editHandles, {
+      kind: "splitPath",
+      elementId: "path:0",
+      handleId: handleIdFor(source, rendered, "(1,0)")
+    });
+    expect(stale.kind).toBe("unsupported");
+    if (stale.kind === "unsupported") {
+      expect(stale.reason).toContain("stale");
+    }
+
     const missingPath = applyEditAction(source, rendered.semantic.editHandles, {
       kind: "splitPath",
       elementId: "path:missing",
@@ -83,6 +308,24 @@ describe("path edit actions", () => {
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("\\draw (1,0) -- (1,1) -- (0,0);");
     expect(result.newSource).not.toContain("cycle");
+  });
+
+  it("rejects splitting a curve-cycle path when the opened body cannot be ordered safely", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) .. controls (1,0) and (2,1) .. (3,1) .. controls (2,-1) and (1,-1) .. cycle;
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const result = applyEditAction(source, rendered.semantic.editHandles, {
+      kind: "splitPath",
+      elementId: "path:0",
+      handleId: handleIdFor(source, rendered, "(3,1)")
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind === "unsupported") {
+      expect(result.reason).toContain("opened");
+    }
   });
 
   it("joins two open paths", () => {
@@ -156,6 +399,19 @@ describe("path edit actions", () => {
     if (ineligibleResult.kind === "unsupported") {
       expect(ineligibleResult.reason).toContain("rectangle");
     }
+
+    const secondIneligible = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (2,0) rectangle (3,1);
+\end{tikzpicture}`;
+    const secondIneligibleResult = applyEditAction(secondIneligible, [], {
+      kind: "joinPaths",
+      elementIds: ["path:0", "path:1"]
+    });
+    expect(secondIneligibleResult.kind).toBe("unsupported");
+    if (secondIneligibleResult.kind === "unsupported") {
+      expect(secondIneligibleResult.reason).toContain("rectangle");
+    }
   });
 
   it("reverses an open polyline", () => {
@@ -190,6 +446,33 @@ describe("path edit actions", () => {
     expect(result.newSource).toContain(
       "\\draw (6,0) .. controls (5,0) and (4,1) .. (3,1) .. controls (2,1) and (1,0) .. (0,0);"
     );
+  });
+
+  it("reverses shorthand cubic controls and closed cubic cycles", () => {
+    const shorthand = String.raw`\begin{tikzpicture}
+  \draw (0,0) .. controls (1,1) .. (2,0);
+\end{tikzpicture}`;
+    const shorthandResult = applyEditAction(shorthand, [], {
+      kind: "reversePath",
+      elementId: "path:0"
+    });
+
+    expect(shorthandResult.kind).toBe("success");
+    if (shorthandResult.kind !== "success") return;
+    expect(shorthandResult.newSource).toContain("\\draw (2,0) .. controls (1,1) .. (0,0);");
+
+    const closedCubic = String.raw`\begin{tikzpicture}
+  \draw (0,0) .. controls (1,0) and (2,1) .. (3,1) .. controls (2,-1) and (1,-1) .. cycle;
+\end{tikzpicture}`;
+    const closedResult = applyEditAction(closedCubic, [], {
+      kind: "reversePath",
+      elementId: "path:0"
+    });
+
+    expect(closedResult.kind).toBe("success");
+    if (closedResult.kind !== "success") return;
+    expect(closedResult.newSource).toContain(".. controls (1,-1) and (2,-1) .. (3,1)");
+    expect(closedResult.newSource).toContain(".. cycle;");
   });
 
   it("reverses a closed polygon while preserving cycle closure", () => {
@@ -435,6 +718,13 @@ describe("path edit actions", () => {
     if (unsupportedConversion.kind === "unsupported") {
       expect(unsupportedConversion.reason).toContain("unsupported segment conversion");
     }
+
+    const missingHandle = applyEditAction(open, openRendered.semantic.editHandles, {
+      kind: "deletePathPoint",
+      elementId: "path:0",
+      handleId: "missing-handle"
+    });
+    expect(missingHandle.kind).toBe("unsupported");
   });
 
   it("converts a cubic anchor to corner", () => {
@@ -492,6 +782,43 @@ describe("path edit actions", () => {
     expect(result.newSource).not.toContain(" -- (-2.72,1.74) -- ");
   });
 
+  it("rejects smoothing a line corner whose neighboring anchors collapse the tangent", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0) -- (0,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const result = applyEditAction(source, rendered.semantic.editHandles, {
+      kind: "setPathPointKind",
+      elementId: "path:0",
+      handleId: handleIdFor(source, rendered, "(1,0)"),
+      pointKind: "smooth"
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind === "unsupported") {
+      expect(result.reason).toContain("Bezier bend");
+    }
+  });
+
+  it("keeps already aligned cubic controls editable as a smooth point", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) .. controls (1,0) and (2,0) .. (3,0) .. controls (4,0) and (5,0) .. (6,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const result = applyEditAction(source, rendered.semantic.editHandles, {
+      kind: "setPathPointKind",
+      elementId: "path:0",
+      handleId: handleIdFor(source, rendered, "(3,0)"),
+      pointKind: "smooth"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(".. controls");
+  });
+
   it("rejects converting endpoints and line-cubic mixed anchors to corner", () => {
     const endpointSource = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0) -- (2,0);
@@ -530,6 +857,47 @@ describe("path edit actions", () => {
       pointKind: "smooth"
     });
     expect(missingHandle.kind).toBe("unsupported");
+  });
+
+  it("rejects point-kind rewrites when neighboring anchor or control handles are unavailable", () => {
+    const lineSource = String.raw`\begin{tikzpicture}
+  \draw (-2.33,0) -- (-2.72,1.74) -- (-0.86,2.27);
+\end{tikzpicture}`;
+    const lineRender = renderTikzToSvg(lineSource);
+    const lineMiddleHandleId = handleIdFor(lineSource, lineRender, "(-2.72,1.74)");
+    const missingNeighbor = applyEditAction(
+      lineSource,
+      lineRender.semantic.editHandles.filter((handle) => handle.id === lineMiddleHandleId),
+      {
+        kind: "setPathPointKind",
+        elementId: "path:0",
+        handleId: lineMiddleHandleId,
+        pointKind: "smooth"
+      }
+    );
+    expect(missingNeighbor.kind).toBe("unsupported");
+    if (missingNeighbor.kind === "unsupported") {
+      expect(missingNeighbor.reason).toContain("Neighboring anchors");
+    }
+
+    const cubicSource = String.raw`\begin{tikzpicture}
+  \draw (0,0) .. controls (1,0) and (2,1) .. (3,1) .. controls (4,1) and (5,0) .. (6,0);
+\end{tikzpicture}`;
+    const cubicRender = renderTikzToSvg(cubicSource);
+    const missingControls = applyEditAction(
+      cubicSource,
+      cubicRender.semantic.editHandles.filter((handle) => handle.kind !== "path-control"),
+      {
+        kind: "setPathPointKind",
+        elementId: "path:0",
+        handleId: handleIdFor(cubicSource, cubicRender, "(3,1)"),
+        pointKind: "corner"
+      }
+    );
+    expect(missingControls.kind).toBe("unsupported");
+    if (missingControls.kind === "unsupported") {
+      expect(missingControls.reason).toContain("could not be resolved");
+    }
   });
 
   it("appends segments to the end of an open path", () => {
@@ -624,6 +992,25 @@ describe("path edit actions", () => {
     expect(result.newSource).toContain(".. (3,1);");
   });
 
+  it("inserts a point into a shorthand cubic segment", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) .. controls (1,1) .. (2,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const result = applyEditAction(source, rendered.semantic.editHandles, {
+      kind: "insertPathPoint",
+      elementId: "path:0",
+      segmentIndex: 0,
+      point: wp(cm(1), cm(0.5))
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource.match(/\.\. controls/g)?.length).toBe(2);
+    expect(result.newSource).toContain(".. (2,0);");
+  });
+
   it("inserts a point into a closed path while preserving the closing segment", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (2,0) -- (2,2) -- cycle;
@@ -640,6 +1027,25 @@ describe("path edit actions", () => {
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("\\draw (0,0) -- (1,0) -- (2,0) -- (2,2) -- cycle;");
+  });
+
+  it("inserts a point into the closing segment of a cycle", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) -- (2,2) -- cycle;
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const result = applyEditAction(source, rendered.semantic.editHandles, {
+      kind: "insertPathPoint",
+      elementId: "path:0",
+      segmentIndex: 2,
+      point: wp(cm(0.75), cm(0.75))
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("-- cycle;");
+    expect(result.newSource.match(/--/g)?.length).toBe(4);
   });
 
   it("rejects point insertion with invalid segment indices or missing handles", () => {
@@ -670,6 +1076,18 @@ describe("path edit actions", () => {
       expect(missingHandles.reason).toContain("endpoint positions");
     }
 
+    const staleSource = source.replace("(2,0)", "(3,0)");
+    const staleHandles = applyEditAction(staleSource, rendered.semantic.editHandles, {
+      kind: "insertPathPoint",
+      elementId: "path:0",
+      segmentIndex: 0,
+      point: wp(cm(1), 0)
+    });
+    expect(staleHandles.kind).toBe("unsupported");
+    if (staleHandles.kind === "unsupported") {
+      expect(staleHandles.reason).toContain("endpoint positions");
+    }
+
     const missingPath = applyEditAction(source, rendered.semantic.editHandles, {
       kind: "insertPathPoint",
       elementId: "path:missing",
@@ -688,6 +1106,31 @@ describe("path edit actions", () => {
     const result = applyEditAction(
       source,
       rendered.semantic.editHandles.filter((handle) => handle.kind !== "path-control"),
+      {
+        kind: "insertPathPoint",
+        elementId: "path:0",
+        segmentIndex: 0,
+        point: wp(cm(1.5), cm(0.5))
+      }
+    );
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind === "unsupported") {
+      expect(result.reason).toContain("control point positions");
+    }
+  });
+
+  it("rejects cubic insertion when control handles are stale", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) .. controls (1,0) and (2,1) .. (3,1);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const result = applyEditAction(
+      source,
+      rendered.semantic.editHandles.map((handle) =>
+        handle.kind === "path-control" ? { ...handle, sourceText: "(stale)" } : handle
+      ),
       {
         kind: "insertPathPoint",
         elementId: "path:0",

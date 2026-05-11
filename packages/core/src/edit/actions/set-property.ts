@@ -142,12 +142,13 @@ function applySetPropertyCommentToggle(
   const format = target.optionsFormat ?? "bracketed";
   const parsedItems = parseCommentToggleItems(rawSite, format);
   const primaryKey = normalizeOptionKey(action.key);
+  const commentMode = action.commentMode!;
   if (primaryKey.length === 0) {
     return { kind: "error", message: "Cannot toggle an empty option key" };
   }
 
   const exactSourceText = normalizeToggleSourceText(action.commentSourceText ?? "");
-  const matchingIndex = findToggleItemIndex(parsedItems, action.commentMode, exactSourceText, primaryKey);
+  const matchingIndex = findToggleItemIndex(parsedItems, commentMode, exactSourceText, primaryKey);
   if (matchingIndex < 0) {
     return { kind: "unsupported", reason: "Could not find a matching declaration to toggle." };
   }
@@ -157,7 +158,7 @@ function applySetPropertyCommentToggle(
       return item;
     }
     const toggleItem = item as Extract<CommentToggleItem, { kind: "entry" | "disabled-entry" }>;
-    if (action.commentMode === "disable") {
+    if (commentMode === "disable") {
       return { kind: "disabled-entry", text: toggleItem.text, normalizedKey: toggleItem.normalizedKey };
     }
     return { kind: "entry", text: toggleItem.text, normalizedKey: toggleItem.normalizedKey };
@@ -426,7 +427,7 @@ function resolveCommentToggleSerializationContext(
       continue;
     }
     const indentMatch = line.match(/^[\t ]*/u);
-    return { lineIndent: indentMatch?.[0] ?? "", hadNewline: true };
+    return { lineIndent: indentMatch![0], hadNewline: true };
   }
   return { lineIndent: preferredIndent, hadNewline: true };
 }
@@ -470,10 +471,7 @@ function serializeCommentToggleItems(
       return "";
     }
     const serialized = lines.join("\n");
-    const hasCommentLine = lines.some((line) => line.trimStart().startsWith("%"));
-    const shouldWrapMultiline =
-      context.hadNewline || context.lineIndent.length > 0 || hasCommentLine || lines.length > 1;
-    return shouldWrapMultiline ? `\n${serialized}\n` : serialized;
+    return `\n${serialized}\n`;
   }
   if (lines.length === 0) {
     return "[]";
@@ -568,9 +566,6 @@ function applyMatrixCellSetProperty(
     }
 
     const prefixSpan = resolveMatrixCellOptionPrefixSpan(source, optionSpan, cellSpan, textSpan);
-    if (!prefixSpan) {
-      return { kind: "unsupported", reason: "Could not remove matrix-cell option prefix safely." };
-    }
     const updated = replaceSpan(source, prefixSpan, "");
     return {
       kind: "success",
@@ -681,21 +676,15 @@ function resolveMatrixCellOptionPrefixSpan(
   optionSpan: Span,
   cellSpan: Span,
   textSpan: Span
-): Span | null {
+): Span {
   let leftPipe = optionSpan.from - 1;
   while (leftPipe >= cellSpan.from && /\s/u.test(source[leftPipe] ?? "")) {
     leftPipe -= 1;
-  }
-  if (leftPipe < cellSpan.from || source[leftPipe] !== "|") {
-    return null;
   }
 
   let rightPipe = optionSpan.to;
   while (rightPipe < cellSpan.to && /\s/u.test(source[rightPipe] ?? "")) {
     rightPipe += 1;
-  }
-  if (rightPipe >= cellSpan.to || source[rightPipe] !== "|") {
-    return null;
   }
 
   let removalTo = rightPipe + 1;

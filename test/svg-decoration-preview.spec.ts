@@ -110,4 +110,35 @@ describe("svg decoration preview helper", () => {
     });
     expect(computeDecorationPreviewBounds([])).toBeUndefined();
   });
+
+  it("includes cubic control points when computing path preview bounds", () => {
+    const style = defaultStyle();
+    const sourceRef = { sourceId: "preview", sourceSpan: { from: 0, to: 0 }, sourceFingerprint: "" };
+    const elements: SceneElement[] = [
+      {
+        kind: "Path",
+        id: "curve",
+        runtimeId: "curve",
+        sourceRef,
+        style,
+        styleChain: [],
+        commands: [
+          { kind: "M", to: worldPoint(pt(0), pt(0)) },
+          {
+            kind: "C",
+            c1: worldPoint(pt(-8), pt(3)),
+            c2: worldPoint(pt(4), pt(12)),
+            to: worldPoint(pt(10), pt(-2))
+          }
+        ]
+      }
+    ];
+
+    expect(computeDecorationPreviewBounds(elements)).toEqual({
+      minX: pt(-8),
+      minY: pt(-2),
+      maxX: pt(10),
+      maxY: pt(12)
+    });
+  });
 });

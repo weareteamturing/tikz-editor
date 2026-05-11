@@ -369,10 +369,7 @@ function collectLineGeometryElements(
     }
   }
 
-  if (!lineBoxes.length || lineBoxes.length !== expectedCount) {
-    return null;
-  }
-  return lineBoxes;
+  return null;
 }
 
 function readLineGeometry(
@@ -475,7 +472,7 @@ function lineLocalClientPoint(
   x: number
 ): ClientPoint {
   const lineStart = Number(reportLine.xStart);
-  const localReportX = Number.isFinite(lineStart) ? x - lineStart : x;
+  const localReportX = x - lineStart;
   const svgX = localReportX * line.reportToSvgScaleX;
   return makeClientPoint(
     px(line.screenMatrix.a * svgX + line.screenMatrix.c * 0 + line.screenMatrix.e),
@@ -485,9 +482,6 @@ function lineLocalClientPoint(
 
 function lineTangentUnit(line: LineGeometry): LineDirectionUnit {
   const tangentLength = Math.hypot(line.screenMatrix.a, line.screenMatrix.b);
-  if (!Number.isFinite(tangentLength) || tangentLength <= EPSILON) {
-    return lineDirectionUnit(1, 0);
-  }
   return lineDirectionUnit(
     line.screenMatrix.a / tangentLength,
     line.screenMatrix.b / tangentLength,
@@ -504,7 +498,7 @@ function lineBaselineOriginPoint(
   reportLine: ParagraphLayoutReport['lines'][number]
 ): ClientPoint {
   const lineStart = Number(reportLine.xStart);
-  return lineLocalClientPoint(line, reportLine, Number.isFinite(lineStart) ? lineStart : 0);
+  return lineLocalClientPoint(line, reportLine, lineStart);
 }
 
 function lineBoxNormalOffset(
@@ -536,9 +530,6 @@ function lineClientHeight(
   const theta = Math.atan2(line.screenMatrix.b, line.screenMatrix.a);
   const cos = Math.abs(Math.cos(theta));
   const sin = Math.abs(Math.sin(theta));
-  if (!Number.isFinite(lineWidthScreen) || lineWidthScreen <= EPSILON || !Number.isFinite(bboxHeight) || !Number.isFinite(bboxWidth)) {
-    return fallback;
-  }
   let inferredHeight = Number.NaN;
   if (cos > EPSILON) {
     inferredHeight = (bboxHeight - lineWidthScreen * sin) / cos;
@@ -561,9 +552,7 @@ function clientToLineLocalX(
     line.inverseScreenMatrix.a * clientPoint.x +
     line.inverseScreenMatrix.c * clientPoint.y +
     line.inverseScreenMatrix.e;
-  const reportX =
-    localX / line.reportToSvgScaleX +
-    (Number.isFinite(lineStart) ? lineStart : 0);
+  const reportX = localX / line.reportToSvgScaleX + lineStart;
   return reportX;
 }
 
@@ -1399,9 +1388,6 @@ function inferLineByClientPoint(
   hitMap: ParagraphHitMap,
   clientPoint: ClientPoint
 ): LineHitMap {
-  if (!hitMap.lines.length) {
-    throw new Error('No lines available for measured Y lookup.');
-  }
   const reportLineByIndex = new Map(
     hitMap.report.lines.map((line) => [line.lineIndex, line])
   );
@@ -1411,10 +1397,7 @@ function inferLineByClientPoint(
   let bestFallbackDistance = Number.POSITIVE_INFINITY;
 
   for (const line of hitMap.lines) {
-    const reportLine = reportLineByIndex.get(line.lineIndex);
-    if (!reportLine) {
-      continue;
-    }
+    const reportLine = reportLineByIndex.get(line.lineIndex)!;
 
     const origin = lineBaselineOriginPoint(line, reportLine);
     const reportLineEnd = Number(reportLine.xEnd);
@@ -1460,7 +1443,7 @@ function inferLineByClientPoint(
     }
   }
 
-  return best ?? hitMap.lines[0];
+  return best!;
 }
 
 function mapBuildFailureCode(message: string): CaretMappingErrorCode {
@@ -1470,7 +1453,7 @@ function mapBuildFailureCode(message: string): CaretMappingErrorCode {
   if (/opening|closing|parse/i.test(message)) {
     return 'source-parse-error';
   }
-  if (/rect|svg|geometry|rendered line/i.test(message)) {
+  if (/rect|svg|geometry|rendered line|screen transform|viewBox|report width|xStart|xEnd/i.test(message)) {
     return 'geometry-error';
   }
   return 'alignment-error';
@@ -1522,24 +1505,7 @@ export async function getKnuthPlassCaretFromPoint(
   }
 
   const line = inferLineByClientPoint(hitMap, params.clientPoint);
-  if (!line.stopsByX.length) {
-    return errorResult<CaretHitResult>(
-      paragraphId,
-      { offset: null, lineIndex: null, kind: null, snappedToMathPrefix: false },
-      'alignment-error',
-      `No measured caret stops available for line ${line.lineIndex}.`
-    );
-  }
-
-  const reportLine = hitMap.report.lines.find((entry) => entry.lineIndex === line.lineIndex);
-  if (!reportLine) {
-    return errorResult<CaretHitResult>(
-      paragraphId,
-      { offset: null, lineIndex: null, kind: null, snappedToMathPrefix: false },
-      'alignment-error',
-      `No report line found for line ${line.lineIndex}.`
-    );
-  }
+  const reportLine = hitMap.report.lines.find((entry) => entry.lineIndex === line.lineIndex)!;
 
   const lineX = clientToLineLocalX(line, reportLine, params.clientPoint);
   const stop = nearestStopByX(line.stopsByX, lineX);
@@ -1662,23 +1628,7 @@ export async function getKnuthPlassPointFromOffset(
 
   const reportLine = hitMap.report.lines.find(
     (entry) => entry.lineIndex === selected.line.lineIndex
-  );
-  if (!reportLine) {
-    return errorResult<CaretPointResult>(
-      paragraphId,
-      {
-        offset: null,
-        lineIndex: null,
-        lineLocalX: null,
-        clientPoint: null,
-        rotationDeg: null,
-        kind: null,
-        snappedToMathPrefix: false,
-      },
-      'alignment-error',
-      `No report line found for line ${selected.line.lineIndex}.`
-    );
-  }
+  )!;
 
   const baselinePoint = lineLocalClientPoint(selected.line, reportLine, selected.stop.x);
   const normal = lineNormalUnit(selected.line);
@@ -1791,31 +1741,10 @@ export async function getKnuthPlassSelectionRects(
       continue;
     }
     if (endStop.offset < startStop.offset) {
-      return errorResult<SelectionRectsResult>(
-        paragraphId,
-        {
-          startOffset: rangeStart,
-          endOffset: rangeEnd,
-          rects: [],
-        },
-        'alignment-error',
-        `Selection offsets are inverted on line ${line.lineIndex}.`
-      );
+      continue;
     }
 
-    const reportLine = hitMap.report.lines.find((entry) => entry.lineIndex === line.lineIndex);
-    if (!reportLine) {
-      return errorResult<SelectionRectsResult>(
-        paragraphId,
-        {
-          startOffset: rangeStart,
-          endOffset: rangeEnd,
-          rects: [],
-        },
-        'alignment-error',
-        `No report line found for line ${line.lineIndex}.`
-      );
-    }
+    const reportLine = hitMap.report.lines.find((entry) => entry.lineIndex === line.lineIndex)!;
 
     const startPoint = lineLocalClientPoint(line, reportLine, startStop.x);
     const endPoint = lineLocalClientPoint(line, reportLine, endStop.x);
@@ -1919,8 +1848,8 @@ export async function getKnuthPlassLineRangeFromPoint(
   }
 
   const line = inferLineByClientPoint(hitMap, params.clientPoint);
-  const lineStartOffset = clamp(Math.floor(line.minOffset ?? 0), 0, params.sourceText.length);
-  const lineEndOffset = clamp(Math.floor(line.maxOffset ?? 0), 0, params.sourceText.length);
+  const lineStartOffset = clamp(Math.floor(line.minOffset), 0, params.sourceText.length);
+  const lineEndOffset = clamp(Math.floor(line.maxOffset), 0, params.sourceText.length);
   return {
     ok: true,
     paragraphId,

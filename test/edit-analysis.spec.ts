@@ -95,6 +95,50 @@ describe("edit analysis session", () => {
     });
     expect(parseSpy).not.toHaveBeenCalled();
   });
+
+  it("memoizes cached analysis lookups and reuses the previous source entry", () => {
+    const scopedSource = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \begin{scope}
+    \draw (0,0) -- (0,1);
+  \end{scope}
+\end{tikzpicture}`;
+    const otherSource = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const parseResult = parserModule.parseTikz(scopedSource, {
+      recover: true,
+      activeFigureId: "figure:0"
+    });
+    const session = createEditAnalysisSession();
+
+    const primed = session.primeFromParse(parseResult, scopedSource);
+    expect(session.primeFromParse(parseResult, scopedSource)).toBe(primed);
+
+    const firstTarget = primed.resolvePropertyTarget("path:0");
+    expect(primed.resolvePropertyTarget("path:0")).toBe(firstTarget);
+    const figureTarget = primed.resolveFigurePropertyTarget();
+    expect(primed.resolveFigurePropertyTarget()).toBe(figureTarget);
+
+    const topLevelPath = primed.findPathStatement("path:0");
+    expect(topLevelPath?.kind).toBe("Path");
+    expect(primed.findPathStatement("path:0")).toBe(topLevelPath);
+    const nestedPath = primed.statementSnapshot.all.find(
+      (ref) => ref.parentKey !== "root" && ref.statement.kind === "Path"
+    );
+    expect(nestedPath).toBeDefined();
+    if (nestedPath) {
+      expect(primed.findPathStatement(nestedPath.id)).toBe(nestedPath.statement);
+    }
+    expect(primed.findPathStatement("path:missing")).toBeNull();
+
+    const other = session.ensure(otherSource, { activeFigureId: "figure:0" });
+    expect(other).not.toBe(primed);
+    expect(session.ensure(scopedSource, { activeFigureId: "figure:0" })).toBe(primed);
+
+    session.reset();
+    expect(session.ensure(scopedSource, { activeFigureId: "figure:0" })).not.toBe(primed);
+  });
 });
 
 describe("shared edit analysis manager", () => {

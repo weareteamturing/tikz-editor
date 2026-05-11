@@ -21,7 +21,7 @@ import {
 } from "./inspector/rounded-corners.js";
 import { parseTikz } from "../parser/index.js";
 import type { PathItem, PathStatement, Span, Statement } from "../ast/types.js";
-import type { OptionListAst } from "../options/types.js";
+import type { OptionEntry, OptionListAst } from "../options/types.js";
 import {
   findTopLevelCharacter,
   parseFontStyle,
@@ -976,12 +976,14 @@ function signalDirectionsToEnumValue(sides: SignalDirection[]): string {
   if (sorted.length === 2 && sorted[0] === "north" && sorted[1] === "south") {
     return "north and south";
   }
-  return unique[0] ?? "nowhere";
+  return unique[0]!;
 }
 
 function resolveMatrixSpacingPt(options: OptionListAst | undefined, key: "row sep" | "column sep"): number {
-  const entry = options?.entries.find((candidate) => candidate.kind === "kv" && candidate.key === key);
-  if (!entry || entry.kind !== "kv") {
+  const entry = options?.entries.find(
+    (candidate): candidate is Extract<OptionEntry, { kind: "kv" }> => candidate.kind === "kv" && candidate.key === key
+  );
+  if (!entry) {
     return 0;
   }
   const tokens = entry.valueRaw
@@ -999,8 +1001,10 @@ function resolveMatrixSpacingPt(options: OptionListAst | undefined, key: "row se
 }
 
 function resolveMatrixColorOption(options: OptionListAst | undefined, key: "draw" | "fill"): string | null {
-  const entry = options?.entries.find((candidate) => candidate.kind === "kv" && candidate.key === key);
-  if (!entry || entry.kind !== "kv") {
+  const entry = options?.entries.find(
+    (candidate): candidate is Extract<OptionEntry, { kind: "kv" }> => candidate.kind === "kv" && candidate.key === key
+  );
+  if (!entry) {
     return null;
   }
   const normalized = entry.valueRaw.trim();
@@ -1021,11 +1025,11 @@ function optionHasNormalizedKey(options: OptionListAst | undefined, key: string)
 function resolveTreeLengthOptionPt(options: OptionListAst | undefined, key: "level distance" | "sibling distance"): number {
   const normalizedKey = normalizeOptionKey(key);
   const entry = options?.entries.find(
-    (candidate) =>
+    (candidate): candidate is Extract<OptionEntry, { kind: "kv" }> =>
       candidate.kind === "kv"
       && normalizeOptionKey(candidate.key) === normalizedKey
   );
-  if (!entry || entry.kind !== "kv") {
+  if (!entry) {
     return 0;
   }
   const parsed = parseLength(entry.valueRaw, "pt");
@@ -3580,10 +3584,7 @@ function arrowPresetFromMarker(marker: ArrowMarker | null): ArrowTipPresetId {
     return "custom";
   }
 
-  const tip = marker.tips[0];
-  if (!tip) {
-    return "none";
-  }
+  const tip = marker.tips[0]!;
   return arrowPresetFromKind(tip.kind);
 }
 
@@ -3623,11 +3624,8 @@ function arrowMarkerFallbackRaw(marker: ArrowMarker | null, side: ArrowTipSide):
   if (preset !== "custom") {
     return arrowPresetSideRaw(preset, side);
   }
-  if (!marker || marker.tips.length === 0) {
-    return "";
-  }
 
-  return marker.tips.map((tip) => arrowKindCanonicalRaw(tip.kind, side)).join(" ");
+  return marker!.tips.map((tip) => arrowKindCanonicalRaw(tip.kind, side)).join(" ");
 }
 
 function arrowKindCanonicalRaw(kind: ArrowTipKind, side: ArrowTipSide): string {
@@ -4580,11 +4578,8 @@ function polygonSignedArea(points: ReadonlyArray<{ x: number; y: number }>): num
 
   let area = 0;
   for (let index = 0; index < points.length; index += 1) {
-    const current = points[index];
-    const next = points[(index + 1) % points.length];
-    if (!current || !next) {
-      continue;
-    }
+    const current = points[index]!;
+    const next = points[(index + 1) % points.length]!;
     area += current.x * next.y - next.x * current.y;
   }
   return area / 2;
@@ -4606,10 +4601,8 @@ export function dashStylePresetFromStyle(dashArray: number[] | null, lineWidth: 
   if (dashArray.length !== 2) {
     return "custom";
   }
-  const [first, second] = dashArray;
-  if (first == null || second == null) {
-    return "custom";
-  }
+  const first = dashArray[0]!;
+  const second = dashArray[1]!;
   if (closeEnough(first, 3) && closeEnough(second, 3)) {
     return "dashed";
   }

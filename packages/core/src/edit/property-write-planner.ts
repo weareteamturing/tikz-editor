@@ -69,7 +69,7 @@ export function applyPlannedSetPropertyAction(
   action: SetPropertyAction,
   parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
-  return planPropertyWrite({ source, action, parseOptions }).selected;
+  return withChangedSourceId(planPropertyWrite({ source, action, parseOptions }).selected, action.elementId);
 }
 
 export const PROPERTY_WRITE_CLEANUP_NOOP_REASON = "Property write cleanup would not change the source.";
@@ -86,9 +86,7 @@ export function cleanupIdiomaticPropertyWrites(
 
   let current = source;
   const requestedElementIds = normalizeCleanupElementIds(elementIds);
-  const pathIds =
-    requestedElementIds ??
-    filterCleanupPathIds(collectPathStatementIds(parseTikzForEdit(source, parseOptions).figure.body), elementIds);
+  const pathIds = requestedElementIds ?? collectPathStatementIds(parseTikzForEdit(source, parseOptions).figure.body);
   for (const elementId of pathIds) {
     const candidates = buildPaintCommandCleanupCandidates(
       current,
@@ -100,9 +98,6 @@ export function cleanupIdiomaticPropertyWrites(
       parseOptions
     );
     for (const candidate of candidates) {
-      if (candidate.source === current) {
-        continue;
-      }
       if (certifyEquivalentSource(current, candidate.source, parseOptions) && sourceLooksCleaner(candidate.source, current)) {
         current = candidate.source;
         break;
@@ -117,7 +112,22 @@ export function cleanupIdiomaticPropertyWrites(
   return {
     kind: "success",
     newSource: current,
-    patches: deriveSingleSourcePatch(source, current)
+    patches: deriveSingleSourcePatch(source, current),
+    changedSourceIds: requestedElementIds && requestedElementIds.length > 0 ? requestedElementIds : undefined
+  };
+}
+
+function withChangedSourceId(result: EditActionResultLike, sourceId: string): EditActionResultLike {
+  if (result.kind !== "success" && result.kind !== "partial") {
+    return result;
+  }
+  if (result.changedSourceIds !== undefined) {
+    return result;
+  }
+  const normalized = sourceId.trim();
+  return {
+    ...result,
+    changedSourceIds: [normalized]
   };
 }
 
@@ -145,17 +155,6 @@ function normalizeCleanupElementIds(elementIds: readonly string[] | undefined): 
   return elementIds.map((id) => id.trim()).filter((id) => id.length > 0);
 }
 
-function filterCleanupPathIds(pathIds: readonly string[], elementIds: readonly string[] | undefined): string[] {
-  if (!elementIds) {
-    return [...pathIds];
-  }
-  const targetIds = new Set(elementIds.map((id) => id.trim()).filter((id) => id.length > 0));
-  if (targetIds.size === 0) {
-    return [];
-  }
-  return pathIds.filter((pathId) => targetIds.has(pathId));
-}
-
 export function planPropertyWrite(request: PropertyWriteRequest): PropertyWritePlan {
   const parseOptions = request.parseOptions ?? {};
   const mode = request.mode ?? parseOptions.propertyWriteMode ?? "commit";
@@ -176,9 +175,6 @@ export function planPropertyWrite(request: PropertyWriteRequest): PropertyWriteP
   let selectedSource = conservative.newSource;
   let selectedReason: string | null = null;
   for (const candidate of candidates) {
-    if (candidate.source === request.source || candidate.source === selectedSource) {
-      continue;
-    }
     const accepted = certifyEquivalentSource(conservative.newSource, candidate.source, parseOptions);
     certificates.push({
       accepted,
@@ -277,11 +273,7 @@ function buildPaintCommandCleanupCandidates(
   }
 
   const paint = resolvePaintOptions(source, action.elementId, parseOptions);
-  if (!paint) {
-    return [];
-  }
-
-  const commands = chooseCandidateCommands(command, paint);
+  const commands = chooseCandidateCommands(paint);
   const candidates: CleanupCandidate[] = [];
   for (const nextCommand of commands) {
     const candidate = rewritePaintCommand(source, action.elementId, nextCommand, paint, parseOptions);
@@ -295,10 +287,7 @@ function buildPaintCommandCleanupCandidates(
   return candidates;
 }
 
-function chooseCandidateCommands(
-  currentCommand: "path" | "draw" | "fill" | "filldraw",
-  paint: PaintOptions
-): Array<"path" | "draw" | "fill"> {
+function chooseCandidateCommands(paint: PaintOptions): Array<"path" | "draw" | "fill"> {
   const drawEnabled = paint.draw != null && !paint.drawDisabled;
   const fillEnabled = paint.fill != null && !paint.fillDisabled;
   const candidates: Array<"path" | "draw" | "fill"> = [];
@@ -310,9 +299,6 @@ function chooseCandidateCommands(
   }
   if (drawEnabled) {
     candidates.push("draw");
-  }
-  if (candidates.length === 0) {
-    candidates.push(currentCommand === "filldraw" ? "draw" : currentCommand);
   }
   return candidates.filter((candidate, index) => candidates.indexOf(candidate) === index);
 }
@@ -405,7 +391,7 @@ function findPathCommandTokenSpan(source: string, statementSpan: Span, command: 
   const pattern = new RegExp(String.raw`\\?${escapeRegex(command)}\b`, "u");
   const statementSource = source.slice(statementSpan.from, statementSpan.to);
   const match = pattern.exec(statementSource);
-  if (!match || match.index == null) {
+  if (!match) {
     return null;
   }
   return {
@@ -418,7 +404,7 @@ function resolvePaintOptions(
   source: string,
   elementId: string,
   parseOptions: EditParseOptions
-): PaintOptions | null {
+): PaintOptions {
   const resolved = resolvePropertyTarget(source, elementId, parseOptions);
   if (resolved.kind !== "found" || !resolved.target.options) {
     return {
@@ -621,9 +607,6 @@ function countOccurrences(source: string, needle: string): number {
 }
 
 function deriveSingleSourcePatch(previous: string, next: string): SourcePatch[] {
-  if (previous === next) {
-    return [];
-  }
   let prefix = 0;
   while (prefix < previous.length && prefix < next.length && previous[prefix] === next[prefix]) {
     prefix += 1;

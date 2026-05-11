@@ -191,8 +191,8 @@ export function extractNodeAdornmentPlan(
     quoteMode: baseDefaults?.quoteMode ?? "label",
     labelPosition: baseDefaults?.labelPosition ?? "above",
     pinPosition: baseDefaults?.pinPosition ?? "above",
-    labelDistancePt: baseDefaults?.labelDistancePt ?? (parseLength("0pt", "pt") ?? 0),
-    pinDistancePt: baseDefaults?.pinDistancePt ?? (parseLength("3ex", "pt") ?? 12.9),
+    labelDistancePt: baseDefaults?.labelDistancePt ?? parseLength("0pt", "pt")!,
+    pinDistancePt: baseDefaults?.pinDistancePt ?? parseLength("3ex", "pt")!,
     pinEdgeRaw: baseDefaults?.pinEdgeRaw ?? null
   };
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseTikz } from "../../packages/core/src/parser/index.js";
 import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js";
-import { applyEditIntent } from "../../packages/core/src/edit/apply.js";
+import { applyEdit, applyEditIntent } from "../../packages/core/src/edit/apply.js";
 import type { EditHandle } from "../../packages/core/src/semantic/types.js";
 import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
 import { wp } from "../coords-helpers.js";
@@ -615,5 +615,180 @@ describe("edit integration (round-trip)", () => {
     expect(patch.replacement).toContain("20");
     expect(patch.newSpan.from).toBe(patch.oldSpan.from);
     expect(patch.newSpan.to).toBe(patch.oldSpan.from + patch.replacement.length);
+  });
+
+  it("applies direct AST edits and rejects mismatched targets", () => {
+    const source = String.raw`\begin{tikzpicture}
+\begin{scope}
+\node at (1,2) {A};
+\end{scope}
+\end{tikzpicture}`;
+    const { parsed } = evaluateAndGetHandles(source);
+    const coordinateId = parsed.figure.body[0]?.kind === "Scope"
+      ? parsed.figure.body[0].body[0]?.kind === "Path"
+        ? parsed.figure.body[0].body[0].items.find((item) => item.kind === "Coordinate")?.id
+        : undefined
+      : undefined;
+    const nodeId = parsed.figure.body[0]?.kind === "Scope"
+      ? parsed.figure.body[0].body[0]?.kind === "Path"
+        ? parsed.figure.body[0].body[0].items.find((item) => item.kind === "Node")?.id
+        : undefined
+      : undefined;
+    expect(coordinateId).toBeDefined();
+    expect(nodeId).toBeDefined();
+
+    expect(applyEdit(parsed, { kind: "updateCoordinate", targetId: coordinateId!, x: "3", y: "4" }).source)
+      .toContain("(3,4)");
+    expect(applyEdit(parsed, { kind: "updateNodeText", targetId: nodeId!, text: "B" }).source)
+      .toContain("{B}");
+    expect(() => applyEdit(parsed, { kind: "updateCoordinate", targetId: "missing", x: "0", y: "0" }))
+      .toThrow(/Unknown edit target/);
+    expect(() => applyEdit(parsed, { kind: "updateCoordinate", targetId: nodeId!, x: "0", y: "0" }))
+      .toThrow(/not a coordinate/);
+    expect(() => applyEdit(parsed, { kind: "updateNodeText", targetId: coordinateId!, text: "B" }))
+      .toThrow(/not a node/);
+  });
+
+  it("rejects stale rewrite-target handles before mutating source", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) -- (1,1);
+\end{tikzpicture}`;
+    const { handles } = evaluateAndGetHandles(source);
+    const handle = findHandleBySpanText(source, handles, "(1,1)")!;
+    const result = applyEditIntent(source, [
+      { ...handle, rewriteTargetHandleId: "detached-target" },
+      {
+        ...handle,
+        id: "detached-target",
+        sourceRef: { ...handle.sourceRef, sourceFingerprint: "stale-fingerprint" }
+      }
+    ], {
+      kind: "move",
+      handleId: handle.id,
+      newWorld: wp(cm(2), cm(2))
+    });
+
+    expect(result).toEqual({
+      kind: "error",
+      message: "Handle does not match current source (stale handle)."
+    });
+  });
+
+  it("rejects unknown intents and missing rewrite-target handles", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) -- (1,1);
+\end{tikzpicture}`;
+    const { handles } = evaluateAndGetHandles(source);
+    const handle = findHandleBySpanText(source, handles, "(1,1)")!;
+
+    const unknown = applyEditIntent(source, handles, {
+      kind: "rotate",
+      handleId: handle.id,
+      newWorld: wp(cm(2), cm(2))
+    } as never);
+    expect(unknown).toEqual({ kind: "error", message: "Unknown intent kind: rotate" });
+
+    const missingTarget = applyEditIntent(source, [{ ...handle, rewriteTargetHandleId: "missing-target" }], {
+      kind: "move",
+      handleId: handle.id,
+      newWorld: wp(cm(2), cm(2))
+    });
+    expect(missingTarget).toEqual({
+      kind: "error",
+      message: "Rewrite target handle could not be resolved (stale handle?)."
+    });
+  });
+
+  it("rejects invalid rewrite spans and stale rewrite text", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) -- (1,1);
+\end{tikzpicture}`;
+    const { handles } = evaluateAndGetHandles(source);
+    const handle = findHandleBySpanText(source, handles, "(1,1)")!;
+
+    const invalidSpan = applyEditIntent(source, [
+      { ...handle, sourceRef: { ...handle.sourceRef, sourceSpan: { from: source.length + 1, to: source.length + 2 } } }
+    ], {
+      kind: "move",
+      handleId: handle.id,
+      newWorld: wp(cm(2), cm(2))
+    });
+    expect(invalidSpan.kind).toBe("error");
+    if (invalidSpan.kind === "error") {
+      expect(invalidSpan.message).toContain("source span exceeds");
+    }
+
+    const staleText = applyEditIntent(source, [{ ...handle, sourceText: "(9,9)" }], {
+      kind: "move",
+      handleId: handle.id,
+      newWorld: wp(cm(2), cm(2))
+    });
+    expect(staleText).toEqual({
+      kind: "error",
+      message: "Handle span content mismatch (stale handle)."
+    });
+  });
+
+  it("guards malformed curve edit handles", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) to[out=0,in=180] (2,0);
+\end{tikzpicture}`;
+    const { handles } = evaluateAndGetHandles(source);
+    const outHandle = handles.find(
+      (handle) => handle.kind === "path-control" && handle.curveEdit?.kind === "to-angle" && handle.curveEdit.role === "out"
+    );
+    expect(outHandle).toBeDefined();
+
+    const missingTarget = applyEditIntent(source, [
+      {
+        ...outHandle!,
+        curveEdit: { ...outHandle!.curveEdit!, operationItemId: "missing-operation" }
+      } as EditHandle
+    ], {
+      kind: "move",
+      handleId: outHandle!.id,
+      newWorld: wp(0, cm(1))
+    });
+    expect(missingTarget.kind).toBe("unsupported");
+
+    const nonFiniteAngle = applyEditIntent(source, handles, {
+      kind: "move",
+      handleId: outHandle!.id,
+      newWorld: wp(Number.NaN, Number.NaN)
+    });
+    expect(nonFiniteAngle.kind).toBe("success");
+    if (nonFiniteAngle.kind === "success") {
+      expect(nonFiniteAngle.newSource).toContain("out=0");
+    }
+  });
+
+  it("normalizes degenerate bend handles without producing invalid angles", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) to[bend left=30] (2,0);
+\end{tikzpicture}`;
+    const { handles } = evaluateAndGetHandles(source);
+    const bendHandle = handles.find(
+      (handle) => handle.kind === "path-bend" && handle.curveEdit?.kind === "to-bend"
+    );
+    expect(bendHandle).toBeDefined();
+
+    const result = applyEditIntent(source, [
+      {
+        ...bendHandle!,
+        curveEdit: {
+          ...bendHandle!.curveEdit!,
+          startWorld: wp(0, 0),
+          endWorld: wp(0, 0)
+        }
+      } as EditHandle
+    ], {
+      kind: "move",
+      handleId: bendHandle!.id,
+      newWorld: wp(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY)
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("bend left=0");
+    }
   });
 });

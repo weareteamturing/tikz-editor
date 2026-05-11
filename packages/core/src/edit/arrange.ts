@@ -124,7 +124,7 @@ export function planDistributeDeltas(
       }
     }
 
-    return (order.get(left.sourceId) ?? 0) - (order.get(right.sourceId) ?? 0);
+    return order.get(left.sourceId)! - order.get(right.sourceId)!;
   });
 
   const deltas = new Map<string, WorldPoint>();
@@ -166,13 +166,6 @@ export function planDistributeDeltas(
       const dy = targetMinY - entry.minY;
       deltas.set(entry.sourceId, wp(0, Math.abs(dy) <= epsilon ? 0 : dy));
       previousTargetMinY = targetMinY;
-    }
-  }
-
-  // Ensure all selected ids exist in the map.
-  for (const sourceId of normalized) {
-    if (!deltas.has(sourceId)) {
-      deltas.set(sourceId, wp(0, 0));
     }
   }
 

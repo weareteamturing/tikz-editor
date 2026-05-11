@@ -72,6 +72,38 @@ describe("standalone latex export helpers", () => {
     expect(artifact.text).toContain(String.raw`\newcommand{\twostep}[1][\edgeend]{#1 -- (2,0)}`);
   });
 
+  it("includes transitive style and color definitions used by the active figure", () => {
+    const source = String.raw`\colorlet{accent}{blue}
+\tikzset{accent line/.style={draw=accent,line width=2pt}}
+\begin{tikzpicture}
+  \draw[accent line] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const artifact = createStandaloneLatexExportArtifact({
+      source,
+      activeFigureId: "figure:0"
+    });
+
+    expect(artifact.complete).toBe(true);
+    expect(artifact.text).toContain(String.raw`\colorlet{accent}{blue}`);
+    expect(artifact.text).toContain(String.raw`\tikzset{accent line/.style={draw=accent,line width=2pt}}`);
+  });
+
+  it("exports figures that contain scoped nested statements", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[xshift=1cm]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const artifact = createStandaloneLatexExportArtifact({
+      source,
+      activeFigureId: "figure:0"
+    });
+
+    expect(artifact.complete).toBe(true);
+    expect(artifact.text).toContain(String.raw`\begin{scope}[xshift=1cm]`);
+    expect(artifact.text).toContain(String.raw`\draw (0,0) -- (1,0);`);
+  });
+
   it("falls back to the whole source when no active figure is selected or the id is stale", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);

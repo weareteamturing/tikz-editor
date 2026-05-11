@@ -19,9 +19,9 @@ import {
 } from "./graph-parse-utils.js";
 
 const CONNECTOR_OPERATORS = ["<->", "-!-", "->", "<-", "--"] as const;
-const DEFAULT_GRAPH_STEP_PT = parseLength("1cm", "cm") ?? 28.45274;
-const DEFAULT_GRAPH_SEP_PT = parseLength("1em", "cm") ?? 10;
-const DEFAULT_GRAPH_RADIUS_PT = parseLength("1cm", "cm") ?? DEFAULT_GRAPH_STEP_PT;
+const DEFAULT_GRAPH_STEP_PT = parseLength("1cm", "cm")!;
+const DEFAULT_GRAPH_SEP_PT = parseLength("1em", "cm")!;
+const DEFAULT_GRAPH_RADIUS_PT = parseLength("1cm", "cm")!;
 const BUILTIN_COLOR_CLASSES = ["all", "source", "target", "source'", "target'"] as const;
 
 type ConnectorOperator = (typeof CONNECTOR_OPERATORS)[number];

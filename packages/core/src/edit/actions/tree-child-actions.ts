@@ -6,7 +6,7 @@ import { resolvePropertyTarget } from "../property-target.js";
 import type { SourcePatch } from "../types.js";
 
 type EditActionResultLike =
-  | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[] }
+  | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[]; changedSourceIds?: string[] }
   | { kind: "unsupported"; reason: string };
 
 type AddTreeChildAction = {
@@ -49,7 +49,7 @@ export function applyAddTreeChildAction(
     const newline = detectPreferredNewline(source, insertOffset);
     const parentIndent = lineIndentAtOffset(source, resolvedParent.target.span.from);
     const childIndent = `${parentIndent}  `;
-    return applyInsertion(source, insertOffset, `${newline}${childIndent}${NEW_CHILD_SNIPPET}`);
+    return applyInsertion(source, insertOffset, `${newline}${childIndent}${NEW_CHILD_SNIPPET}`, [parentSourceId]);
   }
 
   if (resolvedParent.target.kind !== "path-statement") {
@@ -72,7 +72,7 @@ export function applyAddTreeChildAction(
   const newline = detectPreferredNewline(source, insertionAnchor.offset);
   const rootLineIndent = lineIndentAtOffset(source, rootStatement.span.from);
   const childIndent = insertionAnchor.childIndent;
-  return applyInsertion(source, insertionAnchor.offset, `${newline}${childIndent}${NEW_CHILD_SNIPPET}`);
+  return applyInsertion(source, insertionAnchor.offset, `${newline}${childIndent}${NEW_CHILD_SNIPPET}`, [parentSourceId]);
 }
 
 export function applyAddTreeSiblingAction(
@@ -97,11 +97,11 @@ export function applyAddTreeSiblingAction(
   const siblingIndent = lineIndentAtOffset(source, siblingSpan.from);
   const newline = detectPreferredNewline(source, siblingSpan.from);
   if (action.position === "before") {
-    return applyInsertion(source, siblingSpan.from, `${siblingIndent}${NEW_CHILD_SNIPPET}${newline}`);
+    return applyInsertion(source, siblingSpan.from, `${siblingIndent}${NEW_CHILD_SNIPPET}${newline}`, [siblingSourceId]);
   }
 
   const insertOffset = skipHorizontalWhitespace(source, siblingSpan.to);
-  return applyInsertion(source, insertOffset, `${newline}${siblingIndent}${NEW_CHILD_SNIPPET}`);
+  return applyInsertion(source, insertOffset, `${newline}${siblingIndent}${NEW_CHILD_SNIPPET}`, [siblingSourceId]);
 }
 
 export function applyRemoveTreeChildAction(
@@ -134,11 +134,17 @@ export function applyRemoveTreeChildAction(
         replacement: ""
       }
     ],
-    selectedSourceIds: resolvedChild.target.treeRootSourceId ? [resolvedChild.target.treeRootSourceId] : []
+    selectedSourceIds: [resolvedChild.target.treeRootSourceId!],
+    changedSourceIds: [childSourceId]
   };
 }
 
-function applyInsertion(source: string, offset: number, insertion: string): EditActionResultLike {
+function applyInsertion(
+  source: string,
+  offset: number,
+  insertion: string,
+  changedSourceIds: string[]
+): EditActionResultLike {
   const updated = replaceSpan(source, { from: offset, to: offset }, insertion);
   return {
     kind: "success",
@@ -149,7 +155,8 @@ function applyInsertion(source: string, offset: number, insertion: string): Edit
         newSpan: updated.changedSpan,
         replacement: insertion
       }
-    ]
+    ],
+    changedSourceIds
   };
 }
 
@@ -158,7 +165,7 @@ function resolveRootInsertionAnchor(
   statement: PathStatement,
   children: ReadonlyArray<{ child: ChildOperationItem; span: Span }>,
   afterChildIndexRaw: number | undefined
-): { offset: number; childIndent?: string } | null {
+): { offset: number; childIndent?: string } {
   if (children.length === 0) {
     const statementTail = resolvePathStatementTailInsertOffset(source, statement.span);
     const indent = `${lineIndentAtOffset(source, statement.span.from)}  `;
@@ -166,15 +173,13 @@ function resolveRootInsertionAnchor(
   }
 
   if (Number.isInteger(afterChildIndexRaw)) {
-    const afterChildIndex = Math.max(0, Math.trunc(afterChildIndexRaw ?? 0));
-    if (afterChildIndex >= 0 && afterChildIndex < children.length) {
-      const child = children[afterChildIndex];
-      if (child) {
-        return {
-          offset: skipHorizontalWhitespace(source, child.span.to),
-          childIndent: lineIndentAtOffset(source, child.span.from)
-        };
-      }
+    const afterChildIndex = Math.max(0, afterChildIndexRaw!);
+    if (afterChildIndex < children.length) {
+      const child = children[afterChildIndex]!;
+      return {
+        offset: skipHorizontalWhitespace(source, child.span.to),
+        childIndent: lineIndentAtOffset(source, child.span.from)
+      };
     }
   }
 

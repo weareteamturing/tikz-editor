@@ -3,7 +3,6 @@ import type { OptionListAst } from "../options/types.js";
 import { parseTikzForEdit, type EditParseOptions } from "./parse-options.js";
 import { isWrappedBySingleBracePair } from "../utils/braces.js";
 
-const DECLARATION_OPTION_KEY_PATTERN = /\b(?:name|alias|name\s+path(?:\s+(?:global|local))?)\s*=\s*/iu;
 const DECLARATION_OPTION_KEY_REGEX = /(\b(?:name|alias|name\s+path(?:\s+(?:global|local))?)\s*=\s*)(\{[^{}]*\}|\([^()]*\)|[^,\]\s]+)/giu;
 const DECLARATION_OPTION_KEYS = new Set([
   "name",
@@ -291,10 +290,6 @@ function replaceOptionNameAssignments(
   newName: string
 ): string {
   return source.replace(DECLARATION_OPTION_KEY_REGEX, (match, prefix: string, rawValue: string) => {
-    if (!DECLARATION_OPTION_KEY_PATTERN.test(prefix)) {
-      return match;
-    }
-
     const parsed = normalizeNameToken(rawValue);
     if (parsed !== oldName) {
       return match;

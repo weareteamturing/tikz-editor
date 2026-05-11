@@ -24,4 +24,18 @@ describe("source patch replay", () => {
     expect(replayed.kind).toBe("invalid");
     expect(patchesMatchSourceTransition(source, "abXYfghij", patches)).toBe(false);
   });
+
+  it("rejects malformed and out-of-bounds patch spans before replay", () => {
+    expect(
+      applySourcePatches("abc", [
+        { oldSpan: { from: 2, to: 1 }, newSpan: { from: 0, to: 0 }, replacement: "" }
+      ])
+    ).toEqual({ kind: "invalid", reason: "invalid-span-order" });
+
+    expect(
+      applySourcePatches("abc", [
+        { oldSpan: { from: 1, to: 4 }, newSpan: { from: 0, to: 0 }, replacement: "" }
+      ])
+    ).toEqual({ kind: "invalid", reason: "out-of-bounds" });
+  });
 });

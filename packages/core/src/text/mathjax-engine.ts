@@ -878,12 +878,7 @@ function queueAsyncCachePopulate(
     return;
   }
 
-  let renderTask: Promise<unknown>;
-  try {
-    renderTask = renderMeasuredNodeWithPromise(runtime, params);
-  } catch {
-    return;
-  }
+  const renderTask = renderMeasuredNodeWithPromise(runtime, params);
 
   const task = renderTask
     .then((node) => {
@@ -1019,10 +1014,6 @@ function measureFixedLinesParagraphWidth(
   mode: "text" | "math"
 ): number | null {
   const lines = splitExplicitMultilineSource(sourceText);
-  if (lines.length === 0) {
-    return null;
-  }
-
   let maxWidth = 0;
   for (const line of lines) {
     const width = measureExactSingleLineWidth(runtime, exactSingleLineWidthCache, line, font, mode);
@@ -1039,12 +1030,9 @@ async function measureNaturalWidthWithPromise(
   font: TextFontOptions,
   mode: "text" | "math"
 ): Promise<number> {
-  if (typeof runtime.tex2svgPromise !== "function") {
-    throw new Error("MathJax promise renderer is unavailable.");
-  }
   const adaptor = runtime.startup?.adaptor ?? null;
   const naturalTex = buildWrappedTeX(sourceText, null, font, mode);
-  const node = await runtime.tex2svgPromise(naturalTex, { display: false });
+  const node = await runtime.tex2svgPromise!(naturalTex, { display: false });
   const entry = buildCacheEntryWithMetadata("__measure__", node, adaptor, sourceText, null);
   return entry?.baseWidthPt ?? Number.NaN;
 }
@@ -1056,10 +1044,6 @@ async function measureFixedLinesParagraphWidthWithPromise(
   mode: "text" | "math"
 ): Promise<number | null> {
   const lines = splitExplicitMultilineSource(sourceText);
-  if (lines.length === 0) {
-    return null;
-  }
-
   let maxWidth = 0;
   for (const line of lines) {
     const width = await measureExactSingleLineWidthWithPromise(runtime, line, font, mode);
@@ -1148,16 +1132,13 @@ async function measureExactSingleLineWidthWithPromise(
   font: TextFontOptions,
   mode: "text" | "math"
 ): Promise<number> {
-  if (typeof runtime.tex2svgPromise !== "function") {
-    throw new Error("MathJax promise renderer is unavailable.");
-  }
   const measuredWidthPt = await measureNaturalWidthWithPromise(runtime, sourceText, font, mode);
   if (!(Number.isFinite(measuredWidthPt) && measuredWidthPt > 0)) {
     return Number.NaN;
   }
   const tex = buildWrappedTeX(sourceText, measuredWidthPt, font, mode);
   applyKnuthPlassRuntimeOptions(runtime, null, "fixed-lines");
-  const initialNode = await runtime.tex2svgPromise(tex, { display: false });
+  const initialNode = await runtime.tex2svgPromise!(tex, { display: false });
   const adaptor = runtime.startup?.adaptor ?? null;
   const initialEntry = buildCacheEntryWithMetadata("__measure__", initialNode, adaptor, sourceText, null);
   const exactWidthPt = await waitForParagraphRunWidth(runtime, initialEntry?.paragraphId ?? null);
@@ -1192,12 +1173,9 @@ function renderMeasuredNodeWithPromise(
     textWidthPt: number | null;
     font: TextFontOptions;
     mode: "text" | "math";
-    alignment: NodeTextParagraphAlignment | null;
+  alignment: NodeTextParagraphAlignment | null;
   }
 ): Promise<unknown> {
-  if (typeof runtime.tex2svgPromise !== "function") {
-    return Promise.reject(new Error("MathJax promise renderer is unavailable."));
-  }
   const explicitMultiline = hasExplicitMultilineBreaks(params.sourceText);
   const layoutMode = resolveKnuthPlassLayoutMode(params.textWidthPt, explicitMultiline);
   const wrappedTextGaps = params.mode === "text" ? collectWrappedTextGaps(params.sourceText) : [];
@@ -1752,11 +1730,7 @@ function computeFontScale(fontSizePt: number): number {
   if (!Number.isFinite(fontSizePt) || fontSizePt <= 0) {
     return 1;
   }
-  const scale = fontSizePt / DEFAULT_TEXT_FONT_SIZE;
-  if (!Number.isFinite(scale) || scale <= 0) {
-    return 1;
-  }
-  return scale;
+  return fontSizePt / DEFAULT_TEXT_FONT_SIZE;
 }
 
 function parseViewBox(raw: string | null): NodeTextRenderPayload["viewBox"] | null {
@@ -1794,7 +1768,7 @@ function sanitizeErrorMessage(error: unknown): string {
           message = serialized;
         }
       } catch {
-        // Keep the fallback message.
+        message = "";
       }
     }
   }

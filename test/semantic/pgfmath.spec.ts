@@ -146,6 +146,29 @@ describe("semantic evaluator / pgfmath", () => {
     }
   });
 
+  it("evaluates standalone pgfmath commands and reports malformed command inputs", () => {
+    const result = evaluateSemantic(String.raw`\begin{tikzpicture}
+\pgfmathsetseed{random(1,10)};
+\pgfmathsetseed{1+};
+\pgfmathparse{rand()};
+\pgfmathparse{1+};
+\pgfmathsetmacro{bad-target}{1};
+\pgfmathsetmacro{\good}{random(1,2)};
+\pgfmathsetmacro{\bad}{1+};
+\node at (\good,0) {\pgfmathresult};
+\end{tikzpicture}`);
+
+    expect(result.featureUsage.pgfmath_expression).toBe("used-supported");
+    expect(result.featureUsage.pgfmath_random_functions).toBe("used-supported");
+    expect(result.featureUsage.pgfmath_seed_commands).toBe("used-supported");
+    expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(expect.arrayContaining([
+      expect.stringMatching(/^invalid-pgfmathsetseed:/),
+      expect.stringMatching(/^invalid-pgfmathparse:/),
+      "invalid-pgfmathsetmacro-target",
+      expect.stringMatching(/^invalid-pgfmathsetmacro:/)
+    ]));
+  });
+
   it("reports unsupported syntax for quoted expressions", () => {
     const result = evaluatePgfMathExpression("\"foo\"");
     expect(result.ok).toBe(false);

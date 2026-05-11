@@ -36,12 +36,12 @@ export function resolveNodeLayout(
   const charWidth = fontSize * 0.7;
   const lineHeight = fontSize * 1.05;
 
-  const defaultInner = parseLength(".3333em", "pt") ?? 3.333;
+  const defaultInner = parseLength(".3333em", "pt")!;
   let innerXSep = defaultInner;
   let innerYSep = defaultInner;
   let textWidth: number | null = null;
-  let minWidth = parseLength("1pt", "pt") ?? 1;
-  let minHeight = parseLength("1pt", "pt") ?? 1;
+  let minWidth = parseLength("1pt", "pt")!;
+  let minHeight = parseLength("1pt", "pt")!;
   let minSize: number | null = null;
   let textHeightOverride: number | null = null;
   let textDepthOverride: number | null = null;

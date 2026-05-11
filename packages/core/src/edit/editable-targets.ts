@@ -26,9 +26,9 @@ export function parseEditableTargetId(id: string): ParsedEditableTargetId {
   return {
     kind: "node-adornment",
     id: trimmed,
-    ownerNodeId: match[1] ?? "",
-    adornmentKind: (match[2] as "label" | "pin") ?? "label",
-    adornmentIndex: Number.parseInt(match[3] ?? "0", 10) || 0
+    ownerNodeId: match[1]!,
+    adornmentKind: match[2] as "label" | "pin",
+    adornmentIndex: Number.parseInt(match[3]!, 10)
   };
 }
 

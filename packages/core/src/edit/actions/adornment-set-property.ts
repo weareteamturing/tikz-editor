@@ -156,7 +156,7 @@ export function applyAdornmentValueRewrite(
       }
     ],
     selectedSourceIds: [selectedTargetId],
-    changedSourceIds: [target.ownerSourceId ?? target.ownerId ?? selectedTargetId]
+    changedSourceIds: [target.ownerSourceId!]
   };
 }
 

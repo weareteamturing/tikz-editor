@@ -468,9 +468,6 @@ function buildSourceStatementFirstIndexBySourceId(run: SemanticEvaluationRun): R
   const bySourceId = new Map<string, number>();
   for (let index = 0; index < run.expandedFigureBody.length; index += 1) {
     const statement = run.expandedFigureBody[index];
-    if (!statement) {
-      continue;
-    }
     const attributed = run.statementAttribution.get(statement);
     const sourceId = attributed?.sourceId ?? statement.id;
     const previous = bySourceId.get(sourceId);
@@ -1249,7 +1246,7 @@ function applyTikzSetStatement(
   context: ReturnType<typeof createSemanticContext>,
   diagnostics: Diagnostic[]
 ): void {
-  applyOptionListsToCurrentFrame([statement.optionList], context, diagnostics, statement.span, statement.commandRaw);
+  applyOptionListsToCurrentFrame([statement.optionList], context, diagnostics, statement.span, statement.commandRaw, statement.id);
 }
 
 function applyPgfkeysStatement(
@@ -1258,7 +1255,7 @@ function applyPgfkeysStatement(
   diagnostics: Diagnostic[]
 ): void {
   const normalized = normalizePgfkeysOptionList(statement.optionList);
-  applyOptionListsToCurrentFrame([normalized], context, diagnostics, statement.span, statement.commandRaw);
+  applyOptionListsToCurrentFrame([normalized], context, diagnostics, statement.span, statement.commandRaw, statement.id);
 }
 
 function applyTikzStyleStatement(
@@ -1462,12 +1459,13 @@ function applyOptionListsToCurrentFrame(
   context: ReturnType<typeof createSemanticContext>,
   diagnostics: Diagnostic[],
   span: { from: number; to: number },
-  sourceLabel: string
+  sourceLabel: string,
+  sourceId = `standalone:${span.from}:${span.to}`
 ): void {
   const frame = currentFrame(context);
   const expandedOptionLists = expandOptionListMacros(optionLists, frame.macroBindings, context.macroTraceCollector ?? undefined);
   const sourceRef: StyleSourceRef = {
-    sourceId: `standalone:${span.from}:${span.to}`,
+    sourceId,
     sourceSpan: span,
     sourceKind: "standalone-command",
     label: sourceLabel

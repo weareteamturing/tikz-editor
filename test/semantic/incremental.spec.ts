@@ -2,13 +2,114 @@ import { describe, expect, it } from "vitest";
 
 import { applyEditAction } from "../../packages/core/src/edit/actions.js";
 import { parseTikz } from "../../packages/core/src/parser/index.js";
-import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js";
+import {
+  createSemanticEvaluationRun,
+  evaluateSemanticStatementByIndex,
+  evaluateTikzFigure
+} from "../../packages/core/src/semantic/evaluate.js";
 import { createIncrementalSemanticSession } from "../../packages/core/src/semantic/incremental.js";
 import type { EditHandle, EvaluateOptions } from "../../packages/core/src/semantic/types.js";
 import type { Statement } from "../../packages/core/src/ast/types.js";
 import { wp } from "../coords-helpers.js";
 
 describe("semantic incremental evaluation", () => {
+  it("rejects direct statement evaluation indexes outside the expanded body", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+    const run = createSemanticEvaluationRun(parsed.figure, source);
+
+    expect(() => evaluateSemanticStatementByIndex(run, -1)).toThrow("Statement index -1 is out of bounds");
+    expect(() => evaluateSemanticStatementByIndex(run, run.expandedFigureBody.length)).toThrow("is out of bounds");
+  });
+
+  it("reports full-evaluation fallback reasons for public incremental preconditions", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+
+    const cold = createIncrementalSemanticSession().evaluate({
+      figure: parsed.figure,
+      source,
+      hints: {
+        trigger: "drag-element",
+        changedSourceIds: ["path:0"]
+      }
+    });
+    expect(cold.stats).toMatchObject({
+      strategy: "full",
+      fallbackReason: "no-previous-cache"
+    });
+
+    const missingIds = createIncrementalSemanticSession();
+    missingIds.evaluate({ figure: parsed.figure, source, hints: { trigger: "other" } });
+    const missing = missingIds.evaluate({
+      figure: parsed.figure,
+      source,
+      hints: { trigger: "drag-element" }
+    });
+    expect(missing.stats).toMatchObject({
+      strategy: "full",
+      fallbackReason: "missing-changed-source-ids"
+    });
+
+    const nonDrag = createIncrementalSemanticSession();
+    nonDrag.evaluate({ figure: parsed.figure, source, hints: { trigger: "other" } });
+    const nonDragResult = nonDrag.evaluate({
+      figure: parsed.figure,
+      source,
+      hints: {
+        trigger: "other",
+        changedSourceIds: ["path:0"]
+      }
+    });
+    expect(nonDragResult.stats).toMatchObject({
+      strategy: "full",
+      fallbackReason: "non-drag-trigger"
+    });
+
+    const structure = createIncrementalSemanticSession();
+    structure.evaluate({ figure: parsed.figure, source, hints: { trigger: "other" } });
+    const nextSource = source.replace("\\end{tikzpicture}", "  \\draw (1,0) -- (2,0);\n\\end{tikzpicture}");
+    const nextParsed = parseTikz(nextSource, { recover: true });
+    const changedStructure = structure.evaluate({
+      figure: nextParsed.figure,
+      source: nextSource,
+      hints: {
+        trigger: "drag-element",
+        changedSourceIds: ["path:0"]
+      }
+    });
+    expect(changedStructure.stats).toMatchObject({
+      strategy: "full",
+      fallbackReason: "statement-structure-changed"
+    });
+  });
+
+  it("keeps stateful graphics on the full-evaluation path", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \clip (0,0) rectangle (1,1);
+  \draw (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+    const result = createIncrementalSemanticSession().evaluate({
+      figure: parsed.figure,
+      source,
+      hints: {
+        trigger: "drag-element",
+        changedSourceIds: ["path:1"],
+        sourcePatches: [{ replacement: "\\clip" }]
+      }
+    });
+
+    expect(result.stats).toMatchObject({
+      strategy: "full",
+      fallbackReason: "stateful-graphics-state"
+    });
+  });
+
   it("matches full evaluation for repeated move-element drag updates", () => {
     const session = createIncrementalSemanticSession();
     let source = STARTUP_SOURCE;

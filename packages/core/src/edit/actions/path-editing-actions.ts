@@ -399,7 +399,7 @@ export function applySetPathPointKindAction(
     };
   }
 
-  if (previousSegment.kind !== "cubic" || nextSegment.kind !== "cubic" || previousSegment.control2Index == null || nextSegment.control1Index == null) {
+  if (previousSegment.kind !== "cubic" || nextSegment.kind !== "cubic") {
     return {
       kind: "unsupported",
       reason:
@@ -578,12 +578,7 @@ function buildDeletedWorldPointReplacement(
   if (previousSegment.kind === "line" && nextSegment.kind === "line") {
     return `-- ${targetRaw}`;
   }
-  if (
-    previousSegment.kind === "cubic" &&
-    nextSegment.kind === "cubic" &&
-    previousSegment.control1Index != null &&
-    nextSegment.control2Index != null
-  ) {
+  if (previousSegment.kind === "cubic" && nextSegment.kind === "cubic") {
     const control1 = analysis.statement.items[previousSegment.control1Index];
     const control2 = analysis.statement.items[nextSegment.control2Index];
     if (!control1 || !control2 || control1.kind !== "Coordinate" || control2.kind !== "Coordinate") {
@@ -661,11 +656,8 @@ function buildLineSegmentsSmoothReplacement(
   anchor: WorldPoint,
   afterAnchor: WorldPoint
 ): [string, string] | null {
-  const firstTargetRaw = analysis.anchors[previousSegment.endAnchorIndex]?.raw;
-  const secondTargetRaw = analysis.anchors[nextSegment.endAnchorIndex]?.raw;
-  if (!firstTargetRaw || !secondTargetRaw) {
-    return null;
-  }
+  const firstTargetRaw = analysis.anchors[previousSegment.endAnchorIndex].raw;
+  const secondTargetRaw = analysis.anchors[nextSegment.endAnchorIndex].raw;
 
   const prevLength = Math.hypot(anchor.x - beforeAnchor.x, anchor.y - beforeAnchor.y);
   const nextLength = Math.hypot(afterAnchor.x - anchor.x, afterAnchor.y - anchor.y);
@@ -700,11 +692,8 @@ function buildLineSegmentsSmoothReplacement(
   ];
 }
 
-function sourceSliceForItem(source: string, analysis: ExplicitPathAnalysis, itemIndex: number): string | null {
+function sourceSliceForItem(source: string, analysis: ExplicitPathAnalysis, itemIndex: number): string {
   const item = analysis.statement.items[itemIndex];
-  if (!item) {
-    return null;
-  }
   return source.slice(item.span.from, item.span.to);
 }
 
@@ -723,14 +712,8 @@ function reversedSegmentText(
     return `-- ${targetRaw}`;
   }
 
-  if (segment.control1Index == null || segment.control2Index == null) {
-    return null;
-  }
   const control1Raw = sourceSliceForItem(source, analysis, segment.control1Index);
   const control2Raw = sourceSliceForItem(source, analysis, segment.control2Index);
-  if (!control1Raw || !control2Raw) {
-    return null;
-  }
 
   if (segment.usedAnd) {
     return `.. controls ${control2Raw} and ${control1Raw} .. ${targetRaw}`;
@@ -822,12 +805,6 @@ export function applyAppendToPathAction(
     return { kind: "unsupported", reason: "Cannot append to a closed path." };
   }
 
-  const lastAnchor = analysis.anchors[analysis.anchors.length - 1];
-  const firstAnchor = analysis.anchors[0];
-  if (!lastAnchor || !firstAnchor) {
-    return { kind: "unsupported", reason: "Path has no anchors." };
-  }
-
   let newBody: string;
   const allSegmentIndices = analysis.segments.map((_, i) => i);
   const existingBody = buildPathBodyFromSegments(analysis, source, 0, allSegmentIndices);
@@ -889,8 +866,8 @@ export function applyInsertPathPointAction(
     const endAnchorRaw = segment.closesPath ? "cycle" : analysis.anchors[segment.endAnchorIndex].raw;
     replacementSegments = `-- ${formatPt(newPt)} -- ${endAnchorRaw}`;
   } else if (segment.kind === "cubic") {
-    const control1Item = segment.control1Index != null ? analysis.statement.items[segment.control1Index] : null;
-    const control2Item = segment.control2Index != null ? analysis.statement.items[segment.control2Index] : null;
+    const control1Item = analysis.statement.items[segment.control1Index];
+    const control2Item = analysis.statement.items[segment.control2Index];
     if (!control1Item || control1Item.kind !== "Coordinate" || !control2Item || control2Item.kind !== "Coordinate") {
       return { kind: "unsupported", reason: "Could not resolve cubic control points." };
     }

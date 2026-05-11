@@ -111,7 +111,7 @@ export function computeLineBasedPathRoundedCornersMax(commands: ScenePathCommand
         continue;
       }
       const measured = pointDistance(current, command.to);
-      const previous = index > 0 ? commands[index - 1] : undefined;
+      const previous = commands[index - 1];
       const next = index + 1 < commands.length ? commands[index + 1] : undefined;
       const startOffset = estimateSegmentStartRoundedOffset(previous, current, command.to);
       const endOffset = estimateSegmentEndRoundedOffset(next, current, command.to);
@@ -296,11 +296,7 @@ export function estimateRoundedOffsetAlongDirection(
     return 0;
   }
 
-  const offset = parallel / KAPPA;
-  if (!Number.isFinite(offset) || offset <= EPSILON) {
-    return 0;
-  }
-  return offset;
+  return parallel / KAPPA;
 }
 
 export function normalizeVector(vector: { x: number; y: number }): { x: number; y: number } | null {

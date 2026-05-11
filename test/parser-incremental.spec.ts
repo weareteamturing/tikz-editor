@@ -5,6 +5,21 @@ import type { SourcePatch } from "../packages/core/src/edit/types.js";
 import { createIncrementalParseSession, parseTikz } from "../packages/core/src/parser/index.js";
 
 describe("incremental parser session", () => {
+  it("reuses a primed parse when callers rely on default options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const seeded = parseTikz(source, { recover: true });
+    const session = createIncrementalParseSession();
+
+    session.prime(seeded);
+    const reused = session.evaluate({ source });
+
+    expect(reused.stats.strategy).toBe("reused");
+    expect(reused.stats.reusedStatementCount).toBe(1);
+    expect(reused.parse.activeFigureId).toBe(seeded.activeFigureId);
+  });
+
   it("patches a single changed statement during drag", () => {
     const source = String.raw`\begin{tikzpicture}
   \coordinate (A) at (0,0);
@@ -404,6 +419,107 @@ describe("incremental parser session", () => {
     });
     expect(afterReset.stats.strategy).toBe("full");
     expect(afterReset.stats.fallbackReason).toBe("no-previous-cache");
+  });
+
+  it("normalizes duplicate changed ids and discards invalid patches before fallback decisions", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const nextSource = source.replace("(1,0)", "(1.25,0)");
+    const seeded = parseWithContext(source);
+    const full = parseWithContext(nextSource);
+    const statementId = seeded.figure.body[0]?.id;
+    expect(statementId).toBeTruthy();
+    if (!statementId) {
+      throw new Error("Expected statement id");
+    }
+
+    const session = createIncrementalParseSession();
+    session.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true });
+    const incremental = session.evaluate({
+      source: nextSource,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: true,
+      trigger: "drag-element",
+      patches: [
+        { oldSpan: { from: 10, to: 5 }, newSpan: { from: 10, to: 5 }, replacement: "ignored" },
+        computeSinglePatch(source, nextSource)
+      ],
+      changedSourceIds: [" ", statementId, statementId]
+    });
+
+    expect(incremental.stats.strategy).toBe("incremental");
+    expect(incremental.stats.reparsedStatementCount).toBe(1);
+    expect(normalizeFigureForComparison(incremental.parse.figure)).toEqual(normalizeFigureForComparison(full.figure));
+
+    session.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true });
+    const discardedOnly = session.evaluate({
+      source: nextSource,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: true,
+      trigger: "drag-element",
+      patches: [{ oldSpan: { from: 10, to: 5 }, newSpan: { from: 10, to: 5 }, replacement: "ignored" }],
+      changedSourceIds: [statementId]
+    });
+    expect(discardedOnly.stats.strategy).toBe("full");
+    expect(discardedOnly.stats.fallbackReason).toBe("missing-patches");
+  });
+
+  it("falls back distinctly for unresolved single-figure active ids and corrupted nested caches", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const nextSource = source.replace("(1,0)", "(1.25,0)");
+    const seeded = parseWithContext(source);
+    const nestedScope = seeded.figure.body[0];
+    expect(nestedScope?.kind).toBe("Scope");
+    if (!nestedScope || nestedScope.kind !== "Scope") {
+      throw new Error("Expected nested scope");
+    }
+    const nestedId = nestedScope.body[0]?.id;
+    expect(nestedId).toBeTruthy();
+    if (!nestedId) {
+      throw new Error("Expected nested statement id");
+    }
+
+    const activeNullSession = createIncrementalParseSession();
+    activeNullSession.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true });
+    const activeNull = activeNullSession.evaluate({
+      source: nextSource,
+      activeFigureId: null,
+      includeContextDefinitions: true,
+      trigger: "drag-element",
+      patches: [computeSinglePatch(source, nextSource)],
+      changedSourceIds: [nestedId]
+    });
+    expect(activeNull.stats.strategy).toBe("full");
+    expect(activeNull.stats.fallbackReason).toBe("active-figure-mismatch");
+
+    const corruptSession = createIncrementalParseSession();
+    corruptSession.prime(seeded, { activeFigureId: seeded.activeFigureId, includeContextDefinitions: true });
+    const cached = corruptSession.evaluate({
+      source,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: true
+    });
+    const cachedScope = cached.parse.figure.body[0];
+    expect(cachedScope?.kind).toBe("Scope");
+    if (cachedScope) {
+      (cachedScope as { kind: string }).kind = "Path";
+    }
+
+    const corrupted = corruptSession.evaluate({
+      source: nextSource,
+      activeFigureId: seeded.activeFigureId,
+      includeContextDefinitions: true,
+      trigger: "drag-element",
+      patches: [computeSinglePatch(source, nextSource)],
+      changedSourceIds: [nestedId]
+    });
+    expect(corrupted.stats.strategy).toBe("full");
+    expect(corrupted.stats.fallbackReason).toBe("runtime-error");
   });
 
   it("falls back for active figure and patch ownership mismatches", () => {

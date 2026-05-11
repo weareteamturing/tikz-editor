@@ -467,6 +467,112 @@ describe("parseTikz", () => {
     expect(result.activeFigureId).toBe("figure:0");
   });
 
+  it("maps macro command definition variants with grouped names, arity, defaults, and operators", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \newcommand{\pair}[2][left]{#1/#2}
+  \renewcommand*{\oldname}{renewed}
+  \providecommand{\fallback}{fallback}
+  \DeclareRobustCommand{\robust}[1]{\textbf{#1}}
+  \DeclareMathOperator{\rank}{rank}
+  \DeclareMathOperator*{\argmax}{arg\,max}
+\end{tikzpicture}`;
+    const result = parseTikz(source, { recover: true });
+    const commands = result.figure.body.filter((statement) => statement.kind === "MacroCommandDefinition");
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(commands.map((statement) => statement.commandRaw)).toEqual([
+      "\\newcommand",
+      "\\renewcommand",
+      "\\providecommand",
+      "\\DeclareRobustCommand",
+      "\\DeclareMathOperator",
+      "\\DeclareMathOperator"
+    ]);
+    expect(commands[0]).toMatchObject({
+      nameRaw: "\\pair",
+      arity: 2,
+      optionalDefaultRaw: "left",
+      bodyRaw: "#1/#2",
+      starred: false
+    });
+    expect(commands[1]).toMatchObject({
+      nameRaw: "\\oldname",
+      arity: 0,
+      bodyRaw: "renewed",
+      starred: true
+    });
+    expect(commands[3]).toMatchObject({
+      nameRaw: "\\robust",
+      arity: 1,
+      bodyRaw: "\\textbf{#1}"
+    });
+    expect(commands[4]).toMatchObject({
+      nameRaw: "\\rank",
+      bodyRaw: "\\operatorname{rank}",
+      starred: false
+    });
+    expect(commands[5]).toMatchObject({
+      nameRaw: "\\argmax",
+      bodyRaw: "\\operatorname*{arg\\,max}",
+      starred: true
+    });
+    for (const command of commands) {
+      expect(command.nameSpan).toBeDefined();
+      expect(command.bodySpan).toBeDefined();
+    }
+  });
+
+  it("maps style definition statement forms with grouped names, append payloads, and pgfkeys", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \tikzset{every node/.style={draw}, empty style/.style=}
+  \tikzstyle{boxed}+=[fill=red]
+  \tikzstyle plain=[draw=blue]
+  \pgfkeys{/tikz/.cd, thick/.style={line width=2pt}}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = parseTikz(source, { recover: true });
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body.map((statement) => statement.kind)).toEqual([
+      "TikzSet",
+      "TikzStyle",
+      "TikzStyle",
+      "Pgfkeys",
+      "Path"
+    ]);
+    const tikzSet = result.figure.body[0];
+    expect(tikzSet?.kind).toBe("TikzSet");
+    if (tikzSet?.kind === "TikzSet") {
+      expect(tikzSet.payloadRaw).toContain("every node");
+      expect(tikzSet.payloadSpan).toBeDefined();
+      expect(tikzSet.optionList.entries.length).toBeGreaterThan(0);
+    }
+
+    const appended = result.figure.body[1];
+    expect(appended?.kind).toBe("TikzStyle");
+    if (appended?.kind === "TikzStyle") {
+      expect(appended.styleNameRaw).toBe("boxed");
+      expect(appended.definitionKind).toBe("append");
+      expect(appended.payloadRaw).toBe("[fill=red]");
+      expect(appended.styleNameSpan).toBeDefined();
+    }
+
+    const plain = result.figure.body[2];
+    expect(plain?.kind).toBe("TikzStyle");
+    if (plain?.kind === "TikzStyle") {
+      expect(plain.styleNameRaw).toBe("plain");
+      expect(plain.definitionKind).toBe("style");
+      expect(plain.payloadRaw).toBe("[draw=blue]");
+    }
+
+    const pgfkeys = result.figure.body[3];
+    expect(pgfkeys?.kind).toBe("Pgfkeys");
+    if (pgfkeys?.kind === "Pgfkeys") {
+      expect(pgfkeys.payloadRaw).toContain("/tikz/.cd");
+      expect(pgfkeys.optionList.entries.length).toBeGreaterThan(0);
+    }
+  });
+
   it("keeps figure ids stable when figure spans change", () => {
     const sourceA = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);

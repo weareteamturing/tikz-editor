@@ -149,12 +149,7 @@ export function createIncrementalSemanticSession(
       return full.output;
     }
 
-    const previous = cached;
-    if (!previous) {
-      const full = evaluateFullyAndCache(run, statementIds, "no-previous-cache");
-      cached = full.cached;
-      return full.output;
-    }
+    const previous = cached!;
 
     const changedSourceIds = normalizeChangedSourceIds(hints.changedSourceIds ?? []);
     const invalidation = collectGeometryInvalidation(previous.dependencies, {
@@ -187,12 +182,7 @@ export function createIncrementalSemanticSession(
       return full.output;
     }
 
-    const startCheckpoint = previous.checkpointsBeforeStatement.get(restoreIndex);
-    if (!startCheckpoint) {
-      const full = evaluateFullyAndCache(run, statementIds, "checkpoint-missing");
-      cached = full.cached;
-      return full.output;
-    }
+    const startCheckpoint = previous.checkpointsBeforeStatement.get(restoreIndex)!;
     const startFeatureUsage = previous.featureUsageBeforeStatement.get(restoreIndex);
     if (!startFeatureUsage) {
       const full = evaluateFullyAndCache(run, statementIds, "feature-checkpoint-missing");

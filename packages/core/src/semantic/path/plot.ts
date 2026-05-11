@@ -48,7 +48,7 @@ export function createDefaultPlotSettings(): PlotSettings {
     variable: "\\x",
     mark: null,
     tension: 0.55,
-    barWidth: parseLength("10pt", "pt") ?? 10,
+    barWidth: parseLength("10pt", "pt")!,
     barShift: 0,
     barIntervalWidth: 1,
     barIntervalShift: 0.5

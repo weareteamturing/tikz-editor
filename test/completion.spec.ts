@@ -48,6 +48,30 @@ describe("collectSymbols", () => {
     expect(symbols.styleNames).not.toContain("plain");
   });
 
+  it("ignores malformed standalone node and style declarations while continuing to scan", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \tikzset{/.style={draw}, later/.style={blue}}
+  \pgfkeys{plain={not a style}}
+  \tikzstyle{  /tikz/legacy spaced  }=[red]
+  \tikzstyle broken
+  \node[draw] {no name};
+  \node[draw] (afterOptions) {A};
+  \node (invalid name) {B};
+\end{tikzpicture}`;
+    const parseResult = {
+      source,
+      figure: { body: [] }
+    };
+
+    const symbols = collectSymbols({ parseResult: parseResult as never });
+
+    expect(symbols.nodeNames).toContain("afterOptions");
+    expect(symbols.nodeNames).not.toContain("invalid name");
+    expect(symbols.styleNames).toEqual(expect.arrayContaining(["later", "legacy spaced"]));
+    expect(symbols.styleNames).not.toContain("");
+    expect(symbols.styleNames).not.toContain("plain");
+  });
+
   it("collects node names from to/edge operation node payloads", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) to node (edgeLabel) {E} (1,1);

@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { EditAction } from "../packages/core/src/edit/actions.js";
 import { applyEditAction } from "../packages/core/src/edit/actions.js";
+import { TIKZPICTURE_GLOBAL_TARGET_ID, type InspectorDescriptor, type InspectorProperty, type SetPropertyWriteTarget } from "../packages/core/src/edit/inspector.js";
 import { buildFillModeSetPropertyMutations } from "../packages/core/src/edit/property-write-builders.js";
 import type { EditParseOptions } from "../packages/core/src/edit/parse-options.js";
 import { renderTikzToSvg } from "../packages/core/src/render/index.js";
+import { parseOptionListRaw } from "../packages/core/src/options/parse.js";
+import type { StyleChainEntry } from "../packages/core/src/semantic/style-chain.js";
 import {
   buildSharedStylesCascadeModel,
   buildStylesCascadeModel,
@@ -49,6 +52,63 @@ function commandSourceTexts(source: string): string[] {
   const model = buildStylesCascadeModel(element, { source, editHandles: rendered.semantic.editHandles });
   const commandSection = model.sections.find((section) => section.kind === "command");
   return (commandSection?.declarations ?? []).map((declaration) => declaration.sourceText.trim());
+}
+
+function testWriteTarget(overrides: Partial<SetPropertyWriteTarget> = {}): SetPropertyWriteTarget {
+  return {
+    mode: "setProperty",
+    elementId: "direct-target",
+    level: "command",
+    key: "",
+    writable: true,
+    ...overrides
+  };
+}
+
+function colorProperty(id: string, label: string, key: string): InspectorProperty {
+  return {
+    kind: "color",
+    id,
+    label,
+    value: null,
+    syntaxValue: null,
+    options: [],
+    write: testWriteTarget({ key })
+  } as InspectorProperty;
+}
+
+function directStylesModel(
+  source: string,
+  entryInput: Omit<StyleChainEntry, "before" | "after">,
+  properties: InspectorProperty[],
+  descriptorInput: Partial<InspectorDescriptor> = {}
+) {
+  const { element } = firstPath(String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`);
+  const descriptor: InspectorDescriptor = {
+    elementKind: "path",
+    elementId: "direct-path",
+    writeTargetId: null,
+    sections: [
+      {
+        id: "direct-section",
+        title: "Direct",
+        sourceLevel: "command",
+        properties
+      }
+    ],
+    ...descriptorInput
+  };
+  const entry = {
+    ...entryInput,
+    before: element.style,
+    after: {
+      ...element.style,
+      ...entryInput.resolvedContributions
+    }
+  } as StyleChainEntry;
+  return buildStylesCascadeModel({ ...element, styleChain: [entry] }, { source }, descriptor);
 }
 
 describe("styles cascade model", () => {
@@ -151,6 +211,833 @@ describe("styles cascade model", () => {
       key: "dotted",
       value: "true"
     });
+  });
+
+  it("skips non-editable style write targets and no-op style mutations", () => {
+    const writable = testWriteTarget({ elementId: "shape-1", key: "" });
+    const readonly = testWriteTarget({ elementId: "shape-2", key: "", writable: false });
+    const blankElement = testWriteTarget({ elementId: "   ", key: "" });
+
+    expect(planStylesSetPropertyActions([readonly, blankElement, writable], { key: "", value: "ignored" })).toEqual([]);
+
+    const setActions = planStylesSetPropertyActions([readonly, blankElement, writable], { key: "draw", value: "red" });
+    expect(setActions).toHaveLength(1);
+    expect(setActions[0]).toMatchObject({ elementId: "shape-1", key: "draw", value: "red" });
+
+    const toggleActions = planStylesTogglePropertyActions([readonly, blankElement, writable], {
+      key: "unknown custom key",
+      mode: "disable",
+      sourceText: "unknown custom key"
+    });
+    expect(toggleActions).toHaveLength(1);
+    expect(toggleActions[0]).toMatchObject({ elementId: "shape-1", propertyId: undefined });
+  });
+
+  it("merges partial shared cascade models with missing section write targets", () => {
+    expect(buildSharedStylesCascadeModel([])).toBeNull();
+
+    const signature = JSON.stringify([{ kind: "command", declarations: [] }]);
+    const shared = buildSharedStylesCascadeModel([
+      {
+        elementKind: "path",
+        elementIds: ["first"],
+        comparableSignature: signature,
+        sections: [
+          {
+            id: "section",
+            kind: "command",
+            title: "Command",
+            subtitle: null,
+            sourceLevel: "command",
+            sourceLabel: null,
+            sourceLocation: null,
+            writable: true,
+            declarations: [
+              {
+                id: "draw",
+                propertyId: "stroke-color",
+                label: "Stroke color",
+                cssValue: "red",
+                status: "active",
+                property: null,
+                sourceText: "draw=red",
+                writeTargets: [testWriteTarget({ elementId: "first" })]
+              }
+            ],
+            addableProperties: [],
+            addPropertyTemplates: {},
+            writeTargets: [testWriteTarget({ elementId: "first" })]
+          }
+        ]
+      },
+      {
+        elementKind: "path",
+        elementIds: ["second"],
+        comparableSignature: signature,
+        sections: []
+      }
+    ]);
+
+    expect(shared?.elementIds).toEqual(["first", "second"]);
+    expect(shared?.sections[0]?.writeTargets).toHaveLength(1);
+    expect(shared?.sections[0]?.declarations[0]?.writeTargets).toHaveLength(1);
+  });
+
+  it("coerces raw option entries into direct style cascade declarations", () => {
+    const source = "[draw=red,xshift=1.5,line width=2pt,dashed,line cap=round,line join=bevel,fill=blue,shading=axis,pattern=none,rounded corners=3pt,shape=circle]";
+    const model = directStylesModel(
+      source,
+      {
+        kind: "command",
+        sourceRef: {
+          sourceId: "missing-direct-command",
+          sourceKind: "path-statement",
+          label: "direct command",
+          sourceSpan: { from: 0, to: source.length }
+        },
+        rawOptions: [parseOptionListRaw(source)],
+        resolvedContributions: {}
+      },
+      [
+        colorProperty("stroke-color", "Stroke color", "draw"),
+        {
+          kind: "number",
+          id: "transform.xshift",
+          label: "X shift",
+          value: 0,
+          step: 0.1,
+          unit: "pt",
+          write: testWriteTarget({ key: "xshift" })
+        } as InspectorProperty,
+        {
+          kind: "lineWidth",
+          id: "line-width",
+          label: "Line width",
+          value: 0.4,
+          min: 0.1,
+          max: 6,
+          step: 0.1,
+          presetLabel: null,
+          write: testWriteTarget({ key: "line width" })
+        } as InspectorProperty,
+        {
+          kind: "dashStyle",
+          id: "dash-style",
+          label: "Dash style",
+          value: "solid",
+          options: [],
+          previewLineWidth: 0.4,
+          write: testWriteTarget({ key: "solid" })
+        } as InspectorProperty,
+        {
+          kind: "lineCap",
+          id: "line-cap",
+          label: "Line cap",
+          value: "butt",
+          options: [],
+          previewLineWidth: 0.4,
+          write: testWriteTarget({ key: "line cap" })
+        } as InspectorProperty,
+        {
+          kind: "lineJoin",
+          id: "line-join",
+          label: "Line join",
+          value: "miter",
+          options: [],
+          previewLineWidth: 0.4,
+          write: testWriteTarget({ key: "line join" })
+        } as InspectorProperty,
+        colorProperty("fill-color", "Fill color", "fill"),
+        {
+          kind: "fillShading",
+          id: "fill-shading",
+          label: "Shading",
+          value: "none",
+          options: [],
+          write: testWriteTarget({ key: "shading" })
+        } as InspectorProperty,
+        {
+          kind: "fillPattern",
+          id: "fill-pattern",
+          label: "Pattern",
+          value: "none",
+          options: [],
+          write: testWriteTarget({ key: "pattern" })
+        } as InspectorProperty,
+        {
+          kind: "roundedCorners",
+          id: "rounded-corners",
+          label: "Rounded corners",
+          enabled: false,
+          disableRequiresSharpCorners: true,
+          radius: 4,
+          defaultRadius: 4,
+          min: 0,
+          max: 24,
+          step: 0.1,
+          write: testWriteTarget({ key: "rounded corners" })
+        } as InspectorProperty,
+        {
+          kind: "nodeShape",
+          id: "node-shape",
+          label: "Shape",
+          value: "rectangle",
+          options: [],
+          write: testWriteTarget({ key: "shape" })
+        } as InspectorProperty
+      ]
+    );
+
+    const declarations = model.sections.flatMap((section) => section.declarations);
+    expect(declarations.find((declaration) => declaration.propertyId === "stroke-color")?.cssValue).toBe("red");
+    expect(declarations.find((declaration) => declaration.propertyId === "transform.xshift")?.cssValue).toBe("1.5pt");
+    expect(declarations.find((declaration) => declaration.propertyId === "line-width")?.cssValue).toBe("2pt");
+    expect(declarations.find((declaration) => declaration.propertyId === "dash-style")?.cssValue).toBe("dashed");
+    expect(declarations.find((declaration) => declaration.propertyId === "line-cap")?.cssValue).toBe("round");
+    expect(declarations.find((declaration) => declaration.propertyId === "line-join")?.cssValue).toBe("bevel");
+    expect(declarations.find((declaration) => declaration.propertyId === "fill-color")?.cssValue).toBe("blue");
+    expect(declarations.find((declaration) => declaration.propertyId === "fill-shading")?.cssValue).toBe("axis");
+    expect(declarations.find((declaration) => declaration.propertyId === "fill-pattern")?.cssValue).toBe("custom");
+    expect(declarations.find((declaration) => declaration.propertyId === "rounded-corners")?.cssValue).toBe("3pt");
+    expect(declarations.find((declaration) => declaration.propertyId === "node-shape")?.cssValue).toBe("circle");
+  });
+
+  it("falls back cleanly for invalid direct style cascade values", () => {
+    const source = "[xshift=oops,inner sep=wide,line width=heavy,dash pattern=on 2pt off 1pt,rounded corners=false]";
+    const model = directStylesModel(
+      source,
+      {
+        kind: "command",
+        sourceRef: {
+          sourceId: "missing-invalid-command",
+          sourceKind: "path-statement",
+          sourceSpan: { from: 0, to: source.length }
+        },
+        rawOptions: [parseOptionListRaw(source)],
+        resolvedContributions: {}
+      },
+      [
+        {
+          kind: "number",
+          id: "transform.xshift",
+          label: "X shift",
+          value: 4,
+          step: 0.1,
+          unit: "pt"
+        } as InspectorProperty,
+        {
+          kind: "length",
+          id: "node-inner-sep",
+          label: "Inner sep",
+          value: 2,
+          step: 0.1,
+          unit: "pt",
+          write: testWriteTarget({ key: "inner sep" })
+        } as InspectorProperty,
+        {
+          kind: "lineWidth",
+          id: "line-width",
+          label: "Line width",
+          value: 0.4,
+          min: 0.1,
+          max: 6,
+          step: 0.1,
+          presetLabel: null,
+          write: testWriteTarget({ key: "line width" })
+        } as InspectorProperty,
+        {
+          kind: "dashStyle",
+          id: "dash-style",
+          label: "Dash style",
+          value: "solid",
+          options: [],
+          previewLineWidth: 0.4,
+          write: testWriteTarget({ key: "solid" })
+        } as InspectorProperty,
+        {
+          kind: "roundedCorners",
+          id: "rounded-corners",
+          label: "Rounded corners",
+          enabled: true,
+          disableRequiresSharpCorners: true,
+          radius: 7,
+          defaultRadius: 4,
+          min: 0,
+          max: 24,
+          step: 0.1,
+          write: testWriteTarget({ key: "rounded corners" })
+        } as InspectorProperty
+      ]
+    );
+
+    const values = Object.fromEntries(model.sections.flatMap((section) => section.declarations).map((declaration) => [declaration.propertyId, declaration.cssValue]));
+    expect(values["transform.xshift"]).toBe("4pt");
+    expect(values["node-inner-sep"]).toBe("2pt");
+    expect(values["line-width"]).toBe("0.4pt");
+    expect(values["dash-style"]).toBe("solid");
+    expect(values["rounded-corners"]).toBe("false");
+  });
+
+  it.each([
+    { source: "[pattern=none]", expected: "solid" },
+    { source: "[pattern=north east lines]", expected: "pattern" },
+    { source: "[shade]", expected: "gradient" }
+  ])("coerces fill mode from $source", ({ source, expected }) => {
+    const model = directStylesModel(
+      source,
+      {
+        kind: "command",
+        sourceRef: {
+          sourceId: "missing-fill-mode-command",
+          sourceKind: "path-statement",
+          sourceSpan: { from: 0, to: source.length }
+        },
+        rawOptions: [parseOptionListRaw(source)],
+        resolvedContributions: {}
+      },
+      [
+        {
+          kind: "fillMode",
+          id: "fill-mode",
+          label: "Mode",
+          value: "solid",
+          options: [],
+          context: { fillColor: null, patternColor: null, shading: "axis", pattern: "none" },
+          write: testWriteTarget({ key: "fill" })
+        } as InspectorProperty
+      ]
+    );
+
+    expect(model.sections.flatMap((section) => section.declarations)[0]?.cssValue).toBe(expected);
+  });
+
+  it("falls through unsupported inspector property kinds in direct declarations", () => {
+    const source = "[draw=red]";
+    const model = directStylesModel(
+      source,
+      {
+        kind: "command",
+        sourceRef: {
+          sourceId: "missing-text-kind-command",
+          sourceKind: "path-statement",
+          sourceSpan: { from: 0, to: source.length }
+        },
+        rawOptions: [parseOptionListRaw(source)],
+        resolvedContributions: {}
+      },
+      [
+        {
+          kind: "text",
+          id: "stroke-color",
+          label: "Stroke label fallback",
+          value: "unchanged",
+          write: testWriteTarget({ key: "draw" })
+        } as InspectorProperty
+      ]
+    );
+
+    expect(model.sections[0]?.declarations[0]?.cssValue).toBe("Stroke label fallback");
+    expect(model.sections[0]?.declarations[0]?.property).toMatchObject({ value: "unchanged" });
+  });
+
+  it.each([
+    "arrowTip",
+    "boolean",
+    "enum",
+    "fillPatternOption",
+    "nodeFont",
+    "nodeTextAlign",
+    "optionalLength",
+    "pathMorphingDecoration",
+    "shadowPreset",
+    "slider",
+    "text"
+  ])("keeps unsupported inspector kind %s as a label-only cascade declaration", (kind) => {
+    const model = directStylesModel(
+      "[draw=red]",
+      {
+        kind: "command",
+        sourceRef: {
+          sourceId: `missing-${kind}-command`,
+          sourceKind: "path-statement",
+          sourceSpan: { from: 0, to: 10 }
+        },
+        rawOptions: [parseOptionListRaw("[draw=red]")],
+        resolvedContributions: {}
+      },
+      [
+        {
+          kind,
+          id: "stroke-color",
+          label: `${kind} fallback`,
+          write: testWriteTarget({ key: "draw" })
+        } as InspectorProperty
+      ]
+    );
+
+    expect(model.sections[0]?.declarations[0]?.cssValue).toBe(`${kind} fallback`);
+  });
+
+  it("builds read-only declarations from source-less style contributions", () => {
+    const model = directStylesModel(
+      "",
+      {
+        kind: "every-shape",
+        shape: "diamond",
+        rawOptions: [],
+        resolvedContributions: {
+          lineWidth: 1.2,
+          roundedCorners: 5
+        }
+      },
+      [
+        {
+          kind: "lineWidth",
+          id: "line-width",
+          label: "Line width",
+          value: 0.4,
+          min: 0.1,
+          max: 6,
+          step: 0.1,
+          presetLabel: null,
+          write: testWriteTarget({ key: "line width" })
+        } as InspectorProperty,
+        {
+          kind: "roundedCorners",
+          id: "rounded-corners",
+          label: "Rounded corners",
+          enabled: false,
+          disableRequiresSharpCorners: true,
+          radius: 4,
+          defaultRadius: 4,
+          min: 0,
+          max: 24,
+          step: 0.1,
+          write: testWriteTarget({ key: "rounded corners" })
+        } as InspectorProperty
+      ]
+    );
+
+    expect(model.sections[0]?.kind).toBe("global");
+    expect(model.sections[0]?.title).toBe("every diamond node");
+    expect(model.sections[0]?.subtitle).toBe("diamond");
+    expect(model.sections[0]?.writable).toBe(false);
+    expect(model.sections[0]?.declarations.map((declaration) => declaration.cssValue)).toEqual(["1.2pt", "5pt"]);
+    expect(model.sections[0]?.declarations.every((declaration) => declaration.writeTargets.length === 0)).toBe(true);
+  });
+
+  it("formats source-less contributions for paint, shading, and pattern style values", () => {
+    const contributionCases = [
+      {
+        contribution: { stroke: "orange" },
+        property: colorProperty("stroke-color", "Stroke color", "draw"),
+        expected: "orange"
+      },
+      {
+        contribution: { fill: "teal" },
+        property: colorProperty("fill-color", "Fill color", "fill"),
+        expected: "teal"
+      },
+      {
+        contribution: { textColor: "purple" },
+        property: colorProperty("node-text-color", "Text color", "text"),
+        expected: "purple"
+      },
+      {
+        contribution: { lineCap: "rect" },
+        property: {
+          kind: "lineCap",
+          id: "line-cap",
+          label: "Line cap",
+          value: "butt",
+          options: [],
+          previewLineWidth: 0.4,
+          write: testWriteTarget({ key: "line cap" })
+        } as InspectorProperty,
+        expected: "rect"
+      },
+      {
+        contribution: { lineJoin: "round" },
+        property: {
+          kind: "lineJoin",
+          id: "line-join",
+          label: "Line join",
+          value: "miter",
+          options: [],
+          previewLineWidth: 0.4,
+          write: testWriteTarget({ key: "line join" })
+        } as InspectorProperty,
+        expected: "round"
+      },
+      {
+        contribution: { fillPattern: { kind: "Lines" } },
+        property: {
+          kind: "fillMode",
+          id: "fill-mode",
+          label: "Mode",
+          value: "solid",
+          options: [],
+          context: { fillColor: null, patternColor: null, shading: "axis", pattern: "none" },
+          write: testWriteTarget({ key: "fill" })
+        } as InspectorProperty,
+        expected: "pattern"
+      },
+      {
+        contribution: { shadeEnabled: true },
+        property: {
+          kind: "fillMode",
+          id: "fill-mode",
+          label: "Mode",
+          value: "solid",
+          options: [],
+          context: { fillColor: null, patternColor: null, shading: "axis", pattern: "none" },
+          write: testWriteTarget({ key: "fill" })
+        } as InspectorProperty,
+        expected: "gradient"
+      },
+      {
+        contribution: { shading: "axis" },
+        property: {
+          kind: "fillShading",
+          id: "fill-shading",
+          label: "Shading",
+          value: "none",
+          options: [],
+          write: testWriteTarget({ key: "shading" })
+        } as InspectorProperty,
+        expected: "axis"
+      },
+      {
+        contribution: { patternColor: "cyan" },
+        property: colorProperty("fill-pattern-color", "Pattern color", "pattern color"),
+        expected: "cyan"
+      },
+      {
+        contribution: { axisTopColor: "red" },
+        property: colorProperty("fill-axis-top-color", "Top color", "top color"),
+        expected: "red"
+      },
+      {
+        contribution: { axisBottomColor: "blue" },
+        property: colorProperty("fill-axis-bottom-color", "Bottom color", "bottom color"),
+        expected: "blue"
+      },
+      {
+        contribution: { radialInnerColor: "white" },
+        property: colorProperty("fill-radial-inner-color", "Inner color", "inner color"),
+        expected: "white"
+      },
+      {
+        contribution: { radialOuterColor: "black" },
+        property: colorProperty("fill-radial-outer-color", "Outer color", "outer color"),
+        expected: "black"
+      },
+      {
+        contribution: { ballColor: "green" },
+        property: colorProperty("fill-ball-color", "Ball color", "ball color"),
+        expected: "green"
+      }
+    ];
+
+    for (const { contribution, property, expected } of contributionCases) {
+      const model = directStylesModel(
+        "",
+        {
+          kind: "global",
+          rawOptions: [],
+          resolvedContributions: contribution
+        },
+        [property]
+      );
+      expect(model.sections[0]?.declarations[0]?.cssValue).toBe(expected);
+    }
+  });
+
+  it("keeps default and built-in style layers read-only", () => {
+    const model = directStylesModel(
+      "[draw=black]",
+      {
+        kind: "command",
+        sourceRef: {
+          sourceId: "default-style",
+          sourceKind: "builtin-style",
+          label: "help lines",
+          sourceSpan: { from: 0, to: 12 }
+        },
+        rawOptions: [parseOptionListRaw("[draw=black]")],
+        resolvedContributions: {}
+      },
+      [colorProperty("stroke-color", "Stroke color", "draw")]
+    );
+
+    expect(model.sections[0]?.kind).toBe("default");
+    expect(model.sections[0]?.title).toBe("help lines");
+    expect(model.sections[0]?.writable).toBe(false);
+    expect(model.sections[0]?.readOnlyReason).toContain("default style layer");
+    expect(model.sections[0]?.declarations[0]?.status).toBe("active");
+    expect(model.sections[0]?.declarations[0]?.writeTargets).toHaveLength(0);
+
+    const fallbackTitleModel = directStylesModel(
+      "[draw=black]",
+      {
+        kind: "command",
+        sourceRef: {
+          sourceId: "builtin-without-label",
+          sourceKind: "builtin-style",
+          sourceSpan: { from: 0, to: 12 }
+        },
+        rawOptions: [parseOptionListRaw("[draw=black]")],
+        resolvedContributions: {}
+      },
+      [colorProperty("stroke-color", "Stroke color", "draw")]
+    );
+    expect(fallbackTitleModel.sections[0]?.title).toBe("Built-in style");
+  });
+
+  it("keeps command and global default style layers read-only", () => {
+    const defaults = [
+      { sourceKind: "command-default", expectedTitle: "TikZ defaults" },
+      { sourceKind: "global-default", expectedTitle: "TikZ defaults" }
+    ];
+
+    for (const { sourceKind, expectedTitle } of defaults) {
+      const model = directStylesModel(
+        "[draw=black]",
+        {
+          kind: "command",
+          sourceRef: {
+            sourceId: `${sourceKind}-style`,
+            sourceKind,
+            sourceSpan: { from: 0, to: 12 }
+          },
+          rawOptions: [parseOptionListRaw("[draw=black]")],
+          resolvedContributions: {}
+        },
+        [colorProperty("stroke-color", "Stroke color", "draw")]
+      );
+      expect(model.sections[0]?.kind).toBe("default");
+      expect(model.sections[0]?.title).toBe(expectedTitle);
+      expect(model.sections[0]?.writable).toBe(false);
+    }
+  });
+
+  it("surfaces disabled declarations nested inside style definitions", () => {
+    const source = "[accent/.style={\n  % draw=red,\n  fill=blue,\n  % unknown option,\n}]";
+    const model = directStylesModel(
+      source,
+      {
+        kind: "global",
+        sourceRef: {
+          sourceId: TIKZPICTURE_GLOBAL_TARGET_ID,
+          sourceKind: "tikzpicture-options",
+          sourceSpan: { from: 0, to: source.length }
+        },
+        rawOptions: [parseOptionListRaw(source)],
+        resolvedContributions: {}
+      },
+      [
+        colorProperty("stroke-color", "Stroke color", "draw"),
+        colorProperty("fill-color", "Fill color", "fill")
+      ]
+    );
+
+    const declarations = model.sections.flatMap((section) => section.declarations);
+    expect(declarations.find((declaration) => declaration.propertyId === "stroke-color")?.status).toBe("disabled");
+    expect(declarations.find((declaration) => declaration.propertyId === null && declaration.status === "disabled")?.sourceText).toBe("unknown option");
+  });
+
+  it("surfaces unknown and CRLF-commented disabled options", () => {
+    const unknownModel = directStylesModel(
+      "[???]",
+      {
+        kind: "command",
+        sourceRef: {
+          sourceId: "missing-unknown-command",
+          sourceKind: "path-statement",
+          sourceSpan: { from: 0, to: 5 }
+        },
+        rawOptions: [parseOptionListRaw("[???]")],
+        resolvedContributions: {}
+      },
+      []
+    );
+    expect(unknownModel.sections[0]?.declarations[0]).toMatchObject({
+      propertyId: null,
+      label: "???",
+      cssValue: ""
+    });
+
+    const commentedSource = "[\r\n% foo=bar,\r\n% draw=red,\r\n]";
+    const commentedModel = directStylesModel(
+      commentedSource,
+      {
+        kind: "command",
+        sourceRef: {
+          sourceId: "missing-commented-command",
+          sourceKind: "path-statement",
+          sourceSpan: { from: 0, to: commentedSource.length }
+        },
+        rawOptions: [parseOptionListRaw(commentedSource)],
+        resolvedContributions: {}
+      },
+      [colorProperty("stroke-color", "Stroke color", "draw")]
+    );
+    const disabled = commentedModel.sections[0]?.declarations.filter((declaration) => declaration.status === "disabled");
+    expect(disabled?.map((declaration) => declaration.sourceText)).toEqual(["foo=bar", "draw=red"]);
+  });
+
+  it("ignores malformed nested style definition spans", () => {
+    const malformedStyleEntry = {
+      kind: "kv" as const,
+      key: "accent/.style",
+      valueRaw: "",
+      span: { from: 1, to: 14 },
+      keySpan: { from: 1, to: 14 },
+      valueSpan: null,
+      raw: "accent/.style"
+    };
+    const model = directStylesModel(
+      "[accent/.style]",
+      {
+        kind: "global",
+        sourceRef: {
+          sourceId: TIKZPICTURE_GLOBAL_TARGET_ID,
+          sourceKind: "tikzpicture-options",
+          sourceSpan: { from: 0, to: 15 }
+        },
+        rawOptions: [
+          {
+            span: { from: 0, to: 15 },
+            raw: "[accent/.style]",
+            entries: [malformedStyleEntry]
+          }
+        ],
+        resolvedContributions: {}
+      },
+      [colorProperty("stroke-color", "Stroke color", "draw")]
+    );
+
+    expect(model.sections).toHaveLength(0);
+  });
+
+  it("handles whitespace and bracketed style definition value spans", () => {
+    const whitespaceSource = "[accent/.style=   ]";
+    const whitespaceModel = directStylesModel(
+      whitespaceSource,
+      {
+        kind: "global",
+        sourceRef: {
+          sourceId: TIKZPICTURE_GLOBAL_TARGET_ID,
+          sourceKind: "tikzpicture-options",
+          sourceSpan: { from: 0, to: whitespaceSource.length }
+        },
+        rawOptions: [parseOptionListRaw(whitespaceSource)],
+        resolvedContributions: {}
+      },
+      [colorProperty("stroke-color", "Stroke color", "draw")]
+    );
+    expect(whitespaceModel.sections).toHaveLength(0);
+
+    const bracketSource = "[accent/.style=[\r\n% draw=red,\r\n]]";
+    const bracketModel = directStylesModel(
+      bracketSource,
+      {
+        kind: "global",
+        sourceRef: {
+          sourceId: TIKZPICTURE_GLOBAL_TARGET_ID,
+          sourceKind: "tikzpicture-options",
+          sourceSpan: { from: 0, to: bracketSource.length }
+        },
+        rawOptions: [parseOptionListRaw(bracketSource)],
+        resolvedContributions: {}
+      },
+      [colorProperty("stroke-color", "Stroke color", "draw")]
+    );
+    expect(bracketModel.sections[0]?.declarations[0]).toMatchObject({
+      propertyId: "stroke-color",
+      status: "disabled",
+      sourceText: "draw=red"
+    });
+  });
+
+  it("uses style source target ids for global and named style layers", () => {
+    const globalModel = directStylesModel(
+      "[draw=black]",
+      {
+        kind: "global",
+        sourceRef: {
+          sourceId: TIKZPICTURE_GLOBAL_TARGET_ID,
+          sourceKind: "tikzpicture-options",
+          sourceSpan: { from: 0, to: 12 }
+        },
+        rawOptions: [parseOptionListRaw("[draw=black]")],
+        resolvedContributions: {}
+      },
+      [colorProperty("stroke-color", "Stroke color", "draw")]
+    );
+    expect(globalModel.sections[0]?.kind).toBe("global");
+
+    const namedSource = "[accent/.style={draw=red}]";
+    const namedModel = directStylesModel(
+      namedSource,
+      {
+        kind: "named-style",
+        styleName: "accent",
+        sourceRef: {
+          sourceId: "style-ref-with-span",
+          sourceKind: "style-definition",
+          sourceSpan: { from: 0, to: namedSource.length }
+        },
+        rawOptions: [parseOptionListRaw(namedSource)],
+        resolvedContributions: { stroke: "red" }
+      },
+      [colorProperty("stroke-color", "Stroke color", "draw")]
+    );
+    expect(namedModel.sections[0]?.kind).toBe("named-style");
+    expect(namedModel.sections[0]?.subtitle).toBe(".accent");
+    expect(namedModel.sections[0]?.sourceLocation).toBe("line 1");
+  });
+
+  it("keeps generated foreach identity targets read-only when no template target is available", () => {
+    const directIdentityModel = directStylesModel(
+      "[draw=red]",
+      {
+        kind: "command",
+        sourceRef: {
+          sourceId: "foreach:expanded-node",
+          sourceKind: "path-statement",
+          sourceSpan: { from: 0, to: 10 },
+          identityRef: {
+            sourceId: "foreach:expanded-node",
+            sourceKind: "path-statement"
+          }
+        },
+        rawOptions: [parseOptionListRaw("[draw=red]")],
+        resolvedContributions: {}
+      },
+      [colorProperty("stroke-color", "Stroke color", "draw")]
+    );
+    expect(directIdentityModel.sections[0]?.readOnlyReason).toContain("Generated style layers");
+
+    const generatedIdentityModel = directStylesModel(
+      "[draw=red]",
+      {
+        kind: "command",
+        sourceRef: {
+          sourceId: "generated-node",
+          sourceKind: "path-statement",
+          sourceSpan: { from: 0, to: 10 },
+          identityRef: {
+            sourceId: "source-node",
+            sourceKind: "path-statement"
+          }
+        },
+        rawOptions: [parseOptionListRaw("[draw=red]")],
+        resolvedContributions: {}
+      },
+      [colorProperty("stroke-color", "Stroke color", "draw")]
+    );
+    expect(generatedIdentityModel.sections[0]?.readOnlyReason).toContain("Generated style layers");
   });
 });
 
@@ -709,6 +1596,34 @@ describe("styles cascade integration edits", () => {
     expect(updated).toContain("shade");
     expect(updated).toContain("shading=");
     expect(updated).not.toContain("pattern=north east lines");
+  });
+
+  it("builds add-property fill-mode templates from patterned and shaded styles", () => {
+    const patternedSource = String.raw`\begin{tikzpicture}
+  \draw[pattern=north east lines] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const { rendered: patternedRendered, element: patternedElement } = firstPath(patternedSource);
+    const patternedModel = buildStylesCascadeModel(patternedElement, {
+      source: patternedSource,
+      editHandles: patternedRendered.semantic.editHandles
+    });
+    expect(patternedModel.sections[0]?.addPropertyTemplates["fill-mode"]).toMatchObject({
+      kind: "fillMode",
+      value: "pattern"
+    });
+
+    const shadedSource = String.raw`\begin{tikzpicture}
+  \draw[shade] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const { rendered: shadedRendered, element: shadedElement } = firstPath(shadedSource);
+    const shadedModel = buildStylesCascadeModel(shadedElement, {
+      source: shadedSource,
+      editHandles: shadedRendered.semantic.editHandles
+    });
+    expect(shadedModel.sections[0]?.addPropertyTemplates["fill-mode"]).toMatchObject({
+      kind: "fillMode",
+      value: "gradient"
+    });
   });
 
   it("applies shared-cascade edits to all selected elements", () => {

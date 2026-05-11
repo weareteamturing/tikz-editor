@@ -75,6 +75,27 @@ describe("resolveDocHoverTarget", () => {
     expect(flag?.candidates).toContain("/tikz/thick");
   });
 
+  it("normalizes namespaced option hover candidates", () => {
+    const tikzSource = "[/tikz/rounded corners=true]";
+    const tikzOptionList = fakeNode("OptionList", 0, tikzSource.length);
+    const tikzTarget = resolveWithFakeNode(tikzSource, fakeNode("Identifier", 1, 22, tikzOptionList), 8);
+    expect(tikzTarget?.candidates).toEqual(["/tikz/rounded corners", "rounded corners"]);
+
+    const pgfSource = "[/pgf/line width=0.4pt]";
+    const pgfOptionList = fakeNode("OptionList", 0, pgfSource.length);
+    const pgfTarget = resolveWithFakeNode(pgfSource, fakeNode("Identifier", 1, 16, pgfOptionList), 8);
+    expect(pgfTarget?.candidates).toEqual(["/pgf/line width", "line width"]);
+
+    const namespaceOnlySource = "[/tikz/=true]";
+    const namespaceOnlyOptionList = fakeNode("OptionList", 0, namespaceOnlySource.length);
+    const namespaceOnlyTarget = resolveWithFakeNode(
+      namespaceOnlySource,
+      fakeNode("Identifier", 1, 7, namespaceOnlyOptionList),
+      3
+    );
+    expect(namespaceOnlyTarget?.candidates).toEqual(["/tikz/"]);
+  });
+
   it("resolves supported commands", () => {
     const target = resolveAt(String.raw`\dr<|>aw (0,0) -- (1,1);`);
     expect(target).not.toBeNull();
@@ -110,6 +131,7 @@ describe("resolveDocHoverTarget", () => {
   it("handles malformed synthetic hover tokens defensively", () => {
     expect(resolveWithFakeNode("", fakeNode("DrawCmd", 0, 0))).toBeNull();
     expect(resolveWithFakeNode("draw", fakeNode("DrawCmd", 0, 4))).toBeNull();
+    expect(resolveWithFakeNode("\\", fakeNode("DrawCmd", 0, 1))).toBeNull();
     expect(resolveWithFakeNode("+", fakeNode("PathOperator", 0, 1))).toBeNull();
     expect(resolveWithFakeNode("   ", fakeNode("PathOperator", 0, 3))).toBeNull();
   });

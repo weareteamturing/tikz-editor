@@ -133,17 +133,10 @@ function slugifyPatternName(pattern: string): string {
 
 function namespaceSvgIds(svg: string, suffix: string): string {
   const idMatches = [...svg.matchAll(/\bid="([^"]+)"/g)];
-  if (idMatches.length === 0) {
-    return svg;
-  }
-
   const idMap = new Map<string, string>();
   let index = 1;
-  for (const match of idMatches) {
-    const sourceId = match[1];
-    if (!sourceId || idMap.has(sourceId)) {
-      continue;
-    }
+  const sourceIds = new Set(idMatches.map((match) => match[1] as string));
+  for (const sourceId of sourceIds) {
     idMap.set(sourceId, `${sourceId}-${suffix}-${index}`);
     index += 1;
   }

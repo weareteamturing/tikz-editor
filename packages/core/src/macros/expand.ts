@@ -171,9 +171,6 @@ function parseMacroInvocationArgs(
 }
 
 function parseOptionalBracketArgument(input: string, startIndex: number): { value: string; nextIndex: number } | null {
-  if (input[startIndex] !== "[") {
-    return null;
-  }
   return readBracketContent(input, startIndex);
 }
 
@@ -204,14 +201,10 @@ function parseSingleMacroArgument(input: string, startIndex: number): { value: s
 }
 
 function readBracedContent(input: string, startIndex: number): { value: string; nextIndex: number } | null {
-  if (input[startIndex] !== "{") {
-    return null;
-  }
-
   let depth = 0;
   let index = startIndex;
   while (index < input.length) {
-    const char = input[index] ?? "";
+    const char = input[index] as string;
     if (char === "\\") {
       index += 2;
       continue;
@@ -230,9 +223,6 @@ function readBracedContent(input: string, startIndex: number): { value: string; 
           nextIndex: index + 1
         };
       }
-      if (depth < 0) {
-        return null;
-      }
     }
     index += 1;
   }
@@ -241,14 +231,10 @@ function readBracedContent(input: string, startIndex: number): { value: string; 
 }
 
 function readBracketContent(input: string, startIndex: number): { value: string; nextIndex: number } | null {
-  if (input[startIndex] !== "[") {
-    return null;
-  }
-
   let depth = 0;
   let index = startIndex;
   while (index < input.length) {
-    const char = input[index] ?? "";
+    const char = input[index] as string;
     if (char === "\\") {
       index += 2;
       continue;
@@ -266,9 +252,6 @@ function readBracketContent(input: string, startIndex: number): { value: string;
           value: input.slice(startIndex + 1, index),
           nextIndex: index + 1
         };
-      }
-      if (depth < 0) {
-        return null;
       }
     }
     index += 1;

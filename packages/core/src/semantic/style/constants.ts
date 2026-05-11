@@ -366,7 +366,7 @@ export const NON_STYLE_OPTION_FLAGS = new Set([
   "edge from parent"
 ]);
 
-export const PT_PER_CM = parseLength("1cm", "cm") ?? 28.4527559055;
+export const PT_PER_CM = parseLength("1cm", "cm")!;
 export const DEFAULT_TEXT_FONT_SIZE = 9.96264;
 export const FONT_SIZE_COMMAND_FACTORS: Record<string, number> = {
   "\\tiny": 0.5,

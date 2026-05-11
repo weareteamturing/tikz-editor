@@ -206,18 +206,11 @@ function translateSingleStatementSnippet(
   yLoop: RepeatLoop | null,
   parseOptions: EditParseOptions
 ): string {
-  if (!xLoop && !yLoop) {
-    return statementSnippet(source, ref);
-  }
-
   const snippet = statementSnippet(source, ref);
   const wrapped = wrapSnippetInFigure(snippet);
   const wrappedParseOptions = withoutActiveFigure(parseOptions);
   const wrappedParsed = parseTikzForEdit(wrapped, wrappedParseOptions);
   const rootStatement = wrappedParsed.figure.body[0];
-  if (!rootStatement) {
-    return wrapRepeatedBlockInScope(source, [ref], xLoop, yLoop);
-  }
 
   if (rootStatement.kind === "Path") {
     const rewritten = rewritePathStatementCoordinates(wrapped, rootStatement, xLoop, yLoop);
@@ -254,15 +247,10 @@ function wrapRepeatedBlockInScope(
   const last = refs[refs.length - 1];
   const block = source.slice(first.span.from, last.span.to);
   const shiftTuple = buildShiftTuple(xLoop, yLoop)!;
-  const scopeOptions = shiftTuple ? `[shift={${shiftTuple}}]` : "";
-  return `\\begin{scope}${scopeOptions}\n${reindentSnippet(block, "  ")}\n\\end{scope}`;
+  return `\\begin{scope}[shift={${shiftTuple}}]\n${reindentSnippet(block, "  ")}\n\\end{scope}`;
 }
 
 function buildForeachChain(headers: readonly string[], body: string): string {
-  if (headers.length === 0) {
-    return body;
-  }
-
   let output = body;
   for (let index = headers.length - 1; index >= 0; index -= 1) {
     output = `${headers[index]} {\n${indentEveryLine(output, "  ")}\n}`;

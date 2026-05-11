@@ -279,8 +279,7 @@ export function applyEditAction(
         return applyResizeElement(source, action, evaluateOptions, parseOptions);
     }
   })();
-  const normalizedResult = normalizeResultPatches(source, rawResult);
-  return withChangedSourceIds(normalizedResult, action, editHandles);
+  return normalizeResultPatches(source, rawResult);
 }
 
 function normalizeResultPatches(source: string, result: EditActionResult): EditActionResult {
@@ -541,9 +540,6 @@ function normalizeElementIds(elementIds: readonly string[]): string[] {
   const seen = new Set<string>();
   const normalized: string[] = [];
   for (const elementId of elementIds) {
-    if (typeof elementId !== "string") {
-      continue;
-    }
     const id = elementId.trim();
     if (id.length === 0 || seen.has(id)) {
       continue;
@@ -552,135 +548,6 @@ function normalizeElementIds(elementIds: readonly string[]): string[] {
     normalized.push(id);
   }
   return normalized;
-}
-
-
-function arraysEqual(left: readonly string[], right: readonly string[]): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-  for (let index = 0; index < left.length; index += 1) {
-    if (left[index] !== right[index]) {
-      return false;
-    }
-  }
-  return true;
-}
-
-function withChangedSourceIds(
-  result: EditActionResult,
-  action: EditAction,
-  editHandles: EditHandle[]
-): EditActionResult {
-  if (result.kind !== "success" && result.kind !== "partial") {
-    return result;
-  }
-
-  if ("changedSourceIds" in result && result.changedSourceIds !== undefined) {
-    return result;
-  }
-
-  const changedSourceIds = inferChangedSourceIds(result, action, editHandles);
-  if (changedSourceIds.length === 0) {
-    return result;
-  }
-
-  return {
-    ...result,
-    changedSourceIds
-  };
-}
-
-function inferChangedSourceIds(
-  result: Extract<EditActionResult, { kind: "success" | "partial" }>,
-  action: EditAction,
-  editHandles: EditHandle[]
-): string[] {
-  switch (action.kind) {
-    case "moveElement":
-      return normalizeElementIds([action.elementId]);
-    case "moveElements":
-      return normalizeElementIds(action.elementIds);
-    case "splitPath":
-      return normalizeElementIds([action.elementId]);
-    case "joinPaths":
-      return normalizeElementIds(action.elementIds);
-    case "reversePath":
-      return normalizeElementIds([action.elementId]);
-    case "toggleClosedPath":
-      return normalizeElementIds([action.elementId]);
-    case "deletePathPoint":
-      return normalizeElementIds([action.elementId]);
-    case "setPathPointKind":
-      return normalizeElementIds([action.elementId]);
-    case "alignElements":
-      return normalizeElementIds(action.elementIds);
-    case "distributeElements":
-      return normalizeElementIds(action.elementIds);
-    case "moveHandle": {
-      const handle = editHandles.find((candidate) => candidate.id === action.handleId);
-      return handle ? normalizeElementIds([handle.sourceRef.sourceId]) : [];
-    }
-    case "connectHandle": {
-      const handle = editHandles.find((candidate) => candidate.id === action.handleId);
-      return handle ? normalizeElementIds([handle.sourceRef.sourceId]) : [];
-    }
-    case "addElement":
-    case "pasteStatements":
-      return normalizeElementIds(result.selectedSourceIds ?? []);
-    case "duplicateElements":
-      return normalizeElementIds(result.selectedSourceIds ?? action.elementIds);
-    case "duplicateAdornment":
-      return normalizeElementIds([action.targetId]);
-    case "deleteElement":
-      return normalizeElementIds([action.elementId]);
-    case "deleteElements":
-      return normalizeElementIds(action.elementIds);
-    case "deleteAdornment":
-      return normalizeElementIds([action.targetId]);
-    case "moveAdornment":
-      return normalizeElementIds([action.targetId]);
-    case "movePathAttachedNode":
-      return normalizeElementIds([action.nodeId, action.hostPathSourceId]);
-    case "addNodeAdornment":
-      return normalizeElementIds([action.nodeId]);
-    case "reorderElements":
-      return normalizeElementIds(action.elementIds);
-    case "groupElements":
-      return [];
-    case "ungroupElements":
-      return [];
-    case "repeatElements":
-      return normalizeElementIds(action.elementIds);
-    case "addTreeChild":
-      return normalizeElementIds([action.parentSourceId]);
-    case "removeTreeChild":
-      return normalizeElementIds([action.childSourceId]);
-    case "addTreeSibling":
-      return normalizeElementIds([action.siblingSourceId]);
-    case "addMatrixRow":
-      return normalizeElementIds([action.matrixSourceId]);
-    case "removeMatrixRow":
-      return normalizeElementIds([action.matrixSourceId]);
-    case "addMatrixColumn":
-      return normalizeElementIds([action.matrixSourceId]);
-    case "removeMatrixColumn":
-      return normalizeElementIds([action.matrixSourceId]);
-    case "transposeMatrix":
-      return normalizeElementIds([action.matrixSourceId]);
-    case "setProperty":
-      return normalizeElementIds([action.elementId]);
-    case "cleanupPropertyWrites":
-      return normalizeElementIds(action.elementIds ?? []);
-    case "updateNodeText":
-      return normalizeElementIds([action.elementId]);
-    case "resizeElement":
-      return normalizeElementIds([action.elementId]);
-    case "appendToPath":
-      return normalizeElementIds([action.elementId]);
-    case "insertPathPoint":
-      return normalizeElementIds([action.elementId]);
-  }
 }
 
 function resolveNodeTextSpanForElementId(
@@ -712,10 +579,7 @@ function resolveNodeTextSpanForElementId(
   });
   const stack: Statement[] = [...parsed.figure.body];
   while (stack.length > 0) {
-    const statement = stack.shift();
-    if (!statement) {
-      continue;
-    }
+    const statement = stack.shift()!;
     if (statement.kind === "Scope") {
       stack.unshift(...statement.body);
       continue;
@@ -768,10 +632,7 @@ function moveStatementAfterNamedDefinition(
     return null;
   }
 
-  const producerRef = snapshot.byId.get(producerId);
-  if (!producerRef) {
-    return null;
-  }
+  const producerRef = snapshot.byId.get(producerId)!;
 
   if (movingRef.parentKey !== producerRef.parentKey) {
     return null;
@@ -781,33 +642,14 @@ function moveStatementAfterNamedDefinition(
     return null;
   }
 
-  const parentRefs = snapshot.byParentKey.get(movingRef.parentKey) ?? [];
-  if (parentRefs.length <= 1) {
-    return null;
-  }
-
+  const parentRefs = snapshot.byParentKey.get(movingRef.parentKey)!;
   const ids = parentRefs.map((ref) => ref.id);
-  const movingIndex = ids.indexOf(movingStatementId);
-  const producerIndex = ids.indexOf(producerId);
-  if (movingIndex < 0 || producerIndex < 0 || movingIndex > producerIndex) {
-    return null;
-  }
-
   const withoutMoving = ids.filter((id) => id !== movingStatementId);
   const producerIndexInFiltered = withoutMoving.indexOf(producerId);
-  if (producerIndexInFiltered < 0) {
-    return null;
-  }
   const nextOrder = [...withoutMoving];
   nextOrder.splice(producerIndexInFiltered + 1, 0, movingStatementId);
-  if (arraysEqual(ids, nextOrder)) {
-    return null;
-  }
 
-  const replacement = buildParentReorderReplacement(snapshot.source, parentRefs, nextOrder);
-  if (!replacement) {
-    return null;
-  }
+  const replacement = buildParentReorderReplacement(snapshot.source, parentRefs, nextOrder)!;
 
   const applied = applyTextReplacements(source, [
     {
@@ -815,9 +657,6 @@ function moveStatementAfterNamedDefinition(
       text: replacement.text
     }
   ]);
-  if (applied.patches.length === 0) {
-    return null;
-  }
 
   return {
     source: applied.source,
@@ -924,7 +763,8 @@ function applyUpdateNodeText(
         newSpan: updated.changedSpan,
         replacement: action.text
       }
-    ]
+    ],
+    changedSourceIds: [action.elementId.trim()]
   };
 }
 
@@ -944,35 +784,22 @@ function applyAddElement(
 ): EditActionResult {
   const beforeStatements = parseStatementSnapshot(source);
   const snippet = generateElementSource(template, at);
-  if (snippet.trim().length === 0) {
-    return { kind: "error", message: "Failed to generate source for the requested element template." };
-  }
 
   const newSource = insertElementIntoSource(source, snippet);
-  if (newSource === source) {
-    return { kind: "unsupported", reason: "The source insertion point could not be resolved." };
-  }
 
   const afterStatements = parseStatementSnapshot(newSource);
-  const insertedStatementId = afterStatements.all.find((ref) => !beforeStatements.byId.has(ref.id))?.id;
+  const insertedStatementId = afterStatements.all.find((ref) => !beforeStatements.byId.has(ref.id))!.id;
 
   return {
     kind: "success",
     newSource,
     patches: [computeReplacementPatch(source, newSource)],
-    selectedSourceIds: insertedStatementId ? [insertedStatementId] : undefined
+    selectedSourceIds: [insertedStatementId],
+    changedSourceIds: [insertedStatementId]
   };
 }
 
 function computeReplacementPatch(oldSource: string, newSource: string): SourcePatch {
-  if (oldSource === newSource) {
-    return {
-      oldSpan: { from: 0, to: 0 },
-      newSpan: { from: 0, to: 0 },
-      replacement: ""
-    };
-  }
-
   const oldLen = oldSource.length;
   const newLen = newSource.length;
   const minLen = Math.min(oldLen, newLen);

@@ -13,6 +13,7 @@ import {
   collectSelectionGeometryFromBounds,
   collectSourceWorldBounds,
   pickGridStepPt,
+  resolveSnapSettings,
   selectionSnapPointsFromBounds,
   snapHandlePosition,
   snapKeyboardNudge,
@@ -20,7 +21,6 @@ import {
   snapToolPointer,
   snapToNextMultiple
 } from "../packages/core/src/edit/snapping/index.js";
-import { buildVisibleGaps, createGapSnapLines } from "../packages/core/src/edit/snapping/gap-snaps.js";
 import {
   boundsFromPoints,
   boundsIntersect,
@@ -29,7 +29,9 @@ import {
   rangeIntersection,
   shiftPathCommand
 } from "../packages/core/src/edit/snapping/geometry.js";
-import type { Gap, SelectionGeometry } from "../packages/core/src/edit/snapping/types.js";
+import { collectGridSnaps } from "../packages/core/src/edit/snapping/grid-snaps.js";
+import { buildVisibleGaps, collectGapSnaps, createGapSnapLines } from "../packages/core/src/edit/snapping/gap-snaps.js";
+import type { AxisMinOffset, AxisSnapBuckets, Gap, SelectionGeometry } from "../packages/core/src/edit/snapping/types.js";
 import { wb, wp } from "./coords-helpers.js";
 
 function makeCircle(sourceId: string, centerX: number, centerY: number, radius: number): SceneElement {
@@ -259,11 +261,14 @@ describe("edit snapping core", () => {
   it("supports grid step selection and next-multiple snapping", () => {
     const gridStep = pickGridStepPt(1, 22);
     expect(gridStep).toBeGreaterThan(0);
+    expect(pickGridStepPt(1e-9, 22)).toBeCloseTo(50 * 28.4527559055, 6);
 
     expect(snapToNextMultiple(10, 2, 1)).toBe(12);
     expect(snapToNextMultiple(10, 2, -1)).toBe(8);
     expect(snapToNextMultiple(10.1, 2, 1)).toBe(12);
     expect(snapToNextMultiple(10.1, 2, -1)).toBe(10);
+    expect(snapToNextMultiple(10, 0, 1)).toBe(10);
+    expect(snapToNextMultiple(10, -2, 1)).toBe(8);
 
     const context = buildSnapContext({
       sceneElements: [],
@@ -278,6 +283,58 @@ describe("edit snapping core", () => {
 
     expect(snapped.snappedPoint?.x).toBeCloseTo(gridStep, 6);
     expect(snapped.lines).toEqual([]);
+  });
+
+  it("collects direct grid snaps with invalid steps and axis gating", () => {
+    const emptyNearest: AxisSnapBuckets = { x: [], y: [] };
+    const emptyMinOffset: AxisMinOffset = { x: Number.POSITIVE_INFINITY, y: Number.POSITIVE_INFINITY };
+    collectGridSnaps({
+      selectionPoints: [wp(3, 4)],
+      minOffset: emptyMinOffset,
+      nearest: emptyNearest,
+      gridStep: 0
+    });
+    expect(emptyNearest).toEqual({ x: [], y: [] });
+
+    const nearest: AxisSnapBuckets = { x: [], y: [] };
+    const minOffset: AxisMinOffset = { x: Number.POSITIVE_INFINITY, y: Number.POSITIVE_INFINITY };
+    collectGridSnaps({
+      selectionPoints: [wp(3, 4)],
+      minOffset,
+      nearest,
+      gridStep: 2,
+      enabledAxis: "y"
+    });
+    expect(nearest.x).toEqual([]);
+    expect(nearest.y).toHaveLength(1);
+    expect(nearest.y[0]).toMatchObject({ kind: "grid", axis: "y", offset: 0 });
+  });
+
+  it("normalizes partial snap settings, guides, selected references, and viewport filters", () => {
+    const settings = resolveSnapSettings({ points: { enabled: false } });
+    expect(settings.points.enabled).toBe(false);
+    expect(settings.grid.enabled).toBe(true);
+
+    const context = buildSnapContext({
+      sceneElements: [
+        makeCircle("selected", 0, 0, 5),
+        makeCircle("visible", 20, 0, 5),
+        makeCircle("outside", 1e9, 0, 5)
+      ],
+      selectedSourceIds: ["selected"],
+      zoom: 0,
+      viewportWorld: wb(0, -20, 40, 20),
+      guides: {
+        x: [10, 10.0000004, Number.POSITIVE_INFINITY, Number.NaN],
+        y: [5, Number.NEGATIVE_INFINITY, 5]
+      },
+      settings: { grid: { enabled: false }, gaps: { enabled: false } }
+    });
+
+    expect(context.zoom).toBe(1e-6);
+    expect(context.referenceBounds.map((bounds) => bounds.sourceId)).toEqual(["visible"]);
+    expect(context.guides).toEqual({ x: [10], y: [5] });
+    expect(context.visibleGaps).toEqual({ horizontal: [], vertical: [] });
   });
 
   it("snaps selection translations to the grid when no point or gap target is nearer", () => {
@@ -772,6 +829,22 @@ describe("edit snapping core", () => {
     });
 
     expect(horizontalBlocked.snappedDelta?.y).toBe(0);
+  });
+
+  it("ignores vertical gap snaps when the moved selection no longer overlaps the gap", () => {
+    const top = { ...wb(0, 0, 10, 10), sourceId: "top" };
+    const bottom = { ...wb(0, 30, 10, 40), sourceId: "bottom" };
+    const nearest: AxisSnapBuckets = { x: [], y: [] };
+    const minOffset: AxisMinOffset = { x: Number.POSITIVE_INFINITY, y: Number.POSITIVE_INFINITY };
+
+    collectGapSnaps({
+      selectionBounds: wb(20, 15, 25, 20),
+      visibleGaps: { horizontal: [], vertical: [gapBetween(top, bottom, "y")] },
+      minOffset,
+      nearest
+    });
+
+    expect(nearest).toEqual({ x: [], y: [] });
   });
 
   it("creates equal gap line geometry for left, top, and bottom side candidates", () => {

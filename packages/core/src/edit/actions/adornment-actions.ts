@@ -46,10 +46,6 @@ export function applyDuplicateAdornmentAction(
   }
 
   const snippet = source.slice(resolved.target.optionSpan.from, resolved.target.optionSpan.to);
-  if (snippet.trim().length === 0) {
-    return { kind: "unsupported", reason: "Selected adornment has no duplicable source snippet." };
-  }
-
   const insertion = replaceSpan(
     source,
     { from: resolved.target.optionSpan.to, to: resolved.target.optionSpan.to },
@@ -66,7 +62,7 @@ export function applyDuplicateAdornmentAction(
       }
     ],
     selectedSourceIds: [targetId],
-    changedSourceIds: [resolved.target.ownerSourceId ?? resolved.target.ownerId ?? targetId]
+    changedSourceIds: [resolved.target.ownerSourceId!]
   };
 }
 
@@ -91,6 +87,9 @@ export function applyAddNodeAdornmentAction(
   const resolved = resolvePropertyTarget(source, action.nodeId, parseOptions);
   if (resolved.kind !== "found") {
     return { kind: "unsupported", reason: "Selected node could not be resolved for adding an adornment." };
+  }
+  if (resolved.target.kind !== "node-item") {
+    return { kind: "unsupported", reason: "Selected target is not a node that can receive an adornment." };
   }
 
   const key = action.adornmentKind;
@@ -139,15 +138,11 @@ function resolveAdornmentMoveOverrides(action: MoveAdornmentAction): {
 }
 
 function resolveOptionListAppendOffset(source: string, span: { from: number; to: number }): number {
-  const safeTo = Math.max(span.from, Math.min(span.to, source.length));
-  let cursor = safeTo;
+  let cursor = span.to;
   while (cursor > span.from && /\s/u.test(source[cursor - 1] ?? "")) {
     cursor -= 1;
   }
-  if ((source[cursor - 1] ?? "") === "]") {
-    return cursor - 1;
-  }
-  return safeTo;
+  return cursor - 1;
 }
 
 function formatAdornmentAngle(rawDegrees: number): string {

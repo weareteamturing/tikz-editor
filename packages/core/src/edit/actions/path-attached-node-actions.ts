@@ -11,8 +11,7 @@ import {
   normalizePathPosition,
   resolvePathAttachedNodeRegime,
   resolvePathPositionPreset,
-  resolveDraggedPathAttachedNodeDirection as resolveDraggedDirectionFromRegime,
-  type PathPositionPreset
+  resolveDraggedPathAttachedNodeDirection as resolveDraggedDirectionFromRegime
 } from "../../semantic/path/path-attached.js";
 import type { WorldPoint } from "../../coords/points.js";
 import type { PathAttachedNodePlacementRegime } from "../../semantic/types.js";
@@ -58,7 +57,6 @@ const POSITION_OPTION_KEYS = [
   "very near end",
   "at end"
 ] as const;
-type PositionOptionKey = typeof POSITION_OPTION_KEYS[number];
 
 const CARDINAL_DIAGONAL_DIRECTIONS = [
   "above",
@@ -84,9 +82,6 @@ export function applyMovePathAttachedNodeAction(
   }
 
   const regime = resolvePathAttachedNodeRegime(resolved.target.options);
-  if (!regime) {
-    return { kind: "unsupported", reason: "Selected node is not in a supported path-attached placement regime." };
-  }
 
   const mutations = new Map<string, OptionMutation>();
   applyPositionMutations(mutations, normalizePathPosition(action.pos));
@@ -124,9 +119,6 @@ export function applyPathAttachedNodeInspectorAction(
   }
 
   const regime = resolvePathAttachedNodeRegime(resolved.target.options);
-  if (!regime) {
-    return { kind: "unsupported", reason: "Selected node is not in a supported path-attached placement regime." };
-  }
 
   const mutations = new Map<string, OptionMutation>();
   if (action.key === PATH_ATTACHED_NODE_POSITION_VALUE_KEY) {
@@ -182,40 +174,21 @@ export function resolveDraggedPathAttachedNodeDirection(
 
 function applyPositionMutations(
   mutations: Map<string, OptionMutation>,
-  rawPosition: number,
-  forcedPreset: string | null | undefined = undefined
+  rawPosition: number
 ): void {
   const position = normalizePathPosition(rawPosition);
-  const snapped: { preset: PathPositionPreset | "custom" | null; snappedT: number } = forcedPreset === undefined
-    ? resolvePathPositionPreset(position, null)
-    : { preset: parseForcedPositionPreset(forcedPreset), snappedT: position };
+  const snapped = resolvePathPositionPreset(position, null);
   for (const key of POSITION_OPTION_KEYS) {
     mutations.set(key, { kind: "remove" });
   }
-  if ((forcedPreset ?? snapped.preset) === "midway") {
+  if (snapped.preset === "midway") {
     return;
   }
-  if (forcedPreset != null) {
-    if (forcedPreset !== "custom") {
-      mutations.set(forcedPreset, { kind: "set", value: "" });
-      return;
-    }
-  } else if (snapped.preset) {
+  if (snapped.preset) {
     mutations.set(snapped.preset, { kind: "set", value: "" });
     return;
   }
   mutations.set("pos", { kind: "set", value: formatNumber(position) });
-}
-
-function parseForcedPositionPreset(value: string | null): PathPositionPreset | "custom" | null {
-  if (value == null || value === "custom") {
-    return value;
-  }
-  return isPositionOptionKey(value) && value !== "pos" ? value : null;
-}
-
-function isPositionOptionKey(value: string): value is PositionOptionKey {
-  return (POSITION_OPTION_KEYS as readonly string[]).includes(value);
 }
 
 function applySideMutations(

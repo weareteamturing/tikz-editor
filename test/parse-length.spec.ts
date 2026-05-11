@@ -4,7 +4,7 @@ import { worldPoint } from "../packages/core/src/coords/points.js";
 import { pt } from "../packages/core/src/coords/scalars.js";
 import { worldTransform } from "../packages/core/src/coords/transforms.js";
 import { createSemanticContext, writeNamedCoordinate, writeNamedNodeGeometry } from "../packages/core/src/semantic/context.js";
-import { evaluateRawCoordinate } from "../packages/core/src/semantic/coords/evaluate.js";
+import { evaluateCoordinate, evaluateRawCoordinate } from "../packages/core/src/semantic/coords/evaluate.js";
 import {
   parseCoordinateLike,
   parseLength,
@@ -92,6 +92,21 @@ describe("parseLength units", () => {
     expect(zCoordinate.world).toEqual({ x: 28.4527559055, y: 56.905511811 });
     expect(zCoordinate.diagnostics).toContain("unsupported-coordinate-z-component");
 
+    const syntheticXyzWithoutZ = evaluateCoordinate(
+      {
+        kind: "Coordinate",
+        id: "synthetic",
+        span: { from: 0, to: 5 },
+        raw: "(1,2)",
+        form: "xyz",
+        x: "1",
+        y: "2",
+        options: undefined
+      } as never,
+      context
+    );
+    expect(syntheticXyzWithoutZ.world).toEqual({ x: 28.4527559055, y: 56.905511811 });
+
     const badCanvas = evaluateRawCoordinate("(canvas cs:x=nope,y=2cm)", context);
     expect(badCanvas.kind).toBe("invalid");
     expect(badCanvas.diagnostics).toContain("invalid-explicit-coordinate:(canvas cs:x=nope,y=2cm)");
@@ -103,6 +118,12 @@ describe("parseLength units", () => {
     const emptyCalc = evaluateRawCoordinate("($ $)", context);
     expect(emptyCalc.kind).toBe("invalid");
     expect(emptyCalc.diagnostics).toContain("invalid-calc-coordinate");
+
+    const emptyNamed = evaluateRawCoordinate("()", context);
+    expect(emptyNamed.kind).toBe("invalid");
+    expect(emptyNamed.diagnostics.length).toBeGreaterThan(0);
+
+    expect(evaluateRawCoordinate("([red]1,2)", context).kind).toBe("transformed");
   });
 
   it("evaluates explicit coordinate systems and scoped numeric node anchors", () => {

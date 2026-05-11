@@ -41,7 +41,7 @@ export function applyGroupElementsAction(
   }
 
   const parentKey = selectedRefs[0].parentKey;
-  const parentRefs = (snapshot.byParentKey.get(parentKey) ?? []).slice().sort((left, right) => left.index - right.index);
+  const parentRefs = snapshot.byParentKey.get(parentKey)!.slice().sort((left, right) => left.index - right.index);
 
   const selectedIdSet = new Set(selectedRefs.map((ref) => ref.id));
   const selectedOrdered = parentRefs.filter((ref) => selectedIdSet.has(ref.id));
@@ -94,13 +94,13 @@ export function applyGroupElementsAction(
     from: appliedReplacement.newSpan.from + replacement.scopeLocalSpan.from,
     to: appliedReplacement.newSpan.from + replacement.scopeLocalSpan.to
   };
-  const groupedScopeId = resolveStatementIdBySpan(applied.source, scopeSpan, parseOptions);
+  const groupedScopeId = resolveStatementIdBySpan(applied.source, scopeSpan, parseOptions)!;
 
   return {
     kind: "success",
     newSource: applied.source,
     patches: applied.patches,
-    selectedSourceIds: groupedScopeId ? [groupedScopeId] : undefined,
+    selectedSourceIds: [groupedScopeId],
     // Grouping can renumber statement ids; force full recompute path.
     changedSourceIds: []
   };
@@ -129,7 +129,7 @@ export function applyUngroupElementsAction(
     return { kind: "unsupported", reason: optionCheck.reason };
   }
 
-  const parentRefs = snapshot.byParentKey.get(ref.parentKey) ?? [];
+  const parentRefs = snapshot.byParentKey.get(ref.parentKey)!;
   const indent = lineIndentAtOffset(source, ref.span.from);
   const newline = detectPreferredNewline(source, ref.span.from);
   const separator = resolveStatementSeparator(source, parentRefs, indent, newline);
@@ -144,7 +144,7 @@ export function applyUngroupElementsAction(
   let selectedSourceIds: string[] | undefined;
   if (replacementText.length > 0) {
     const nextSnapshot = parseStatementSnapshot(applied.source, parseOptions);
-    const selectedRefs = (nextSnapshot.byParentKey.get(ref.parentKey) ?? [])
+    const selectedRefs = nextSnapshot.byParentKey.get(ref.parentKey)!
       .filter((candidate) =>
         candidate.span.from >= appliedReplacement.newSpan.from &&
         candidate.span.to <= appliedReplacement.newSpan.to
@@ -253,11 +253,8 @@ function preservesDependencyOrder(
     indexById.set(expandedOrder[index], index);
   }
   for (const constraint of constraints) {
-    const beforeIndex = indexById.get(constraint.before);
-    const afterIndex = indexById.get(constraint.after);
-    if (beforeIndex == null || afterIndex == null) {
-      continue;
-    }
+    const beforeIndex = indexById.get(constraint.before)!;
+    const afterIndex = indexById.get(constraint.after)!;
     if (beforeIndex >= afterIndex) {
       return false;
     }
@@ -391,7 +388,7 @@ function buildGroupReplacement(input: {
       scopeLocalTo = text.length;
       continue;
     }
-    text += snippetsById.get(item) ?? "";
+    text += snippetsById.get(item)!;
   }
 
   return {
@@ -423,9 +420,6 @@ function resolveIndentUnit(
     }
     const extra = statementIndent.slice(parentIndent.length);
     if (!/^[ \t]+$/.test(extra)) {
-      continue;
-    }
-    if (extra.length === 0) {
       continue;
     }
     if (shortestExtra == null || extra.length < shortestExtra) {
@@ -502,21 +496,12 @@ function detectPreferredNewline(source: string, aroundOffset: number): string {
 function reindentBlock(snippet: string, indent: string): string {
   const normalized = snippet.replace(/\r\n?/g, "\n");
   const lines = normalized.split("\n");
-  while (lines.length > 0 && lines[0].trim().length === 0) {
-    lines.shift();
-  }
-  while (lines.length > 0 && lines[lines.length - 1].trim().length === 0) {
-    lines.pop();
-  }
-  if (lines.length === 0) {
-    return "";
-  }
   const nonEmpty = lines.filter((line) => line.trim().length > 0);
   const minIndent = nonEmpty.reduce((minimum, line) => {
-    const current = line.match(/^[ \t]*/)?.[0].length ?? 0;
+    const current = line.match(/^[ \t]*/u)![0].length;
     return Math.min(minimum, current);
   }, Number.POSITIVE_INFINITY);
-  const trimIndent = Number.isFinite(minIndent) ? minIndent : 0;
+  const trimIndent = minIndent;
   return lines
     .map((line) => {
       const stripped = trimIndent > 0 ? line.slice(Math.min(trimIndent, line.length)) : line;

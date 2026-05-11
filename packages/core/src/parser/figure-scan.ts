@@ -16,7 +16,7 @@ export function scanTikzFigures(source: string): ScannedFigure[] {
   let match = beginPattern.exec(source);
 
   while (match) {
-    const beginRaw = match[0] ?? "";
+    const beginRaw = match[0];
     const beginFrom = match.index;
     const beginTo = beginFrom + beginRaw.length;
     const endToken = beginRaw.endsWith("*}") ? "\\end{tikzpicture*}" : "\\end{tikzpicture}";
@@ -58,7 +58,7 @@ function collectMacroDefinitionBodySpans(source: string): Array<{ from: number; 
   let cursor = 0;
 
   while (cursor < source.length) {
-    const char = source[cursor] ?? "";
+    const char = source.charAt(cursor);
     if (char === "%") {
       cursor = skipComment(source, cursor);
       continue;
@@ -106,7 +106,7 @@ function collectMacroDefinitionBodySpans(source: string): Array<{ from: number; 
 function containsUnresolvedMacroPlaceholder(source: string): boolean {
   let cursor = 0;
   while (cursor < source.length) {
-    const char = source[cursor] ?? "";
+    const char = source.charAt(cursor);
 
     if (char === "%") {
       cursor = skipComment(source, cursor);
@@ -119,7 +119,7 @@ function containsUnresolvedMacroPlaceholder(source: string): boolean {
     }
 
     if (char === "#") {
-      const next = source[cursor + 1] ?? "";
+      const next = source.charAt(cursor + 1);
       if (next === "#") {
         cursor += 2;
         continue;
@@ -138,7 +138,7 @@ function containsUnresolvedMacroPlaceholder(source: string): boolean {
 function skipComment(source: string, from: number): number {
   let cursor = from;
   while (cursor < source.length) {
-    const char = source[cursor] ?? "";
+    const char = source.charAt(cursor);
     cursor += 1;
     if (char === "\n" || char === "\r") {
       break;
@@ -150,7 +150,7 @@ function skipComment(source: string, from: number): number {
 function skipWhitespaceAndComments(source: string, from: number): number {
   let cursor = from;
   while (cursor < source.length) {
-    const char = source[cursor] ?? "";
+    const char = source.charAt(cursor);
     if (/\s/u.test(char)) {
       cursor += 1;
       continue;
@@ -165,11 +165,11 @@ function skipWhitespaceAndComments(source: string, from: number): number {
 }
 
 function readControlSequence(source: string, from: number): { raw: string; from: number; to: number } | null {
-  if ((source[from] ?? "") !== "\\") {
+  if (source.charAt(from) !== "\\") {
     return null;
   }
   let cursor = from + 1;
-  while (cursor < source.length && /[A-Za-z@]/u.test(source[cursor] ?? "")) {
+  while (cursor < source.length && /[A-Za-z@]/u.test(source.charAt(cursor))) {
     cursor += 1;
   }
   if (cursor === from + 1) {
@@ -188,13 +188,13 @@ function readBalancedDelimited(
   openChar: "{" | "[",
   closeChar: "}" | "]"
 ): { from: number; to: number } | null {
-  if ((source[from] ?? "") !== openChar) {
+  if (source.charAt(from) !== openChar) {
     return null;
   }
   let depth = 0;
   let cursor = from;
   while (cursor < source.length) {
-    const char = source[cursor] ?? "";
+    const char = source.charAt(cursor);
     if (char === "%") {
       cursor = skipComment(source, cursor);
       continue;
@@ -231,7 +231,7 @@ function tryReadDefBodySpan(source: string, fromCursor: number): { from: number;
 
   while (cursor < source.length) {
     cursor = skipWhitespaceAndComments(source, cursor);
-    const char = source[cursor] ?? "";
+    const char = source.charAt(cursor);
     if (char === "{") {
       const group = readBalancedDelimited(source, cursor, "{", "}");
       return group ? { from: group.from + 1, to: group.to - 1 } : null;
@@ -251,7 +251,7 @@ function tryReadDefBodySpan(source: string, fromCursor: number): { from: number;
 
 function tryReadNewCommandBodySpan(source: string, fromCursor: number): { from: number; to: number } | null {
   let cursor = skipWhitespaceAndComments(source, fromCursor);
-  if ((source[cursor] ?? "") === "*") {
+  if (source.charAt(cursor) === "*") {
     cursor += 1;
   }
   cursor = skipWhitespaceAndComments(source, cursor);

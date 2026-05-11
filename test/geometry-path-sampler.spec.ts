@@ -66,6 +66,7 @@ describe("geometry path sampler primitives", () => {
 
     expect(totalSegmentLength(segments)).toBe(20);
     expect(sampleFrameFromStartExtrapolated([], 1)).toBeNull();
+    expect(sampleFrameFromEndExtrapolated([], 1)).toBeNull();
     expect(samplePointFromStartExtrapolated([], 1)).toBeNull();
     expect(sampleFrameFromStartExtrapolated(segments, -3)?.point).toEqual({ x: -3, y: 0 });
     expect(sampleFrameFromStartExtrapolated(segments, 15)?.point).toEqual({ x: 10, y: 5 });
@@ -110,12 +111,24 @@ describe("geometry path sampler primitives", () => {
     expect(sliceSegment(cubic, 0, cubic.length / 2)?.to.x).toBeLessThan(20);
     expect(sliceSegment(cubic, cubic.length / 2, cubic.length)?.from.x).toBeGreaterThan(10);
 
+    const zeroStartDerivativeCubic = commandsToSegments([
+      { kind: "M", to: wp(0, 0) },
+      { kind: "C", c1: wp(0, 0), c2: wp(5, 10), to: wp(10, 0) }
+    ])[0];
+    expect(sampleFrameFromStartExtrapolated([zeroStartDerivativeCubic], 0)?.tangent.x).toBeGreaterThan(0);
+
     expect(degenerateArc.kind).toBe("A");
     expect(degenerateArc.arc).toBeNull();
     const slicedDegenerateArc = sliceSegment(degenerateArc, 3, 7);
     expect(slicedDegenerateArc?.kind).toBe("L");
     expect(slicedDegenerateArc?.from.x).toBeCloseTo(23, 12);
     expect(slicedDegenerateArc?.to.x).toBeCloseTo(27, 12);
+    expect(sampleFrameFromStartExtrapolated([degenerateArc], 5)?.point.x).toBeCloseTo(25, 12);
+    const [zeroRyArc] = commandsToSegments([
+      { kind: "M", to: wp(0, 0) },
+      { kind: "A", rx: 4, ry: 0, xAxisRotation: 0, largeArc: false, sweep: true, to: wp(8, 0) }
+    ]);
+    expect(zeroRyArc.arc).toBeNull();
     expect(commandFromSegment(line)).toEqual({ kind: "L", to: { x: 10, y: 0 } });
   });
 

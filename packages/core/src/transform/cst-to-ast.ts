@@ -223,7 +223,7 @@ function resolveActiveFigureEntry(entries: FigureNodeEntry[], requestedId: strin
     return null;
   }
   if (requestedId === undefined || requestedId.length === 0) {
-    return entries[0] ?? null;
+    return entries[0];
   }
   const directMatch = entries.find((entry) => entry.id === requestedId);
   if (directMatch) {
@@ -231,9 +231,9 @@ function resolveActiveFigureEntry(entries: FigureNodeEntry[], requestedId: strin
   }
   const requestedIndex = parseFigureIndexFromId(requestedId);
   if (requestedIndex == null || requestedIndex < 0 || requestedIndex >= entries.length) {
-    return entries[0] ?? null;
+    return entries[0];
   }
-  return entries[requestedIndex] ?? (entries[0] ?? null);
+  return entries[requestedIndex];
 }
 
 function parseFigureIndexFromId(figureId: string): number | null {

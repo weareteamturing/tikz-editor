@@ -130,7 +130,8 @@ describe("macro expansion", () => {
 
   it("supports zero-argument callable macros and trailing control-word boundaries", () => {
     const bindings = new Map<string, MacroBinding>([
-      ["\\word", callableBinding("abc", 0, "\\word", "macro:word")]
+      ["\\word", callableBinding("abc", 0, "\\word", "macro:word")],
+      ["\\join", callableBinding(String.raw`\abc`, 1, "\\join", "macro:join")]
     ]);
 
     expect(expandMacroBindings(String.raw`\word next`, bindings)).toBe("abc next");
@@ -138,6 +139,7 @@ describe("macro expansion", () => {
     expect(expandMacroBindings(String.raw`\wordtail`, bindings)).toBe(String.raw`\wordtail`);
     expect(expandMacroBindings(String.raw`\word tail`, bindings)).toBe("abc tail");
     expect(expandMacroBindings(String.raw`\word{}tail`, bindings)).toBe("abc{}tail");
+    expect(expandMacroBindings(String.raw`\join{X}tail`, bindings)).toBe(String.raw`\abc{}tail`);
     expect(isControlSequenceToken(" \\word ")).toBe(true);
     expect(isControlSequenceToken("\\word1")).toBe(false);
   });

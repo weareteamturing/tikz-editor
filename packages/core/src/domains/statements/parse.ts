@@ -477,14 +477,6 @@ function resolveMacroCommandBodyNode(node: SyntaxNode): SyntaxNode | null {
   forEachChild(node, (child) => {
     if (child.type.name === "Group") {
       groups.push(child);
-      return;
-    }
-
-    if (child.type.name === "MacroCommandName") {
-      const groupedName = findFirstChildByName(child, "Group");
-      if (groupedName) {
-        groups.push(groupedName);
-      }
     }
   });
 

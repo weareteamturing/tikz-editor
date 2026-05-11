@@ -5,9 +5,38 @@ import {
   firstElementOfKind,
   elementsOfKind
 } from "./helpers.js";
+import type { OptionEntry } from "../../packages/core/src/options/types.js";
+import { worldTransform } from "../../packages/core/src/coords/transforms.js";
+import { applyKvEntry } from "../../packages/core/src/semantic/style/apply-kv.js";
+import type { ApplyOutcome } from "../../packages/core/src/semantic/style/apply-types.js";
+import { defaultStyle } from "../../packages/core/src/semantic/style/defaults.js";
 import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../../packages/core/src/semantic/types.js";
 
 describe("semantic evaluator / styles and colors", () => {
+    it("reports malformed style, library, and color declarations", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \tikzstyle{}=[draw]
+    \usetikzlibrary{}
+    \colorlet{}{red}
+    \colorlet{accent}{}
+    \definecolor{}{rgb}{1,0,0}
+    \definecolor{missing-model}{}{1,0,0}
+    \definecolor{unknown-model}{unknown}{1}
+    \draw (0,0) -- (1,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(expect.arrayContaining([
+        "invalid-tikzstyle-name",
+        "invalid-tikzlibrary",
+        "invalid-colorlet-name",
+        "invalid-colorlet-value",
+        "invalid-definecolor-name",
+        "invalid-definecolor-args",
+        "invalid-definecolor-model"
+      ]));
+    });
+
     it("applies style cascade with statement options", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw[red, line width=2pt] (0,0) -- (1,0);
@@ -231,6 +260,8 @@ describe("semantic evaluator / styles and colors", () => {
     \shade[left color=green,right color=yellow] (2,0) rectangle (3,1);
     \shade[inner color=white,outer color=black] (4,0) circle (0.5);
     \shade[ball color=red] (6,0) circle (0.5);
+    \shade[middle color=yellow] (8,0) rectangle (9,1);
+    \shade[lower left=red,lower right=green,upper left=blue,upper right=white] (10,0) rectangle (11,1);
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
@@ -284,6 +315,118 @@ describe("semantic evaluator / styles and colors", () => {
         expect(ballPath.style.shading).toBe("ball");
         expect(ballPath.style.ballColor).toBe("#ff0000");
       }
+
+      const middlePath = paths[4];
+      expect(middlePath?.kind).toBe("Path");
+      if (middlePath?.kind === "Path") {
+        expect(middlePath.style.shading).toBe("axis");
+        expect(middlePath.style.axisMiddleColor).toBe("#ffff00");
+      }
+
+      const bilinearPath = paths[5];
+      expect(bilinearPath?.kind).toBe("Path");
+      if (bilinearPath?.kind === "Path") {
+        expect(bilinearPath.style.shading).toBe("bilinear interpolation");
+        expect(bilinearPath.style.bilinearLowerLeft).toBe("#ff0000");
+        expect(bilinearPath.style.bilinearLowerRight).toBe("#00ff00");
+        expect(bilinearPath.style.bilinearUpperLeft).toBe("#0000ff");
+        expect(bilinearPath.style.bilinearUpperRight).toBe("#ffffff");
+      }
+    });
+
+    it("reports invalid style option values for uncommon key-value branches", () => {
+      const identity = worldTransform(1, 0, 0, 1, 0, 0);
+      const applyOptionEntry = (entry: OptionEntry, style = defaultStyle(), transform = identity): ApplyOutcome => {
+        if (entry.kind !== "kv") {
+          return { style, transform, diagnostics: [] };
+        }
+        return applyKvEntry(entry.key, entry.valueRaw, style, transform, applyOptionEntry);
+      };
+      const codes = [
+        ["shadow scale", "bad"],
+        ["shadow xshift", "bad"],
+        ["shadow yshift", "bad"],
+        ["path fading", "bad"],
+        ["decorate", "maybe"],
+        ["tips", "sideways"],
+        ["shade", "maybe"],
+        ["shading", ""],
+        ["shading angle", "bad"],
+        ["text opacity", "bad"],
+        ["align", "diagonal"],
+        ["line width", "bad"],
+        ["double distance", "-1pt"],
+        ["double distance between line centers", "bad"],
+        ["radius", "bad"],
+        ["x radius", "bad"],
+        ["y radius", "bad"],
+        ["rounded corners", "bad"],
+        ["opacity", "bad"],
+        ["draw opacity", "bad"],
+        ["fill opacity", "bad"],
+        ["line cap", "triangle"],
+        ["line join", "point"],
+        ["shorten <=", "bad"],
+        ["shorten >=", "bad"],
+        ["dash pattern", "bad"],
+        ["dash phase", "bad"],
+        ["dash", "bad"],
+        ["xshift", "bad"],
+        ["yshift", "bad"],
+        ["shift", "bad"],
+        ["scale", "bad"],
+        ["xscale", "bad"],
+        ["yscale", "bad"],
+        ["rotate", "bad"],
+        ["rotate around", "bad"],
+        ["cm", "bad"],
+        ["x", "bad"],
+        ["y", "bad"]
+      ].flatMap(([key, valueRaw]) =>
+        applyKvEntry(key!, valueRaw!, defaultStyle(), identity, applyOptionEntry).diagnostics
+      );
+
+      expect(codes).toEqual(expect.arrayContaining([
+        "invalid-shadow-scale:bad",
+        "invalid-shadow-xshift:bad",
+        "invalid-shadow-yshift:bad",
+        "unsupported-path-fading:bad",
+        "invalid-decorate-flag:maybe",
+        "invalid-tips:sideways",
+        "invalid-shade:maybe",
+        "invalid-shading:",
+        "invalid-shading-angle:bad",
+        "invalid-text-opacity:bad",
+        "invalid-align:diagonal",
+        "invalid-line-width:bad",
+        "invalid-double-distance:-1pt",
+        "invalid-double-distance-between-line-centers:bad",
+        "invalid-radius:bad",
+        "invalid-x-radius:bad",
+        "invalid-y-radius:bad",
+        "invalid-rounded-corners:bad",
+        "invalid-opacity:bad",
+        "invalid-draw-opacity:bad",
+        "invalid-fill-opacity:bad",
+        "invalid-line-cap:triangle",
+        "invalid-line-join:point",
+        "invalid-shorten-start:bad",
+        "invalid-shorten-end:bad",
+        "invalid-dash-pattern:bad",
+        "invalid-dash-phase:bad",
+        "invalid-dash:bad",
+        "invalid-xshift:bad",
+        "invalid-yshift:bad",
+        "invalid-shift:bad",
+        "invalid-scale:bad",
+        "invalid-xscale:bad",
+        "invalid-yscale:bad",
+        "invalid-rotate:bad",
+        "invalid-rotate-around:bad",
+        "invalid-cm:bad",
+        "invalid-x-axis:bad",
+        "invalid-y-axis:bad"
+      ]));
     });
 
     it("resolves pattern and pattern color keys without unsupported-option diagnostics", () => {
@@ -729,6 +872,29 @@ describe("semantic evaluator / styles and colors", () => {
         expect(path.style.stroke).toBe("#ff0000");
         expect(path.style.lineWidth).toBeCloseTo(2, 6);
         expect(path.style.dashArray).toEqual([3, 3]);
+      }
+    });
+
+    it("supports custom style prefixes, arguments, and recursion diagnostics", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \tikzset{
+      pair/.style 2 args={draw=#1,fill=#2},
+      pair/.prefix style={line width=2pt},
+      recursive/.style={recursive,draw=red}
+    }
+    \draw[pair={red,blue}] (0,0) rectangle (1,1);
+    \draw[recursive] (2,0) -- (3,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+      const paths = elementsOfKind(result.scene.elements, "Path");
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "custom-style-recursion:recursive")).toBe(true);
+      const styledPath = paths[0];
+      expect(styledPath?.kind).toBe("Path");
+      if (styledPath?.kind === "Path") {
+        expect(styledPath.style.lineWidth).toBeCloseTo(2);
+        expect(styledPath.style.stroke).toBe("#ff0000");
+        expect(styledPath.style.fill).toBe("#0000ff");
       }
     });
 

@@ -266,10 +266,6 @@ function decorateTextAlongPath(path: ScenePath, decoration: DecorationStyle, see
   }
 
   const characters = Array.from(textOptions.text);
-  if (characters.length === 0) {
-    return [];
-  }
-
   const transformSpec = parseDecorationTransform(decoration.transformRaw);
   const subpaths = splitPathIntoSubpaths(path.commands).filter(hasDrawablePathCommands);
   const elements: SceneElement[] = [];
@@ -307,7 +303,7 @@ function decorateTextAlongPath(path: ScenePath, decoration: DecorationStyle, see
 
     for (let characterIndex = 0; characterIndex < characters.length; characterIndex += 1) {
       const character = characters[characterIndex];
-      const advance = advances[characterIndex] ?? 0;
+      const advance = advances[characterIndex]!;
       const centerDistance = cursor + advance / 2;
       const endDistance = cursor + advance;
       if (endDistance > endLimit + 1e-6) {

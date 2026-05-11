@@ -221,7 +221,7 @@ export function applyResizeElementAction(
     widthResizeStrategy === "text-width"
       ? Math.max(RESIZE_EPSILON, requestedWidth - effectiveTextWidthInset)
       : null;
-  const liveBounds = resolveNodeResizeBounds(semantic.scene.elements, elementId) ?? currentBounds;
+  const liveBounds = resolveNodeResizeBounds(semantic.scene.elements, elementId)!;
   const liveWorldWidth = liveBounds.maxX - liveBounds.minX;
   const liveWorldHeight = liveBounds.maxY - liveBounds.minY;
   const liveLocalSize = nodeLinearTransform
@@ -242,7 +242,8 @@ export function applyResizeElementAction(
       return {
         kind: "success",
         newSource: rewritten.source,
-        patches: [rewritten.patch]
+        patches: [rewritten.patch],
+        changedSourceIds: [elementId]
       };
     }
   }
@@ -283,7 +284,8 @@ export function applyResizeElementAction(
   return {
     kind: "success",
     newSource: rewritten.source,
-    patches: [rewritten.patch]
+    patches: [rewritten.patch],
+    changedSourceIds: [elementId]
   };
 }
 
@@ -314,7 +316,7 @@ function buildNodeResizeMutationCandidates(args: {
   if (widthResizeStrategy === "text-width" && affectsWidth) {
     const textWidthMutation: OptionMutation = {
       kind: "set",
-      value: `${formatNumber(Math.max(RESIZE_EPSILON, requestedTextWidth ?? RESIZE_EPSILON))}pt`
+      value: `${formatNumber(Math.max(RESIZE_EPSILON, requestedTextWidth!))}pt`
     };
     const heightMutation: OptionMutation =
       requestedHeight > intrinsicHeight + RESIZE_EPSILON
@@ -325,19 +327,17 @@ function buildNodeResizeMutationCandidates(args: {
       candidates.push(buildResizeCandidate(new Map([["text width", textWidthMutation]]), false));
       return dedupeResizeCandidates(candidates);
     }
-    if (affectsWidth && affectsHeight) {
-      candidates.push(buildResizeCandidate(new Map([
+    candidates.push(buildResizeCandidate(new Map([
+      ["text width", textWidthMutation],
+      ["minimum height", heightMutation]
+    ]), false));
+    if (heightMutation.kind === "set") {
+      candidates.push(buildResizeCandidate(new Map<string, OptionMutation>([
         ["text width", textWidthMutation],
-        ["minimum height", heightMutation]
-      ]), false));
-      if (heightMutation.kind === "set") {
-        candidates.push(buildResizeCandidate(new Map<string, OptionMutation>([
-          ["text width", textWidthMutation],
-          ["minimum height", { kind: "remove" }]
-        ]), true));
-      }
-      return dedupeResizeCandidates(candidates);
+        ["minimum height", { kind: "remove" }]
+      ]), true));
     }
+    return dedupeResizeCandidates(candidates);
   }
 
   const widthMutation: OptionMutation =
@@ -596,7 +596,7 @@ function applyScopeTransformRewrite(
       filteredOptions,
       orderedSetMutations,
       undefined,
-      target.optionsFormat ?? "bracketed"
+      target.optionsFormat!
     );
     const oldSpan = target.optionsSpan;
     const previous = source.slice(oldSpan.from, oldSpan.to);
@@ -898,14 +898,11 @@ function applyResizePathRectangle(
   }
 
   const applied = applyTextReplacements(source, replacements);
-  if (applied.source === source) {
-    return { kind: "unsupported", reason: "Resize would not change node constraints." };
-  }
-
   return {
     kind: "success",
     newSource: applied.source,
-    patches: applied.patches
+    patches: applied.patches,
+    changedSourceIds: [action.elementId]
   };
 }
 
@@ -926,8 +923,8 @@ function resolvePathRectangleResizeContext(
     return { kind: "not-rectangle" };
   }
 
-  const rectangle = nonTextElements[0];
-  if (!rectangle || rectangle.kind !== "Path") {
+  const rectangle = nonTextElements[0]!;
+  if (rectangle.kind !== "Path") {
     return { kind: "not-rectangle" };
   }
   if (resolveScenePathShapeHint(rectangle, pathStatement) !== "rectangle") {
@@ -989,7 +986,7 @@ function resolvePathShapeHintFromItems(items: readonly PathItem[]): ScenePathSha
   if (hints.size !== 1) {
     return null;
   }
-  return [...hints][0] ?? null;
+  return [...hints][0]!;
 }
 
 function collectPathShapeHints(items: readonly PathItem[], hints: Set<ScenePathShapeHint>): void {
@@ -1048,8 +1045,8 @@ function applyResizePathCircleOrEllipse(
     return { kind: "unsupported", reason: "Resize requires explicit circle/ellipse radii for single-axis drags." };
   }
 
-  let nextRxLocal = affectsWidth ? localDx : (currentLocalRadii?.rx ?? localDx);
-  let nextRyLocal = affectsHeight ? localDy : (currentLocalRadii?.ry ?? localDy);
+  let nextRxLocal = affectsWidth ? localDx : currentLocalRadii!.rx;
+  let nextRyLocal = affectsHeight ? localDy : currentLocalRadii!.ry;
   if (context.shapeKind === "circle") {
     const currentRadius = currentLocalRadii?.rx ?? Math.max(nextRxLocal, nextRyLocal);
     const nextRadius = Math.max(
@@ -1064,7 +1061,7 @@ function applyResizePathCircleOrEllipse(
         ? currentLocalRadii.ry / currentLocalRadii.rx
         : null;
     const fixedAspectRatio =
-      Number.isFinite(action.preserveAspectRatio) && (action.preserveAspectRatio ?? 0) > RESIZE_EPSILON
+      Number.isFinite(action.preserveAspectRatio) && action.preserveAspectRatio! > RESIZE_EPSILON
         ? action.preserveAspectRatio!
         : fallbackAspectRatio;
     if (!fixedAspectRatio || fixedAspectRatio <= RESIZE_EPSILON) {
@@ -1095,7 +1092,8 @@ function applyResizePathCircleOrEllipse(
     return {
       kind: "success",
       newSource: rewritten.source,
-      patches: [rewritten.patch]
+      patches: [rewritten.patch],
+      changedSourceIds: [action.elementId]
     };
   }
 
@@ -1110,7 +1108,8 @@ function applyResizePathCircleOrEllipse(
     return {
       kind: "success",
       newSource: rewritten.source,
-      patches: [rewritten.patch]
+      patches: [rewritten.patch],
+      changedSourceIds: [action.elementId]
     };
   }
 
@@ -1120,23 +1119,18 @@ function applyResizePathCircleOrEllipse(
       entries.push(serializeOptionEntry(key, mutation.value));
     }
   }
-  if (entries.length === 0) {
-    return { kind: "unsupported", reason: "Resize would not change node constraints." };
-  }
 
   const inserted = `[${entries.join(", ")}]`;
   const rewritten = applySpanTextReplacement(source, {
     from: context.syntax.keywordSpan.to,
     to: context.syntax.keywordSpan.to
-  }, inserted);
-  if (!rewritten) {
-    return { kind: "unsupported", reason: "Resize would not change node constraints." };
-  }
+  }, inserted)!;
 
   return {
     kind: "success",
     newSource: rewritten.source,
-    patches: [rewritten.patch]
+    patches: [rewritten.patch],
+    changedSourceIds: [action.elementId]
   };
 }
 
@@ -1165,8 +1159,8 @@ function resolvePathShapeResizeContext(
     const explicitShape = explicitShapeElements[0];
     shapeKind = explicitShape.kind === "Circle" ? "circle" : "ellipse";
     center = explicitShape.center;
-  } else if (explicitShapeElements.length === 0 && nonTextElements.length === 1 && nonTextElements[0]?.kind === "Path") {
-    const pathElement = nonTextElements[0];
+  } else if (explicitShapeElements.length === 0 && nonTextElements.length === 1 && nonTextElements[0]!.kind === "Path") {
+    const pathElement = nonTextElements[0]!;
     const hint = resolveScenePathShapeHint(pathElement, pathStatement);
     if (hint === "circle" || hint === "ellipse") {
       shapeKind = hint;
@@ -1226,15 +1220,12 @@ function resolvePathShapeResizeSyntax(items: readonly PathItem[]): PathShapeResi
   }
   const keywordItem = keywordItems[0];
   const keywordIndex = items.findIndex((item) => item.id === keywordItem.id);
-  if (keywordIndex < 0) {
-    return null;
-  }
 
   const optionItems: PathOptionItem[] = [];
   let payloadCoordinate: CoordinateItem | null = null;
   for (let index = keywordIndex + 1; index < items.length; index += 1) {
     const next = items[index];
-    if (!next || next.kind === "PathComment") {
+    if (next.kind === "PathComment") {
       continue;
     }
     if (next.kind === "PathOption" && !payloadCoordinate) {
@@ -1373,18 +1364,12 @@ function rewriteShapePayloadCoordinate(
   }
 
   if (syntax.keyword === "circle") {
-    if (parseCircleRadiusFromCoordinateRaw(syntax.payloadCoordinate.raw) == null) {
-      return null;
-    }
     return {
       span: syntax.payloadCoordinate.span,
       text: formatCircleRadiusCoordinateRaw(syntax.payloadCoordinate.raw, nextRxLocal)
     };
   }
 
-  if (parseEllipseRadiiFromCoordinateRaw(syntax.payloadCoordinate.raw) == null) {
-    return null;
-  }
   return {
     span: syntax.payloadCoordinate.span,
     text: formatEllipseRadiiCoordinateRaw(syntax.payloadCoordinate.raw, nextRxLocal, nextRyLocal)
@@ -1447,7 +1432,7 @@ function pickPathShapeResizeOptionTarget(
       return item;
     }
   }
-  return optionItems[optionItems.length - 1] ?? null;
+  return optionItems[optionItems.length - 1]!;
 }
 
 function applySpanTextReplacement(
@@ -1516,14 +1501,15 @@ function resolveNodeResizeLinearTransform(
 ): { a: number; b: number; c: number; d: number } | null {
   const sourceElements = elements.filter((element) => element.sourceRef.sourceId === sourceId && !element.adornment);
   const transformed = sourceElements.find((element) => element.transform != null);
-  if (!transformed?.transform) {
+  if (!transformed) {
     return null;
   }
+  const transform = transformed.transform!;
   return {
-    a: transformed.transform.a,
-    b: transformed.transform.b,
-    c: transformed.transform.c,
-    d: transformed.transform.d
+    a: transform.a,
+    b: transform.b,
+    c: transform.c,
+    d: transform.d
   };
 }
 
@@ -1566,7 +1552,7 @@ function resolveNodeWidthResizeStrategy(target: PropertyTarget, affectsWidth: bo
 }
 
 function resolveNodeHorizontalInsetFallback(target: PropertyTarget): number {
-  const defaultInnerXSep = parseLength(".3333em", "pt") ?? 3.333;
+  const defaultInnerXSep = parseLength(".3333em", "pt")!;
   let innerXSep = defaultInnerXSep;
   for (const entry of target.options?.entries ?? []) {
     if (entry.kind !== "kv") {
@@ -1605,27 +1591,25 @@ function resolveNodeTextWidthInsetLocal(args: {
       Number.isFinite(element.nodeVisualWidth) &&
       Number.isFinite(element.textBlockWidth)
   );
-  if (!textElement || textElement.nodeVisualWidth == null || textElement.textBlockWidth == null) {
+  if (!textElement) {
     return null;
   }
 
-  const rawInset = Math.max(0, textElement.nodeVisualWidth - textElement.textBlockWidth);
-  if (!Number.isFinite(rawInset)) {
-    return null;
-  }
+  const nodeVisualWidth = textElement.nodeVisualWidth!;
+  const textBlockWidth = textElement.textBlockWidth!;
+  const rawInset = Math.max(0, nodeVisualWidth - textBlockWidth);
   if (!args.nodeLinearTransform) {
     return rawInset;
   }
 
-  const visualWidth = textElement.nodeVisualWidth;
-  const diffToLocal = Math.abs(visualWidth - args.intrinsicLocalWidth);
-  const diffToWorld = Math.abs(visualWidth - args.intrinsicWorldWidth);
+  const diffToLocal = Math.abs(nodeVisualWidth - args.intrinsicLocalWidth);
+  const diffToWorld = Math.abs(nodeVisualWidth - args.intrinsicWorldWidth);
   if (diffToWorld + RESIZE_EPSILON < diffToLocal) {
     const converted = worldSizeToLocalSize(
       { width: rawInset, height: 0 },
       args.nodeLinearTransform
     ).width;
-    return Number.isFinite(converted) ? Math.max(0, converted) : rawInset;
+    return Math.max(0, converted);
   }
   return rawInset;
 }
@@ -1651,19 +1635,15 @@ function rewriteDiamondSideResize(args: {
   const aspect = resolveDiamondAspectRatio(resizeTarget);
 
   const affectsWidth = role === "left" || role === "right";
-  const safeAspect = Number.isFinite(aspect) && aspect > RESIZE_EPSILON ? aspect : 1;
   const mutations = new Map<string, OptionMutation>();
 
   if (dimensions.hasExplicitMinimumWidth && dimensions.hasExplicitMinimumHeight) {
     const currentPrimary = affectsWidth ? currentWidth : currentHeight;
     const requestedPrimary = affectsWidth ? requestedWidth : requestedHeight;
-    if (!Number.isFinite(currentPrimary) || !Number.isFinite(requestedPrimary) || currentPrimary <= RESIZE_EPSILON) {
+    if (currentPrimary <= RESIZE_EPSILON) {
       return null;
     }
     const scale = Math.max(0, requestedPrimary / currentPrimary);
-    if (!Number.isFinite(scale)) {
-      return null;
-    }
     const nextMinimumWidth = Math.max(0, dimensions.minimumWidth * scale);
     const nextMinimumHeight = Math.max(0, dimensions.minimumHeight * scale);
     mutations.set("minimum width", { kind: "set", value: `${formatNumber(nextMinimumWidth)}pt` });
@@ -1676,9 +1656,9 @@ function rewriteDiamondSideResize(args: {
       dimensions,
       currentWidth,
       currentHeight,
-      aspect: safeAspect
+      aspect
     });
-    const nextMinimumWidth = Math.max(0, requestedWidth - safeAspect * companionHeight);
+    const nextMinimumWidth = Math.max(0, requestedWidth - aspect * companionHeight);
     mutations.set("minimum width", { kind: "set", value: `${formatNumber(nextMinimumWidth)}pt` });
     if (!dimensions.hasExplicitMinimumHeight) {
       mutations.set("minimum height", { kind: "remove" });
@@ -1690,9 +1670,9 @@ function rewriteDiamondSideResize(args: {
     dimensions,
     currentWidth,
     currentHeight,
-    aspect: safeAspect
+    aspect
   });
-  const nextMinimumHeight = Math.max(0, requestedHeight - companionWidth / safeAspect);
+  const nextMinimumHeight = Math.max(0, requestedHeight - companionWidth / aspect);
   mutations.set("minimum height", { kind: "set", value: `${formatNumber(nextMinimumHeight)}pt` });
   if (!dimensions.hasExplicitMinimumWidth) {
     mutations.set("minimum width", { kind: "remove" });
@@ -1728,7 +1708,6 @@ function inferDiamondCompanionHeight(args: {
   aspect: number;
 }): number {
   const { dimensions, currentWidth, currentHeight, aspect } = args;
-  const safeAspect = Number.isFinite(aspect) && aspect > RESIZE_EPSILON ? aspect : 1;
   const currentW = Math.max(currentWidth, 0);
   const currentH = Math.max(currentHeight, 0);
 
@@ -1737,17 +1716,13 @@ function inferDiamondCompanionHeight(args: {
   }
   if (dimensions.hasExplicitMinimumWidth) {
     const width = Math.max(dimensions.minimumWidth, RESIZE_EPSILON);
-    const fromWidth = (currentW - width) / safeAspect;
-    const fromHeight = currentH - width / safeAspect;
-    const derived = Number.isFinite(fromWidth) && Number.isFinite(fromHeight)
-      ? (fromWidth + fromHeight) / 2
-      : Number.isFinite(fromWidth)
-        ? fromWidth
-        : fromHeight;
+    const fromWidth = (currentW - width) / aspect;
+    const fromHeight = currentH - width / aspect;
+    const derived = (fromWidth + fromHeight) / 2;
     return Math.max(derived, 0);
   }
 
-  return Math.max(currentW / (2 * safeAspect), 0);
+  return Math.max(currentW / (2 * aspect), 0);
 }
 
 function inferDiamondCompanionWidth(args: {
@@ -1762,7 +1737,6 @@ function inferDiamondCompanionWidth(args: {
   aspect: number;
 }): number {
   const { dimensions, currentWidth, currentHeight, aspect } = args;
-  const safeAspect = Number.isFinite(aspect) && aspect > RESIZE_EPSILON ? aspect : 1;
   const currentW = Math.max(currentWidth, 0);
   const currentH = Math.max(currentHeight, 0);
 
@@ -1771,13 +1745,9 @@ function inferDiamondCompanionWidth(args: {
   }
   if (dimensions.hasExplicitMinimumHeight) {
     const height = Math.max(dimensions.minimumHeight, RESIZE_EPSILON);
-    const fromWidth = currentW - safeAspect * height;
-    const fromHeight = safeAspect * (currentH - height);
-    const derived = Number.isFinite(fromWidth) && Number.isFinite(fromHeight)
-      ? (fromWidth + fromHeight) / 2
-      : Number.isFinite(fromWidth)
-        ? fromWidth
-        : fromHeight;
+    const fromWidth = currentW - aspect * height;
+    const fromHeight = aspect * (currentH - height);
+    const derived = (fromWidth + fromHeight) / 2;
     return Math.max(derived, 0);
   }
   return Math.max(currentW / 2, 0);
@@ -1790,8 +1760,8 @@ function resolveTargetMinimumDimensions(target: PropertyTarget): {
   hasExplicitMinimumWidth: boolean;
   hasExplicitMinimumHeight: boolean;
 } {
-  let minimumWidth = parseLength("1pt", "pt") ?? 1;
-  let minimumHeight = parseLength("1pt", "pt") ?? 1;
+  let minimumWidth = parseLength("1pt", "pt")!;
+  let minimumHeight = parseLength("1pt", "pt")!;
   let minimumSize: number | null = null;
   let hasExplicitMinimumWidth = false;
   let hasExplicitMinimumHeight = false;
@@ -2017,7 +1987,7 @@ function isDiamondNodeShapeInPathStatement(statements: readonly Statement[], ele
   if (nodes.length !== 1) {
     return false;
   }
-  return resolveNodeShape(nodes[0]?.options) === "diamond";
+  return resolveNodeShape(nodes[0]!.options) === "diamond";
 }
 
 function collectPathNodeItems(items: readonly PathItem[]): NodeItem[] {

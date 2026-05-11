@@ -6,7 +6,7 @@ import { parseMatrixRowsForEdit, resolveMatrixMode } from "../../semantic/nodes/
 import type { Span } from "../../ast/types.js";
 
 type EditActionResultLike =
-  | { kind: "success"; newSource: string; patches: SourcePatch[] }
+  | { kind: "success"; newSource: string; patches: SourcePatch[]; changedSourceIds?: string[] }
   | { kind: "unsupported"; reason: string };
 
 type MatrixStructureTarget = {
@@ -54,7 +54,9 @@ export function applyAddMatrixRowAction(
     return { kind: "unsupported", reason: `addMatrixRow rowIndex must be in 1..${rowCount + 1}.` };
   }
   rows.splice(action.rowIndex - 1, 0, Array.from<string>({ length: colCount }).fill(""));
-  return rewriteMatrixText(source, target.value.matrixTextSpan, serializeMatrixRows(rows, target.value.cellSeparator));
+  return rewriteMatrixText(source, target.value.matrixTextSpan, serializeMatrixRows(rows, target.value.cellSeparator), [
+    action.matrixSourceId
+  ]);
 }
 
 export function applyRemoveMatrixRowAction(
@@ -74,7 +76,9 @@ export function applyRemoveMatrixRowAction(
     return { kind: "unsupported", reason: `removeMatrixRow rowIndex must be in 1..${rowCount}.` };
   }
   rows.splice(action.rowIndex - 1, 1);
-  return rewriteMatrixText(source, target.value.matrixTextSpan, serializeMatrixRows(rows, target.value.cellSeparator));
+  return rewriteMatrixText(source, target.value.matrixTextSpan, serializeMatrixRows(rows, target.value.cellSeparator), [
+    action.matrixSourceId
+  ]);
 }
 
 export function applyAddMatrixColumnAction(
@@ -93,7 +97,9 @@ export function applyAddMatrixColumnAction(
   for (const row of rows) {
     row.splice(action.columnIndex - 1, 0, "");
   }
-  return rewriteMatrixText(source, target.value.matrixTextSpan, serializeMatrixRows(rows, target.value.cellSeparator));
+  return rewriteMatrixText(source, target.value.matrixTextSpan, serializeMatrixRows(rows, target.value.cellSeparator), [
+    action.matrixSourceId
+  ]);
 }
 
 export function applyRemoveMatrixColumnAction(
@@ -114,11 +120,10 @@ export function applyRemoveMatrixColumnAction(
   }
   for (const row of rows) {
     row.splice(action.columnIndex - 1, 1);
-    if (row.length === 0) {
-      row.push("");
-    }
   }
-  return rewriteMatrixText(source, target.value.matrixTextSpan, serializeMatrixRows(rows, target.value.cellSeparator));
+  return rewriteMatrixText(source, target.value.matrixTextSpan, serializeMatrixRows(rows, target.value.cellSeparator), [
+    action.matrixSourceId
+  ]);
 }
 
 export function applyTransposeMatrixAction(
@@ -131,23 +136,18 @@ export function applyTransposeMatrixAction(
     return target;
   }
   const { rows, rowCount, colCount } = parseMatrixGrid(target.value);
-  if (rowCount <= 0 || colCount <= 0) {
-    return { kind: "unsupported", reason: "Matrix transpose requires at least one row and one column." };
-  }
-
   const transposed: string[][] = [];
   for (let column = 0; column < colCount; column += 1) {
     const nextRow: string[] = [];
     for (let row = 0; row < rowCount; row += 1) {
-      nextRow.push(rows[row]?.[column] ?? "");
+      nextRow.push(rows[row]![column]!);
     }
     transposed.push(trimTrailingEmptyCells(nextRow));
   }
 
-  if (transposed.length === 0 || transposed.some((row) => row.length === 0)) {
-    return { kind: "unsupported", reason: "Matrix transpose would produce an empty matrix shape." };
-  }
-  return rewriteMatrixText(source, target.value.matrixTextSpan, serializeMatrixRows(transposed, target.value.cellSeparator));
+  return rewriteMatrixText(source, target.value.matrixTextSpan, serializeMatrixRows(transposed, target.value.cellSeparator), [
+    action.matrixSourceId
+  ]);
 }
 
 function resolveMatrixStructureTarget(
@@ -218,11 +218,16 @@ function trimTrailingEmptyCells(row: string[]): string[] {
 function serializeMatrixRows(rows: ReadonlyArray<ReadonlyArray<string>>, separator: string): string {
   const joiner = ` ${separator} `;
   return rows
-    .map((row) => (row.length > 0 ? [...row].join(joiner) : ""))
+    .map((row) => [...row].join(joiner))
     .join(" \\\\\n");
 }
 
-function rewriteMatrixText(source: string, matrixTextSpan: Span, replacement: string): EditActionResultLike {
+function rewriteMatrixText(
+  source: string,
+  matrixTextSpan: Span,
+  replacement: string,
+  changedSourceIds: string[]
+): EditActionResultLike {
   const updated = replaceSpan(source, matrixTextSpan, replacement);
   if (updated.source === source) {
     return { kind: "unsupported", reason: "Matrix structural edit would not change the source." };
@@ -236,6 +241,7 @@ function rewriteMatrixText(source: string, matrixTextSpan: Span, replacement: st
         newSpan: updated.changedSpan,
         replacement
       }
-    ]
+    ],
+    changedSourceIds
   };
 }

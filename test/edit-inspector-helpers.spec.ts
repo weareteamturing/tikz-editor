@@ -91,6 +91,42 @@ describe("inspector rounded-corner geometry helpers", () => {
     expect(maxRoundedCornersForSubpath([10], false)).toBeNull();
   });
 
+  it("handles closure-only corners and multi-subpath rounded-corner limits", () => {
+    const closureOnlyCorner: ScenePathCommand[] = [
+      { kind: "M", to: { x: 0, y: 0 } },
+      { kind: "L", to: { x: 1, y: 0 } },
+      { kind: "L", to: { x: 2, y: 0 } },
+      { kind: "Z" }
+    ];
+    const multiSubpath: ScenePathCommand[] = [
+      { kind: "M", to: { x: 0, y: 0 } },
+      { kind: "L", to: { x: 10, y: 0 } },
+      { kind: "L", to: { x: 10, y: 10 } },
+      { kind: "M", to: { x: 0, y: 0 } },
+      { kind: "L", to: { x: 4, y: 0 } },
+      { kind: "L", to: { x: 4, y: 1 } }
+    ];
+
+    expect(pathHasRoundableCorner(closureOnlyCorner)).toBe(true);
+    expect(computeLineBasedPathRoundedCornersMax(multiSubpath)).toBe(1);
+    expect(computeGenericPathRoundedCornersMax(multiSubpath)).toBe(1);
+  });
+
+  it("filters degenerate rounded-corner geometry without inflating maxima", () => {
+    const invalidArcFallback: ScenePathCommand[] = [
+      { kind: "M", to: { x: 0, y: 0 } },
+      { kind: "A", rx: 0, ry: Number.NaN, xAxisRotation: 0, largeArc: false, sweep: true, to: { x: 1, y: 0 } },
+      { kind: "L", to: { x: 1, y: 1 } }
+    ];
+
+    expect(pathHasRoundableCorner(invalidArcFallback)).toBe(true);
+    expect(estimateSegmentStartRoundedOffset({ kind: "C", c1: { x: 0, y: 0 }, c2: { x: 0, y: 0 }, to: { x: 0, y: 0 } }, { x: 1, y: 1 }, { x: 1, y: 1 })).toBe(0);
+    expect(estimateSegmentEndRoundedOffset({ kind: "C", c1: { x: 1, y: 1 }, c2: { x: 1, y: 1 }, to: { x: 2, y: 2 } }, { x: 1, y: 1 }, { x: 1, y: 1 })).toBe(0);
+    expect(estimateClosingCornerStartOffset([], 0, { x: 0, y: 0 }, { x: 1, y: 0 })).toBe(0);
+    expect(estimateRoundedOffsetAlongDirection({ x: 1, y: 1 }, { x: 1, y: 0 })).toBe(0);
+    expect(maxRoundedCornersForSubpath([Number.NaN, Number.POSITIVE_INFINITY], true)).toBeNull();
+  });
+
   it("estimates rounded offsets and clamps invalid numeric inputs", () => {
     const lineStart = { x: 0, y: 0 };
     const lineEnd = { x: 10, y: 0 };

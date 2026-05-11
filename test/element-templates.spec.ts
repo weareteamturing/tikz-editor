@@ -29,6 +29,14 @@ describe("element templates", () => {
     expect(snippet).toBe("\\node at (0,0) {$\\frac{a}{b}=x$};");
   });
 
+  it("uses default node text and default shaped-node dimensions", () => {
+    expect(generateElementSource({ kind: "node" }, wp(cm(0), cm(0)))).toBe("\\node at (0,0) {node};");
+    expect(generateElementSource({ kind: "node", shape: "rectangle" }, wp(cm(0), cm(0)))).toBe(
+      "\\node[draw, shape=rectangle, minimum width=2.2cm, minimum height=1.4cm] at (0,0) {node};"
+    );
+    expect(generateElementSource({ kind: "node", text: "{  A  }" }, wp(cm(0), cm(0)))).toBe("\\node at (0,0) {A};");
+  });
+
   it("generates a shaped node snippet with explicit dragged minimum dimensions", () => {
     const snippet = generateElementSource(
       {
@@ -49,6 +57,18 @@ describe("element templates", () => {
       wp(cm(1), cm(2))
     );
     expect(snippet).toBe("\\matrix [matrix of nodes] at (1,2) {\n  A & B \\\\\n  C & D \\\\\n};");
+  });
+
+  it("clamps matrix dimensions and supports plain/math matrix variants with explicit cells", () => {
+    expect(generateElementSource(
+      { kind: "matrix", rows: -2, columns: 0, matrixKind: "plain", cells: [["  x  "]] },
+      wp(cm(0), cm(0))
+    )).toBe("\\matrix [matrix] at (0,0) {\n  x \\\\\n};");
+
+    expect(generateElementSource(
+      { kind: "matrix", rows: 1.9, columns: 1.2, matrixKind: "math-nodes" },
+      wp(cm(0), cm(0))
+    )).toBe("\\matrix [matrix of math nodes] at (0,0) {\n  A \\\\\n};");
   });
 
   it("generates matrix labels beyond Z", () => {
@@ -78,6 +98,19 @@ describe("element templates", () => {
       wp(cm(1), cm(2))
     );
     expect(snippet).toBe("\\draw[->] (1,2) -- (3,4);");
+  });
+
+  it("uses the default line endpoint and falls back for blank anchor names", () => {
+    expect(generateElementSource({ kind: "line" }, wp(cm(1), cm(2)))).toBe("\\draw (1,2) -- (3,2);");
+    expect(generateElementSource(
+      {
+        kind: "line",
+        fromAnchor: { nodeName: "  ", anchor: "west" },
+        toAnchor: { nodeName: "B", anchor: "  " },
+        to: wp(cm(3), cm(4))
+      },
+      wp(cm(1), cm(2))
+    )).toBe("\\draw (1,2) -- (B);");
   });
 
   it("generates a line snippet from named center anchors", () => {
@@ -115,12 +148,28 @@ describe("element templates", () => {
     expect(snippet).toBe("\\draw (1,1) circle (0.5cm);");
   });
 
+  it("uses default radii for circles and filled circles when drag distance is absent or tiny", () => {
+    expect(generateElementSource({ kind: "circle" }, wp(cm(1), cm(1)))).toBe("\\draw (1,1) circle (0.8cm);");
+    expect(generateElementSource({ kind: "circle", edge: wp(cm(1), cm(1)) }, wp(cm(1), cm(1)))).toBe("\\draw (1,1) circle (0.8cm);");
+    expect(generateElementSource({ kind: "filledCircle" }, wp(cm(1), cm(1)))).toBe("\\fill (1,1) circle (0.8cm);");
+  });
+
   it("generates an ellipse snippet from dragged bounding corners", () => {
     const snippet = generateElementSource(
       { kind: "ellipse", corner: wp(cm(3), cm(5)) },
       wp(cm(1), cm(1))
     );
     expect(snippet).toBe("\\draw (2,3) ellipse [x radius=1cm, y radius=2cm];");
+  });
+
+  it("generates default rectangles and styled rectangle/ellipse snippets", () => {
+    expect(generateElementSource({ kind: "rectangle" }, wp(cm(0), cm(0)))).toBe("\\draw (0,0) rectangle (2.2,1.4);");
+    expect(generateElementSource({ kind: "rectangle", strokeColor: "red", fillColor: "blue" }, wp(cm(0), cm(0)))).toBe(
+      "\\draw[draw=red, fill=blue] (0,0) rectangle (2.2,1.4);"
+    );
+    expect(generateElementSource({ kind: "ellipse", strokeColor: "black", fillColor: "none" }, wp(cm(0), cm(0)))).toBe(
+      "\\draw (1.1,0.7) ellipse [x radius=1.1cm, y radius=0.7cm];"
+    );
   });
 
   it("generates a cubic bezier snippet with explicit controls", () => {
@@ -136,12 +185,29 @@ describe("element templates", () => {
     expect(snippet).toBe("\\draw (1,2) .. controls (2,3) and (3,1) .. (4,2);");
   });
 
+  it("generates default cubic bezier controls for partial and zero-length drags", () => {
+    expect(generateElementSource({ kind: "bezier" }, wp(cm(0), cm(0)))).toBe(
+      "\\draw (0,0) .. controls (0.67,0) and (1.33,0) .. (2,0);"
+    );
+    expect(generateElementSource({ kind: "bezier", to: wp(cm(0), cm(0)) }, wp(cm(0), cm(0)))).toBe(
+      "\\draw (0,0) .. controls (0.67,0) and (1.33,0) .. (0,0);"
+    );
+    expect(generateElementSource(
+      { kind: "bezier", to: wp(cm(3), cm(0)), control1: wp(cm(1), cm(1)) },
+      wp(cm(0), cm(0))
+    )).toBe("\\draw (0,0) .. controls (1,1) and (2,0) .. (3,0);");
+  });
+
   it("generates a grid snippet from dragged corners", () => {
     const snippet = generateElementSource(
       { kind: "grid", corner: wp(cm(3), cm(5)) },
       wp(cm(1), cm(2))
     );
     expect(snippet).toBe("\\draw (1,2) grid (3,5);");
+  });
+
+  it("generates styled grid snippets", () => {
+    expect(generateElementSource({ kind: "grid", strokeColor: "gray" }, wp(cm(1), cm(2)))).toBe("\\draw[draw=gray] (1,2) grid (3.2,3.4);");
   });
 
   it("generates a default-sized grid snippet without a drag corner", () => {
@@ -208,6 +274,17 @@ describe("element templates", () => {
     );
     expect(snippet).toBe("\\draw (0,0) -- (1,0) -- (1,1) -- cycle;");
   });
+
+  it("returns null for empty complex path generation requests", () => {
+    expect(generateComplexPathSource(wp(cm(0), cm(0)), [])).toBeNull();
+    expect(generateComplexPathSegmentSource([])).toBeNull();
+    expect(generateComplexPathPrependSource(wp(cm(0), cm(0)), [])).toBeNull();
+    expect(reverseComplexPathSegments(wp(cm(0), cm(0)), [])).toEqual({
+      startWorld: wp(cm(0), cm(0)),
+      startAnchor: undefined,
+      segments: []
+    });
+  });
 });
 
 describe("insertElementIntoSource", () => {
@@ -244,6 +321,13 @@ describe("insertElementIntoSource", () => {
 \end{tikzpicture}`);
   });
 
+  it("leaves empty snippets untouched and appends to newline-terminated sources", () => {
+    expect(insertElementIntoSource("\\draw (0,0) -- (1,0);", "   ")).toBe("\\draw (0,0) -- (1,0);");
+    expect(insertElementIntoSource("\\draw (0,0) -- (1,0);\n", "\\node at (0,0) {n};")).toBe(
+      "\\draw (0,0) -- (1,0);\n\\node at (0,0) {n};"
+    );
+  });
+
   it("generates segment-only source without draw prefix", () => {
     const segments = [
       { kind: "line" as const, to: wp(cm(1), cm(0)) },
@@ -260,6 +344,19 @@ describe("insertElementIntoSource", () => {
     ];
     const result = generateComplexPathSegmentSource(segments);
     expect(result).toBe("-- (B.east) -- (2,0)");
+  });
+
+  it("generates segment-only source for bezier segments", () => {
+    const result = generateComplexPathSegmentSource([
+      {
+        kind: "bezier" as const,
+        to: wp(cm(3), cm(0)),
+        control1: wp(cm(1), cm(1)),
+        control2: wp(cm(2), cm(1)),
+        toAnchor: { nodeName: "C", anchor: "center" }
+      }
+    ]);
+    expect(result).toBe(".. controls (1,1) and (2,1) .. (C)");
   });
 
   it("reverses line segments", () => {
@@ -326,5 +423,21 @@ describe("insertElementIntoSource", () => {
     ];
     const result = generateComplexPathPrependSource(start, segments, { nodeName: "C", anchor: "north" });
     expect(result).toBe("(C.north) --");
+  });
+
+  it("generates prepend source for mixed line and bezier segments", () => {
+    const result = generateComplexPathPrependSource(
+      wp(cm(-2), cm(0)),
+      [
+        { kind: "line" as const, to: wp(cm(-1), cm(0)), toAnchor: { nodeName: "A", anchor: "east" } },
+        {
+          kind: "bezier" as const,
+          to: wp(cm(0), cm(0)),
+          control1: wp(cm(-0.75), cm(1)),
+          control2: wp(cm(-0.25), cm(1))
+        }
+      ]
+    );
+    expect(result).toBe("(-2,0) -- (A.east) .. controls (-0.75,1) and (-0.25,1) ..");
   });
 });

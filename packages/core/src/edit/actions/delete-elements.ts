@@ -99,7 +99,7 @@ export function applyDeleteAdornmentAction(
         replacement: ""
       }
     ],
-    changedSourceIds: [resolved.target.ownerSourceId ?? resolved.target.ownerId ?? targetId]
+    changedSourceIds: [resolved.target.ownerSourceId!]
   };
 }
 
@@ -298,7 +298,10 @@ function pruneFitReferencesAfterDelete(
     const fitEntry = resolved.target.options.entries.find(
       (entry): entry is Extract<typeof entry, { kind: "kv" }> =>
         entry.kind === "kv" && normalizeOptionKey(entry.key) === "fit"
-    )!;
+    );
+    if (!fitEntry) {
+      continue;
+    }
 
     const nextFitValue = pruneFitValueRaw(fitEntry.valueRaw, deletedNodeNames);
     if (nextFitValue.kind === "unchanged") {

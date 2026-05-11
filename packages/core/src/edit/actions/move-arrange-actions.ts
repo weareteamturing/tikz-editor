@@ -363,9 +363,7 @@ function applyMoveMatrixElementsWithPlacementRewrite(
   if (patches.length === 0) {
     return {
       kind: "unsupported",
-      reason:
-        failureReasons[0] ??
-        "No matrix placement rewrite succeeded"
+      reason: failureReasons[0]!
     };
   }
 
@@ -412,7 +410,7 @@ function applyMoveScopeElementsWithTransformRewrite(
   if (patches.length === 0) {
     return {
       kind: "unsupported",
-      reason: failureReasons[0] ?? "No scope transform rewrite succeeded"
+      reason: failureReasons[0]!
     };
   }
 
@@ -705,7 +703,7 @@ function applyMoveTreeRootElementsWithPlacementRewrite(
   if (patches.length === 0) {
     return {
       kind: "unsupported",
-      reason: failureReasons[0] ?? "No tree root placement rewrite succeeded"
+      reason: failureReasons[0]!
     };
   }
 
@@ -776,26 +774,20 @@ function rewriteSingleMatrixPlacement(
   if (matrixTarget.kind === "found" && matrixTarget.target.kind === "matrix-statement") {
     const bodyOpenOffset = matrixTarget.target.matrixBodyOpenOffset!;
 
-    if (atOptionEntry && matrixTarget.target.options && matrixTarget.target.optionsSpan) {
+    if (atOptionEntry) {
       const optionReplacement = rewriteOptionListMutations(
-        matrixTarget.target.options,
+        matrixTarget.target.options!,
         new Map<string, OptionMutation>([["at", { kind: "remove" }]]),
         undefined,
-        matrixTarget.target.optionsFormat ?? "bracketed"
+        matrixTarget.target.optionsFormat!
       );
       const applied = applyTextReplacements(source, [
-        { span: matrixTarget.target.optionsSpan, text: optionReplacement },
+        { span: matrixTarget.target.optionsSpan!, text: optionReplacement },
         {
           span: { from: bodyOpenOffset, to: bodyOpenOffset },
           text: buildMatrixInlineAtInsertion(source, bodyOpenOffset, nextCoordinate)
         }
       ]);
-      if (applied.source === source) {
-        return {
-          kind: "unsupported",
-          reason: `Matrix ${elementId} placement already matches the requested position`
-        };
-      }
       return {
         kind: "success",
         source: applied.source,
@@ -807,10 +799,8 @@ function rewriteSingleMatrixPlacement(
       source,
       { from: bodyOpenOffset, to: bodyOpenOffset },
       buildMatrixInlineAtInsertion(source, bodyOpenOffset, nextCoordinate)
-    );
-    if (rewrittenInlineInsertion) {
-      return { kind: "success", source: rewrittenInlineInsertion.source, patches: [rewrittenInlineInsertion.patch] };
-    }
+    )!;
+    return { kind: "success", source: rewrittenInlineInsertion.source, patches: [rewrittenInlineInsertion.patch] };
   }
 
   return {
@@ -1039,7 +1029,7 @@ function spansEqual(left: Span, right: Span): boolean {
 }
 
 function buildMatrixInlineAtInsertion(source: string, bodyOpenOffset: number, nextCoordinate: string): string {
-  const needsLeadingSpace = bodyOpenOffset <= 0 || !/\s/u.test(source[bodyOpenOffset - 1] ?? "");
+  const needsLeadingSpace = !/\s/u.test(source[bodyOpenOffset - 1]!);
   return `${needsLeadingSpace ? " " : ""}at ${nextCoordinate} `;
 }
 

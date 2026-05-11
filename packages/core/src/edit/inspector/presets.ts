@@ -1,4 +1,3 @@
-import { parseLength } from "../../semantic/coords/parse-length.js";
 import type { ResolvedPattern } from "../../semantic/types.js";
 
 export type ArrowTipPresetId =
@@ -403,11 +402,11 @@ export const CURATED_NODE_SHAPE_SET = new Set<Exclude<NodeShapePresetId, "custom
 export const NODE_SHAPE_KNOWN_SET = new Set<string>(NODE_SHAPE_KNOWN_KEYS);
 export const NODE_SHAPE_CUSTOM_NOTE =
   "Custom node shape detected. Picking a preset shape will replace non-preset shape keys.";
-export const NODE_INNER_SEP_DEFAULT = parseLength(".3333em", "pt") ?? 3.333;
+export const NODE_INNER_SEP_DEFAULT = 3.333;
 export const NODE_INNER_SEP_CLEAR_KEYS = ["inner xsep", "inner ysep"] as const;
 export const NODE_INNER_SEP_CONFLICT_NOTE =
   "inner xsep/inner ysep detected. Editing Inner sep will replace axis-specific padding.";
-export const NODE_MINIMUM_DIMENSION_DEFAULT = parseLength("1pt", "pt") ?? 1;
+export const NODE_MINIMUM_DIMENSION_DEFAULT = 1;
 export const NODE_MINIMUM_DIMENSION_CLEAR_KEYS = ["minimum size"] as const;
 export const NODE_MINIMUM_DIMENSION_CONFLICT_NOTE =
   "minimum size detected. Editing Minimum width/height will replace shared sizing with axis-specific values.";
@@ -454,10 +453,10 @@ export const META_FILL_PATTERN_PRESETS = {
   dots: "Dots",
   stars: "Stars"
 } as const satisfies Record<string, Exclude<FillPatternPresetId, "custom">>;
-export const DEFAULT_META_PATTERN_DISTANCE = parseLength("3pt", "pt") ?? 3;
-export const DEFAULT_META_PATTERN_STARS_DISTANCE = parseLength("3mm", "pt") ?? 8.5358;
-export const DEFAULT_META_PATTERN_RADIUS = parseLength(".5pt", "pt") ?? 0.5;
-export const DEFAULT_META_PATTERN_STARS_RADIUS = parseLength("1mm", "pt") ?? 2.8453;
+export const DEFAULT_META_PATTERN_DISTANCE = 3;
+export const DEFAULT_META_PATTERN_STARS_DISTANCE = 8.5358;
+export const DEFAULT_META_PATTERN_RADIUS = 0.5;
+export const DEFAULT_META_PATTERN_STARS_RADIUS = 2.8453;
 const META_FILL_PATTERN_VALUE_SET = new Set<string>(Object.values(META_FILL_PATTERN_PRESETS));
 export const META_FILL_PATTERN_PRESET_BY_LOWER = new Map<string, Exclude<FillPatternPresetId, "custom">>(
   Object.values(META_FILL_PATTERN_PRESETS).map((value) => [value.toLowerCase(), value] as const)

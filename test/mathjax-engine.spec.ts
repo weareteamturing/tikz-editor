@@ -192,6 +192,29 @@ describe("mathjax node text engine", () => {
     });
   });
 
+  it("does not queue async retry work when no promise renderer exists", async () => {
+    const target = globalThis as {
+      window?: unknown;
+      document?: unknown;
+      MathJax?: unknown;
+    };
+
+    target.window = {};
+    target.document = {};
+    target.MathJax = {
+      tex2svg: () => {
+        throw new Error(RETRY_MESSAGE);
+      },
+      startup: {}
+    };
+
+    const { createMathJaxNodeTextEngine } = await import("../packages/core/src/text/mathjax-engine.js");
+    const engine = await createMathJaxNodeTextEngine();
+
+    expect(engine.validate(String.raw`$\ell^2$`)).toBeNull();
+    await expect(engine.flushPending?.()).resolves.toEqual([]);
+  });
+
   it("reports finalized cache keys from flushPending", async () => {
     const target = globalThis as {
       window?: unknown;
@@ -384,6 +407,27 @@ describe("mathjax node text engine", () => {
     expect(texCalls.at(-1)).not.toContain(String.raw`\ttfamily`);
     expect(texCalls.at(-1)).not.toContain(String.raw`\bfseries`);
     expect(texCalls.at(-1)).toContain(String.raw`\hspace{0.5em}`);
+
+    const complex = engine.measure({
+      text: String.raw`Alpha."  Beta $x y$ \% mark \\ Next \LaTeX command`,
+      textWidthPt: 72,
+      alignment: "ragged-right",
+      fontStyle: "normal",
+      fontWeight: "normal",
+      fontFamily: "monospace",
+      fontSizePt: 20
+    });
+
+    expect(complex?.paragraphId).toBeTruthy();
+    expect(outputJax.knuthPlassOptions?.layoutMode).toBe("wrapped-explicit");
+    expect(outputJax.knuthPlassOptions?.wrappedTextGaps).toContainEqual({
+      sourceStart: 7,
+      widthEm: 0.5
+    });
+    expect(texCalls.at(-1)).toContain(String.raw`\texttt{`);
+    expect(texCalls.at(-1)).toContain(String.raw`\%`);
+    expect(texCalls.at(-1)).toContain(String.raw`$x y$`);
+    expect(texCalls.at(-1)).toContain(String.raw`\\`);
   });
 
   it("configures and loads MathJax through a browser startup script", async () => {
@@ -474,5 +518,657 @@ describe("mathjax node text engine", () => {
     expect(getActiveMathJaxOutputJax()).toBe(outputJax);
     expect(measured?.paragraphId).toBe("script:1");
     expect(outputJax.knuthPlassOptions.layoutMode).toBe("wrap");
+  });
+
+  it("preserves existing browser MathJax config while waiting on a loaded startup script", async () => {
+    const target = globalThis as {
+      window?: unknown;
+      document?: unknown;
+      MathJax?: unknown;
+    };
+    const outputJax = {
+      linebreaks: {
+        getReports: () => []
+      },
+      knuthPlassOptions: {}
+    };
+    const existingScript = {
+      __tikzMathJaxLoaded: true
+    };
+    let configuredMathJax: Record<string, unknown> | null = null;
+
+    target.window = {};
+    target.document = {
+      getElementById: vi.fn(() => null),
+      createElement: vi.fn(() => ({})),
+      head: {}
+    };
+
+    const module = await import("../packages/core/src/text/mathjax-engine.js");
+    await expect(module.createMathJaxNodeTextEngine()).rejects.toThrow("document.head is unavailable");
+
+    target.document = {
+      getElementById: vi.fn(() => existingScript)
+    };
+    target.MathJax = {
+      output: {
+        existingOutputOption: true
+      },
+      loader: {
+        load: ["input/tex", "custom-extension", 17]
+      },
+      tex: {
+        macros: {
+          RR: "\\mathbb{R}"
+        },
+        packages: {
+          "[+]": ["ams", "color", 17],
+          "[-]": ["legacy-disable"]
+        }
+      },
+      svg: {
+        linebreaks: {
+          customLinebreaks: true
+        }
+      },
+      startup: {
+        ready: "already"
+      }
+    };
+
+    const enginePromise = module.createMathJaxNodeTextEngine();
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const candidate = target.MathJax as { output?: { font?: unknown } } | undefined;
+      if (candidate?.output?.font === "mathjax-newcm") {
+        break;
+      }
+    }
+    configuredMathJax = target.MathJax as Record<string, unknown>;
+    target.MathJax = {
+      tex2svg: () => ({
+        tagName: "svg",
+        getAttribute: (name: string) => (name === "viewBox" ? "0 0 500 200" : null),
+        innerHTML: `<g data-paragraph-id="loaded-marker"></g>`
+      }),
+      startup: {
+        document: { outputJax }
+      }
+    };
+
+    const engine = await enginePromise;
+    expect(module.getActiveMathJaxOutputJax()).toBe(outputJax);
+    expect(configuredMathJax.output).toMatchObject({
+      existingOutputOption: true,
+      font: "mathjax-newcm"
+    });
+    expect(configuredMathJax.loader).toMatchObject({
+      load: ["input/tex", "custom-extension", "output/svg", "[tex]/color", "[tex]/html"]
+    });
+    expect((configuredMathJax.tex as { macros?: unknown }).macros).toMatchObject({
+      RR: "\\mathbb{R}",
+      textsc: ["\\style{font-family: serif; font-variant-caps: small-caps}{#1}", 1]
+    });
+    expect((configuredMathJax.tex as { packages?: unknown }).packages).toMatchObject({
+      "[+]": ["ams", "color", "html"],
+      "[-]": ["legacy-disable", "noundefined"]
+    });
+    expect(configuredMathJax.svg).toMatchObject({
+      fontCache: "none",
+      linebreaks: {
+        customLinebreaks: true,
+        inline: false
+      }
+    });
+    expect(engine.measure({
+      text: "loaded marker",
+      textWidthPt: 20,
+      fontStyle: "normal",
+      fontWeight: "normal",
+      fontFamily: "serif",
+      fontSizePt: 10
+    })?.paragraphId).toBe("loaded-marker");
+  });
+
+  it("awaits preloaded browser startup promises and falls back to startup document output", async () => {
+    const target = globalThis as {
+      window?: unknown;
+      document?: unknown;
+      MathJax?: unknown;
+    };
+    const outputJax = {
+      linebreaks: {
+        getReports: () => []
+      }
+    };
+    let resolveStartup: (() => void) | null = null;
+
+    target.window = {};
+    target.document = {};
+    target.MathJax = {
+      tex2svg: () => ({
+        tagName: "svg",
+        getAttribute: (name: string) => (name === "viewBox" ? "0 0 250 125" : null),
+        innerHTML: `<g data-paragraph-id="preloaded-promise"></g>`
+      }),
+      startup: {
+        promise: new Promise<void>((resolve) => {
+          resolveStartup = resolve;
+        }),
+        document: { outputJax }
+      }
+    };
+
+    const module = await import("../packages/core/src/text/mathjax-engine.js");
+    const enginePromise = module.createMathJaxNodeTextEngine();
+    resolveStartup?.();
+    const engine = await enginePromise;
+
+    expect(module.getActiveMathJaxOutputJax()).toBe(outputJax);
+    expect(engine.measure({
+      text: "preloaded promise",
+      textWidthPt: null,
+      fontStyle: "normal",
+      fontWeight: "normal",
+      fontFamily: "serif",
+      fontSizePt: 10
+    })?.paragraphId).toBe("preloaded-promise");
+  });
+
+  it("handles existing startup scripts, script failures, malformed SVG, and fallback linebreak options", async () => {
+    const target = globalThis as {
+      window?: unknown;
+      document?: unknown;
+      MathJax?: unknown;
+    };
+
+    target.window = {};
+    const existingScript: {
+      onload?: (() => void) | null;
+      onerror?: (() => void) | null;
+    } = {};
+    const outputJax = {
+      linebreaks: {
+        getReports: () => []
+      },
+      knuthPlassOptions: {}
+    };
+    target.document = {
+      getElementById: vi.fn(() => existingScript)
+    };
+    target.MathJax = {
+      loader: {
+        load: ["input/tex", 1]
+      },
+      tex: {
+        packages: {
+          "[+]": ["ams", 2],
+          "[-]": "bad"
+        }
+      },
+      startup: {}
+    };
+
+    const module = await import("../packages/core/src/text/mathjax-engine.js");
+    const enginePromise = module.createMathJaxNodeTextEngine({ font: "mathjax-fira" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    target.MathJax = {
+      tex2svg: () => ({
+        tagName: "svg",
+        getAttribute: (name: string) => (name === "viewBox" ? "0 0 900 300" : null),
+        innerHTML: `<g data-paragraph-id="existing-script"></g>`
+      }),
+      startup: {
+        output: outputJax
+      }
+    };
+    existingScript.onload?.();
+    const engine = await enginePromise;
+
+    expect(engine.measure({
+      text: "from existing script",
+      textWidthPt: 30,
+      alignment: "ragged-left",
+      fontStyle: "normal",
+      fontWeight: "normal",
+      fontFamily: "serif",
+      fontSizePt: 10
+    })?.paragraphId).toBe("existing-script");
+    expect(outputJax.knuthPlassOptions).toMatchObject({
+      alignment: "ragged-left",
+      layoutMode: "wrap"
+    });
+
+    vi.resetModules();
+    target.window = {};
+    const listeners = new Map<string, () => void>();
+    const failingScript = {
+      setAttribute: vi.fn(),
+      addEventListener: (name: string, listener: () => void) => {
+        listeners.set(name, listener);
+      },
+      removeEventListener: vi.fn()
+    };
+    delete target.MathJax;
+    target.document = {
+      getElementById: vi.fn(() => null),
+      createElement: vi.fn(() => failingScript),
+      head: {
+        appendChild: vi.fn(() => {
+          listeners.get("error")?.();
+        })
+      }
+    };
+    const failingModule = await import("../packages/core/src/text/mathjax-engine.js");
+    await expect(failingModule.createMathJaxNodeTextEngine({ font: "mathjax-pagella" }))
+      .rejects.toThrow("Unable to load MathJax startup component");
+
+    vi.resetModules();
+    target.window = {};
+    target.document = {};
+    target.MathJax = {
+      tex2svg: () => ({
+        tagName: "svg",
+        getAttribute: () => null,
+        innerHTML: "<g></g>"
+      }),
+      startup: {}
+    };
+    const malformedModule = await import("../packages/core/src/text/mathjax-engine.js");
+    const malformedEngine = await malformedModule.createMathJaxNodeTextEngine();
+    expect(malformedEngine.measure({
+      text: "bad svg",
+      textWidthPt: null,
+      fontStyle: "normal",
+      fontWeight: "normal",
+      fontFamily: "serif",
+      fontSizePt: 10
+    })).toBeNull();
+
+    vi.resetModules();
+    target.window = {};
+    target.document = {};
+    target.MathJax = {
+      tex2svg: () => ({
+        tagName: "svg",
+        getAttribute: (name: string) => (name === "viewBox" ? "0 0 700 300" : null),
+        innerHTML: "<g></g>"
+      }),
+      startup: {}
+    };
+    const noParagraphModule = await import("../packages/core/src/text/mathjax-engine.js");
+    const noParagraphEngine = await noParagraphModule.createMathJaxNodeTextEngine();
+    expect(() => noParagraphEngine.measure({
+      text: String.raw`A \\ B`,
+      textWidthPt: null,
+      fontStyle: "normal",
+      fontWeight: "normal",
+      fontFamily: "serif",
+      fontSizePt: 10
+    })).toThrow("Multiline MathJax render did not produce a paragraph report");
+
+    vi.resetModules();
+    target.window = {};
+    target.document = {};
+    target.MathJax = {
+      tex2svg: () => ({
+        tagName: "svg",
+        getAttribute: (name: string) => (name === "viewBox" ? "0 0 700 300" : null),
+        innerHTML: `<g data-paragraph-id="fallback-options"></g>`
+      }),
+      startup: {}
+    };
+    const fallbackModule = await import("../packages/core/src/text/mathjax-engine.js");
+    const { KnuthPlassVisitor } = await import("../packages/core/src/text/knuth-plass/KnuthPlassVisitor.js");
+    const fallbackEngine = await fallbackModule.createMathJaxNodeTextEngine();
+    expect(fallbackEngine.measure({
+      text: "fallback options",
+      textWidthPt: 25,
+      alignment: "center",
+      fontStyle: "normal",
+      fontWeight: "normal",
+      fontFamily: "serif",
+      fontSizePt: 10
+    })?.paragraphId).toBe("fallback-options");
+    expect(KnuthPlassVisitor.getConfiguredOptions()).toMatchObject({
+      alignment: "center",
+      layoutMode: "wrap"
+    });
+  });
+
+  it("surfaces browser startup marker and document shape failures", async () => {
+    const target = globalThis as {
+      window?: unknown;
+      document?: unknown;
+      MathJax?: unknown;
+    };
+
+    const scenarios: Array<{
+      document: unknown;
+      message: string;
+    }> = [
+      {
+        document: "not-a-document",
+        message: "Browser document is unavailable"
+      },
+      {
+        document: {
+          getElementById: vi.fn(() => null)
+        },
+        message: "document.createElement is unavailable"
+      },
+      {
+        document: {
+          getElementById: vi.fn(() => null),
+          createElement: vi.fn(() => null)
+        },
+        message: "Unable to create MathJax startup script element"
+      },
+      {
+        document: {
+          getElementById: vi.fn(() => null),
+          createElement: vi.fn(() => ({})),
+          head: {}
+        },
+        message: "document.head is unavailable"
+      },
+      {
+        document: {
+          getElementById: vi.fn(() => ({
+            __tikzMathJaxLoadError: new Error("pre-existing startup failure")
+          }))
+        },
+        message: "pre-existing startup failure"
+      }
+    ];
+
+    for (const scenario of scenarios) {
+      vi.resetModules();
+      target.window = {};
+      target.document = scenario.document;
+      delete target.MathJax;
+
+      const module = await import("../packages/core/src/text/mathjax-engine.js");
+      await expect(module.createMathJaxNodeTextEngine({ font: "mathjax-bonum" }))
+        .rejects.toThrow(scenario.message);
+    }
+  });
+
+  it("reuses cached entries and handles math-mode wrapping, querySelector SVGs, and object diagnostics", async () => {
+    const target = globalThis as {
+      window?: unknown;
+      document?: unknown;
+      MathJax?: unknown;
+    };
+    const reports: Array<Record<string, unknown>> = [];
+    const texCalls: string[] = [];
+    const outputJax = {
+      linebreaks: {
+        getReports: () => reports
+      },
+      knuthPlassOptions: {}
+    };
+
+    target.window = {};
+    target.document = {};
+    target.MathJax = {
+      tex2svg: (tex: string) => {
+        texCalls.push(tex);
+        const paragraphId = `query-svg:${reports.length + 1}`;
+        reports.push({
+          paragraphId,
+          width: 2,
+          alignment: "ragged-right",
+          layoutMode: outputJax.knuthPlassOptions.layoutMode ?? "wrap",
+          lines: [{ naturalWidth: 2 }],
+          runs: [{ width: 2 }],
+          errors: [],
+          internalMode: "canonical",
+          internalDegradeReason: null,
+          externalFallbackUsed: false,
+          linebreakingMode: "feasible"
+        });
+        return {
+          querySelector: (selector: string) => selector === "svg"
+            ? {
+              tagName: "svg",
+              getAttribute: (name: string) => (name === "viewBox" ? "0 0 500 200" : null),
+              innerHTML: `<g data-paragraph-id="${paragraphId}"></g>`
+            }
+            : null
+        };
+      },
+      startup: {
+        document: { outputJax }
+      }
+    };
+
+    const module = await import("../packages/core/src/text/mathjax-engine.js");
+    const engine = await module.createMathJaxNodeTextEngine();
+
+    const first = engine.measure({
+      text: "Cached text",
+      textWidthPt: null,
+      fontStyle: "normal",
+      fontWeight: "normal",
+      fontFamily: "serif",
+      fontSizePt: 0
+    });
+    const callsAfterFirst = texCalls.length;
+    const second = engine.measure({
+      text: "Cached text",
+      textWidthPt: null,
+      fontStyle: "normal",
+      fontWeight: "normal",
+      fontFamily: "serif",
+      fontSizePt: Number.NaN
+    });
+
+    expect(second).toEqual(first);
+    expect(texCalls.length).toBe(callsAfterFirst);
+    expect(engine.renderFromCache("missing-cache-key")).toBeNull();
+    expect(engine.renderFromCache(first?.cacheKey ?? "")?.body).toContain(first?.paragraphId ?? "");
+
+    const math = engine.measure({
+      text: "x+y",
+      textWidthPt: 24,
+      mode: "math",
+      alignment: "center",
+      fontStyle: "italic",
+      fontWeight: "bold",
+      fontFamily: "sans",
+      fontSizePt: 10
+    });
+
+    expect(math?.paragraphId).toBeTruthy();
+    expect(texCalls.at(-1)).toMatch(/^\\parbox\{23\.910336pt\}\{\$x\+y\$\}$/);
+    expect(outputJax.knuthPlassOptions).toMatchObject({
+      alignment: "center",
+      layoutMode: "wrap",
+      wrappedTextGaps: []
+    });
+
+    vi.resetModules();
+    target.window = {};
+    target.document = {};
+    target.MathJax = {
+      tex2svg: () => {
+        throw { msg: "object diagnostic" };
+      },
+      startup: {}
+    };
+    const diagnosticModule = await import("../packages/core/src/text/mathjax-engine.js");
+    const diagnosticEngine = await diagnosticModule.createMathJaxNodeTextEngine();
+    expect(diagnosticEngine.validate(String.raw`$\bad$`)).toEqual({
+      code: "invalid-node-tex",
+      message: "object diagnostic"
+    });
+  });
+
+  it("handles SVG extraction failures, startup document output fallback, and diagnostic variants", async () => {
+    const target = globalThis as {
+      window?: unknown;
+      document?: unknown;
+      MathJax?: unknown;
+    };
+
+    async function measureWithNode(node: unknown) {
+      vi.resetModules();
+      target.window = {};
+      target.document = {};
+      target.MathJax = {
+        tex2svg: () => node,
+        startup: {}
+      };
+      const module = await import("../packages/core/src/text/mathjax-engine.js");
+      const engine = await module.createMathJaxNodeTextEngine();
+      return engine.measure({
+        text: "bad svg",
+        textWidthPt: null,
+        fontStyle: "normal",
+        fontWeight: "normal",
+        fontFamily: "serif",
+        fontSizePt: 10
+      });
+    }
+
+    await expect(measureWithNode(null)).resolves.toBeNull();
+    await expect(measureWithNode({
+      tagName: "svg",
+      getAttribute: () => "0 0 1",
+      innerHTML: "<g></g>"
+    })).resolves.toBeNull();
+    await expect(measureWithNode({
+      tagName: "svg",
+      getAttribute: () => "0 0 bad 1",
+      innerHTML: "<g></g>"
+    })).resolves.toBeNull();
+    await expect(measureWithNode({
+      querySelector: () => undefined
+    })).resolves.toBeNull();
+    await expect(measureWithNode({
+      tagName: "svg",
+      getAttribute: undefined,
+      innerHTML: "<g></g>"
+    })).resolves.toBeNull();
+    await expect(measureWithNode({
+      tagName: "svg",
+      getAttribute: () => undefined,
+      innerHTML: 42
+    })).resolves.toBeNull();
+
+    vi.resetModules();
+    target.window = {};
+    target.document = {};
+    target.MathJax = {
+      tex2svg: () => ({ tagName: "mjx-container" }),
+      startup: {
+        adaptor: {
+          firstChild: () => null,
+          getAttribute: () => null,
+          innerHTML: () => ""
+        }
+      }
+    };
+    const emptyAdaptorModule = await import("../packages/core/src/text/mathjax-engine.js");
+    const emptyAdaptorEngine = await emptyAdaptorModule.createMathJaxNodeTextEngine();
+    expect(emptyAdaptorEngine.measure({
+      text: "empty adaptor",
+      textWidthPt: null,
+      fontStyle: "normal",
+      fontWeight: "normal",
+      fontFamily: "serif",
+      fontSizePt: 10
+    })).toBeNull();
+
+    vi.resetModules();
+    target.window = {};
+    target.document = {};
+    const documentOutputJax = {
+      linebreaks: {
+        getReports: () => []
+      }
+    };
+    target.MathJax = {
+      tex2svg: () => ({
+        tagName: "svg",
+        getAttribute: (name: string) => (name === "viewBox" ? "0 0 500 200" : null),
+        innerHTML: `<g data-paragraph-id="document-output"></g>`
+      }),
+      startup: {
+        document: { outputJax: documentOutputJax }
+      }
+    };
+    const documentOutputModule = await import("../packages/core/src/text/mathjax-engine.js");
+    await documentOutputModule.createMathJaxNodeTextEngine();
+    expect(documentOutputModule.getActiveMathJaxOutputJax()).toBe(documentOutputJax);
+
+    const circularDiagnostic: Record<string, unknown> = {};
+    circularDiagnostic.self = circularDiagnostic;
+    const diagnosticCases: Array<{ thrown: unknown; message: string }> = [
+      { thrown: { reason: "reason diagnostic" }, message: "reason diagnostic" },
+      { thrown: { code: "E_TEX" }, message: "{\"code\":\"E_TEX\"}" },
+      { thrown: circularDiagnostic, message: "Invalid TeX in node text." },
+      { thrown: "", message: "Invalid TeX in node text." }
+    ];
+
+    for (const testCase of diagnosticCases) {
+      vi.resetModules();
+      target.window = {};
+      target.document = {};
+      target.MathJax = {
+        tex2svg: () => {
+          throw testCase.thrown;
+        },
+        startup: {}
+      };
+      const diagnosticModule = await import("../packages/core/src/text/mathjax-engine.js");
+      const diagnosticEngine = await diagnosticModule.createMathJaxNodeTextEngine();
+      expect(diagnosticEngine.validate(String.raw`$\bad$`)).toEqual({
+        code: "invalid-node-tex",
+        message: testCase.message
+      });
+    }
+  });
+
+  it("rejects fixed-width measurements without paragraph metadata and exposes direct output jax", async () => {
+    const target = globalThis as {
+      window?: unknown;
+      document?: unknown;
+      MathJax?: unknown;
+    };
+    const directOutputJax = {
+      linebreaks: {
+        getReports: () => []
+      },
+      knuthPlassOptions: {}
+    };
+
+    target.window = {};
+    target.document = {};
+    target.MathJax = {
+      outputJax: directOutputJax,
+      tex2svg: () => ({
+        tagName: "svg",
+        getAttribute: (name: string) => (name === "viewBox" ? "0 0 600 250" : null),
+        innerHTML: "<g></g>"
+      }),
+      startup: {}
+    };
+
+    const module = await import("../packages/core/src/text/mathjax-engine.js");
+    const engine = await module.createMathJaxNodeTextEngine();
+
+    expect(module.getActiveMathJaxOutputJax()).toBe(directOutputJax);
+    await expect(engine.flushPending?.()).resolves.toEqual([]);
+    expect(() => engine.measure({
+      text: "missing paragraph metadata",
+      textWidthPt: 30,
+      alignment: undefined,
+      fontStyle: "normal",
+      fontWeight: "normal",
+      fontFamily: "serif",
+      fontSizePt: 10
+    })).toThrow("Multiline MathJax measurement did not produce paragraph geometry.");
   });
 });

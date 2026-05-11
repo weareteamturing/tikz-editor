@@ -70,6 +70,93 @@ describe("getInspectorDescriptor", () => {
     expect(attachmentSection.properties.some((property) => property.id === "path-attached-node-sloped")).toBe(true);
   });
 
+  it("adapts path-attached node controls for neutral, auto, base, and mid regimes", () => {
+    const cases = [
+      {
+        source: String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node[midway,sloped] {neutral};
+\end{tikzpicture}`,
+        text: "neutral",
+        expectedSide: null,
+        expectedSloped: true
+      },
+      {
+        source: String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node[auto,swap,pos=0.63] {auto};
+\end{tikzpicture}`,
+        text: "auto",
+        expectedSide: { label: "Preferred side", value: "right", options: ["left", "right"] },
+        expectedSloped: false,
+        expectedPositionLabel: "0.63"
+      },
+      {
+        source: String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node[base left] {base};
+\end{tikzpicture}`,
+        text: "base",
+        expectedSide: { label: "Side", value: "base left", options: ["base left", "base right"] },
+        expectedSloped: false
+      },
+      {
+        source: String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node[mid right] {mid};
+\end{tikzpicture}`,
+        text: "mid",
+        expectedSide: { label: "Side", value: "mid right", options: ["mid left", "mid right"] },
+        expectedSloped: false
+      }
+    ];
+
+    for (const testCase of cases) {
+      const rendered = renderTikzToSvg(testCase.source);
+      const text = rendered.semantic.scene.elements.find(
+        (entry) => entry.kind === "Text" && entry.text === testCase.text
+      );
+      expect(text?.kind).toBe("Text");
+      if (!text || text.kind !== "Text") {
+        throw new Error(`Expected ${testCase.text} path-attached text element`);
+      }
+
+      const descriptor = getInspectorDescriptor(text, {
+        source: testCase.source,
+        editHandles: rendered.semantic.editHandles
+      });
+      const attachmentSection = descriptor.sections.find((section) => section.id === "path-attached-node");
+      expect(attachmentSection).toBeDefined();
+      if (!attachmentSection) {
+        throw new Error("Expected attachment inspector section");
+      }
+      const position = attachmentSection.properties.find((property) => property.id === "path-attached-node-position");
+      expect(position?.kind).toBe("slider");
+      if (!position || position.kind !== "slider") {
+        throw new Error("Expected attachment position slider");
+      }
+      if (testCase.expectedPositionLabel) {
+        expect(position.displayLabel).toBe(testCase.expectedPositionLabel);
+      }
+
+      const side = attachmentSection.properties.find((property) => property.id === "path-attached-node-side");
+      if (testCase.expectedSide) {
+        expect(side?.kind).toBe("enum");
+        if (!side || side.kind !== "enum") {
+          throw new Error("Expected attachment side enum");
+        }
+        expect(side.label).toBe(testCase.expectedSide.label);
+        expect(side.value).toBe(testCase.expectedSide.value);
+        expect(side.options.map((option) => option.value)).toEqual(testCase.expectedSide.options);
+      } else {
+        expect(side).toBeUndefined();
+      }
+
+      const sloped = attachmentSection.properties.find((property) => property.id === "path-attached-node-sloped");
+      expect(sloped?.kind).toBe("boolean");
+      if (!sloped || sloped.kind !== "boolean") {
+        throw new Error("Expected attachment sloped toggle");
+      }
+      expect(sloped.value).toBe(testCase.expectedSloped);
+    }
+  });
+
   it("keeps authored path-attached node text editable when only adjacent coordinates use macros", () => {
     const source = String.raw`\begin{tikzpicture}
   \def\r{0.9}
@@ -646,6 +733,58 @@ describe("getInspectorDescriptor", () => {
     expect(strokeColor.write.writable).toBe(false);
     expect(strokeColor.write.reason).toContain("iteration variables");
     expect(lineWidth.write.writable).toBe(true);
+  });
+
+  it("marks foreach-variable-backed complex inspector controls read-only", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \c in {red,blue} {
+    \draw[
+      draw=\c,
+      fill=\c,
+      pattern color=\c,
+      pattern={Lines[angle=0,distance=4pt]},
+      shade,
+      top color=\c,
+      dashed,
+      line cap=round,
+      line join=round,
+      rounded corners=2pt,
+      decorate,
+      decoration={snake,amplitude=1pt},
+      drop shadow={shadow xshift=1pt,fill=\c,opacity=.5}
+    ] (0,0) -- (1,0) -- (1,1) -- cycle;
+  }
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected foreach path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const properties = descriptor.sections.flatMap((section) => section.properties);
+    const readOnlyIds = new Set(
+      properties
+        .filter((property) => "write" in property && property.write?.writable === false)
+        .map((property) => property.id)
+    );
+
+    expect(readOnlyIds).toContain("stroke-color");
+    expect(readOnlyIds).toContain("fill-color");
+    expect(readOnlyIds).toContain("fill-mode");
+    expect(readOnlyIds).toContain("shadow-preset");
+    expect(readOnlyIds.size).toBeGreaterThanOrEqual(5);
+
+    const constantLineWidth = properties.find((property) => property.kind === "lineWidth");
+    expect(constantLineWidth?.kind).toBe("lineWidth");
+    if (!constantLineWidth || constantLineWidth.kind !== "lineWidth") {
+      throw new Error("Expected line width property");
+    }
+    expect(constantLineWidth.write.writable).toBe(true);
   });
 
   it("edits nested statement foreach-generated elements through the innermost loop template", () => {
@@ -1558,6 +1697,25 @@ describe("getInspectorDescriptor", () => {
     expect(descriptor.sections.some((section) => section.id === "fill")).toBe(true);
   });
 
+  it("keeps fill controls for open curve paths because PGF can fill their swept region", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[fill=yellow] (0,0) .. controls (1,2) and (2,2) .. (3,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+
+    expect(descriptor.sections.some((section) => section.id === "fill")).toBe(true);
+  });
+
   it("keeps solid fill mode as the default inspector mode", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[fill=yellow] (0,0) rectangle (1,1);
@@ -2360,6 +2518,56 @@ describe("getInspectorDescriptor", () => {
     expect(xshift.write.shadowContext).toBeDefined();
   });
 
+  it("parses shadow overrides while ignoring malformed nested values", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[drop shadow={draw,shadow xshift=bad,shadow yshift=3pt,shadow scale={1.4},opacity={0.35},fill=__tikz-shadow-inherit-fill__}] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const path = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(path).toBeDefined();
+    if (!path) {
+      throw new Error("Expected path element");
+    }
+
+    const descriptor = getInspectorDescriptor(path, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const shadowSection = descriptor.sections.find((section) => section.id === "shadow");
+    expect(shadowSection).toBeDefined();
+    if (!shadowSection) {
+      throw new Error("Expected shadow section");
+    }
+
+    const xshift = shadowSection.properties.find((property) => property.id === "shadow-xshift");
+    const yshift = shadowSection.properties.find((property) => property.id === "shadow-yshift");
+    const scale = shadowSection.properties.find((property) => property.id === "shadow-scale");
+    const opacity = shadowSection.properties.find((property) => property.id === "shadow-opacity");
+    const color = shadowSection.properties.find((property) => property.id === "shadow-color");
+
+    if (!xshift || xshift.kind !== "length") {
+      throw new Error("Expected shadow xshift property");
+    }
+    if (!yshift || yshift.kind !== "length") {
+      throw new Error("Expected shadow yshift property");
+    }
+    if (!scale || scale.kind !== "number") {
+      throw new Error("Expected shadow scale property");
+    }
+    if (!opacity || opacity.kind !== "number") {
+      throw new Error("Expected shadow opacity property");
+    }
+    if (!color || color.kind !== "color") {
+      throw new Error("Expected shadow color property");
+    }
+
+    expect(xshift.value).not.toBeCloseTo(0, 6);
+    expect(yshift.value).toBeCloseTo(3, 6);
+    expect(scale.value).toBeCloseTo(1.4, 6);
+    expect(opacity.value).toBeCloseTo(0.35, 6);
+    expect(color.value).toBe("black!50");
+  });
+
   it("preserves preset default shadow color syntax as black!50", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[drop shadow] (0,0) -- (1,0);
@@ -2441,6 +2649,43 @@ describe("getInspectorDescriptor", () => {
     expect(opacity.max).toBe(1);
     expect(color.value).toBe("black");
     expect(color.syntaxValue).toBe("black");
+  });
+
+  it("classifies the documented shadow presets in inspector controls", () => {
+    const cases: Array<{ option: string; preset: string }> = [
+      { option: "copy shadow", preset: "copy-shadow" },
+      { option: "double copy shadow", preset: "copy-shadow" },
+      { option: "circular drop shadow", preset: "circular-drop-shadow" },
+      { option: "general shadow", preset: "drop-shadow" }
+    ];
+
+    for (const testCase of cases) {
+      const source = String.raw`\begin{tikzpicture}
+  \draw[${testCase.option}] (0,0) -- (1,0);
+\end{tikzpicture}`;
+      const rendered = renderTikzToSvg(source);
+      const path = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+      expect(path, testCase.option).toBeDefined();
+      if (!path) {
+        throw new Error(`Expected path element for ${testCase.option}`);
+      }
+
+      const descriptor = getInspectorDescriptor(path, {
+        source,
+        editHandles: rendered.semantic.editHandles
+      });
+      const shadowSection = descriptor.sections.find((section) => section.id === "shadow");
+      expect(shadowSection, testCase.option).toBeDefined();
+      if (!shadowSection) {
+        throw new Error(`Expected shadow section for ${testCase.option}`);
+      }
+
+      const preset = shadowSection.properties.find((property) => property.id === "shadow-preset");
+      if (!preset || preset.kind !== "shadowPreset") {
+        throw new Error(`Expected shadow preset property for ${testCase.option}`);
+      }
+      expect(preset.value).toBe(testCase.preset);
+    }
   });
 
   it("builds shadow mutations as flags or nested option payloads", () => {
@@ -2964,6 +3209,51 @@ describe("getInspectorDescriptor", () => {
     expect(next).toContain("signal to=west");
   });
 
+  it("normalizes compound signal directions for inspector enum values", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[signal,signal to=east and west,signal from=north and south] at (0,0) {A};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected signal text element");
+    }
+
+    const descriptor = getInspectorDescriptor(text, { source, editHandles: rendered.semantic.editHandles });
+    const signalTo = getNodePropertyById(descriptor, "node-shape-signal-to");
+    const signalFrom = getNodePropertyById(descriptor, "node-shape-signal-from");
+    if (!signalTo || signalTo.kind !== "enum") {
+      throw new Error("Expected signal-to enum property");
+    }
+    if (!signalFrom || signalFrom.kind !== "enum") {
+      throw new Error("Expected signal-from enum property");
+    }
+
+    expect(signalTo.value).toBe("east and west");
+    expect(signalFrom.value).toBe("north and south");
+  });
+
+  it("falls back to a stable side for non-canonical compound signal directions", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[signal,signal to=north and east,signal from=west] at (0,0) {A};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected signal text element");
+    }
+
+    const descriptor = getInspectorDescriptor(text, { source, editHandles: rendered.semantic.editHandles });
+    const signalTo = getNodePropertyById(descriptor, "node-shape-signal-to");
+    if (!signalTo || signalTo.kind !== "enum") {
+      throw new Error("Expected signal-to enum property");
+    }
+
+    expect(signalTo.value).toBe("east");
+  });
+
   it("exposes adaptive controls for the remaining supported node shapes", () => {
     const cases: Array<{ shape: string; options: string; expected: string[] }> = [
       {
@@ -3476,6 +3766,20 @@ describe("getInspectorDescriptor", () => {
     });
   });
 
+  it("marks custom node font commands with a replacement note", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[node font=\unknownfontswitch] at (0,0) {A};
+\end{tikzpicture}`;
+    const element = renderTikzToSvg(source).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected text element");
+    }
+
+    const fontProperty = getNodeFontProperty(getInspectorDescriptor(element, { source }));
+    expect(fontProperty.note).toContain("Custom font command detected");
+  });
+
   it("removes a node font key when setProperty receives an empty value", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[circle,node font=\itshape] at (0,0) {A};
@@ -3523,6 +3827,13 @@ describe("resolvePropertyTarget – matrix cells", () => {
     expect(global.target.kind).toBe("figure");
     expect(global.target.insertOffset).toBeGreaterThan(0);
 
+    const inlineSource = String.raw`\tikz[scale=2] \draw (0,0);`;
+    expect(resolvePropertyTargetFromParseResult(
+      inlineSource,
+      parseTikz(inlineSource, { recover: true }),
+      TIKZPICTURE_GLOBAL_TARGET_ID
+    )).toMatchObject({ kind: "found", target: { kind: "figure" } });
+
     const source = String.raw`\tikzset{foo/.style={draw, fill=red}}
 \pgfkeys{/tikz/bar/.style=[rounded corners, blue]}
 \tikzstyle{legacy}=[dashed, line width=1pt]
@@ -3555,6 +3866,14 @@ broken`;
       expect(resolved.target.optionsSpan).toBeDefined();
       expect(resolved.target.insertOffset).toBeGreaterThanOrEqual(resolved.target.optionsSpan?.from ?? 0);
     }
+
+    const parseResult = parseTikz(source, { recover: true });
+    const firstStyleFrom = source.indexOf(styleSnippets[0]);
+    expect(resolvePropertyTargetFromParseResult(
+      source,
+      parseResult,
+      makeStyleSourceTargetId({ from: firstStyleFrom, to: firstStyleFrom + styleSnippets[0].length })
+    )).toMatchObject({ kind: "found", target: { kind: "style-source" } });
 
     expect(resolvePropertyTarget(source, "__style_source__:bad:4").kind).toBe("not-found");
     expect(resolvePropertyTarget(source, makeStyleSourceTargetId({ from: -1, to: 3 })).kind).toBe("not-found");
@@ -3631,6 +3950,14 @@ broken`;
     }
     const foreachTarget = resolvePropertyTarget(source, makeForeachTemplateTargetId(foreach.id, "path:0"));
     expect(foreachTarget).toMatchObject({
+      kind: "found",
+      target: { kind: "foreach-template", foreachLocalTargetId: "path:0" }
+    });
+    expect(resolvePropertyTargetFromParseResult(
+      source,
+      parseResult,
+      makeForeachTemplateTargetId(foreach.id, "path:0")
+    )).toMatchObject({
       kind: "found",
       target: { kind: "foreach-template", foreachLocalTargetId: "path:0" }
     });
@@ -3753,6 +4080,29 @@ not a style/.unknown={draw}`;
     expect(matrixSection.properties.find((property) => property.id === "matrix-fill")).toMatchObject({ value: "blue" });
     expect(buildMatrixInspectorDescriptor(source, "missing")).toBeNull();
     expect(buildMatrixInspectorDescriptor(String.raw`\begin{tikzpicture}\draw (0,0);\end{tikzpicture}`, "path:0")).toBeNull();
+  });
+
+  it("normalizes sparse and malformed matrix inspector options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes,row sep={1pt,bad,2pt},column sep=bad,draw,fill=] {
+    A \\
+  };
+\end{tikzpicture}`;
+    const descriptor = buildMatrixInspectorDescriptor(source, "path:0");
+    expect(descriptor).toBeDefined();
+    if (!descriptor) {
+      throw new Error("Expected matrix descriptor");
+    }
+
+    const matrixSection = descriptor.sections.find((section) => section.id === "matrix");
+    expect(matrixSection).toBeDefined();
+    if (!matrixSection) {
+      throw new Error("Expected matrix section");
+    }
+    expect(matrixSection.properties.find((property) => property.id === "matrix-row-sep")).toMatchObject({ value: 0 });
+    expect(matrixSection.properties.find((property) => property.id === "matrix-column-sep")).toMatchObject({ value: 0 });
+    expect(matrixSection.properties.find((property) => property.id === "matrix-draw")).toMatchObject({ value: null });
+    expect(matrixSection.properties.find((property) => property.id === "matrix-fill")).toMatchObject({ value: null });
   });
 
   it("resolves matrix-cell synthetic ids to cell text spans", () => {
@@ -3923,6 +4273,11 @@ describe("resolvePropertyTarget – tree children", () => {
       throw new Error("Expected tree-child property target");
     }
     expect(resolved.target.kind).toBe("tree-child");
+    expect(resolvePropertyTargetFromParseResult(
+      source,
+      parseTikz(source, { recover: true }),
+      leftText.treeChild.childSourceId
+    )).toMatchObject({ kind: "found", target: { kind: "tree-child" } });
     expect(resolved.target.childOperationId).toBe(leftText.treeChild.childOperationId);
     expect(resolved.target.treeChildForeach).toBe(false);
     expect(resolved.target.treeChildOptionsSpan).toBeDefined();
@@ -4147,6 +4502,37 @@ describe("resolvePropertyTarget – tree children", () => {
     expect(levelDistance.write.elementId).toBe("path:0");
     expect(siblingDistance.write.elementId).toBe(nodeShape.write.elementId);
     expect(grow.write.elementId).toBe("path:0");
+  });
+
+  it("builds root tree layout without a node descriptor and tolerates malformed node layout", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node[grow=,level distance=bad,sibling distance=3mm] {root}
+    child { node {left} };
+\end{tikzpicture}`;
+
+    const descriptor = buildTreeInspectorDescriptor(source, "path:0", null, {});
+    expect(descriptor).toBeDefined();
+    if (!descriptor) {
+      throw new Error("Expected tree root descriptor");
+    }
+    expect(descriptor.sections.some((section) => section.id === "node")).toBe(false);
+
+    const treeLayout = descriptor.sections.find((section) => section.id === "tree-layout");
+    expect(treeLayout).toBeDefined();
+    if (!treeLayout) {
+      throw new Error("Expected tree layout section");
+    }
+    const grow = treeLayout.properties.find((property) => property.id === "tree-grow");
+    const levelDistance = treeLayout.properties.find((property) => property.id === "tree-level-distance");
+    const siblingDistance = treeLayout.properties.find((property) => property.id === "tree-sibling-distance");
+    expect(grow).toMatchObject({ kind: "enum", value: "down" });
+    expect(levelDistance).toMatchObject({ kind: "length", value: 0 });
+    expect(siblingDistance?.kind).toBe("length");
+    if (!siblingDistance || siblingDistance.kind !== "length") {
+      throw new Error("Expected sibling distance length");
+    }
+    expect(siblingDistance.value).toBeCloseTo(8.535827, 5);
+    expect(siblingDistance.write.elementId).not.toBe("path:0");
   });
 });
 

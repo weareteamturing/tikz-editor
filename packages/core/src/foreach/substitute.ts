@@ -3,7 +3,6 @@ import type { ForeachIterationBinding } from "./types.js";
 const CONTROL_SEQUENCE_REGEX = /\\[A-Za-z@]+/g;
 const LETTER_HEAD_REGEX = /^[A-Za-z@]/;
 const CONTROL_WORD_TAIL_REGEX = /\\[A-Za-z@]+$/;
-const LETTER_CHAR_REGEX = /[A-Za-z@]/;
 
 export function substituteForeachBindings(input: string, bindings: ForeachIterationBinding): string {
   return substituteForeachBindingsWithMap(input, bindings).output;
@@ -55,11 +54,6 @@ export function substituteForeachBindingsWithMap(input: string, bindings: Foreac
         outputToInput.push(matchStart);
       }
 
-      const nextChar = input[matchEnd] ?? "";
-      if (requiresTrailingBoundary(value, nextChar)) {
-        output += "{}";
-        outputToInput.push(Math.max(matchStart, matchEnd - 1), Math.max(matchStart, matchEnd - 1));
-      }
     }
 
     cursor = matchEnd;
@@ -106,8 +100,4 @@ function mapOutputSpanToInput(
 
 function requiresLeadingBoundary(outputSoFar: string, replacement: string): boolean {
   return LETTER_HEAD_REGEX.test(replacement) && CONTROL_WORD_TAIL_REGEX.test(outputSoFar);
-}
-
-function requiresTrailingBoundary(replacement: string, nextChar: string): boolean {
-  return nextChar.length > 0 && LETTER_CHAR_REGEX.test(nextChar) && CONTROL_WORD_TAIL_REGEX.test(replacement);
 }

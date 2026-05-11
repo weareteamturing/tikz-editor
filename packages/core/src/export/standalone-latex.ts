@@ -1,4 +1,9 @@
-import type { Statement } from "../ast/types.js";
+import type {
+  MacroAliasStatement,
+  MacroCommandDefinitionStatement,
+  MacroDefinitionStatement,
+  Statement
+} from "../ast/types.js";
 import { parseTikz } from "../parser/index.js";
 import { evaluateTikzFigure } from "../semantic/evaluate.js";
 
@@ -142,7 +147,8 @@ function collectMacroDefinitionClosure(
   figureSource: string,
   statements: Map<string, Statement>
 ): Set<string> {
-  const byName = new Map<string, Statement>();
+  type MacroStatement = MacroDefinitionStatement | MacroAliasStatement | MacroCommandDefinitionStatement;
+  const byName = new Map<string, MacroStatement>();
   for (const statement of statements.values()) {
     if (statement.kind === "MacroDefinition" || statement.kind === "MacroAlias" || statement.kind === "MacroCommandDefinition") {
       const name = statement.nameRaw.trim();
@@ -160,10 +166,7 @@ function collectMacroDefinitionClosure(
     tokenRegex.lastIndex = 0;
     let match: RegExpExecArray | null = tokenRegex.exec(raw);
     while (match) {
-      const token = match[0] ?? "";
-      if (token.length > 0) {
-        queue.push(token);
-      }
+      queue.push(match[0]);
       match = tokenRegex.exec(raw);
     }
   };
@@ -186,9 +189,6 @@ function collectMacroDefinitionClosure(
     }
     if (statement.kind === "MacroAlias") {
       enqueueFromText(statement.targetRaw);
-      continue;
-    }
-    if (statement.kind !== "MacroCommandDefinition") {
       continue;
     }
     enqueueFromText(statement.bodyRaw);

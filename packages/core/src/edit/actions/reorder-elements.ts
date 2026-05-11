@@ -15,7 +15,7 @@ import type { EditParseOptions } from "../parse-options.js";
 export type ReorderDirection = "sendToBack" | "sendBackward" | "bringForward" | "bringToFront";
 
 type EditActionResultLike =
-  | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[] }
+  | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[]; changedSourceIds?: string[] }
   | { kind: "unsupported"; reason: string };
 
 export type ReorderReplacement = {
@@ -121,7 +121,8 @@ export function applyReorderElementsAction(
     kind: "success",
     newSource: currentSource,
     patches,
-    selectedSourceIds: selectedSourceIds.length > 0 ? selectedSourceIds : undefined
+    selectedSourceIds: selectedSourceIds.length > 0 ? selectedSourceIds : undefined,
+    changedSourceIds: selectedSourceIds.length > 0 ? selectedSourceIds : normalizedIds
   };
 }
 
@@ -186,10 +187,6 @@ function resolveReorderStatementSeparator(
   for (let index = 0; index < sortedRefs.length - 1; index += 1) {
     const left = sortedRefs[index];
     const right = sortedRefs[index + 1];
-    if (!left || !right) {
-      continue;
-    }
-
     const gap = source.slice(left.span.to, right.span.from);
     if (gap.includes("\n")) {
       return `${gap.includes("\r\n") ? "\r\n" : "\n"}${indent}`;

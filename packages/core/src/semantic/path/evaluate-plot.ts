@@ -118,7 +118,7 @@ export function evaluatePlotCoordinatePoints(params: {
 }
 
 function appendPlotXMarks(commands: ScenePath["commands"], points: WorldPoint[]): void {
-  const halfSize = parseLength("1.5pt", "pt") ?? 1.5;
+  const halfSize = parseLength("1.5pt", "pt")!;
   for (const point of points) {
     commands.push({
       kind: "M",
@@ -140,7 +140,7 @@ function appendPlotXMarks(commands: ScenePath["commands"], points: WorldPoint[])
 }
 
 function appendPlotPlusMarks(commands: ScenePath["commands"], points: WorldPoint[]): void {
-  const halfSize = parseLength("2pt", "pt") ?? 2;
+  const halfSize = parseLength("2pt", "pt")!;
   for (const point of points) {
     commands.push({
       kind: "M",
@@ -162,7 +162,7 @@ function appendPlotPlusMarks(commands: ScenePath["commands"], points: WorldPoint
 }
 
 function appendPlotAsteriskMarks(commands: ScenePath["commands"], points: WorldPoint[]): void {
-  const radius = parseLength("2pt", "pt") ?? 2;
+  const radius = parseLength("2pt", "pt")!;
   for (const point of points) {
     appendCircleSubpath(commands, point, radius);
   }
@@ -209,14 +209,11 @@ export function emitPlotPath(params: {
   const markPoints: WorldPoint[] = [];
   const tensionFactor = 0.2775 * settings.tension;
 
-  const addConnectionToFirstPoint = (target: WorldPoint): void => {
-    if (!connectFrom) {
-      return;
-    }
-    commands.push({ kind: "M", to: connectFrom });
-    if (!pointsClose(connectFrom, target)) {
+  const addConnectionToFirstPoint = (source: WorldPoint, target: WorldPoint): void => {
+    commands.push({ kind: "M", to: source });
+    if (!pointsClose(source, target)) {
       commands.push({ kind: "L", to: target });
-      lastSegment = { from: connectFrom, to: target };
+      lastSegment = { from: source, to: target };
     }
   };
 
@@ -237,7 +234,7 @@ export function emitPlotPath(params: {
   if (settings.handler === "sharp") {
     const first = points[0];
     if (connectFrom) {
-      addConnectionToFirstPoint(first);
+      addConnectionToFirstPoint(connectFrom, first);
     } else {
       commands.push({ kind: "M", to: first });
     }
@@ -248,7 +245,7 @@ export function emitPlotPath(params: {
   } else if (settings.handler === "sharp-cycle") {
     const first = points[0];
     if (connectFrom) {
-      addConnectionToFirstPoint(first);
+      addConnectionToFirstPoint(connectFrom, first);
     }
     commands.push({ kind: "M", to: first });
     for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
@@ -262,7 +259,7 @@ export function emitPlotPath(params: {
   } else if (settings.handler === "smooth") {
     const first = points[0];
     if (connectFrom) {
-      addConnectionToFirstPoint(first);
+      addConnectionToFirstPoint(connectFrom, first);
     } else {
       commands.push({ kind: "M", to: first });
     }
@@ -291,7 +288,7 @@ export function emitPlotPath(params: {
   } else if (settings.handler === "smooth-cycle") {
     const first = points[0];
     if (connectFrom) {
-      addConnectionToFirstPoint(first);
+      addConnectionToFirstPoint(connectFrom, first);
     }
     commands.push({ kind: "M", to: first });
     if (points.length > 1) {
@@ -325,7 +322,7 @@ export function emitPlotPath(params: {
   ) {
     const first = points[0];
     if (connectFrom) {
-      addConnectionToFirstPoint(first);
+      addConnectionToFirstPoint(connectFrom, first);
     } else {
       commands.push({ kind: "M", to: first });
     }
@@ -397,7 +394,7 @@ export function emitPlotPath(params: {
     }
   } else if (settings.handler === "ycomb") {
     if (connectFrom) {
-      addConnectionToFirstPoint(points[0]);
+      addConnectionToFirstPoint(connectFrom, points[0]);
     }
     for (const point of points) {
       const base = wp(point.x, 0);
@@ -407,7 +404,7 @@ export function emitPlotPath(params: {
     markPoints.push(...points);
   } else if (settings.handler === "xcomb") {
     if (connectFrom) {
-      addConnectionToFirstPoint(points[0]);
+      addConnectionToFirstPoint(connectFrom, points[0]);
     }
     for (const point of points) {
       const base = wp(0, point.y);
@@ -417,7 +414,7 @@ export function emitPlotPath(params: {
     markPoints.push(...points);
   } else if (settings.handler === "polar-comb") {
     if (connectFrom) {
-      addConnectionToFirstPoint(points[0]);
+      addConnectionToFirstPoint(connectFrom, points[0]);
     }
     const origin = wp(0, 0);
     for (const point of points) {
@@ -427,7 +424,7 @@ export function emitPlotPath(params: {
     markPoints.push(...points);
   } else if (settings.handler === "ybar") {
     if (connectFrom) {
-      addConnectionToFirstPoint(points[0]);
+      addConnectionToFirstPoint(connectFrom, points[0]);
     }
     for (const point of points) {
       const left = point.x - 0.5 * settings.barWidth + settings.barShift;
@@ -441,7 +438,7 @@ export function emitPlotPath(params: {
     markPoints.push(...points);
   } else if (settings.handler === "xbar") {
     if (connectFrom) {
-      addConnectionToFirstPoint(points[0]);
+      addConnectionToFirstPoint(connectFrom, points[0]);
     }
     for (const point of points) {
       const bottom = point.y - 0.5 * settings.barWidth + settings.barShift;
@@ -455,7 +452,7 @@ export function emitPlotPath(params: {
     markPoints.push(...points);
   } else if (settings.handler === "ybar-interval") {
     if (connectFrom) {
-      addConnectionToFirstPoint(points[0]);
+      addConnectionToFirstPoint(connectFrom, points[0]);
     }
     for (let pointIndex = 0; pointIndex < points.length - 1; pointIndex += 1) {
       const current = points[pointIndex];
@@ -474,7 +471,7 @@ export function emitPlotPath(params: {
     markPoints.push(...points);
   } else if (settings.handler === "xbar-interval") {
     if (connectFrom) {
-      addConnectionToFirstPoint(points[0]);
+      addConnectionToFirstPoint(connectFrom, points[0]);
     }
     for (let pointIndex = 0; pointIndex < points.length - 1; pointIndex += 1) {
       const current = points[pointIndex];

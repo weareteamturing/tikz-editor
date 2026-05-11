@@ -4,18 +4,23 @@ import { parseTikzForEdit, type EditParseOptions } from "./parse-options.js";
 
 export type PathPointKind = "corner" | "smooth";
 
-export type ExplicitPathSegment = {
-  kind: "line" | "cubic";
+type ExplicitPathSegmentBase = {
   startAnchorIndex: number;
   endAnchorIndex: number;
   operatorIndex: number;
   targetIndex: number;
   raw: string;
   closesPath: boolean;
-  control1Index?: number;
-  control2Index?: number;
-  usedAnd?: boolean;
 };
+
+export type ExplicitPathSegment =
+  | (ExplicitPathSegmentBase & { kind: "line" })
+  | (ExplicitPathSegmentBase & {
+    kind: "cubic";
+    control1Index: number;
+    control2Index: number;
+    usedAnd: boolean;
+  });
 
 export type ExplicitPathAnchor = {
   index: number;

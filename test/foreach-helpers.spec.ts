@@ -251,6 +251,10 @@ in {right}`);
     expect(substituted.mapSpan({ from: 2, to: 1 })).toBeNull();
     expect(substituteForeachBindingsWithMap("", { "\\x": "1" }).mapSpan({ from: 0, to: 0 })).toEqual({ from: 0, to: 0 });
     expect(substituteForeachBindingsWithMap("abc", {}).mapSpan({ from: 1, to: 1 })).toEqual({ from: 1, to: 1 });
+
+    const emptyReplacement = substituteForeachBindingsWithMap(String.raw`\x`, { "\\x": "" });
+    expect(emptyReplacement.output).toBe("");
+    expect(emptyReplacement.mapSpan({ from: 0, to: 0 })).toBeNull();
   });
 
   it("parses statement, path, and node snippets with original source mapping", () => {
