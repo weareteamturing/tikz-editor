@@ -479,6 +479,75 @@ test("shape tool click insertion uses the snapped preview point", async ({ page 
   );
 });
 
+test("creation tools can start on the viewport outside document bounds", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  const readGrayViewportPoint = async () => {
+    const viewportBox = await canvasViewport(page).boundingBox();
+    const layerBox = await interactionLayer(page).boundingBox();
+    if (!viewportBox) {
+      throw new Error("Canvas viewport bounds missing.");
+    }
+    if (!layerBox) {
+      throw new Error("Canvas interaction layer bounds missing.");
+    }
+    if (layerBox.x - viewportBox.x > 24) {
+      return {
+        x: viewportBox.x + Math.max(8, (layerBox.x - viewportBox.x) / 2),
+        y: Math.min(viewportBox.y + viewportBox.height - 8, Math.max(viewportBox.y + 8, layerBox.y + 32))
+      };
+    }
+    if (viewportBox.x + viewportBox.width - (layerBox.x + layerBox.width) > 24) {
+      return {
+        x: layerBox.x + layerBox.width + Math.max(8, (viewportBox.x + viewportBox.width - (layerBox.x + layerBox.width)) / 2),
+        y: Math.min(viewportBox.y + viewportBox.height - 8, Math.max(viewportBox.y + 8, layerBox.y + 32))
+      };
+    }
+    if (layerBox.y - viewportBox.y > 24) {
+      return {
+        x: Math.min(viewportBox.x + viewportBox.width - 8, Math.max(viewportBox.x + 8, layerBox.x + 32)),
+        y: viewportBox.y + Math.max(8, (layerBox.y - viewportBox.y) / 2)
+      };
+    }
+    if (viewportBox.y + viewportBox.height - (layerBox.y + layerBox.height) > 24) {
+      return {
+        x: Math.min(viewportBox.x + viewportBox.width - 8, Math.max(viewportBox.x + 8, layerBox.x + 32)),
+        y: layerBox.y + layerBox.height + Math.max(8, (viewportBox.y + viewportBox.height - (layerBox.y + layerBox.height)) / 2)
+      };
+    }
+    throw new Error("Expected a visible viewport margin outside the document bounds.");
+  };
+
+  const readGrayViewportDrag = async () => {
+    const start = await readGrayViewportPoint();
+    return {
+      start,
+      end: {
+        x: start.x + 72,
+        y: start.y + 48
+      }
+    };
+  };
+
+  await toolbarButton(page, "Node").click();
+  const nodePoint = await readGrayViewportPoint();
+  await page.mouse.click(nodePoint.x, nodePoint.y);
+  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toContain("\\nodeat");
+  await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0);
+
+  await toolbarButton(page, "Rect").click();
+  const rectDrag = await readGrayViewportDrag();
+  await page.mouse.move(rectDrag.start.x, rectDrag.start.y);
+  await page.mouse.down();
+  await page.mouse.move(rectDrag.end.x, rectDrag.end.y, { steps: 8 });
+  await page.mouse.up();
+
+  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toContain("rectangle");
+  await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0);
+});
+
 test("line tool exposes and uses anchors on newly inserted nodes", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}

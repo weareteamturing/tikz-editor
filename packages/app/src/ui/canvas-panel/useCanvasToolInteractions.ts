@@ -215,22 +215,6 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     [bezierBendDraft, freehandDraft, pathDraft, pathSegmentDraft, pendingBezier, setDragTooltip, toolDraft, toolMode]
   );
 
-  const onViewportPointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      viewportRef.current?.focus({ preventScroll: true });
-      if (toolMode !== "select" || event.button !== 0 || event.target !== event.currentTarget) {
-        return;
-      }
-      closeTextEditingSession();
-      const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
-      const clientPoint = makeClientPoint(px(event.clientX), px(event.clientY));
-      if (startMarqueeSelection(event.pointerId, clientPoint, additiveSelection)) {
-        event.preventDefault();
-      }
-    },
-    [closeTextEditingSession, startMarqueeSelection, toolMode, viewportRef]
-  );
-
   const onBackgroundClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement | SVGSVGElement>) => {
       if (suppressNextBackgroundClickRef.current) {
@@ -709,6 +693,28 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       suppressNextBackgroundClickRef,
       pendingTouchViewportRef
     ]
+  );
+
+  const onViewportPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      viewportRef.current?.focus({ preventScroll: true });
+      if (event.button !== 0 || event.target !== event.currentTarget) {
+        return;
+      }
+      if (toolMode !== "select") {
+        if (toolMode !== "magnify") {
+          onInteractionPointerDown(event as unknown as ReactPointerEvent<SVGSVGElement>);
+        }
+        return;
+      }
+      closeTextEditingSession();
+      const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
+      const clientPoint = makeClientPoint(px(event.clientX), px(event.clientY));
+      if (startMarqueeSelection(event.pointerId, clientPoint, additiveSelection)) {
+        event.preventDefault();
+      }
+    },
+    [closeTextEditingSession, onInteractionPointerDown, startMarqueeSelection, toolMode, viewportRef]
   );
 
   const onInteractionPointerMove = useCallback(
