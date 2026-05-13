@@ -479,6 +479,53 @@ test("shape tool click insertion uses the snapped preview point", async ({ page 
   );
 });
 
+test("line tool exposes and uses anchors on newly inserted nodes", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+  await toolbarButton(page, "Node").click();
+
+  const layer = interactionLayer(page);
+  const box = await layer.boundingBox();
+  if (!box) {
+    throw new Error("Canvas interaction layer bounds missing.");
+  }
+
+  await page.mouse.click(box.x + 180, box.y + 150);
+  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toContain("\\nodeat");
+  expect(normalizeSourceWhitespace(await readSource(page))).not.toContain("\\node(node1)");
+
+  await toolbarButton(page, "Line").click();
+  await waitForHitRegions(page, 1);
+  const nodeRegion = page.locator('[data-hit-region-target-id="path:0"]').first();
+  const nodeTarget = await nodeRegion.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  });
+  await page.mouse.move(nodeTarget.x, nodeTarget.y, { steps: 10 });
+
+  const anchorDots = page.locator('[data-testid="node-anchor-dot"]');
+  await expect.poll(async () => anchorDots.count()).toBeGreaterThan(0);
+  await expect(page.locator('[data-testid="node-anchor-dot"][data-anchor-source-id="path:0"]')).not.toHaveCount(0);
+
+  const eastAnchor = page.locator('[data-testid="node-anchor-dot"][data-anchor-source-id="path:0"][data-anchor-name="east"]');
+  const eastAnchorBox = await eastAnchor.boundingBox();
+  if (!eastAnchorBox) {
+    throw new Error("Generated node east anchor bounds missing.");
+  }
+  const start = {
+    x: eastAnchorBox.x + eastAnchorBox.width / 2,
+    y: eastAnchorBox.y + eastAnchorBox.height / 2
+  };
+  await page.mouse.move(start.x, start.y, { steps: 4 });
+  await page.mouse.down();
+  await page.mouse.move(start.x + 120, start.y, { steps: 12 });
+  await page.mouse.up();
+
+  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toContain("\\node(node1)at");
+  await expect.poll(async () => readSource(page)).toContain("(node1.east)");
+});
+
 test("shape toolbar popup auto-opens, remembers the chosen shape, and inserts an empty shaped node", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}
@@ -960,8 +1007,9 @@ test("multi-segment path tool keeps named anchors when clicking anchor dots", as
   });
   await page.mouse.move(nodeTarget.x, nodeTarget.y, { steps: 10 });
 
-  await expect.poll(async () => page.locator("svg circle").count()).toBeGreaterThan(0);
-  const anchorCenters = await page.locator("svg circle").evaluateAll((elements) =>
+  const anchorDots = page.locator('[data-testid="node-anchor-dot"]');
+  await expect.poll(async () => anchorDots.count()).toBeGreaterThan(0);
+  const anchorCenters = await anchorDots.evaluateAll((elements) =>
     elements.map((element) => {
       const rect = element.getBoundingClientRect();
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
@@ -1041,8 +1089,9 @@ test("live endpoint-anchor drag keeps source well-formed while hovering and on d
   await page.mouse.down();
 
   await page.mouse.move(nodeBox.x + nodeBox.width / 2, nodeBox.y + nodeBox.height / 2, { steps: 12 });
-  await expect.poll(async () => page.locator("svg circle").count()).toBeGreaterThan(0);
-  const anchorCircle = page.locator("svg circle").first();
+  const anchorDots = page.locator('[data-testid="node-anchor-dot"]');
+  await expect.poll(async () => anchorDots.count()).toBeGreaterThan(0);
+  const anchorCircle = anchorDots.first();
   const anchorBox = await anchorCircle.boundingBox();
   if (!anchorBox) {
     throw new Error("Node anchor overlay circle bounds missing.");

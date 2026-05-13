@@ -3,7 +3,7 @@ import type {
   EvaluateOptions
 } from "../semantic/types.js";
 import type { WorldPoint, WorldBounds } from "../coords/points.js";
-import type { Statement, Span } from "../ast/types.js";
+import type { NodeItem, PathStatement, Statement, Span } from "../ast/types.js";
 import type { SourcePatch } from "./types.js";
 import { applyEditIntent } from "./apply.js";
 import { replaceSpan } from "./patch.js";
@@ -11,6 +11,7 @@ import { PT_PER_CM } from "./format.js";
 import {
   generateElementSource,
   insertElementIntoSource,
+  type AnchorReference,
   type ElementTemplate
 } from "./element-templates.js";
 import { resolvePropertyTarget } from "./property-target.js";
@@ -99,7 +100,7 @@ export type EditAction =
   | { kind: "alignElements"; elementIds: string[]; mode: AlignMode }
   | { kind: "distributeElements"; elementIds: string[]; axis: DistributeAxis }
   | { kind: "moveHandle"; handleId: string; newWorld: WorldPoint }
-  | { kind: "connectHandle"; handleId: string; nodeName: string; anchor: string }
+  | { kind: "connectHandle"; handleId: string; nodeName: string; nodeSourceId?: string; anchor: string }
   | { kind: "splitPath"; elementId: string; handleId: string }
   | { kind: "joinPaths"; elementIds: [string, string] }
   | { kind: "reversePath"; elementId: string }
@@ -181,10 +182,18 @@ export type EditActionResult =
   | { kind: "error"; message: string };
 
 const DEFAULT_DUPLICATE_OFFSET_PT = 0.25 * PT_PER_CM;
+const GENERATED_NODE_NAME_RE = /(?:^|[^A-Za-z0-9_-])(node\d+)(?![A-Za-z0-9_-])/g;
 
 type EditActionApplyOptions = {
   evaluateOptions?: EvaluateOptions;
   parseOptions?: EditParseOptions;
+};
+
+type AnchorNameResolution = {
+  source: string;
+  anchor: AnchorReference;
+  insertedSpan?: Span;
+  insertedLength: number;
 };
 
 export function applyEditAction(
@@ -200,7 +209,7 @@ export function applyEditAction(
       case "moveHandle":
         return applyMoveHandle(source, editHandles, action.handleId, action.newWorld, parseOptions);
       case "connectHandle":
-        return applyConnectHandle(source, editHandles, action.handleId, action.nodeName, action.anchor, parseOptions);
+        return applyConnectHandle(source, editHandles, action.handleId, action.nodeName, action.nodeSourceId, action.anchor, parseOptions);
       case "splitPath":
         return applySplitPath(source, editHandles, action, parseOptions);
       case "joinPaths":
@@ -232,7 +241,7 @@ export function applyEditAction(
       case "cleanupPropertyWrites":
         return cleanupIdiomaticPropertyWrites(source, { ...parseOptions, propertyWriteMode: "drag-end" }, action.elementIds);
       case "addElement":
-        return applyAddElement(source, action.template, action.at);
+        return applyAddElement(source, action.template, action.at, parseOptions);
       case "deleteElement":
         return applyDeleteElementsAction(source, [action.elementId], parseOptions);
       case "deleteElements":
@@ -324,6 +333,7 @@ function applyConnectHandle(
   editHandles: EditHandle[],
   handleId: string,
   nodeName: string,
+  nodeSourceId: string | undefined,
   anchor: string,
   parseOptions: EditParseOptions
 ): EditActionResult {
@@ -373,10 +383,11 @@ function applyConnectHandle(
     return { kind: "error", message: "Handle span content mismatch (stale handle)." };
   }
 
-  const trimmedNodeName = nodeName.trim();
-  if (trimmedNodeName.length === 0) {
+  const nameResolution = resolveAnchorNodeName(source, { nodeName, nodeSourceId, anchor }, parseOptions);
+  if (!nameResolution) {
     return { kind: "error", message: "Node name is required for endpoint connection." };
   }
+  const trimmedNodeName = nameResolution.anchor.nodeName.trim();
 
   const trimmedAnchor = anchor.trim().toLowerCase();
   if (trimmedAnchor.length === 0) {
@@ -387,7 +398,8 @@ function applyConnectHandle(
     trimmedAnchor === "center"
       ? `(${trimmedNodeName})`
       : `(${trimmedNodeName}.${trimmedAnchor})`;
-  const updated = replaceSpan(source, handle.sourceRef.sourceSpan, replacement);
+  const adjustedHandleSpan = shiftSpan(handle.sourceRef.sourceSpan, nameResolution.insertedSpan, nameResolution.insertedLength);
+  const updated = replaceSpan(nameResolution.source, adjustedHandleSpan, replacement);
   const reordered = moveStatementAfterNamedDefinition(
     updated.source,
     handle.sourceRef.sourceId,
@@ -396,20 +408,205 @@ function applyConnectHandle(
   );
   const reorderedPatches = reordered ? reordered.patches : [];
   const newSource = reordered?.source ?? updated.source;
+  const patches = nameResolution.insertedSpan
+    ? [computeReplacementPatch(source, newSource)]
+    : [
+        {
+          oldSpan: handle.sourceRef.sourceSpan,
+          newSpan: updated.changedSpan,
+          replacement
+        },
+        ...reorderedPatches
+      ];
   return {
     kind: "success",
     newSource,
-    patches: [
-      {
-        oldSpan: handle.sourceRef.sourceSpan,
-        newSpan: updated.changedSpan,
-        replacement
-      },
-      ...reorderedPatches
-    ],
+    patches,
     // Reordering can renumber statement source ids, so avoid stale id hints.
     // Returning [] forces the drag path to use full recompute for this frame.
-    changedSourceIds: reordered ? [] : [handle.sourceRef.sourceId]
+    changedSourceIds: reordered || nameResolution.insertedSpan ? [] : [handle.sourceRef.sourceId]
+  };
+}
+
+function resolveElementTemplateAnchorNames(
+  source: string,
+  template: ElementTemplate,
+  parseOptions: EditParseOptions
+): { source: string; template: ElementTemplate } {
+  if (template.kind !== "line") {
+    return { source, template };
+  }
+
+  let currentSource = source;
+  const namesBySourceId = new Map<string, string>();
+  const resolve = (anchor: AnchorReference | undefined): AnchorReference | undefined => {
+    if (!anchor) {
+      return anchor;
+    }
+    const nodeSourceId = anchor.nodeSourceId?.trim() ?? "";
+    if (!nodeSourceId || anchor.nodeName.trim()) {
+      return anchor;
+    }
+    const existing = namesBySourceId.get(nodeSourceId);
+    if (existing) {
+      return { ...anchor, nodeName: existing };
+    }
+    const resolved = resolveAnchorNodeName(currentSource, anchor, parseOptions);
+    if (!resolved) {
+      return anchor;
+    }
+    currentSource = resolved.source;
+    namesBySourceId.set(nodeSourceId, resolved.anchor.nodeName);
+    return resolved.anchor;
+  };
+
+  const fromAnchor = resolve(template.fromAnchor);
+  const toAnchor = resolve(template.toAnchor);
+  return {
+    source: currentSource,
+    template: {
+      ...template,
+      fromAnchor,
+      toAnchor
+    }
+  };
+}
+
+function resolveAnchorNodeName(
+  source: string,
+  anchor: AnchorReference,
+  parseOptions: EditParseOptions
+): AnchorNameResolution | null {
+  const nodeName = anchor.nodeName.trim();
+  if (nodeName) {
+    return {
+      source,
+      anchor: { ...anchor, nodeName },
+      insertedLength: 0
+    };
+  }
+
+  const nodeSourceId = anchor.nodeSourceId?.trim() ?? "";
+  if (!nodeSourceId) {
+    return null;
+  }
+  const named = ensureNodeSourceHasName(source, nodeSourceId, parseOptions);
+  if (!named) {
+    return null;
+  }
+  return {
+    source: named.source,
+    anchor: { ...anchor, nodeName: named.name },
+    insertedSpan: named.insertedSpan,
+    insertedLength: named.insertedLength
+  };
+}
+
+function ensureNodeSourceHasName(
+  source: string,
+  nodeSourceId: string,
+  parseOptions: EditParseOptions
+): { source: string; name: string; insertedSpan?: Span; insertedLength: number } | null {
+  const snapshot = parseStatementSnapshot(source, parseOptions);
+  const ref = snapshot.byId.get(nodeSourceId);
+  if (!ref || ref.statement.kind !== "Path") {
+    return null;
+  }
+  const node = findNodeItemForSourceId(ref.statement, nodeSourceId);
+  if (!node) {
+    return null;
+  }
+  const existingName = node.name?.trim();
+  if (existingName) {
+    return { source, name: existingName, insertedLength: 0 };
+  }
+
+  const name = nextGeneratedNodeName(source);
+  const insertAt = nodeNameInsertionOffset(source, ref.statement, node);
+  if (insertAt == null) {
+    return null;
+  }
+  const insertion = ` (${name})`;
+  return {
+    source: source.slice(0, insertAt) + insertion + source.slice(insertAt),
+    name,
+    insertedSpan: { from: insertAt, to: insertAt },
+    insertedLength: insertion.length
+  };
+}
+
+function findNodeItemForSourceId(statement: PathStatement, sourceId: string): NodeItem | null {
+  const statementHasTreeChildren = statement.items.some((candidate) => candidate.kind === "ChildOperation");
+  const isSyntheticTreeChildStatement = statement.id.includes(":tree-child:");
+  for (const item of statement.items) {
+    if (item.kind !== "Node") {
+      continue;
+    }
+    const shouldUseStatementSourceId =
+      item.adornment != null ||
+      statement.command === "node" ||
+      statementHasTreeChildren ||
+      isSyntheticTreeChildStatement;
+    const itemSourceId = shouldUseStatementSourceId ? statement.id : item.id;
+    if (itemSourceId === sourceId) {
+      return item;
+    }
+  }
+  return null;
+}
+
+function nodeNameInsertionOffset(source: string, statement: PathStatement, node: NodeItem): number | null {
+  if (statement.command === "node") {
+    if (statement.options) {
+      const optionEnd = statement.options.entries.reduce((max, entry) => Math.max(max, entry.span.to), statement.span.from);
+      const rawAfterOptions = source.slice(optionEnd, statement.span.to);
+      const closeIndex = rawAfterOptions.indexOf("]");
+      if (closeIndex >= 0) {
+        return optionEnd + closeIndex + 1;
+      }
+    }
+    const raw = source.slice(statement.span.from, statement.span.to);
+    const match = /^\\node\b/u.exec(raw);
+    if (match) {
+      return statement.span.from + match[0].length;
+    }
+    return null;
+  }
+  if (node.optionsSpan) {
+    return node.optionsSpan.to;
+  }
+  const raw = source.slice(node.span.from, node.span.to);
+  const match = /^\\node\b/u.exec(raw);
+  if (match) {
+    return node.span.from + match[0].length;
+  }
+  return null;
+}
+
+function nextGeneratedNodeName(source: string): string {
+  const used = new Set<string>();
+  for (const match of source.matchAll(GENERATED_NODE_NAME_RE)) {
+    const name = match[1];
+    if (name) {
+      used.add(name);
+    }
+  }
+  for (let index = 1; index < Number.MAX_SAFE_INTEGER; index += 1) {
+    const candidate = `node${index}`;
+    if (!used.has(candidate)) {
+      return candidate;
+    }
+  }
+  return `node${Date.now()}`;
+}
+
+function shiftSpan(span: Span, insertedSpan: Span | undefined, insertedLength: number): Span {
+  if (!insertedSpan || insertedLength === 0 || insertedSpan.from > span.from) {
+    return span;
+  }
+  return {
+    from: span.from + insertedLength,
+    to: span.to + insertedLength
   };
 }
 
@@ -780,12 +977,14 @@ function applyResizeElement(
 function applyAddElement(
   source: string,
   template: ElementTemplate,
-  at: WorldPoint
+  at: WorldPoint,
+  parseOptions: EditParseOptions
 ): EditActionResult {
   const beforeStatements = parseStatementSnapshot(source);
-  const snippet = generateElementSource(template, at);
+  const resolved = resolveElementTemplateAnchorNames(source, template, parseOptions);
+  const snippet = generateElementSource(resolved.template, at);
 
-  const newSource = insertElementIntoSource(source, snippet);
+  const newSource = insertElementIntoSource(resolved.source, snippet);
 
   const afterStatements = parseStatementSnapshot(newSource);
   const insertedStatementId = afterStatements.all.find((ref) => !beforeStatements.byId.has(ref.id))!.id;

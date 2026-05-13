@@ -25,6 +25,7 @@ export type WorldPoint2D = WorldPoint;
 
 export type NodeAnchorTarget = {
   nodeName: string;
+  nodeSourceId?: string;
   anchor: string;
   world: WorldPoint;
   tier: "basic" | "special";

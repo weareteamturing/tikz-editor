@@ -1043,15 +1043,21 @@ export function NodeAnchorOverlay({
         const point = worldToSvgPoint(anchor.world, viewBox);
         const snapped =
           anchorOverlay.snappedAnchor?.nodeName === anchor.nodeName &&
+          anchorOverlay.snappedAnchor?.nodeSourceId === anchor.nodeSourceId &&
           anchorOverlay.snappedAnchor.anchor === anchor.anchor;
         return (
           <circle
-            key={`${anchor.nodeName}:${anchor.anchor}`}
+            key={`${anchor.nodeName || anchor.nodeSourceId}:${anchor.anchor}`}
             className={`${css.nodeAnchorPoint} ${snapped ? css.nodeAnchorPointSnapped : ""}`}
             cx={point.x}
             cy={point.y}
             r={snapped ? radius * 1.1 : radius * 0.85}
             strokeWidth={strokeWidth}
+            data-testid="node-anchor-dot"
+            data-anchor-node={anchor.nodeName}
+            data-anchor-source-id={anchor.nodeSourceId}
+            data-anchor-name={anchor.anchor}
+            data-anchor-snapped={snapped ? "true" : undefined}
           />
         );
       })}

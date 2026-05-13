@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { svgBounds, svgPoint, worldBounds, worldPoint, worldVector, pt } from "tikz-editor/coords/index";
-import type { PathItem, Statement } from "tikz-editor/ast/types";
+import type { NodeItem, PathItem, PathStatement, Statement } from "tikz-editor/ast/types";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import { FIT_DIRECT_MANIPULATION_BLOCK_REASON, sourceUsesFitNodeFromParseResult } from "tikz-editor/edit/fit";
 import { resolvePropertyTargetFromParseResult } from "tikz-editor/edit/property-target";
@@ -90,7 +90,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     }
     return ids;
   }, [selectedHandles]);
-  const nodeAnchorTargets = useMemo<readonly NodeAnchorTarget[]>(
+  const semanticNodeAnchorTargets = useMemo<readonly NodeAnchorTarget[]>(
     () => snapshot.semanticResult?.nodeAnchorTargets ?? [],
     [snapshot.semanticResult]
   );
@@ -201,6 +201,18 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     }
     return collectSourceWorldBounds(snapshot.scene.elements);
   }, [snapshot.scene]);
+
+  const nodeAnchorTargets = useMemo<readonly NodeAnchorTarget[]>(
+    () => [
+      ...semanticNodeAnchorTargets,
+      ...deriveUnnamedNodeAnchorTargets({
+        statements: snapshot.parseResult?.figure.body ?? [],
+        editHandles: snapshot.editHandles,
+        sourceBoundsWorld
+      })
+    ],
+    [semanticNodeAnchorTargets, snapshot.editHandles, snapshot.parseResult, sourceBoundsWorld]
+  );
 
   const matrixCellAnchorHints = useMemo<readonly MatrixCellAnchorHint[]>(() => {
     const byCellId = new Map<string, MatrixCellAnchorHint>();
@@ -872,6 +884,106 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     viewportWorldBounds,
     scopeOverlay
   };
+}
+
+function deriveUnnamedNodeAnchorTargets(input: {
+  statements: readonly Statement[];
+  editHandles: readonly EditHandle[];
+  sourceBoundsWorld: ReadonlyMap<string, WorldBounds>;
+}): NodeAnchorTarget[] {
+  const nodeNamesBySourceId = collectNodeNamesBySourceId(input.statements);
+  const targets: NodeAnchorTarget[] = [];
+  const seen = new Set<string>();
+  for (const handle of input.editHandles) {
+    if (handle.kind !== "node-position") {
+      continue;
+    }
+    const sourceId = handle.sourceRef.sourceId;
+    if (!nodeNamesBySourceId.has(sourceId) || nodeNamesBySourceId.get(sourceId)) {
+      continue;
+    }
+    const bounds = input.sourceBoundsWorld.get(sourceId);
+    if (!bounds) {
+      continue;
+    }
+    const center = handle.world;
+    const minX = bounds.minX;
+    const maxX = bounds.maxX;
+    const minY = bounds.minY;
+    const maxY = bounds.maxY;
+    const midX = (minX + maxX) / 2;
+    const midY = (minY + maxY) / 2;
+    const anchors: Array<[string, WorldPoint]> = [
+      ["center", center],
+      ["north", worldPoint(pt(midX), pt(maxY))],
+      ["south", worldPoint(pt(midX), pt(minY))],
+      ["east", worldPoint(pt(maxX), pt(midY))],
+      ["west", worldPoint(pt(minX), pt(midY))],
+      ["north east", worldPoint(pt(maxX), pt(maxY))],
+      ["north west", worldPoint(pt(minX), pt(maxY))],
+      ["south east", worldPoint(pt(maxX), pt(minY))],
+      ["south west", worldPoint(pt(minX), pt(minY))]
+    ];
+    for (const [anchor, world] of anchors) {
+      const key = `${sourceId}:${anchor}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      targets.push({
+        nodeName: "",
+        nodeSourceId: sourceId,
+        anchor,
+        world,
+        tier: "basic"
+      });
+    }
+  }
+  return targets;
+}
+
+function collectNodeNamesBySourceId(statements: readonly Statement[]): Map<string, string> {
+  const names = new Map<string, string>();
+  const visit = (nested: readonly Statement[]): void => {
+    for (const statement of nested) {
+      if (statement.kind === "Scope") {
+        visit(statement.body);
+        continue;
+      }
+      if (statement.kind !== "Path") {
+        continue;
+      }
+      collectPathNodeNamesBySourceId(statement, names);
+    }
+  };
+  visit(statements);
+  return names;
+}
+
+function collectPathNodeNamesBySourceId(statement: PathStatement, names: Map<string, string>): void {
+  const statementHasTreeChildren = statement.items.some((candidate) => candidate.kind === "ChildOperation");
+  const isSyntheticTreeChildStatement = statement.id.includes(":tree-child:");
+  for (const item of statement.items) {
+    if (item.kind !== "Node") {
+      continue;
+    }
+    const sourceId = nodeItemSourceId(statement, item, statementHasTreeChildren, isSyntheticTreeChildStatement);
+    names.set(sourceId, item.name?.trim() ?? "");
+  }
+}
+
+function nodeItemSourceId(
+  statement: PathStatement,
+  item: NodeItem,
+  statementHasTreeChildren: boolean,
+  isSyntheticTreeChildStatement: boolean
+): string {
+  return item.adornment != null ||
+    statement.command === "node" ||
+    statementHasTreeChildren ||
+    isSyntheticTreeChildStatement
+    ? statement.id
+    : item.id;
 }
 
 function distanceSquared(a: WorldPoint, b: WorldPoint): number {

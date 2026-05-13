@@ -29,6 +29,14 @@ describe("element templates", () => {
     expect(snippet).toBe("\\node at (0,0) {$\\frac{a}{b}=x$};");
   });
 
+  it("can generate named node snippets", () => {
+    expect(generateElementSource({ kind: "node", name: "node1" }, wp(cm(0), cm(0)))).toBe("\\node (node1) at (0,0) {node};");
+    expect(generateElementSource({ kind: "node", name: "node2", shape: "rectangle", text: "" }, wp(cm(0), cm(0)))).toBe(
+      "\\node[draw, shape=rectangle, minimum width=2.2cm, minimum height=1.4cm] (node2) at (0,0) {};"
+    );
+    expect(generateElementSource({ kind: "node", name: "not valid" }, wp(cm(0), cm(0)))).toBe("\\node at (0,0) {node};");
+  });
+
   it("uses default node text and default shaped-node dimensions", () => {
     expect(generateElementSource({ kind: "node" }, wp(cm(0), cm(0)))).toBe("\\node at (0,0) {node};");
     expect(generateElementSource({ kind: "node", shape: "rectangle" }, wp(cm(0), cm(0)))).toBe(

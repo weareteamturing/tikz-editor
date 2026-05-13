@@ -12,6 +12,7 @@ export function resolveHandleDragAction(input: {
       kind: "connectHandle",
       handleId: input.handleId,
       nodeName: input.activeEndpointAnchor.nodeName,
+      ...(input.activeEndpointAnchor.nodeSourceId ? { nodeSourceId: input.activeEndpointAnchor.nodeSourceId } : {}),
       anchor: input.activeEndpointAnchor.anchor
     };
   }

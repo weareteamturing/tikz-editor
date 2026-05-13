@@ -39,11 +39,12 @@ export function resolveEndpointAnchorSnap(input: {
 
   const byNode = new Map<string, NodeAnchorTarget[]>();
   for (const target of input.nodeAnchorTargets) {
-    const existing = byNode.get(target.nodeName);
+    const key = nodeAnchorTargetKey(target);
+    const existing = byNode.get(key);
     if (existing) {
       existing.push(target);
     } else {
-      byNode.set(target.nodeName, [target]);
+      byNode.set(key, [target]);
     }
   }
 
@@ -77,19 +78,19 @@ export function resolveEndpointAnchorSnap(input: {
   }
 
   const visibleAnchorGroups: NodeAnchorTarget[][] = [nearestNodeAnchors];
-  const nearestNodeName = nearestNodeAnchors[0]?.nodeName ?? null;
+  const nearestNodeName = nearestNodeAnchors[0] ? nodeAnchorTargetKey(nearestNodeAnchors[0]) : null;
   if (
     preferredMatrixCellAnchors &&
     preferredMatrixCellAnchors.distanceSq <= revealNodeRadiusSq &&
     preferredMatrixCellAnchors.anchors.length > 0
   ) {
-    const preferredName = preferredMatrixCellAnchors.anchors[0]?.nodeName ?? null;
+    const preferredName = preferredMatrixCellAnchors.anchors[0] ? nodeAnchorTargetKey(preferredMatrixCellAnchors.anchors[0]) : null;
     if (preferredName && preferredName !== nearestNodeName) {
       visibleAnchorGroups.push(preferredMatrixCellAnchors.anchors);
     }
     const relatedMatrixAnchors = resolveRelatedMatrixNodeAnchors(byNode, preferredMatrixCellAnchors.anchors, input.pointerWorld);
     if (relatedMatrixAnchors && relatedMatrixAnchors.distanceSq <= revealNodeRadiusSq) {
-      const relatedName = relatedMatrixAnchors.anchors[0]?.nodeName ?? null;
+      const relatedName = relatedMatrixAnchors.anchors[0] ? nodeAnchorTargetKey(relatedMatrixAnchors.anchors[0]) : null;
       if (
         relatedName &&
         relatedName !== nearestNodeName &&
@@ -106,11 +107,11 @@ export function resolveEndpointAnchorSnap(input: {
       if (anchor.tier !== "basic") {
         continue;
       }
-      uniqueVisibleAnchors.set(`${anchor.nodeName}:${anchor.anchor}`, anchor);
+      uniqueVisibleAnchors.set(`${nodeAnchorTargetKey(anchor)}:${anchor.anchor}`, anchor);
     }
   }
   const visibleAnchors = [...uniqueVisibleAnchors.values()].sort((left, right) => {
-    const byNode = left.nodeName.localeCompare(right.nodeName);
+    const byNode = nodeAnchorTargetKey(left).localeCompare(nodeAnchorTargetKey(right));
     if (byNode !== 0) {
       return byNode;
     }
@@ -132,6 +133,10 @@ export function resolveEndpointAnchorSnap(input: {
     visibleAnchors,
     snappedAnchor
   };
+}
+
+function nodeAnchorTargetKey(target: NodeAnchorTarget): string {
+  return target.nodeName.trim() || target.nodeSourceId?.trim() || "";
 }
 
 function resolveNearestMatrixCellHint(

@@ -419,6 +419,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
                   ? undefined
                   : {
                       nodeName: startEndpointAnchor.nodeName,
+                      nodeSourceId: startEndpointAnchor.nodeSourceId,
                       anchor: startEndpointAnchor.anchor
                     }
               )
@@ -565,13 +566,13 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
           const ok = applyActionWithFeedback({
             kind: "addElement",
             template: toolMode === "addMatrix"
-                ? {
-                    kind: "matrix",
-                    rows: selectedAddMatrixRows,
-                    columns: selectedAddMatrixColumns,
-                    matrixKind: "nodes"
-                  }
-                : { kind: "node" },
+              ? {
+                  kind: "matrix",
+                  rows: selectedAddMatrixRows,
+                  columns: selectedAddMatrixColumns,
+                  matrixKind: "nodes"
+                }
+              : { kind: "node" },
             at: nodeAt
           });
           if (!ok.sourceChanged) {

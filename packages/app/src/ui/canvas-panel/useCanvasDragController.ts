@@ -977,6 +977,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
                   ? {
                       fromAnchor: {
                         nodeName: drag.startEndpointAnchor.nodeName,
+                        nodeSourceId: drag.startEndpointAnchor.nodeSourceId,
                         anchor: drag.startEndpointAnchor.anchor
                       }
                     }
@@ -985,6 +986,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
                   ? {
                       toAnchor: {
                         nodeName: finalEndpointAnchor.nodeName,
+                        nodeSourceId: finalEndpointAnchor.nodeSourceId,
                         anchor: finalEndpointAnchor.anchor
                       }
                     }
@@ -1081,6 +1083,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
           endAnchor: drag.endEndpointAnchor
             ? {
                 nodeName: drag.endEndpointAnchor.nodeName,
+                nodeSourceId: drag.endEndpointAnchor.nodeSourceId,
                 anchor: drag.endEndpointAnchor.anchor
               }
             : undefined,
@@ -1125,6 +1128,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
               kind: "connectHandle",
               handleId: resolvedHandleId,
               nodeName: drag.activeEndpointAnchor.nodeName,
+              nodeSourceId: drag.activeEndpointAnchor.nodeSourceId,
               anchor: drag.activeEndpointAnchor.anchor
             },
             drag.historyMergeKey

@@ -5,11 +5,12 @@ import { CM_PER_PT, PT_PER_CM, formatNumber } from "./format.js";
 
 export type AnchorReference = {
   nodeName: string;
+  nodeSourceId?: string;
   anchor: string;
 };
 
 export type ElementTemplate =
-  | { kind: "node"; text?: string; shape?: string; minimumWidthPt?: number; minimumHeightPt?: number; strokeColor?: string; fillColor?: string }
+  | { kind: "node"; name?: string; text?: string; shape?: string; minimumWidthPt?: number; minimumHeightPt?: number; strokeColor?: string; fillColor?: string }
   | { kind: "matrix"; rows?: number; columns?: number; matrixKind?: "plain" | "nodes" | "math-nodes"; cells?: string[][] }
   | { kind: "line"; hasArrow?: boolean; to?: WorldPoint; fromAnchor?: AnchorReference; toAnchor?: AnchorReference; strokeColor?: string }
   | { kind: "bezier"; to?: WorldPoint; control1?: WorldPoint; control2?: WorldPoint; strokeColor?: string }
@@ -42,6 +43,7 @@ export function generateElementSource(template: ElementTemplate, at: WorldPoint)
   switch (template.kind) {
     case "node": {
       const text = template.text == null ? DEFAULT_NODE_TEXT : sanitizeNodeText(template.text);
+      const namePart = formatNodeName(template.name);
       if (template.shape) {
         const hasExplicitShapeSize = template.minimumWidthPt != null || template.minimumHeightPt != null;
         const optionParts = ["draw", `shape=${template.shape}`];
@@ -56,9 +58,9 @@ export function generateElementSource(template: ElementTemplate, at: WorldPoint)
           optionParts.push(`minimum width=${SHAPE_TOOL_DEFAULT_MINIMUM_WIDTH_CM}cm`);
           optionParts.push(`minimum height=${SHAPE_TOOL_DEFAULT_MINIMUM_HEIGHT_CM}cm`);
         }
-        return `\\node[${optionParts.join(", ")}] at ${atCoord} {${text}};`;
+        return `\\node[${optionParts.join(", ")}]${namePart} at ${atCoord} {${text}};`;
       }
-      return `\\node at ${atCoord} {${text}};`;
+      return `\\node${namePart} at ${atCoord} {${text}};`;
     }
 
     case "matrix": {
@@ -298,6 +300,11 @@ function formatPointCm(point: WorldPoint): string {
   const x = formatNumber(point.x * CM_PER_PT);
   const y = formatNumber(point.y * CM_PER_PT);
   return `(${x},${y})`;
+}
+
+function formatNodeName(name: string | undefined): string {
+  const trimmed = name?.trim() ?? "";
+  return /^[A-Za-z_][A-Za-z0-9_-]*$/.test(trimmed) ? ` (${trimmed})` : "";
 }
 
 function formatLineEndpoint(anchor: AnchorReference | undefined, fallbackCoord: string): string {

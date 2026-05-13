@@ -273,6 +273,30 @@ describe("applyEditAction – connectHandle", () => {
     expect(result.newSource).toBe("\\draw (0,0) -- (A);");
   });
 
+  it("names unnamed node targets only when an endpoint is connected", () => {
+    const source = "\\begin{tikzpicture}\n\\node at (0,0) {node};\n\\draw (1,0) -- (2,0);\n\\end{tikzpicture}";
+    const raw = "(2,0)";
+    const from = source.indexOf(raw);
+    const handle = makeHandle(source, {
+      world: wp(cm(2), cm(0)),
+      sourceSpan: { from, to: from + raw.length },
+      sourceId: "path:1"
+    });
+
+    const result = applyEditAction(source, [handle], {
+      kind: "connectHandle",
+      handleId: handle.id,
+      nodeName: "",
+      nodeSourceId: "path:0",
+      anchor: "east"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toBe("\\begin{tikzpicture}\n\\node (node1) at (0,0) {node};\n\\draw (1,0) -- (node1.east);\n\\end{tikzpicture}");
+    expect(result.changedSourceIds).toEqual([]);
+  });
+
   it("rejects handles whose source span is shared by expansion", () => {
     const source = "\\draw (0,0) -- (1,1);";
     const raw = "(1,1)";
