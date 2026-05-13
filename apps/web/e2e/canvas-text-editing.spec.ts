@@ -887,6 +887,54 @@ test("explicit multiline aligned text keeps authored line breaks and canvas sele
   }
 });
 
+test("plain fallback multiline caret uses literal backslash text positions", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \node at (0.2,3.2) [align=left]{I'm testing the Mathjax \\ rendering \te};
+\end{tikzpicture}`);
+
+  await waitForHitRegions(page, 1);
+  await clickTextHitRegionByTargetId(page, "path:0");
+
+  const text = String.raw`I'm testing the Mathjax \\ rendering \te`;
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  await expect(textarea).toHaveValue(text);
+  await expect(page.locator("svg[data-text-renderer='mathjax'][data-source-id='path:0']")).toHaveCount(0);
+
+  const firstLineOffset = text.indexOf("the") + 2;
+  await setTextareaSelection(page, firstLineOffset, firstLineOffset);
+  const firstLineCaret = await page.getByTestId("canvas-text-selection-caret").boundingBox();
+  const textRegion = page.locator("[data-hit-region-target-id='path:0'][data-hit-region-interaction-mode='text']").first();
+  const textRegionBox = await textRegion.boundingBox();
+  if (!firstLineCaret || !textRegionBox) {
+    throw new Error("Expected fallback text caret and region bounds.");
+  }
+  expect(firstLineCaret.y + firstLineCaret.height / 2).toBeLessThan(textRegionBox.y + textRegionBox.height / 2);
+
+  const firstLineSelectionStart = text.indexOf("testing");
+  const firstLineSelectionEnd = text.indexOf("Mathjax") + "Mathjax".length;
+  await setTextareaSelection(page, firstLineSelectionStart, firstLineSelectionEnd);
+  const firstLineSelectionRect = await page.getByTestId("canvas-text-selection-rect").first().boundingBox();
+  if (!firstLineSelectionRect) {
+    throw new Error("Expected fallback first-line selection rect bounds.");
+  }
+  expect(firstLineSelectionRect.y + firstLineSelectionRect.height / 2).toBeLessThan(
+    textRegionBox.y + textRegionBox.height / 2
+  );
+
+  const slashOffset = text.indexOf(String.raw`\te`);
+  await setTextareaSelection(page, slashOffset, slashOffset);
+  const beforeSlash = await readCanvasCaretCenter(page);
+  await setTextareaSelection(page, slashOffset + 1, slashOffset + 1);
+  const afterSlash = await readCanvasCaretCenter(page);
+  await setTextareaSelection(page, slashOffset + 2, slashOffset + 2);
+  const afterT = await readCanvasCaretCenter(page);
+
+  expect(afterSlash.x).toBeGreaterThan(beforeSlash.x + 1);
+  expect(afterT.x).toBeGreaterThan(afterSlash.x + 1);
+  expect(Math.abs(afterT.y - beforeSlash.y)).toBeLessThan(3);
+});
+
 test("wrapped multiline MathJax nodes edit without paragraph-geometry fallback errors", async ({ page }) => {
   const geometryErrors: string[] = [];
   page.on("console", (message) => {

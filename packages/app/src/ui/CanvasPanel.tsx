@@ -545,7 +545,8 @@ function estimateTextOffsetFromClient(
         return Number.NaN;
       }
       return ctx.measureText(text).width;
-    }
+    },
+    { syntax: target.usesMathJax ? "mathjax" : "plain" }
   );
   const ranges = layout.sourceLineRanges;
 

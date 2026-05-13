@@ -6,6 +6,7 @@ import type { SvgBounds, SvgPoint, ViewportPoint } from "../coords/types";
 import type { CanvasTransform, ToolMode } from "../../store/types";
 import { clientToViewport, svgToViewport } from "../coords/convert";
 import { clientBoundsToViewport, svgBoundsToViewportBounds } from "../coords/text";
+import { resolveRectHitRegionContentBox } from "../coords/regions";
 import { clamp } from "./geometry";
 import { createSourceRenderOffsetMap } from "./text-offset-map";
 import { applyTextMeasureFont, createVisualTextLayout, resolveVisualLineLeft } from "./text-visual-layout";
@@ -47,6 +48,11 @@ type RegionSelectionOverlay = {
   rects: RegionSelectionOverlayBox[];
 };
 
+type PlainFallbackLineBox = {
+  top: number;
+  height: number;
+};
+
 let fallbackOverlayMeasureContext: CanvasRenderingContext2D | null | undefined;
 
 function getFallbackOverlayMeasureContext(): CanvasRenderingContext2D | null {
@@ -64,6 +70,50 @@ function getFallbackOverlayMeasureContext(): CanvasRenderingContext2D | null {
 
 function applyFallbackOverlayFont(ctx: CanvasRenderingContext2D | null, target: EditableTextTarget): void {
   applyTextMeasureFont(ctx, target?.style);
+}
+
+function resolvePlainFallbackLineBoxes(
+  target: EditableTextTarget,
+  lineCount: number,
+  ctx: CanvasRenderingContext2D | null
+): PlainFallbackLineBox[] {
+  const fontSize = Math.max(1, Number(target.style.fontSize) || 12);
+  let ascent = fontSize * 0.8;
+  let descent = fontSize * 0.2;
+  if (ctx) {
+    const metrics = ctx.measureText("Mg");
+    const measuredAscent = resolveTextMetric(metrics, "fontBoundingBoxAscent", "actualBoundingBoxAscent");
+    const measuredDescent = resolveTextMetric(metrics, "fontBoundingBoxDescent", "actualBoundingBoxDescent");
+    if (measuredAscent != null) {
+      ascent = measuredAscent;
+    }
+    if (measuredDescent != null) {
+      descent = measuredDescent;
+    }
+  }
+  const lineGap = fontSize * 1.15;
+  const firstBaselineOffset = lineCount <= 1 ? 0 : -((lineCount - 1) * lineGap) / 2;
+  const height = Math.max(1, ascent + descent);
+  return Array.from({ length: Math.max(1, lineCount) }, (_, index) => {
+    const baseline = target.region.cy + firstBaselineOffset + index * lineGap;
+    return {
+      top: baseline - ascent,
+      height
+    };
+  });
+}
+
+function resolveTextMetric(
+  metrics: TextMetrics,
+  preferredKey: "fontBoundingBoxAscent" | "fontBoundingBoxDescent",
+  fallbackKey: "actualBoundingBoxAscent" | "actualBoundingBoxDescent"
+): number | null {
+  const preferred = metrics[preferredKey];
+  if (Number.isFinite(preferred) && preferred > 0) {
+    return preferred;
+  }
+  const fallback = metrics[fallbackKey];
+  return Number.isFinite(fallback) && fallback > 0 ? fallback : null;
 }
 
 function resolveRegionSelectionOverlay(
@@ -84,19 +134,20 @@ function resolveRegionSelectionOverlay(
         return Number.NaN;
       }
       return ctx.measureText(text).width;
-    }
+    },
+    { syntax: target.usesMathJax ? "mathjax" : "plain" }
   );
   const ranges = layout.sourceLineRanges;
-  const lineHeight = target.region.height / Math.max(1, ranges.length);
+  const contentBox = resolveRectHitRegionContentBox(target.region);
+  const fallbackLineBoxes = resolvePlainFallbackLineBoxes(target, ranges.length, ctx);
   if (selectionStart === selectionEnd) {
     const { lineIndex, x, lineWidth } = layout.getCaretPosition(selectionStart);
-    const lineLeft = resolveVisualLineLeft(target.region.width, lineWidth, target.style.textAlign);
-    const left = target.region.x + lineLeft + clamp(x, 0, Math.max(lineWidth, target.region.width));
-    const top = target.region.y + lineIndex * lineHeight;
-    const height = Math.max(1, lineHeight);
+    const lineLeft = resolveVisualLineLeft(contentBox.width, lineWidth, target.style.textAlign);
+    const left = contentBox.x + lineLeft + clamp(x, 0, Math.max(lineWidth, contentBox.width));
+    const lineBox = fallbackLineBoxes[lineIndex] ?? fallbackLineBoxes[0] ?? { top: contentBox.y, height: contentBox.height };
     return {
       caret: {
-        bounds: svgBounds(pt(left), pt(top), pt(left), pt(top + height))
+        bounds: svgBounds(pt(left), pt(lineBox.top), pt(left), pt(lineBox.top + lineBox.height))
       },
       rects: []
     };
@@ -113,15 +164,14 @@ function resolveRegionSelectionOverlay(
       continue;
     }
     const { leftX, rightX, lineWidth } = layout.getLineSelectionRatios(localStart, localEnd, index);
-    const lineLeft = resolveVisualLineLeft(target.region.width, lineWidth, target.style.textAlign);
-    const left = target.region.x + lineLeft + clamp(leftX, 0, Math.max(lineWidth, target.region.width));
-    const right = target.region.x + lineLeft + clamp(rightX, 0, Math.max(lineWidth, target.region.width));
-    const top = target.region.y + index * lineHeight;
-    const height = Math.max(1, lineHeight);
+    const lineLeft = resolveVisualLineLeft(contentBox.width, lineWidth, target.style.textAlign);
+    const left = contentBox.x + lineLeft + clamp(leftX, 0, Math.max(lineWidth, contentBox.width));
+    const right = contentBox.x + lineLeft + clamp(rightX, 0, Math.max(lineWidth, contentBox.width));
+    const lineBox = fallbackLineBoxes[index] ?? fallbackLineBoxes[0] ?? { top: contentBox.y, height: contentBox.height };
     const width = Math.max(1, right - left);
     rects.push({
-      bounds: svgBounds(pt(left), pt(top), pt(left + width), pt(top + height)),
-      center: svgPoint(pt(left + width / 2), pt(top + height / 2)),
+      bounds: svgBounds(pt(left), pt(lineBox.top), pt(left + width), pt(lineBox.top + lineBox.height)),
+      center: svgPoint(pt(left + width / 2), pt(lineBox.top + lineBox.height / 2)),
       rotationDeg: Number.isFinite(target.region.rotation) ? Number(target.region.rotation) : undefined
     });
   }

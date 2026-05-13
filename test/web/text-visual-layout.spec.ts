@@ -76,6 +76,20 @@ describe("text visual layout", () => {
     expect(positions[text.length]).toBeGreaterThan(positions[0] ?? 0);
   });
 
+  it("keeps backslash-letter text literal in plain fallback mode", () => {
+    const text = String.raw`rendering \te`;
+    const layout = createVisualTextLayout(text, text, measureTextWidth, { syntax: "plain" });
+
+    const beforeSlash = layout.getCaretPosition(text.indexOf("\\"));
+    const afterSlash = layout.getCaretPosition(text.indexOf("\\") + 1);
+    const afterT = layout.getCaretPosition(text.indexOf("\\") + 2);
+    const afterE = layout.getCaretPosition(text.indexOf("\\") + 3);
+
+    expect(afterSlash.x).toBeGreaterThan(beforeSlash.x);
+    expect(afterT.x).toBeGreaterThan(afterSlash.x);
+    expect(afterE.x).toBeGreaterThan(afterT.x);
+  });
+
   it("reports measured caret distances instead of only proportional ratios", () => {
     const layout = createVisualTextLayout("iw", "iw", (text) => {
       if (text === "i") return 1;

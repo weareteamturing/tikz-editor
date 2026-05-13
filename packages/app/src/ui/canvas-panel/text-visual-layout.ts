@@ -23,6 +23,7 @@ export type VisualTextAlign =
   | "none"
   | undefined;
 
+type VisualTextSyntax = "mathjax" | "plain";
 type MathMode = "none" | "dollar" | "paren";
 
 const STRUCTURAL_MATH_COMMANDS = new Set([
@@ -160,7 +161,8 @@ export function applyTextMeasureFont(ctx: CanvasRenderingContext2D | null, style
 
 export function buildRenderLinePrefixWidths(
   lineText: string,
-  measureTextWidth: (text: string) => number
+  measureTextWidth: (text: string) => number,
+  syntax: VisualTextSyntax = "mathjax"
 ): number[] {
   const prefix = Array.from({ length: lineText.length + 1 }, () => 0);
   prefix[0] = 0;
@@ -172,7 +174,7 @@ export function buildRenderLinePrefixWidths(
   while (cursor < lineText.length) {
     const char = lineText[cursor] ?? "";
 
-    if (char === "$" && !isEscapedCharacter(lineText, cursor)) {
+    if (syntax === "mathjax" && char === "$" && !isEscapedCharacter(lineText, cursor)) {
       if (mathMode === "dollar") {
         mathMode = "none";
         prefix[cursor + 1] = width;
@@ -189,14 +191,14 @@ export function buildRenderLinePrefixWidths(
 
     if (char === "\\" && !isEscapedCharacter(lineText, cursor)) {
       const nextChar = lineText[cursor + 1] ?? "";
-      if (nextChar === "(") {
+      if (syntax === "mathjax" && nextChar === "(") {
         mathMode = "paren";
         prefix[cursor + 1] = width;
         prefix[cursor + 2] = width;
         cursor += 2;
         continue;
       }
-      if (nextChar === ")") {
+      if (syntax === "mathjax" && nextChar === ")") {
         mathMode = "none";
         prefix[cursor + 1] = width;
         prefix[cursor + 2] = width;
@@ -213,7 +215,14 @@ export function buildRenderLinePrefixWidths(
         continue;
       }
 
-      if (/[A-Za-z]/.test(nextChar)) {
+      if (syntax === "plain") {
+        width += measureVisibleText(measureTextWidth, char, 1);
+        prefix[cursor + 1] = width;
+        cursor += 1;
+        continue;
+      }
+
+      if (syntax === "mathjax" && /[A-Za-z]/.test(nextChar)) {
         const commandEnd = findControlWordEnd(lineText, cursor);
         const command = lineText.slice(cursor + 1, commandEnd);
         const commandWidth =
@@ -236,7 +245,7 @@ export function buildRenderLinePrefixWidths(
       continue;
     }
 
-    if (mathMode !== "none" && (char === "{" || char === "}" || char === "^" || char === "_" || char === "&")) {
+    if (syntax === "mathjax" && mathMode !== "none" && (char === "{" || char === "}" || char === "^" || char === "_" || char === "&")) {
       prefix[cursor + 1] = width;
       cursor += 1;
       continue;
@@ -348,13 +357,15 @@ function clampRenderOffsetToLineRange(renderOffset: number, range: LogicalLineRa
 export function createVisualTextLayout(
   sourceText: string,
   renderText: string,
-  measureTextWidth: (text: string) => number
+  measureTextWidth: (text: string) => number,
+  options: { syntax?: VisualTextSyntax } = {}
 ) {
+  const syntax = options.syntax ?? "mathjax";
   const offsetMap = createSourceRenderOffsetMap(sourceText, renderText);
   const sourceRanges = collectLogicalLineRanges(sourceText);
   const renderRanges = collectLogicalLineRanges(renderText);
   const renderPrefixes = renderRanges.map((range) =>
-    buildRenderLinePrefixWidths(renderText.slice(range.start, range.end), measureTextWidth)
+    buildRenderLinePrefixWidths(renderText.slice(range.start, range.end), measureTextWidth, syntax)
   );
 
   const resolveRenderLineRange = (lineIndex: number): LogicalLineRange =>
