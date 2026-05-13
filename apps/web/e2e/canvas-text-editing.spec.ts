@@ -1441,6 +1441,36 @@ test("typing trailing backslash in node text stays local until stabilized by nex
   await expect.poll(async () => await readStoreSource(page)).toContain("{C};");
 });
 
+test("incomplete text command group does not render the path semicolon as node text", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \node at (0.2,3.2) [align=left]{I'm testing the Mathjax \\ rendering };
+\end{tikzpicture}`);
+
+  await waitForHitRegions(page, 1);
+  await clickTextHitRegionByTargetId(page, "path:0");
+
+  const textarea = page.getByTestId("canvas-text-edit-textarea");
+  const nextText = String.raw`I'm testing the Mathjax \\ rendering \textit{d`;
+  await expect(textarea).toBeFocused();
+  await textarea.press("End");
+  await page.keyboard.type(String.raw`\textit{d`);
+  await expect(textarea).toHaveValue(nextText);
+  await expect.poll(async () => await readStoreSource(page)).toContain(String.raw`\textit{d};`);
+
+  const expectedSceneText = "I'm testing the Mathjax\nrendering \\textit{d";
+  await expect.poll(async () => {
+    return await page.evaluate(() => {
+      const api = (globalThis as {
+        __TIKZ_EDITOR_APP_TEST_API__?: {
+          getSceneTextDebug?: () => Array<{ sourceId: string; text: string }>;
+        };
+      }).__TIKZ_EDITOR_APP_TEST_API__;
+      return api?.getSceneTextDebug?.().find((entry) => entry.sourceId === "path:0")?.text ?? "";
+    });
+  }).toBe(expectedSceneText);
+});
+
 test("typing two backslashes then backspacing twice restores original node source text", async ({ page }) => {
   await gotoApp(page);
   const originalSource = String.raw`\begin{tikzpicture}

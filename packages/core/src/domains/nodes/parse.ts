@@ -94,7 +94,9 @@ export function mapGroupText(
   const hasCloseBrace = source[groupNode.to - 1] === "}";
 
   const innerFrom = hasOpenBrace ? groupNode.from + 1 : groupNode.from;
-  const innerTo = hasCloseBrace ? groupNode.to - 1 : groupNode.to;
+  const innerTo = hasCloseBrace
+    ? groupNode.to - 1
+    : trimRecoveredNodeTextGroupEnd(source, innerFrom, groupNode.to);
 
   const textSpan = {
     from: innerFrom,
@@ -105,6 +107,39 @@ export function mapGroupText(
     textSpan,
     text: source.slice(textSpan.from, textSpan.to)
   };
+}
+
+function trimRecoveredNodeTextGroupEnd(source: string, innerFrom: number, innerTo: number): number {
+  const raw = source.slice(innerFrom, innerTo);
+  const semicolonIndex = raw.lastIndexOf(";");
+  if (semicolonIndex >= 0) {
+    const structuralCloseBraceIndex = semicolonIndex - 1;
+    if (
+      raw[structuralCloseBraceIndex] === "}" &&
+      hasOpenTextGroupBeforeFinalClose(raw.slice(0, structuralCloseBraceIndex))
+    ) {
+      return innerFrom + structuralCloseBraceIndex;
+    }
+    return innerFrom + semicolonIndex;
+  }
+  return innerTo;
+}
+
+function hasOpenTextGroupBeforeFinalClose(text: string): boolean {
+  let depth = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === "\\" && index + 1 < text.length) {
+      index += 1;
+      continue;
+    }
+    if (character === "{") {
+      depth += 1;
+    } else if (character === "}") {
+      depth = Math.max(0, depth - 1);
+    }
+  }
+  return depth > 0;
 }
 
 function mapNodeText(
