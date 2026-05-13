@@ -13,6 +13,9 @@ import { normalizeOptionValue } from "./utils.js";
 const EXPLICIT_LINE_BREAK_PATTERN = /[ \t\r\n]*\\\\(?:\[[^\]]*\])?[ \t\r\n]*/g;
 const EXPLICIT_LINE_BREAK_CANONICAL_PATTERN = /[ \t\r\n]*(\\\\(?:\[[^\]]*\])?)[ \t\r\n]*/g;
 const EXPLICIT_LINE_BREAK_TOKEN_PATTERN = /\\\\(?:\[[^\]]*\])?/;
+const PLAIN_TEXT_SERIF_FONT_STACK = "MJX-NCM, CMU Serif, Latin Modern Roman, Times New Roman, serif";
+const PLAIN_TEXT_SANS_FONT_STACK = "MJX-NCM-Sans, CMU Sans Serif, Latin Modern Sans, Helvetica, Arial, sans-serif";
+const PLAIN_TEXT_MONO_FONT_STACK = "MJX-NCM-Monospace, Latin Modern Mono, CMU Typewriter Text, Courier New, monospace";
 
 let plainTextMeasureContext: CanvasRenderingContext2D | null | undefined;
 
@@ -409,10 +412,10 @@ function applyPlainTextMeasureFont(context: CanvasRenderingContext2D, style: Res
   const fontWeight = style.fontWeight === "bold" ? "bold " : "";
   const fontFamily =
     style.fontFamily === "sans"
-      ? "CMU Sans Serif, Latin Modern Sans, Helvetica, Arial, sans-serif"
+      ? PLAIN_TEXT_SANS_FONT_STACK
       : style.fontFamily === "monospace"
-        ? "Latin Modern Mono, CMU Typewriter Text, Courier New, monospace"
-        : "CMU Serif, Latin Modern Roman, Times New Roman, serif";
+        ? PLAIN_TEXT_MONO_FONT_STACK
+        : PLAIN_TEXT_SERIF_FONT_STACK;
   context.font = `${fontStyle}${fontWeight}${Math.max(1, style.fontSize)}px ${fontFamily}`;
 }
 

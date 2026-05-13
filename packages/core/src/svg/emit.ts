@@ -75,6 +75,9 @@ const PGF_SHADE_SCALE_FACTOR = 0.01992528;
 const PGF_SHADE_CANONICAL_SIZE = 100.375;
 const PGF_SHADE_CANONICAL_HALF = PGF_SHADE_CANONICAL_SIZE / 2;
 const PGF_BALL_FOCUS_OFFSET = PGF_SHADE_CANONICAL_HALF * 0.2;
+const PLAIN_TEXT_SERIF_FONT_STACK = "MJX-NCM, CMU Serif, Latin Modern Roman, Times New Roman, serif";
+const PLAIN_TEXT_SANS_FONT_STACK = "MJX-NCM-Sans, CMU Sans Serif, Latin Modern Sans, Helvetica, Arial, sans-serif";
+const PLAIN_TEXT_MONO_FONT_STACK = "MJX-NCM-Monospace, Latin Modern Mono, CMU Typewriter Text, Courier New, monospace";
 
 export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgResult {
   const model = emitSvgModel(scene, opts);
@@ -1450,11 +1453,11 @@ function styleAttributes(
     attrs.push(`fill="${escapeAttr(textColor)}"`);
     attrs.push(`fill-opacity="${fmt(textStyle.textOpacity ?? textStyle.strokeOpacity)}"`);
     if (textStyle.fontFamily === "sans") {
-      attrs.push(`font-family="CMU Sans Serif, Latin Modern Sans, Helvetica, Arial, sans-serif"`);
+      attrs.push(`font-family="${PLAIN_TEXT_SANS_FONT_STACK}"`);
     } else if (textStyle.fontFamily === "monospace") {
-      attrs.push(`font-family="Latin Modern Mono, CMU Typewriter Text, Courier New, monospace"`);
+      attrs.push(`font-family="${PLAIN_TEXT_MONO_FONT_STACK}"`);
     } else {
-      attrs.push(`font-family="CMU Serif, Latin Modern Roman, Times New Roman, serif"`);
+      attrs.push(`font-family="${PLAIN_TEXT_SERIF_FONT_STACK}"`);
     }
     attrs.push(`font-size="${fmt(textStyle.fontSize)}"`);
     if (textStyle.fontWeight === "bold") {

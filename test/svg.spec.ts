@@ -918,8 +918,8 @@ describe("svg emitter", () => {
     const semantic = evaluateTikzFigure(parsed.figure, source);
     const emitted = emitSvg(semantic.scene);
 
-    expect(emitted.svg).toContain('font-family="CMU Sans Serif, Latin Modern Sans, Helvetica, Arial, sans-serif"');
+    expect(emitted.svg).toContain('font-family="MJX-NCM-Sans, CMU Sans Serif, Latin Modern Sans, Helvetica, Arial, sans-serif"');
     expect(emitted.svg).toContain('font-weight="700"');
-    expect(emitted.svg).toContain('font-family="Latin Modern Mono, CMU Typewriter Text, Courier New, monospace"');
+    expect(emitted.svg).toContain('font-family="MJX-NCM-Monospace, Latin Modern Mono, CMU Typewriter Text, Courier New, monospace"');
   });
 });

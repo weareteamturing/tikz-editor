@@ -26,6 +26,10 @@ export type VisualTextAlign =
 type VisualTextSyntax = "mathjax" | "plain";
 type MathMode = "none" | "dollar" | "paren";
 
+const PLAIN_TEXT_SERIF_FONT_STACK = "MJX-NCM, CMU Serif, Latin Modern Roman, Times New Roman, serif";
+const PLAIN_TEXT_SANS_FONT_STACK = "MJX-NCM-Sans, CMU Sans Serif, Latin Modern Sans, Helvetica, Arial, sans-serif";
+const PLAIN_TEXT_MONO_FONT_STACK = "MJX-NCM-Monospace, Latin Modern Mono, CMU Typewriter Text, Courier New, monospace";
+
 const STRUCTURAL_MATH_COMMANDS = new Set([
   "left",
   "right",
@@ -152,10 +156,10 @@ export function applyTextMeasureFont(ctx: CanvasRenderingContext2D | null, style
   const fontWeight = style?.fontWeight === "bold" ? "bold " : "";
   const fontFamily =
     style?.fontFamily === "sans"
-      ? "sans-serif"
+      ? PLAIN_TEXT_SANS_FONT_STACK
       : style?.fontFamily === "monospace"
-        ? "monospace"
-        : "serif";
+        ? PLAIN_TEXT_MONO_FONT_STACK
+        : PLAIN_TEXT_SERIF_FONT_STACK;
   ctx.font = `${fontStyle}${fontWeight}${sizePx}px ${fontFamily}`;
 }
 
