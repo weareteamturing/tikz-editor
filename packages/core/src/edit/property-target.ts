@@ -586,7 +586,10 @@ function findTargetInStatements(statements: Statement[], source: string, element
         return makePathStatementTarget(statement, source);
       }
 
-      const fromItems = findTargetInPathItems(statement.items, source, elementId, statement.id);
+      const fromItems = findTargetInPathItems(statement.items, source, elementId, statement.id, {
+        statementCommand: statement.command,
+        statementSpan: statement.span
+      });
       if (fromItems) {
         return fromItems;
       }
@@ -611,7 +614,8 @@ function findTargetInPathItems(
   items: PathItem[],
   source: string,
   elementId: string,
-  ownerSourceId: string
+  ownerSourceId: string,
+  context: { statementCommand?: string; statementSpan?: Span } = {}
 ): PropertyTarget | null {
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index];
@@ -624,7 +628,7 @@ function findTargetInPathItems(
     }
 
     if (item.kind === "Node" && item.id === elementId) {
-      return makeNodeTarget(item, source);
+      return makeNodeTarget(item, source, ownerSourceId, context);
     }
     const nodeAdornment =
       item.kind === "Node"
@@ -638,7 +642,7 @@ function findTargetInPathItems(
       if (item.id === elementId) {
         return makeToLikeOperationTarget("to-operation", item.id, item.span, item.options, item.optionsSpan, /\bto\b/, source);
       }
-      const nestedNode = findTargetInNodeList(item.nodes, source, elementId, item.id);
+      const nestedNode = findTargetInNodeList(item.nodes, source, elementId, ownerSourceId);
       if (nestedNode) {
         return nestedNode;
       }
@@ -649,7 +653,7 @@ function findTargetInPathItems(
       if (item.id === elementId) {
         return makeToLikeOperationTarget("edge-operation", item.id, item.span, item.options, item.optionsSpan, /\bedge\b/, source);
       }
-      const nestedNode = findTargetInNodeList(item.nodes, source, elementId, item.id);
+      const nestedNode = findTargetInNodeList(item.nodes, source, elementId, ownerSourceId);
       if (nestedNode) {
         return nestedNode;
       }
@@ -673,7 +677,7 @@ function findTargetInPathItems(
     }
 
     if (item.kind === "ChildOperation") {
-      const nested = findTargetInPathItems(item.body, source, elementId, ownerSourceId);
+      const nested = findTargetInPathItems(item.body, source, elementId, ownerSourceId, context);
       if (nested) {
         return nested;
       }
@@ -695,7 +699,7 @@ function findTargetInNodeList(
 
   for (const node of nodes) {
     if (node.id === elementId) {
-      return makeNodeTarget(node, source);
+      return makeNodeTarget(node, source, ownerSourceId);
     }
     const adornment = makeNodeAdornmentTarget(node, elementId, source, ownerSourceId);
     if (adornment) {
@@ -1272,15 +1276,41 @@ function makeScopeTarget(statement: Extract<Statement, { kind: "Scope" }>, sourc
   };
 }
 
-function makeNodeTarget(node: NodeItem, source: string): PropertyTarget {
+function makeNodeTarget(
+  node: NodeItem,
+  source: string,
+  ownerSourceId: string,
+  context: { statementCommand?: string; statementSpan?: Span } = {}
+): PropertyTarget {
   return {
     id: node.id,
     kind: "node-item",
     span: node.span,
     options: node.options,
     optionsSpan: node.optionsSpan ?? node.options?.span,
-    insertOffset: resolveInsertOffset(source, node.span, /\bnode\b/)
+    insertOffset: resolveNodeInsertOffset(source, node, context),
+    ownerSourceId
   };
+}
+
+function resolveNodeInsertOffset(
+  source: string,
+  node: NodeItem,
+  context: { statementCommand?: string; statementSpan?: Span }
+): number {
+  if (
+    (context.statementCommand === "node" || context.statementCommand === "matrix")
+    && context.statementSpan
+    && context.statementSpan.from <= node.span.from
+    && node.span.to <= context.statementSpan.to
+  ) {
+    const statementInsertOffset = resolveInsertOffset(source, context.statementSpan, /\\?(?:node|matrix)\b/);
+    if (statementInsertOffset !== context.statementSpan.from) {
+      return statementInsertOffset;
+    }
+  }
+
+  return resolveInsertOffset(source, node.span, /\bnode\b/);
 }
 
 function makeNodeAdornmentTarget(

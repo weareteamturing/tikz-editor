@@ -3040,6 +3040,133 @@ describe("getInspectorDescriptor", () => {
     expect(result.newSource).not.toContain("text color=");
   });
 
+  it("writes standalone node stroke options outside literal node text", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node at (0,3) {node};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected text element");
+    }
+
+    const descriptor = getInspectorDescriptor(text, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const strokeSection = descriptor.sections.find((section) => section.id === "stroke");
+    expect(strokeSection).toBeDefined();
+    if (!strokeSection) {
+      throw new Error("Expected stroke section");
+    }
+    const strokeColor = strokeSection.properties.find((property) => property.id === "stroke-color");
+    if (!strokeColor || strokeColor.kind !== "color") {
+      throw new Error("Expected stroke color property");
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: strokeColor.write.elementId,
+      level: strokeColor.write.level,
+      key: strokeColor.write.key,
+      value: "red"
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected successful stroke color mutation");
+    }
+
+    expect(result.newSource).toBe(String.raw`\begin{tikzpicture}
+  \node[draw=red] at (0,3) {node};
+\end{tikzpicture}`);
+    expect(result.changedSourceIds).toEqual(["path:0"]);
+  });
+
+  it.each([
+    {
+      name: "path-attached node",
+      source: String.raw`\begin{tikzpicture}
+  \draw (0,0) -- node {node} (1,0);
+\end{tikzpicture}`,
+      expected: String.raw`\begin{tikzpicture}
+  \draw (0,0) -- node[draw=red] {node} (1,0);
+\end{tikzpicture}`
+    },
+    {
+      name: "path node operation",
+      source: String.raw`\begin{tikzpicture}
+  \path (0,0) node {node};
+\end{tikzpicture}`,
+      expected: String.raw`\begin{tikzpicture}
+  \path (0,0) node[draw=red] {node};
+\end{tikzpicture}`
+    },
+    {
+      name: "to node operation",
+      source: String.raw`\begin{tikzpicture}
+  \draw (0,0) to node {node} (1,0);
+\end{tikzpicture}`,
+      expected: String.raw`\begin{tikzpicture}
+  \draw (0,0) to node[draw=red] {node} (1,0);
+\end{tikzpicture}`
+    },
+    {
+      name: "tree child node",
+      source: String.raw`\begin{tikzpicture}
+  \node {root} child { node {node} };
+\end{tikzpicture}`,
+      expected: String.raw`\begin{tikzpicture}
+  \node {root} child { node[draw=red] {node} };
+\end{tikzpicture}`
+    },
+    {
+      name: "matrix-of-nodes cell",
+      source: String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] at (0,0) {node};
+\end{tikzpicture}`,
+      expected: String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] at (0,0) {|[draw=red]| node};
+\end{tikzpicture}`
+    }
+  ])("writes $name stroke options around literal node text", ({ source, expected }) => {
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text" && entry.text === "node");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected text element");
+    }
+
+    const descriptor = getInspectorDescriptor(text, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const strokeSection = descriptor.sections.find((section) => section.id === "stroke");
+    expect(strokeSection).toBeDefined();
+    if (!strokeSection) {
+      throw new Error("Expected stroke section");
+    }
+    const strokeColor = strokeSection.properties.find((property) => property.id === "stroke-color");
+    if (!strokeColor || strokeColor.kind !== "color") {
+      throw new Error("Expected stroke color property");
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: strokeColor.write.elementId,
+      level: strokeColor.write.level,
+      key: strokeColor.write.key,
+      value: "red"
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected successful stroke color mutation");
+    }
+
+    expect(result.newSource).toBe(expected);
+    expect(result.changedSourceIds).toEqual(["path:0"]);
+  });
+
   it("detects node shape from flags and shape= values, including custom fallback note", () => {
     const circleSource = String.raw`\begin{tikzpicture}
   \node[circle] at (0,0) {A};

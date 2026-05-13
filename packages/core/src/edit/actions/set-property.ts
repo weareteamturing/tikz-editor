@@ -105,7 +105,8 @@ export function applySetPropertyActionRaw(
   return {
     kind: "success",
     newSource: rewritten.source,
-    patches: [rewritten.patch]
+    patches: [rewritten.patch],
+    changedSourceIds: changedSourceIdsForPropertyTarget(resolved.target)
   };
 }
 
@@ -503,7 +504,7 @@ function applyTreeChildSetProperty(
       optionsSpan: target.treeChildOptionsSpan,
       insertOffset: target.treeChildInsertOffset
     });
-    return addTreeChildFallbackWarningIfNeeded(result, target);
+    return addTreeChildFallbackWarningIfNeeded(withChangedSourceIdsForTarget(result, target), target);
   }
 
   const result = applyOptionMutationsAtSite(source, mutations, removePrimaryKey, {
@@ -511,7 +512,7 @@ function applyTreeChildSetProperty(
     optionsSpan: target.treeNodeOptionsSpan,
     insertOffset: target.treeNodeInsertOffset
   });
-  return addTreeChildFallbackWarningIfNeeded(result, target);
+  return addTreeChildFallbackWarningIfNeeded(withChangedSourceIdsForTarget(result, target), target);
 }
 
 function addTreeChildFallbackWarningIfNeeded(
@@ -526,7 +527,8 @@ function addTreeChildFallbackWarningIfNeeded(
     newSource: result.newSource,
     patches: result.patches,
     skippedHandles: [],
-    reason: "Tree child edit applied using a source-span fallback. Verify the updated source."
+    reason: "Tree child edit applied using a source-span fallback. Verify the updated source.",
+    changedSourceIds: result.changedSourceIds
   };
 }
 
@@ -561,7 +563,8 @@ function applyMatrixCellSetProperty(
       return {
         kind: "success",
         newSource: updated.source,
-        patches: [{ oldSpan: optionSpan, newSpan: updated.changedSpan, replacement }]
+        patches: [{ oldSpan: optionSpan, newSpan: updated.changedSpan, replacement }],
+        changedSourceIds: changedSourceIdsForPropertyTarget(target)
       };
     }
 
@@ -570,7 +573,8 @@ function applyMatrixCellSetProperty(
     return {
       kind: "success",
       newSource: updated.source,
-      patches: [{ oldSpan: prefixSpan, newSpan: updated.changedSpan, replacement: "" }]
+      patches: [{ oldSpan: prefixSpan, newSpan: updated.changedSpan, replacement: "" }],
+      changedSourceIds: changedSourceIdsForPropertyTarget(target)
     };
   }
 
@@ -592,8 +596,35 @@ function applyMatrixCellSetProperty(
   return {
     kind: "success",
     newSource: updated.source,
-    patches: [{ oldSpan: insertionSpan, newSpan: updated.changedSpan, replacement: insertion }]
+    patches: [{ oldSpan: insertionSpan, newSpan: updated.changedSpan, replacement: insertion }],
+    changedSourceIds: changedSourceIdsForPropertyTarget(target)
   };
+}
+
+function withChangedSourceIdsForTarget(
+  result: EditActionResultLike,
+  target: PropertyTarget
+): EditActionResultLike {
+  if (result.kind !== "success" && result.kind !== "partial") {
+    return result;
+  }
+  if (result.changedSourceIds !== undefined) {
+    return result;
+  }
+  return {
+    ...result,
+    changedSourceIds: changedSourceIdsForPropertyTarget(target)
+  };
+}
+
+function changedSourceIdsForPropertyTarget(target: PropertyTarget): string[] {
+  const sourceId =
+    target.ownerSourceId ??
+    target.matrixSourceId ??
+    target.treeRootSourceId ??
+    target.id;
+  const normalized = sourceId.trim();
+  return normalized.length > 0 ? [normalized] : [];
 }
 
 function createOptionMutationsFromSetProperty(
