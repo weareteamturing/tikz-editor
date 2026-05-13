@@ -148,16 +148,22 @@ export function resolveNodeLayout(
   const paragraphAlignment = resolveParagraphAlignment(textWidth, explicitAlign);
   const layoutKind = resolveTextLayoutKind(text, textWidth, explicitLineBreaksActive);
 
-  const measuredText = textEngine?.measure({
-    text: normalizedText,
-    mode: textMode,
-    textWidthPt: textWidth,
-    alignment: paragraphAlignment,
-    fontStyle: style.fontStyle,
-    fontWeight: style.fontWeight,
-    fontFamily: style.fontFamily,
-    fontSizePt: style.fontSize
-  });
+  const measuredText = (() => {
+    try {
+      return textEngine?.measure({
+        text: normalizedText,
+        mode: textMode,
+        textWidthPt: textWidth,
+        alignment: paragraphAlignment,
+        fontStyle: style.fontStyle,
+        fontWeight: style.fontWeight,
+        fontFamily: style.fontFamily,
+        fontSizePt: style.fontSize
+      }) ?? null;
+    } catch {
+      return null;
+    }
+  })();
 
   if (measuredText) {
     // We trust MathJax for block metrics/wrapping; line-level alignment inside the block is best-effort for now.
@@ -175,11 +181,6 @@ export function resolveNodeLayout(
       paragraphAlignment
     };
   } else {
-    if (textEngine && layoutKind !== "single-line") {
-      throw new Error(
-        `Multiline MathJax measurement failed for node text layout (${layoutKind}).`
-      );
-    }
     const plainMetrics = measurePlainTextBlock(textLines, style, charWidth, lineHeight, baseLineY, midLineY);
     textNaturalWidth = plainMetrics.width;
     textNaturalHeight = plainMetrics.height;

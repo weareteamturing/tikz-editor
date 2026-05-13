@@ -434,6 +434,19 @@ describe("render pipeline", () => {
     expect(result.semantic.scene.elements.length).toBeGreaterThan(0);
   });
 
+  it("keeps rendering recoverable for partial text commands in explicit multiline node text", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node at (0.2,3.2) [align=left]{I'm testing the Mathjax \\ rendering \te};
+\end{tikzpicture}`;
+
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(true);
+    expect(result.svg.svg).toContain("<svg");
+    expect(result.semantic.scene.elements.length).toBeGreaterThan(0);
+    expect(result.svg.svg).toContain("<text");
+  });
+
   it("uses browser text measurement for plain node text fallback width", () => {
     const target = globalThis as unknown as {
       document?: unknown;
