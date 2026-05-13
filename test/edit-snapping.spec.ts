@@ -7,6 +7,7 @@ import type {
   ScenePathCommand,
   SceneText
 } from "../packages/core/src/semantic/types.js";
+import { worldTransform } from "../packages/core/src/coords/transforms.js";
 import {
   buildSnapContext,
   collectSelectionGeometry,
@@ -92,7 +93,7 @@ function makeEllipse(sourceId: string, centerX: number, centerY: number, rx: num
   return ellipse;
 }
 
-function makeText(sourceId: string, text: string, x: number, y: number): SceneElement {
+function makeText(sourceId: string, text: string, x: number, y: number): SceneText {
   const textElement: SceneText = {
     kind: "Text",
     id: `text:${sourceId}`,
@@ -711,12 +712,20 @@ describe("edit snapping core", () => {
 
   it("collects transformed bounds across paths, ellipses, text, and matrix cells", () => {
     const transformedCircle = makeCircle("circle", 5, 5, 5);
-    transformedCircle.transform = { a: 1, b: 0, c: 0, d: 1, e: 10, f: -2 };
+    transformedCircle.transform = worldTransform(1, 0, 0, 1, 10, -2);
 
     const matrixText = makeText("cell", "ab\nc", 30, 10);
-    matrixText.matrixCell = { matrixSourceId: "matrix", row: 0, column: 0 };
+    matrixText.matrixCell = {
+      matrixSourceId: "matrix",
+      cellSourceId: "cell",
+      row: 0,
+      column: 0,
+      textMode: "text",
+      textSpan: { from: 0, to: 0 },
+      cellSpan: { from: 0, to: 0 }
+    };
 
-    const scene = [
+    const scene: SceneElement[] = [
       transformedCircle,
       makeEllipse("ellipse", 20, 20, 6, 2),
       makePath("curve", [
@@ -730,7 +739,7 @@ describe("edit snapping core", () => {
         ...makeCircle("ignored", 0, 0, 100),
         adornment: {
           targetId: "target",
-          kind: "label",
+          kind: "label" as const,
           ownerSourceId: "owner",
           ownerNodeId: "node",
           adornmentIndex: 0,

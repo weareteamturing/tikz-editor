@@ -25,6 +25,7 @@ import {
 } from "../packages/core/src/edit/inspector/rounded-corners.js";
 import { parseOptionListRaw } from "../packages/core/src/options/parse.js";
 import { defaultStyle } from "../packages/core/src/semantic/style/defaults.js";
+import { wp } from "./coords-helpers.js";
 import type { StyleChainEntry } from "../packages/core/src/semantic/style-chain.js";
 import type { ScenePathCommand } from "../packages/core/src/semantic/types.js";
 
@@ -77,34 +78,34 @@ describe("inspector color syntax helpers", () => {
 describe("inspector rounded-corner geometry helpers", () => {
   it("detects roundable joins across line, cubic, and arc commands", () => {
     const commands: ScenePathCommand[] = [
-      { kind: "M", to: { x: 0, y: 0 } },
-      { kind: "L", to: { x: 10, y: 0 } },
-      { kind: "C", c1: { x: 12, y: 0 }, c2: { x: 12, y: 5 }, to: { x: 10, y: 5 } },
-      { kind: "A", rx: 4, ry: 2, xAxisRotation: 30, largeArc: false, sweep: true, to: { x: 4, y: 8 } },
+      { kind: "M", to: wp(0, 0) },
+      { kind: "L", to: wp(10, 0) },
+      { kind: "C", c1: wp(12, 0), c2: wp(12, 5), to: wp(10, 5) },
+      { kind: "A", rx: 4, ry: 2, xAxisRotation: 30, largeArc: false, sweep: true, to: wp(4, 8) },
       { kind: "Z" }
     ];
 
     expect(pathHasRoundableCorner(commands)).toBe(true);
     expect(computePathRoundedCornersMax(commands)).toBeGreaterThan(0);
     expect(computeGenericPathRoundedCornersMax(commands)).toBeGreaterThan(0);
-    expect(computeLineBasedPathRoundedCornersMax([{ kind: "L", to: { x: 1, y: 1 } }])).toBeNull();
+    expect(computeLineBasedPathRoundedCornersMax([{ kind: "L", to: wp(1, 1) }])).toBeNull();
     expect(maxRoundedCornersForSubpath([10], false)).toBeNull();
   });
 
   it("handles closure-only corners and multi-subpath rounded-corner limits", () => {
     const closureOnlyCorner: ScenePathCommand[] = [
-      { kind: "M", to: { x: 0, y: 0 } },
-      { kind: "L", to: { x: 1, y: 0 } },
-      { kind: "L", to: { x: 2, y: 0 } },
+      { kind: "M", to: wp(0, 0) },
+      { kind: "L", to: wp(1, 0) },
+      { kind: "L", to: wp(2, 0) },
       { kind: "Z" }
     ];
     const multiSubpath: ScenePathCommand[] = [
-      { kind: "M", to: { x: 0, y: 0 } },
-      { kind: "L", to: { x: 10, y: 0 } },
-      { kind: "L", to: { x: 10, y: 10 } },
-      { kind: "M", to: { x: 0, y: 0 } },
-      { kind: "L", to: { x: 4, y: 0 } },
-      { kind: "L", to: { x: 4, y: 1 } }
+      { kind: "M", to: wp(0, 0) },
+      { kind: "L", to: wp(10, 0) },
+      { kind: "L", to: wp(10, 10) },
+      { kind: "M", to: wp(0, 0) },
+      { kind: "L", to: wp(4, 0) },
+      { kind: "L", to: wp(4, 1) }
     ];
 
     expect(pathHasRoundableCorner(closureOnlyCorner)).toBe(true);
@@ -114,33 +115,33 @@ describe("inspector rounded-corner geometry helpers", () => {
 
   it("filters degenerate rounded-corner geometry without inflating maxima", () => {
     const invalidArcFallback: ScenePathCommand[] = [
-      { kind: "M", to: { x: 0, y: 0 } },
-      { kind: "A", rx: 0, ry: Number.NaN, xAxisRotation: 0, largeArc: false, sweep: true, to: { x: 1, y: 0 } },
-      { kind: "L", to: { x: 1, y: 1 } }
+      { kind: "M", to: wp(0, 0) },
+      { kind: "A", rx: 0, ry: Number.NaN, xAxisRotation: 0, largeArc: false, sweep: true, to: wp(1, 0) },
+      { kind: "L", to: wp(1, 1) }
     ];
 
     expect(pathHasRoundableCorner(invalidArcFallback)).toBe(true);
-    expect(estimateSegmentStartRoundedOffset({ kind: "C", c1: { x: 0, y: 0 }, c2: { x: 0, y: 0 }, to: { x: 0, y: 0 } }, { x: 1, y: 1 }, { x: 1, y: 1 })).toBe(0);
-    expect(estimateSegmentEndRoundedOffset({ kind: "C", c1: { x: 1, y: 1 }, c2: { x: 1, y: 1 }, to: { x: 2, y: 2 } }, { x: 1, y: 1 }, { x: 1, y: 1 })).toBe(0);
-    expect(estimateClosingCornerStartOffset([], 0, { x: 0, y: 0 }, { x: 1, y: 0 })).toBe(0);
+    expect(estimateSegmentStartRoundedOffset({ kind: "C", c1: wp(0, 0), c2: wp(0, 0), to: wp(0, 0) }, wp(1, 1), wp(1, 1))).toBe(0);
+    expect(estimateSegmentEndRoundedOffset({ kind: "C", c1: wp(1, 1), c2: wp(1, 1), to: wp(2, 2) }, wp(1, 1), wp(1, 1))).toBe(0);
+    expect(estimateClosingCornerStartOffset([], 0, wp(0, 0), wp(1, 0))).toBe(0);
     expect(estimateRoundedOffsetAlongDirection({ x: 1, y: 1 }, { x: 1, y: 0 })).toBe(0);
     expect(maxRoundedCornersForSubpath([Number.NaN, Number.POSITIVE_INFINITY], true)).toBeNull();
   });
 
   it("estimates rounded offsets and clamps invalid numeric inputs", () => {
-    const lineStart = { x: 0, y: 0 };
-    const lineEnd = { x: 10, y: 0 };
+    const lineStart = wp(0, 0);
+    const lineEnd = wp(10, 0);
     const previousCurve: ScenePathCommand = {
       kind: "C",
-      c1: { x: -8, y: 0 },
-      c2: { x: -2, y: 0 },
+      c1: wp(-8, 0),
+      c2: wp(-2, 0),
       to: lineStart
     };
     const nextCurve: ScenePathCommand = {
       kind: "C",
-      c1: { x: 12, y: 0 },
-      c2: { x: 18, y: 0 },
-      to: { x: 20, y: 0 }
+      c1: wp(12, 0),
+      c2: wp(18, 0),
+      to: wp(20, 0)
     };
 
     expect(estimateSegmentStartRoundedOffset(previousCurve, lineStart, lineEnd)).toBeGreaterThan(3);

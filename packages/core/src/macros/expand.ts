@@ -204,7 +204,7 @@ function readBracedContent(input: string, startIndex: number): { value: string; 
   let depth = 0;
   let index = startIndex;
   while (index < input.length) {
-    const char = input[index] as string;
+    const char = input[index];
     if (char === "\\") {
       index += 2;
       continue;
@@ -234,7 +234,7 @@ function readBracketContent(input: string, startIndex: number): { value: string;
   let depth = 0;
   let index = startIndex;
   while (index < input.length) {
-    const char = input[index] as string;
+    const char = input[index];
     if (char === "\\") {
       index += 2;
       continue;

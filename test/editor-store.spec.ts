@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { wp } from "./coords-helpers.js";
 
 async function loadStoreWithMemoryPersistence(seed?: string): Promise<{
   map: Map<string, string>;
@@ -172,7 +173,7 @@ describe("editor store persistence decisions", () => {
 
     useEditorStore.getState().dispatch({
       type: "APPLY_EDIT_ACTION",
-      action: { kind: "moveElement", elementId: "path:0", delta: { x: 1, y: 1 } },
+      action: { kind: "moveElement", elementId: "path:0", delta: wp(1, 1) },
       precomputedSource: state.source,
       precomputedResult: {
         kind: "success",
@@ -198,15 +199,6 @@ describe("editor store persistence decisions", () => {
 
     useEditorStore.setState({
       ...state,
-      title: "stable.tex",
-      savedSource: source,
-      fileRef: {
-        kind: "file",
-        name: "stable.tex",
-        path: "/tmp/a.tex",
-        provider: "desktop-fs"
-      },
-      diskRevision: { hash: "a", mtimeMs: 1, size: 2 },
       documents: {
         ...state.documents,
         [documentId]: {
@@ -250,10 +242,6 @@ describe("editor store persistence decisions", () => {
     const reboundDoc = rebound.documents[documentId]!;
     useEditorStore.setState({
       ...rebound,
-      title: "stable.tex",
-      savedSource: source,
-      fileRef: null,
-      diskRevision: null,
       documents: {
         ...rebound.documents,
         [documentId]: {

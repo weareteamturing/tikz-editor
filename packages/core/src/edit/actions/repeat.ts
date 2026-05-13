@@ -136,7 +136,7 @@ export function applyRepeatElementsAction(
       text: replacementText
     }
   ]);
-  const inserted = applied.applied[0]!;
+  const inserted = applied.applied[0];
 
   const replacementSpan = inserted.newSpan;
   const nextSnapshot = parseStatementSnapshot(applied.source, parseOptions);

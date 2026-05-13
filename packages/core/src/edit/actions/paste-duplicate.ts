@@ -128,7 +128,7 @@ export function applyPasteStatementsAction(
       text: insertion.text
     }
   ]);
-  const appliedInsertion = applied.applied[0]!;
+  const appliedInsertion = applied.applied[0];
 
   const insertedSpans = insertion.snippetSpans.map((span) => ({
     from: appliedInsertion.newSpan.from + span.from,
@@ -205,7 +205,7 @@ export function applyDuplicateElementsAction(
         partialSkippedHandles.push(...shifted.skippedHandles);
       }
 
-      const anchor = orderedRefs[orderedRefs.length - 1]!;
+      const anchor = orderedRefs[orderedRefs.length - 1];
 
       const insertion = formatSnippetsForInsertion(
         renamedSnippets,
@@ -218,7 +218,7 @@ export function applyDuplicateElementsAction(
           text: insertion.text
         }
       ]);
-      const appliedInsertion = applied.applied[0]!;
+      const appliedInsertion = applied.applied[0];
 
       patches.push(...applied.patches);
       currentSource = applied.source;

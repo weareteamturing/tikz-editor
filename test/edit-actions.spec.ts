@@ -338,14 +338,14 @@ describe("applyEditAction – connectHandle", () => {
       anchor: "east"
     })).toMatchObject({ kind: "error" });
 
-    expect(applyEditAction(source, [{ ...base, curveEdit: { segmentIndex: 0, role: "control1" } } as EditHandle], {
+    expect(applyEditAction(source, [{ ...base, curveEdit: { segmentIndex: 0, role: "control1" } } as unknown as EditHandle], {
       kind: "connectHandle",
       handleId: base.id,
       nodeName: "A",
       anchor: "east"
     })).toMatchObject({ kind: "unsupported" });
 
-    expect(applyEditAction(source, [{ ...base, kind: "node-position" }], {
+    expect(applyEditAction(source, [{ ...base, kind: "node-position" } as unknown as EditHandle], {
       kind: "connectHandle",
       handleId: base.id,
       nodeName: "A",

@@ -303,7 +303,7 @@ function decorateTextAlongPath(path: ScenePath, decoration: DecorationStyle, see
 
     for (let characterIndex = 0; characterIndex < characters.length; characterIndex += 1) {
       const character = characters[characterIndex];
-      const advance = advances[characterIndex]!;
+      const advance = advances[characterIndex];
       const centerDistance = cursor + advance / 2;
       const endDistance = cursor + advance;
       if (endDistance > endLimit + 1e-6) {

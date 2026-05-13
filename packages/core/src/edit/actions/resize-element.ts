@@ -596,7 +596,7 @@ function applyScopeTransformRewrite(
       filteredOptions,
       orderedSetMutations,
       undefined,
-      target.optionsFormat!
+      target.optionsFormat
     );
     const oldSpan = target.optionsSpan;
     const previous = source.slice(oldSpan.from, oldSpan.to);
@@ -923,7 +923,7 @@ function resolvePathRectangleResizeContext(
     return { kind: "not-rectangle" };
   }
 
-  const rectangle = nonTextElements[0]!;
+  const rectangle = nonTextElements[0];
   if (rectangle.kind !== "Path") {
     return { kind: "not-rectangle" };
   }
@@ -986,7 +986,7 @@ function resolvePathShapeHintFromItems(items: readonly PathItem[]): ScenePathSha
   if (hints.size !== 1) {
     return null;
   }
-  return [...hints][0]!;
+  return [...hints][0];
 }
 
 function collectPathShapeHints(items: readonly PathItem[], hints: Set<ScenePathShapeHint>): void {
@@ -1159,8 +1159,8 @@ function resolvePathShapeResizeContext(
     const explicitShape = explicitShapeElements[0];
     shapeKind = explicitShape.kind === "Circle" ? "circle" : "ellipse";
     center = explicitShape.center;
-  } else if (explicitShapeElements.length === 0 && nonTextElements.length === 1 && nonTextElements[0]!.kind === "Path") {
-    const pathElement = nonTextElements[0]!;
+  } else if (explicitShapeElements.length === 0 && nonTextElements.length === 1 && nonTextElements[0].kind === "Path") {
+    const pathElement = nonTextElements[0];
     const hint = resolveScenePathShapeHint(pathElement, pathStatement);
     if (hint === "circle" || hint === "ellipse") {
       shapeKind = hint;
@@ -1432,7 +1432,7 @@ function pickPathShapeResizeOptionTarget(
       return item;
     }
   }
-  return optionItems[optionItems.length - 1]!;
+  return optionItems[optionItems.length - 1];
 }
 
 function applySpanTextReplacement(
@@ -1987,7 +1987,7 @@ function isDiamondNodeShapeInPathStatement(statements: readonly Statement[], ele
   if (nodes.length !== 1) {
     return false;
   }
-  return resolveNodeShape(nodes[0]!.options) === "diamond";
+  return resolveNodeShape(nodes[0].options) === "diamond";
 }
 
 function collectPathNodeItems(items: readonly PathItem[]): NodeItem[] {

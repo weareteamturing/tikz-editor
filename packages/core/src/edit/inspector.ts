@@ -976,7 +976,7 @@ function signalDirectionsToEnumValue(sides: SignalDirection[]): string {
   if (sorted.length === 2 && sorted[0] === "north" && sorted[1] === "south") {
     return "north and south";
   }
-  return unique[0]!;
+  return unique[0];
 }
 
 function resolveMatrixSpacingPt(options: OptionListAst | undefined, key: "row sep" | "column sep"): number {
@@ -3584,7 +3584,7 @@ function arrowPresetFromMarker(marker: ArrowMarker | null): ArrowTipPresetId {
     return "custom";
   }
 
-  const tip = marker.tips[0]!;
+  const tip = marker.tips[0];
   return arrowPresetFromKind(tip.kind);
 }
 
@@ -4578,8 +4578,8 @@ function polygonSignedArea(points: ReadonlyArray<{ x: number; y: number }>): num
 
   let area = 0;
   for (let index = 0; index < points.length; index += 1) {
-    const current = points[index]!;
-    const next = points[(index + 1) % points.length]!;
+    const current = points[index];
+    const next = points[(index + 1) % points.length];
     area += current.x * next.y - next.x * current.y;
   }
   return area / 2;
@@ -4601,8 +4601,8 @@ export function dashStylePresetFromStyle(dashArray: number[] | null, lineWidth: 
   if (dashArray.length !== 2) {
     return "custom";
   }
-  const first = dashArray[0]!;
-  const second = dashArray[1]!;
+  const first = dashArray[0];
+  const second = dashArray[1];
   if (closeEnough(first, 3) && closeEnough(second, 3)) {
     return "dashed";
   }

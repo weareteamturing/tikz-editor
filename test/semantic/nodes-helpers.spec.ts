@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { PathItem } from "../../packages/core/src/ast/types.js";
-import { worldPoint } from "../../packages/core/src/coords/points.js";
+import { worldPoint, worldVector } from "../../packages/core/src/coords/points.js";
+import type { NodeTextEngine, NodeTextMetrics } from "../../packages/core/src/text/types.js";
 import { pt } from "../../packages/core/src/coords/scalars.js";
 import { worldTransform } from "../../packages/core/src/coords/transforms.js";
 import { parseOptionListRaw } from "../../packages/core/src/options/parse.js";
@@ -65,6 +66,12 @@ import {
 import { defaultStyle } from "../../packages/core/src/semantic/style/defaults.js";
 
 const wp = (x: number, y: number) => worldPoint(pt(x), pt(y));
+const wv = (x: number, y: number) => worldVector(pt(x), pt(y));
+const textEngineWithMetrics = (metrics: NodeTextMetrics | null): NodeTextEngine => ({
+  validate: () => null,
+  measure: () => metrics,
+  renderFromCache: () => null
+});
 const box = (naturalWidth = 40, naturalHeight = 24, minimumWidth = 20, minimumHeight = 12): CircularSizingInput => ({
   naturalWidth,
   naturalHeight,
@@ -210,8 +217,8 @@ describe("semantic node helper coverage", () => {
     expect(resolveNodePositionFraction(parseOptionListRaw("[pos=bad]"))).toBeNull();
 
     expect(pointAtPlacementSegment({ kind: "line", from: wp(0, 0), to: wp(10, 0) }, 0.25).x).toBeCloseTo(2.5);
-    expect(pointAtPlacementSegment({ kind: "hv", from: wp(0, 0), bend: wp(10, 0), to: wp(10, 10) }, 0.25).x).toBeCloseTo(5);
-    expect(pointAtPlacementSegment({ kind: "hv", from: wp(0, 0), bend: wp(10, 0), to: wp(10, 10) }, 0.75).y).toBeCloseTo(5);
+    expect(pointAtPlacementSegment({ kind: "hv", operator: "-|", from: wp(0, 0), bend: wp(10, 0), to: wp(10, 10) }, 0.25).x).toBeCloseTo(5);
+    expect(pointAtPlacementSegment({ kind: "hv", operator: "-|", from: wp(0, 0), bend: wp(10, 0), to: wp(10, 10) }, 0.75).y).toBeCloseTo(5);
     expect(pointAtPlacementSegment({ kind: "cubic", from: wp(0, 0), c1: wp(10, 0), c2: wp(10, 10), to: wp(20, 10) }, 0.5).x).toBeGreaterThan(9);
     expect(pointAtPlacementSegment({
       kind: "arc",
@@ -280,8 +287,7 @@ describe("semantic node helper coverage", () => {
       parseOptionListRaw("[align=center]"),
       style,
       1,
-      {
-        measure: () => ({
+      textEngineWithMetrics({
           width: 24,
           height: 14,
           baselineY: -4,
@@ -289,11 +295,13 @@ describe("semantic node helper coverage", () => {
           cacheKey: "k",
           paragraphId: "p",
           renderSourceText: "x\\\\y"
-        })
-      },
+      }),
       "math"
     );
     expect(measured.textRenderInfo.mode).toBe("mathjax");
+    if (measured.textRenderInfo.mode !== "mathjax") {
+      throw new Error("expected MathJax render info");
+    }
     expect(measured.textRenderInfo.layoutKind).toBe("explicit-multiline");
     expect(measured.textRenderInfo.paragraphAlignment).toBe("center");
 
@@ -302,8 +310,7 @@ describe("semantic node helper coverage", () => {
       parseOptionListRaw("[text width=20pt,align=center]"),
       style,
       1,
-      {
-        measure: () => ({
+      textEngineWithMetrics({
           width: 20,
           height: 10,
           baselineY: -3,
@@ -311,12 +318,14 @@ describe("semantic node helper coverage", () => {
           cacheKey: "kw",
           paragraphId: "pw",
           renderSourceText: "x y"
-        })
-      }
+      })
     );
+    if (measuredWrappedCenter.textRenderInfo.mode !== "mathjax") {
+      throw new Error("expected MathJax render info");
+    }
     expect(measuredWrappedCenter.textRenderInfo.paragraphAlignment).toBe("center");
 
-    expect(() => resolveNodeLayout(String.raw`x\\y`, parseOptionListRaw("[text width=10pt]"), style, 1, { measure: () => null }, "math")).toThrow(/Multiline MathJax/);
+    expect(() => resolveNodeLayout(String.raw`x\\y`, parseOptionListRaw("[text width=10pt]"), style, 1, textEngineWithMetrics(null), "math")).toThrow(/Multiline MathJax/);
 
     const empty = resolveNodeLayout("", parseOptionListRaw("[text height=5pt]"), style);
     expect(empty.textBlockHeight).toBeGreaterThan(0);
@@ -535,8 +544,8 @@ describe("semantic node helper coverage", () => {
     expect(ignored.puffs[0]!.x).not.toBeCloseTo(stretched.puffs[0]!.x);
 
     const square = [wp(-10, -10), wp(10, -10), wp(10, 10), wp(-10, 10)];
-    expect(intersectRayWithPolygon(wp(0, 0), { x: 0, y: 0 }, square)).toBeNull();
-    expect(intersectRayWithPolygon(wp(20, 0), { x: 1, y: 0 }, square)).toBeNull();
-    expect(intersectRayWithPolygon(wp(0, 0), { x: 1, y: 0 }, square)?.x).toBeCloseTo(10);
+    expect(intersectRayWithPolygon(wp(0, 0), wv(0, 0), square)).toBeNull();
+    expect(intersectRayWithPolygon(wp(20, 0), wv(1, 0), square)).toBeNull();
+    expect(intersectRayWithPolygon(wp(0, 0), wv(1, 0), square)?.x).toBeCloseTo(10);
   });
 });

@@ -168,7 +168,7 @@ describe("path edit actions", () => {
       kind: "missing",
       reason: expect.stringContaining("does not belong")
     });
-    expect(resolveActivePathPointHandle([{ ...handle, kind: "node-position" }], eligibility.analysis, handle.id, source)).toMatchObject({
+    expect(resolveActivePathPointHandle([{ ...handle, kind: "node-position" } as unknown as typeof handle], eligibility.analysis, handle.id, source)).toMatchObject({
       kind: "missing",
       reason: expect.stringContaining("anchor point")
     });

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { WorldPoint } from "../../packages/core/src/coords/points.js";
+import { frameToWorldTransform } from "../../packages/core/src/coords/transforms.js";
 import type { EditHandle } from "../../packages/core/src/semantic/types.js";
 import { identityMatrix, scaleMatrix, rotationMatrix, multiplyMatrix, translationMatrix } from "../../packages/core/src/semantic/transform.js";
 import { rewriteCoordinate, supportsUnsupportedCoordinateDetach } from "../../packages/core/src/edit/rewrite.js";
 import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
 import type { SourceRef } from "../../packages/core/src/semantic/types.js";
-import { wp } from "../coords-helpers.js";
+import { flp, wp } from "../coords-helpers.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
 
@@ -15,6 +16,7 @@ function makeHandle(
     runtimeId?: string;
     world: WorldPoint;
     sourceRef?: Partial<SourceRef> & { sourceSpan: { from: number; to: number } };
+    coordinateSpace?: "frame-local" | "world-only";
   }
 ): EditHandle {
   const sourceRefOverrides: Partial<SourceRef> = overrides.sourceRef ?? {};
@@ -382,8 +384,8 @@ describe("rewriteCoordinate", () => {
         rewriteMode: "unsupported",
         transform: scaleMatrix(2, 1),
         coordinateSpace: "frame-local",
-        frame: scaleMatrix(2, 1),
-        local: wp(cm(1), cm(1))
+        frame: frameToWorldTransform(2, 0, 0, 1, 0, 0),
+        local: flp(cm(1), cm(1))
       });
 
       expect(supportsUnsupportedCoordinateDetach(handle)).toBe(true);
@@ -436,9 +438,9 @@ describe("rewriteCoordinate", () => {
         coordinateForm: "cartesian",
         rewriteMode: "unsupported",
         coordinateSpace: "world-only"
-      } as Partial<EditHandle> & { world: WorldPoint });
+      });
 
-      expect(rewriteCoordinate(wp(cm(2), cm(3)), { ...worldOnlyCartesian, rewriteMode: "direct" }, source)).toBeNull();
+      expect(rewriteCoordinate(wp(cm(2), cm(3)), { ...worldOnlyCartesian, rewriteMode: "direct" } as unknown as EditHandle, source)).toBeNull();
 
       const worldOnlyPolar = {
         ...worldOnlyCartesian,

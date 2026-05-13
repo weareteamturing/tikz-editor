@@ -333,18 +333,18 @@ describe("workspace storage migration", () => {
     map.set("tikz-editor:user-workspaces", JSON.stringify({
       version: 1,
       items: [
-        { id: "ok", name: "Saved", json: { global: {}, layout: {} }, createdAt: 1 },
+        { id: "ok", name: "Saved", json: { global: {}, layout: { type: "row", children: [] } }, createdAt: 1 },
         { id: "bad", name: 2, json: {}, createdAt: 1 },
         { id: "bad2", name: "No JSON", createdAt: 1 }
       ]
     }));
     expect(loadUserWorkspaces()).toEqual([
-      { id: "ok", name: "Saved", json: { global: {}, layout: {} }, createdAt: 1 }
+      { id: "ok", name: "Saved", json: { global: {}, layout: { type: "row", children: [] } }, createdAt: 1 }
     ]);
 
-    saveUserWorkspaces([{ id: "next", name: "Next", json: { global: {}, layout: {} }, createdAt: 2 }]);
+    saveUserWorkspaces([{ id: "next", name: "Next", json: { global: {}, layout: { type: "row", children: [] } }, createdAt: 2 }]);
     expect(loadUserWorkspaces()).toEqual([
-      { id: "next", name: "Next", json: { global: {}, layout: {} }, createdAt: 2 }
+      { id: "next", name: "Next", json: { global: {}, layout: { type: "row", children: [] } }, createdAt: 2 }
     ]);
 
     map.set("tikz-editor:user-workspaces", JSON.stringify({ version: 2, items: [] }));

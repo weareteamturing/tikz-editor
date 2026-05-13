@@ -441,7 +441,7 @@ describe("mathjax node text engine", () => {
       linebreaks: {
         getReports: () => reports
       },
-      knuthPlassOptions: {}
+      knuthPlassOptions: {} as { layoutMode?: string }
     };
     const makeNode = (paragraphId: string) => ({
       tagName: "mjx-container",
@@ -639,7 +639,8 @@ describe("mathjax node text engine", () => {
     const outputJax = {
       linebreaks: {
         getReports: () => []
-      }
+      },
+      knuthPlassOptions: {} as { layoutMode?: string }
     };
     let resolveStartup: (() => void) | null = null;
 
@@ -661,7 +662,7 @@ describe("mathjax node text engine", () => {
 
     const module = await import("../packages/core/src/text/mathjax-engine.js");
     const enginePromise = module.createMathJaxNodeTextEngine();
-    resolveStartup?.();
+    (resolveStartup as unknown as () => void)();
     const engine = await enginePromise;
 
     expect(module.getActiveMathJaxOutputJax()).toBe(outputJax);
@@ -691,7 +692,7 @@ describe("mathjax node text engine", () => {
       linebreaks: {
         getReports: () => []
       },
-      knuthPlassOptions: {}
+      knuthPlassOptions: {} as { layoutMode?: string }
     };
     target.document = {
       getElementById: vi.fn(() => existingScript)
@@ -906,7 +907,7 @@ describe("mathjax node text engine", () => {
       linebreaks: {
         getReports: () => reports
       },
-      knuthPlassOptions: {}
+      knuthPlassOptions: {} as { layoutMode?: string }
     };
 
     target.window = {};

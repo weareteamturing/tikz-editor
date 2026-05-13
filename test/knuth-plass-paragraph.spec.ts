@@ -17,8 +17,8 @@ import {
   getOrBuildTextSegmentCaretStops
 } from "../packages/core/src/text/knuth-plass/paragraph/report.js";
 import { flattenParagraph } from "../packages/core/src/text/knuth-plass/paragraph/tokenize.js";
-import type { Item, ParagraphModel } from "../packages/core/src/text/knuth-plass/paragraph/items.js";
-import type { ParagraphRun } from "../packages/core/src/text/knuth-plass/paragraph/types.js";
+import type { GlueItem, Item, ParagraphModel, PenaltyItem } from "../packages/core/src/text/knuth-plass/paragraph/items.js";
+import type { ParagraphRun, SpaceRun, TextRun } from "../packages/core/src/text/knuth-plass/paragraph/types.js";
 
 const wrapper = {};
 
@@ -152,7 +152,7 @@ function mutableMspaceWrapper(initialWidth = "1em", bboxWidth = 1) {
   };
 }
 
-function textRun(runIndex: number, text: string, sourceStart: number): ParagraphRun {
+function textRun(runIndex: number, text: string, sourceStart: number): TextRun {
   return {
     kind: "text",
     runIndex,
@@ -165,7 +165,7 @@ function textRun(runIndex: number, text: string, sourceStart: number): Paragraph
   };
 }
 
-function spaceRun(runIndex: number, sourceStart: number): ParagraphRun {
+function spaceRun(runIndex: number, sourceStart: number): SpaceRun {
   return {
     kind: "space",
     runIndex,
@@ -189,12 +189,13 @@ function model(runs: ParagraphRun[], widths: number[], items: Item[]): Paragraph
     runWidths: new Map(runs.map((run, index) => [run.runIndex, widths[index] ?? 0])),
     errors: [],
     measurement: {
+      ...createMeasurementService(),
       measurePrefix: (_word: string, n: number) => n
-    } as ParagraphModel["measurement"]
+    }
   };
 }
 
-function spacePenalty(runIndex: number, penalty = 0): Item {
+function spacePenalty(runIndex: number, penalty = 0): PenaltyItem {
   return {
     kind: "penalty",
     width: 0,
@@ -208,7 +209,7 @@ function spacePenalty(runIndex: number, penalty = 0): Item {
   };
 }
 
-function forcedPenalty(runIndex: number): Item {
+function forcedPenalty(runIndex: number): PenaltyItem {
   return {
     kind: "penalty",
     width: 0,
@@ -222,7 +223,7 @@ function forcedPenalty(runIndex: number): Item {
   };
 }
 
-function hyphenPenalty(runIndex: number, splitOffset: number, penalty = 50): Item {
+function hyphenPenalty(runIndex: number, splitOffset: number, penalty = 50): PenaltyItem {
   return {
     kind: "penalty",
     width: 1,
@@ -239,13 +240,13 @@ function hyphenPenalty(runIndex: number, splitOffset: number, penalty = 50): Ite
   };
 }
 
-function glue(runIndex: number, stretch = 1, shrink = 1): Item {
+function glue(runIndex: number, stretch = 1, shrink = 1): GlueItem {
   return {
     kind: "glue",
     width: 0,
     stretch,
     shrink,
-    payload: { runIndex }
+    payload: { runIndex, breakRef: { kind: "mtext-space", wrapper, childIndex: 0, wordIndex: runIndex } }
   };
 }
 
@@ -496,7 +497,7 @@ describe("knuth-plass paragraph helpers", () => {
     expect(measurement.measurePrefix("abcdef", 3, textWrapper)).toBe(6);
     expect(measurement.measurePrefix("abcdef", -1, textWrapper)).toBe(0);
     expect(measurement.measurePrefix("abcdef", 99, textWrapper)).toBe(12);
-    expect(measurement.measureMath(null)).toBe(0);
+    expect(measurement.measureMath(null as never)).toBe(0);
     expect(measurement.measureMath(mathWrapper)).toBe(8);
     expect(measurement.measureMath(mathWrapper)).toBe(8);
     expect(measurement.measureMath(fallbackMathWrapper)).toBe(3);
@@ -1025,7 +1026,7 @@ describe("knuth-plass paragraph helpers", () => {
 
     const noSnapshotWrapper = { node: node("mtext"), childNodes: {} };
     const noSnapshotResult = applyBreaks({}, [
-      { ...textRun(0, "Alpha", 0), wrapper: noSnapshotWrapper, childIndex: 0, wordIndex: 0 }
+      { ...textRun(0, "Alpha", 0), wrapper: noSnapshotWrapper as never, childIndex: 0, wordIndex: 0 }
     ], [{
       lineIndex: 0,
       startRun: 0,
@@ -1254,7 +1255,7 @@ describe("knuth-plass paragraph helpers", () => {
   });
 
   it("preloads and caches the English hyphenator", async () => {
-    expect(new NoopHyphenator().hyphenate("hyphenation")).toEqual([]);
+    expect(new NoopHyphenator().hyphenate()).toEqual([]);
     expect(createEnglishHyphenator().hyphenate("hyphenation")).toEqual([]);
 
     const exceptionHyphenator = new EnglishHyphenator(
@@ -1371,7 +1372,7 @@ describe("knuth-plass paragraph helpers", () => {
       paragraphId: "fallback",
       width: 20,
       alignment: "center",
-      layoutMode: "fallback",
+      layoutMode: "wrap",
       runs,
       runWidths: new Map([[1, 12], [2, 2], [3, 5]]),
       appliedBreaks: [],
@@ -1527,11 +1528,11 @@ describe("knuth-plass paragraph helpers", () => {
         {
           node: node("mtable")
         },
-        null
+        null as never
       ]
     };
 
-    const flattened = flattenParagraph(paragraph);
+    const flattened = flattenParagraph(paragraph as never);
 
     expect(flattened.canProceed).toBe(true);
     expect(flattened.unsupportedKinds).toContain("mtable");

@@ -4,6 +4,7 @@ import { worldPoint as makeWorldPoint } from "../../packages/core/src/coords/poi
 import { pt } from "../../packages/core/src/coords/scalars.js";
 import type { OptionListAst, OptionEntry } from "../../packages/core/src/options/types.js";
 import type { StyleChainEntry } from "../../packages/core/src/semantic/style-chain.js";
+import { defaultStyle } from "../../packages/core/src/semantic/style/defaults.js";
 import type { PlacementSegment } from "../../packages/core/src/semantic/path/types.js";
 import {
   approximatePlacementSegmentLength,
@@ -39,11 +40,12 @@ function options(...entries: OptionEntry[]): OptionListAst {
 }
 
 function style(...lists: OptionListAst[]): StyleChainEntry {
+  const resolvedStyle = defaultStyle();
   return {
-    styleId: "style",
-    source: "inline",
-    specificity: 0,
-    order: 0,
+    kind: "command",
+    before: resolvedStyle,
+    after: resolvedStyle,
+    resolvedContributions: {},
     rawOptions: lists
   };
 }

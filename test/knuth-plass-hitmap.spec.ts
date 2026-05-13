@@ -322,7 +322,7 @@ function attributes(initial: Record<string, unknown> = {}) {
   };
 }
 
-function wrapperNode(kind: string, attrs = attributes()) {
+function wrapperNode(kind: string, attrs = attributes()): any {
   return {
     kind,
     attributes: attrs,
@@ -421,28 +421,34 @@ describe("knuth-plass math prefix helpers", () => {
     };
 
     const first = await cache.getOrBuild(outputJax, {
+      kind: "math",
+      rawStart: 0,
+      rawEnd: 0,
+      source: "",
       delimiter: "dollar",
-      raw: "$\\alpha x$",
       content: String.raw`\alpha x`,
       contentStart: 1,
       contentEnd: 9,
-      span: { from: 0, to: 10 }
     });
     const second = await cache.getOrBuild(outputJax, {
+      kind: "math",
+      rawStart: 0,
+      rawEnd: 0,
+      source: "",
       delimiter: "dollar",
-      raw: "$ \\alpha   x $",
       content: String.raw` \alpha x `,
       contentStart: 1,
       contentEnd: 11,
-      span: { from: 0, to: 12 }
     });
     const third = await cache.getOrBuild(outputJax, {
+      kind: "math",
+      rawStart: 0,
+      rawEnd: 0,
+      source: "",
       delimiter: "paren",
-      raw: String.raw`\(\beta\)`,
       content: String.raw`\beta`,
       contentStart: 2,
       contentEnd: 7,
-      span: { from: 0, to: 9 }
     });
 
     expect(first[0]).toBe(0);
@@ -459,12 +465,14 @@ describe("knuth-plass math prefix helpers", () => {
         }
       })
     }, {
+      kind: "math",
+      rawStart: 0,
+      rawEnd: 0,
+      source: "",
       delimiter: "paren",
-      raw: String.raw`\(\bad\)`,
       content: String.raw`\bad`,
       contentStart: 2,
       contentEnd: 6,
-      span: { from: 0, to: 8 }
     });
     expect(fallback).toEqual([0, 0.25, 0.5, 0.75, 1]);
 
@@ -472,64 +480,76 @@ describe("knuth-plass math prefix helpers", () => {
       createMathPrefixCache().getOrBuild({
         tex2svg: () => ({ viewBox: { baseVal: { width: 3 } } })
       }, {
+        kind: "math",
+        rawStart: 0,
+        rawEnd: 0,
+        source: "",
         delimiter: "dollar",
-        raw: "$x$",
         content: "x",
         contentStart: 1,
         contentEnd: 2,
-        span: { from: 0, to: 3 }
       }),
       createMathPrefixCache().getOrBuild({
         tex2svg: () => ({ getAttribute: (name: string) => name === "width" ? "4" : null })
       }, {
+        kind: "math",
+        rawStart: 0,
+        rawEnd: 0,
+        source: "",
         delimiter: "dollar",
-        raw: "$x$",
         content: "x",
         contentStart: 1,
         contentEnd: 2,
-        span: { from: 0, to: 3 }
       }),
       createMathPrefixCache().getOrBuild({
         tex2svg: () => ({ getBBox: () => ({ width: 5 }) })
       }, {
+        kind: "math",
+        rawStart: 0,
+        rawEnd: 0,
+        source: "",
         delimiter: "dollar",
-        raw: "$x$",
         content: "x",
         contentStart: 1,
         contentEnd: 2,
-        span: { from: 0, to: 3 }
       }),
       createMathPrefixCache().getOrBuild({
         tex2svg: () => null
       }, {
+        kind: "math",
+        rawStart: 0,
+        rawEnd: 0,
+        source: "",
         delimiter: "dollar",
-        raw: "$x$",
         content: "x",
         contentStart: 1,
         contentEnd: 2,
-        span: { from: 0, to: 3 }
       }),
       createMathPrefixCache().getOrBuild({
         tex2svg: () => {
           throw new Error("render failed");
         }
       }, {
+        kind: "math",
+        rawStart: 0,
+        rawEnd: 0,
+        source: "",
         delimiter: "dollar",
-        raw: "$x$",
         content: "x",
         contentStart: 1,
         contentEnd: 2,
-        span: { from: 0, to: 3 }
       }),
       createMathPrefixCache().getOrBuild({
         tex2svg: () => ({ getAttribute: () => null })
       }, {
+        kind: "math",
+        rawStart: 0,
+        rawEnd: 0,
+        source: "",
         delimiter: "dollar",
-        raw: "$$",
         content: "",
         contentStart: 1,
         contentEnd: 1,
-        span: { from: 0, to: 2 }
       })
     ]);
     expect(widthFallbacks.slice(0, 3)).toEqual([[0, 1], [0, 1], [0, 1]]);
@@ -538,20 +558,24 @@ describe("knuth-plass math prefix helpers", () => {
     expect(widthFallbacks[5]).toEqual([0]);
 
     await expect(cache.getOrBuild({}, {
+      kind: "math",
+      rawStart: 0,
+      rawEnd: 0,
+      source: "",
       delimiter: "dollar",
-      raw: "$x$",
       content: "x",
       contentStart: 1,
       contentEnd: 2,
-      span: { from: 0, to: 3 }
     })).rejects.toThrow("No tex2svg");
     await expect(cache.getOrBuild(null, {
+      kind: "math",
+      rawStart: 0,
+      rawEnd: 0,
+      source: "",
       delimiter: "dollar",
-      raw: "$x$",
       content: "x",
       contentStart: 1,
       contentEnd: 2,
-      span: { from: 0, to: 3 }
     })).rejects.toThrow("No tex2svg");
   });
 
@@ -565,12 +589,14 @@ describe("knuth-plass math prefix helpers", () => {
         tex2svg: () => ({ querySelector: () => ({ getAttribute: (name: string) => name === "viewBox" ? "0 0 3 1" : null }) })
       };
       await expect(createMathPrefixCache().getOrBuild(null, {
+        kind: "math",
+        rawStart: 0,
+        rawEnd: 0,
+        source: "",
         delimiter: "dollar",
-        raw: "$x$",
         content: "x",
         contentStart: 1,
         contentEnd: 2,
-        span: { from: 0, to: 3 }
       })).resolves.toEqual([0, 1]);
 
       (globalThis as { MathJax?: unknown }).MathJax = {
@@ -586,12 +612,14 @@ describe("knuth-plass math prefix helpers", () => {
           tex2svg: () => ({})
         }
       }, {
+        kind: "math",
+        rawStart: 0,
+        rawEnd: 0,
+        source: "",
         delimiter: "dollar",
-        raw: "$x$",
         content: "x",
         contentStart: 1,
         contentEnd: 2,
-        span: { from: 0, to: 3 }
       });
 
       expect(table).toEqual([0, 1]);

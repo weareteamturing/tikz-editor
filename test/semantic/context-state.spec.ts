@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { worldTransform } from "../../packages/core/src/coords/transforms.js";
+import { frameToWorldTransform, worldTransform } from "../../packages/core/src/coords/transforms.js";
+import { flp, wb, wp } from "../coords-helpers.js";
 import {
   applyStatementEffectSummary,
   beginStatementEffectTracking,
@@ -23,9 +24,9 @@ import type { EditHandle } from "../../packages/core/src/semantic/types.js";
 describe("semantic context state helpers", () => {
   it("restores compact snapshots from an external edit-handle source", () => {
     const context = createSemanticContext(defaultStyle(), worldTransform(1, 0, 0, 1, 0, 0));
-    context.pictureBounds = { minX: -1, minY: -2, maxX: 3, maxY: 4 };
-    context.currentPoint = { x: 10, y: 20 };
-    context.pathStartPoint = { x: 5, y: 6 };
+    context.pictureBounds = wb(-1, -2, 3, 4);
+    context.currentPoint = wp(10, 20);
+    context.pathStartPoint = wp(5, 6);
     context.editHandles = [
       makeEditHandle("handle-a", "old-fingerprint"),
       makeEditHandle("handle-b", "old-fingerprint")
@@ -75,19 +76,19 @@ describe("semantic context state helpers", () => {
 
   it("tracks statement effects and replays their dependency summary", () => {
     const context = createSemanticContext(defaultStyle(), worldTransform(1, 0, 0, 1, 0, 0));
-    context.currentPoint = { x: 1, y: 2 };
+    context.currentPoint = wp(1, 2);
     context.pathStartPoint = null;
 
     beginStatementEffectTracking(context);
-    writeNamedCoordinate(context, "A", { x: 3, y: 4 }, "producer");
+    writeNamedCoordinate(context, "A", wp(3, 4), "producer");
     expect(readNamedCoordinate(context, "A", "consumer")).toEqual({ x: 3, y: 4 });
     recordDependencyProducer(context, "named-path", "route", "producer");
     recordDependencyConsumer(context, "named-path", "route", "consumer");
-    context.currentPoint = { x: 9, y: 2 };
-    context.pathStartPoint = { x: 0, y: 0 };
+    context.currentPoint = wp(9, 2);
+    context.pathStartPoint = wp(0, 0);
 
     const summary = endStatementEffectTracking(context, {
-      beforeCurrentPoint: { x: 1, y: 2 },
+      beforeCurrentPoint: wp(1, 2),
       beforePathStartPoint: null,
       requiresSequentialContext: true
     });
@@ -176,9 +177,9 @@ function makeEditHandle(id: string, sourceFingerprint: string): EditHandle {
     handleType: "coordinate",
     coordinateSpace: "frame-local",
     kind: "path-point",
-    world: { x: 0, y: 0 },
-    local: { x: 0, y: 0 },
-    frame: worldTransform(1, 0, 0, 1, 0, 0),
+    world: wp(0, 0),
+    local: flp(0, 0),
+    frame: frameToWorldTransform(1, 0, 0, 1, 0, 0),
     transform: worldTransform(1, 0, 0, 1, 0, 0),
     sourceText: "",
     coordinateForm: "cartesian",

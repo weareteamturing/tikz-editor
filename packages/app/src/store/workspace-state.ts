@@ -184,7 +184,7 @@ function normalizeWorkspaceActiveDocument(workspace: WorkspacePersistedState): W
 
 export function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeralState): EditorState {
   const normalizedWorkspace = normalizeWorkspaceActiveDocument(workspace);
-  const active = normalizedWorkspace.documents[normalizedWorkspace.activeDocumentId]!;
+  const active = normalizedWorkspace.documents[normalizedWorkspace.activeDocumentId];
   return {
     source: active.source,
     sourceRevision: active.sourceRevision,

@@ -140,7 +140,7 @@ export function applyTransposeMatrixAction(
   for (let column = 0; column < colCount; column += 1) {
     const nextRow: string[] = [];
     for (let row = 0; row < rowCount; row += 1) {
-      nextRow.push(rows[row]![column]!);
+      nextRow.push(rows[row][column]);
     }
     transposed.push(trimTrailingEmptyCells(nextRow));
   }

@@ -225,7 +225,7 @@ export function sampleFrameFromStartExtrapolated(segments: PathSegment[], distan
   }
 
   if (distance >= totalLength) {
-    const last = segments[segments.length - 1] as PathSegment;
+    const last = segments[segments.length - 1];
     const frame = sampleSegmentFrameAtDistance(last, last.length);
     const shifted = addPoint(frame.point, scaleVector(frame.tangent, distance - totalLength));
     return { point: shifted, tangent: frame.tangent, normal: frame.normal };
@@ -239,7 +239,7 @@ export function sampleFrameFromStartExtrapolated(segments: PathSegment[], distan
     traveled += segment.length;
   }
 
-  const last = segments[segments.length - 1] as PathSegment;
+  const last = segments[segments.length - 1];
   return sampleSegmentFrameAtDistance(last, last.length);
 }
 
@@ -249,8 +249,8 @@ export function sampleFrameFromEndExtrapolated(segments: PathSegment[], distance
   }
 
   const totalLength = totalSegmentLength(segments);
-  const first = segments[0] as PathSegment;
-  const last = segments[segments.length - 1] as PathSegment;
+  const first = segments[0];
+  const last = segments[segments.length - 1];
 
   if (distance <= 0) {
     const frame = sampleSegmentFrameAtDistance(last, last.length);
@@ -266,7 +266,7 @@ export function sampleFrameFromEndExtrapolated(segments: PathSegment[], distance
 
   let traveled = 0;
   for (let index = segments.length - 1; index >= 0; index -= 1) {
-    const segment = segments[index] as PathSegment;
+    const segment = segments[index];
     if (traveled + segment.length >= distance) {
       const localDistance = segment.length - (distance - traveled);
       return sampleSegmentFrameAtDistance(segment, localDistance);

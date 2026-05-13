@@ -135,7 +135,7 @@ function namespaceSvgIds(svg: string, suffix: string): string {
   const idMatches = [...svg.matchAll(/\bid="([^"]+)"/g)];
   const idMap = new Map<string, string>();
   let index = 1;
-  const sourceIds = new Set(idMatches.map((match) => match[1] as string));
+  const sourceIds = new Set(idMatches.map((match) => match[1]));
   for (const sourceId of sourceIds) {
     idMap.set(sourceId, `${sourceId}-${suffix}-${index}`);
     index += 1;

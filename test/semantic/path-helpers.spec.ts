@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { worldPoint as makeWorldPoint } from "../../packages/core/src/coords/points.js";
+import type { WorldPoint } from "../../packages/core/src/coords/points.js";
 import { pt } from "../../packages/core/src/coords/scalars.js";
 import { worldTransform } from "../../packages/core/src/coords/transforms.js";
-import type { CoordinateItem, PathOptionItem, PathStatement } from "../../packages/core/src/ast/types.js";
+import type { CoordinateItem, PathOptionItem, PathStatement, ToOperationItem } from "../../packages/core/src/ast/types.js";
 import type { OptionListAst, OptionEntry } from "../../packages/core/src/options/types.js";
 import type { PlacementSegment } from "../../packages/core/src/semantic/path/types.js";
 import {
@@ -90,7 +91,7 @@ import {
 import type { SceneCircle, SceneElement, SceneEllipse, ScenePath, ScenePathCommand } from "../../packages/core/src/semantic/types.js";
 
 const span = { from: 0, to: 0 };
-const identity = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+const identity = worldTransform(1, 0, 0, 1, 0, 0);
 const identityTransform = worldTransform(1, 0, 0, 1, 0, 0);
 
 function p(x: number, y: number) {
@@ -228,7 +229,9 @@ describe("semantic path helper parsers", () => {
   });
 
   it("parses circle and ellipse radii from coordinate syntax", () => {
-    expect(parseCircleRadiusFromCoordinateRaw("(2)").value).toBeCloseTo(56.9055, 3);
+    const parsedCircleRadius = parseCircleRadiusFromCoordinateRaw("(2)");
+    expect(parsedCircleRadius).not.toBeNull();
+    expect(parsedCircleRadius?.value).toBeCloseTo(56.9055, 3);
     expect(parseCircleRadiusFromCoordinateRaw("(4pt)")).toEqual({
       value: 4,
       applyFrameTransform: false
@@ -516,7 +519,7 @@ describe("semantic label and quote helpers", () => {
       anchorHalfWidth: 3,
       anchorHalfHeight: 4,
       anchorRadius: 5,
-      anchorTransform: { a: 1, b: 2, c: 3, d: 4, e: 5, f: 6 },
+      anchorTransform: worldTransform(1, 2, 3, 4, 5, 6),
       anchorPolygon: [p(0, 0), p(1, 0), p(0, 1)]
     });
     expect(clone?.shape).toBe("rectangle");
@@ -526,8 +529,11 @@ describe("semantic label and quote helpers", () => {
   });
 
   it("lowers edge-label, edge-node, and quote options into synthetic nodes", () => {
-    const item = {
+    const item: ToOperationItem = {
+      kind: "ToOperation",
       id: "to:1",
+      span,
+      raw: "",
       options: options(
         kv("edge label", "{A}"),
         kv("edge label'", "{B}"),
@@ -538,7 +544,7 @@ describe("semantic label and quote helpers", () => {
       )
     };
 
-    const plan = extractToLikeOptionPlan(item as never);
+    const plan = extractToLikeOptionPlan(item);
     expect(plan.generatedNodes.map((node) => node.text)).toEqual(["A", "B", "N1", "N2", "Q"]);
     expect(plan.generatedNodes[2]?.name).toBe("n1");
     expect(plan.item.options?.entries.map((entry) => entry.raw)).toEqual(["edge node={not a node}", "draw=red"]);
@@ -575,11 +581,12 @@ describe("semantic label and quote helpers", () => {
     expect(materialized.mainPoint).toMatchObject({ x: 10, y: 20 });
     expect(materialized.mainGeometry?.shape).toBe("circle");
 
-    for (const [shape, geometry] of [
+    const geometries: Array<[string, NamedNodeGeometry]> = [
       ["rectangle", { ...baseGeometry, shape: "rectangle", anchorHalfWidth: 6, anchorHalfHeight: 4 }],
       ["ellipse", { ...baseGeometry, shape: "ellipse", anchorHalfWidth: 6, anchorHalfHeight: 4 }],
       ["diamond", { ...baseGeometry, shape: "diamond", anchorPolygon: [p(0, 5), p(5, 0), p(0, -5), p(-5, 0)] }]
-    ] as const) {
+    ];
+    for (const [shape, geometry] of geometries) {
       writeNamedNodeGeometry(context, shape, geometry);
       writeNamedCoordinate(context, shape, p(10, 20));
       const labelSpec = extractNodeAdornmentPlan(options(kv("label", "{45:{L}}"))).adornments[0];
@@ -806,7 +813,12 @@ describe("semantic path intersection directives", () => {
     expect(readNamedCoordinate(context, "hit-2")).toMatchObject({ x: 4 });
     expect(readNamedCoordinate(context, "aliasA")).toMatchObject({ x: 4 });
     expect(readNamedCoordinate(context, "aliasB")).toBeUndefined();
-    expect(readContextMacroBinding(context, "\\hits")?.value).toBe("2");
+    const hitsBinding = readContextMacroBinding(context, "\\hits");
+    expect(hitsBinding?.kind).toBe("text");
+    if (hitsBinding?.kind !== "text") {
+      throw new Error("expected text macro binding");
+    }
+    expect(hitsBinding.value).toBe("2");
 
     expect(registerNamedPath("empty", [scenePath("just-move", [{ kind: "M", to: p(0, 0) }])], context)).toBe(true);
     expect(
@@ -822,7 +834,12 @@ describe("semantic path intersection directives", () => {
         context
       )
     ).toEqual([]);
-    expect(readContextMacroBinding(context, "\\none")?.value).toBe("0");
+    const noneBinding = readContextMacroBinding(context, "\\none");
+    expect(noneBinding?.kind).toBe("text");
+    if (noneBinding?.kind !== "text") {
+      throw new Error("expected text macro binding");
+    }
+    expect(noneBinding.value).toBe("0");
   });
 
   it("samples curved, circular, and elliptical named paths for intersections", () => {
@@ -1194,7 +1211,7 @@ describe("semantic evaluate-plot helpers", () => {
     ] as const;
 
     for (const handler of handlers) {
-      const geometryElements = [];
+      const geometryElements: SceneElement[] = [];
       const marked: string[] = [];
       const settings = {
         ...createDefaultPlotSettings(),
@@ -1205,8 +1222,8 @@ describe("semantic evaluate-plot helpers", () => {
         barIntervalWidth: 0.5,
         barIntervalShift: 0.25
       };
-      const currentPoints = [];
-      const pathStarts = [];
+      const currentPoints: Array<WorldPoint | null> = [];
+      const pathStarts: Array<WorldPoint | null> = [];
 
       const result = emitPlotPath({
         statementId: `stmt-${handler}`,
@@ -1238,7 +1255,7 @@ describe("semantic evaluate-plot helpers", () => {
 
   it("emits connected and single-point plot handler edge cases", () => {
     for (const handler of ["sharp-cycle", "smooth", "smooth-cycle", "const-left", "const-right", "const-mid", "jump-left", "jump-right", "jump-mid", "ybar-interval", "xbar-interval"] as const) {
-      const geometryElements = [];
+      const geometryElements: SceneElement[] = [];
       const settings = {
         ...createDefaultPlotSettings(),
         handler,
@@ -1250,7 +1267,7 @@ describe("semantic evaluate-plot helpers", () => {
         points: [p(1, 2)],
         settings,
         connectFrom: p(0, 0),
-        style: {},
+        style: defaultStyle(),
         styleChain: [],
         geometryElements,
         markFeature: () => undefined,
@@ -1265,7 +1282,7 @@ describe("semantic evaluate-plot helpers", () => {
   });
 
   it("handles empty plots, expression sampling, binding restore, and raw coordinate evaluation", () => {
-    const geometryElements = [];
+    const geometryElements: SceneElement[] = [];
     let current: WorldPoint | null = p(5, 5);
     let start: WorldPoint | null = p(1, 1);
     const empty = emitPlotPath({
@@ -1304,7 +1321,12 @@ describe("semantic evaluate-plot helpers", () => {
       settings,
       macroBindings: bindings
     })).toEqual([{ raw: "(old,old)" }, { raw: "(old,old)" }, { raw: "(old,old)" }]);
-    expect(readContextMacroBinding(context, "\\t", "stmt")?.value).toBe("context-old");
+    const restoredBinding = readContextMacroBinding(context, "\\t", "stmt");
+    expect(restoredBinding?.kind).toBe("text");
+    if (restoredBinding?.kind !== "text") {
+      throw new Error("expected text macro binding");
+    }
+    expect(restoredBinding.value).toBe("context-old");
 
     let rawCurrent: WorldPoint | null = null;
     const evaluated = defaultEvaluateCoordinateRaw(

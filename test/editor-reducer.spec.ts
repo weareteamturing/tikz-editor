@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { editorReducer, makeInitialState, DEFAULT_SOURCE } from "../packages/app/src/store/reducer.js";
-import type { EditorAction, EditorState } from "../packages/app/src/store/types.js";
+import type { EditorAction, EditorState, HistoryEntry } from "../packages/app/src/store/types.js";
+import type { TikzFigureInventoryItem } from "../packages/core/src/ast/types.js";
 import { makeEmptySnapshot } from "../packages/app/src/compute.js";
 import { PROPERTY_WRITE_CLEANUP_NOOP_REASON } from "../packages/core/src/edit/actions.js";
 import type { WorldPoint } from "../packages/core/src/coords/points.js";
@@ -20,6 +21,14 @@ function applyActions(actions: EditorAction[], initial?: EditorState): EditorSta
 }
 
 const cm = (v: number) => v * PT_PER_CM;
+const figureInventoryItem = (id: string): TikzFigureInventoryItem => ({
+  id,
+  span: { from: 0, to: 0 },
+  beginSpan: { from: 0, to: 0 },
+  endSpan: { from: 0, to: 0 },
+  startLine: 1,
+  endLine: 1
+});
 
 function makeHandle(
   source: string,
@@ -1181,8 +1190,12 @@ describe("editorReducer – branch edge cases", () => {
     const currentSnapshot = {
       ...makeEmptySnapshot(source),
       source,
-      figures: [{ id: "figure:0" }, { id: "figure:1" }],
-      editHandles: [{ id: activeHandleId }]
+      figures: [figureInventoryItem("figure:0"), figureInventoryItem("figure:1")],
+      editHandles: [makeHandle(source, {
+        id: activeHandleId,
+        world: wp(0, 0),
+        sourceSpan: { from: 0, to: 0 }
+      })]
     };
 
     const ready = editorReducer(withHandle, {
@@ -1205,7 +1218,7 @@ describe("editorReducer – branch edge cases", () => {
     const staleDrag = editorReducer(dragging, {
       type: "SNAPSHOT_READY",
       requestId: "stale",
-      snapshot: { ...makeEmptySnapshot("drag-source"), source: "drag-source", figures: [{ id: "figure:9" }] }
+      snapshot: { ...makeEmptySnapshot("drag-source"), source: "drag-source", figures: [figureInventoryItem("figure:9")] }
     });
     expect(staleDrag.snapshot.source).toBe("drag-source");
     expect(staleDrag.pendingRequestId).toBeNull();
@@ -1251,7 +1264,7 @@ describe("editorReducer – branch edge cases", () => {
         kind: "unsupported",
         reason: PROPERTY_WRITE_CLEANUP_NOOP_REASON
       }
-    } as EditorAction);
+    } as unknown as EditorAction);
     expect(cleanupNoop).toBe(state);
   });
 

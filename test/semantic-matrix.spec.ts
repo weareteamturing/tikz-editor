@@ -100,7 +100,7 @@ describe("semantic matrix nodes", () => {
     expect(mode.rowSep).toEqual({ gap: 5, betweenOrigins: false });
     expect(mode.columnSep).toEqual({ gap: 4, betweenOrigins: true });
     expect(mode.matrixAnchor).toBe("north east");
-    expect(mode.nodesOption?.entries.map((entry) => entry.kind === "kv" ? entry.key : entry.key)).toEqual([
+    expect(mode.nodesOption?.entries.map((entry) => entry.kind === "unknown" ? entry.raw : entry.key)).toEqual([
       "draw",
       "name",
       "alias"

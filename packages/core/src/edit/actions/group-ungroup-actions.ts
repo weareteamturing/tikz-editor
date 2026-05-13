@@ -88,7 +88,7 @@ export function applyGroupElementsAction(
     parseOptions
   });
   const applied = applyTextReplacements(source, [{ span: replacement.span, text: replacement.text }]);
-  const appliedReplacement = applied.applied[0]!;
+  const appliedReplacement = applied.applied[0];
 
   const scopeSpan: Span = {
     from: appliedReplacement.newSpan.from + replacement.scopeLocalSpan.from,
@@ -139,7 +139,7 @@ export function applyUngroupElementsAction(
     .join(separator);
 
   const applied = applyTextReplacements(source, [{ span: ref.span, text: replacementText }]);
-  const appliedReplacement = applied.applied[0]!;
+  const appliedReplacement = applied.applied[0];
 
   let selectedSourceIds: string[] | undefined;
   if (replacementText.length > 0) {

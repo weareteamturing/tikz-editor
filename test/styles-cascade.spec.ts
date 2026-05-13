@@ -7,6 +7,7 @@ import type { EditParseOptions } from "../packages/core/src/edit/parse-options.j
 import { renderTikzToSvg } from "../packages/core/src/render/index.js";
 import { parseOptionListRaw } from "../packages/core/src/options/parse.js";
 import type { StyleChainEntry } from "../packages/core/src/semantic/style-chain.js";
+import type { ResolvedStyle } from "../packages/core/src/semantic/types.js";
 import {
   buildSharedStylesCascadeModel,
   buildStylesCascadeModel,
@@ -79,7 +80,7 @@ function colorProperty(id: string, label: string, key: string): InspectorPropert
 
 function directStylesModel(
   source: string,
-  entryInput: Omit<StyleChainEntry, "before" | "after">,
+  entryInput: Omit<StyleChainEntry, "before" | "after"> & Record<string, unknown>,
   properties: InspectorProperty[],
   descriptorInput: Partial<InspectorDescriptor> = {}
 ) {
@@ -352,7 +353,7 @@ describe("styles cascade model", () => {
           kind: "fillShading",
           id: "fill-shading",
           label: "Shading",
-          value: "none",
+          value: "axis",
           options: [],
           write: testWriteTarget({ key: "shading" })
         } as InspectorProperty,
@@ -360,7 +361,7 @@ describe("styles cascade model", () => {
           kind: "fillPattern",
           id: "fill-pattern",
           label: "Pattern",
-          value: "none",
+          value: "dots",
           options: [],
           write: testWriteTarget({ key: "pattern" })
         } as InspectorProperty,
@@ -502,7 +503,7 @@ describe("styles cascade model", () => {
           label: "Mode",
           value: "solid",
           options: [],
-          context: { fillColor: null, patternColor: null, shading: "axis", pattern: "none" },
+          context: { fillColor: null, patternColor: null, shading: "axis", pattern: "dots" },
           write: testWriteTarget({ key: "fill" })
         } as InspectorProperty
       ]
@@ -627,7 +628,11 @@ describe("styles cascade model", () => {
   });
 
   it("formats source-less contributions for paint, shading, and pattern style values", () => {
-    const contributionCases = [
+    const contributionCases: Array<{
+      contribution: Partial<ResolvedStyle>;
+      property: InspectorProperty;
+      expected: string;
+    }> = [
       {
         contribution: { stroke: "orange" },
         property: colorProperty("stroke-color", "Stroke color", "draw"),
@@ -644,7 +649,7 @@ describe("styles cascade model", () => {
         expected: "purple"
       },
       {
-        contribution: { lineCap: "rect" },
+        contribution: { lineCap: "rect" } as unknown as Partial<ResolvedStyle>,
         property: {
           kind: "lineCap",
           id: "line-cap",
@@ -670,14 +675,14 @@ describe("styles cascade model", () => {
         expected: "round"
       },
       {
-        contribution: { fillPattern: { kind: "Lines" } },
+        contribution: { fillPattern: { kind: "Lines" } } as unknown as Partial<ResolvedStyle>,
         property: {
           kind: "fillMode",
           id: "fill-mode",
           label: "Mode",
           value: "solid",
           options: [],
-          context: { fillColor: null, patternColor: null, shading: "axis", pattern: "none" },
+          context: { fillColor: null, patternColor: null, shading: "axis", pattern: "dots" },
           write: testWriteTarget({ key: "fill" })
         } as InspectorProperty,
         expected: "pattern"
@@ -690,7 +695,7 @@ describe("styles cascade model", () => {
           label: "Mode",
           value: "solid",
           options: [],
-          context: { fillColor: null, patternColor: null, shading: "axis", pattern: "none" },
+          context: { fillColor: null, patternColor: null, shading: "axis", pattern: "dots" },
           write: testWriteTarget({ key: "fill" })
         } as InspectorProperty,
         expected: "gradient"
@@ -701,7 +706,7 @@ describe("styles cascade model", () => {
           kind: "fillShading",
           id: "fill-shading",
           label: "Shading",
-          value: "none",
+          value: "axis",
           options: [],
           write: testWriteTarget({ key: "shading" })
         } as InspectorProperty,

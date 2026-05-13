@@ -70,7 +70,6 @@ export function applyAddTreeChildAction(
   const insertionAnchor = resolveRootInsertionAnchor(source, rootStatement, rootChildren, action.afterChildIndex);
 
   const newline = detectPreferredNewline(source, insertionAnchor.offset);
-  const rootLineIndent = lineIndentAtOffset(source, rootStatement.span.from);
   const childIndent = insertionAnchor.childIndent;
   return applyInsertion(source, insertionAnchor.offset, `${newline}${childIndent}${NEW_CHILD_SNIPPET}`, [parentSourceId]);
 }
@@ -175,7 +174,7 @@ function resolveRootInsertionAnchor(
   if (Number.isInteger(afterChildIndexRaw)) {
     const afterChildIndex = Math.max(0, afterChildIndexRaw!);
     if (afterChildIndex < children.length) {
-      const child = children[afterChildIndex]!;
+      const child = children[afterChildIndex];
       return {
         offset: skipHorizontalWhitespace(source, child.span.to),
         childIndent: lineIndentAtOffset(source, child.span.from)
@@ -183,7 +182,7 @@ function resolveRootInsertionAnchor(
     }
   }
 
-  const lastChild = children[children.length - 1]!;
+  const lastChild = children[children.length - 1];
   return {
     offset: skipHorizontalWhitespace(source, lastChild.span.to),
     childIndent: lineIndentAtOffset(source, lastChild.span.from)

@@ -363,7 +363,7 @@ function applyMoveMatrixElementsWithPlacementRewrite(
   if (patches.length === 0) {
     return {
       kind: "unsupported",
-      reason: failureReasons[0]!
+      reason: failureReasons[0]
     };
   }
 
@@ -410,7 +410,7 @@ function applyMoveScopeElementsWithTransformRewrite(
   if (patches.length === 0) {
     return {
       kind: "unsupported",
-      reason: failureReasons[0]!
+      reason: failureReasons[0]
     };
   }
 
@@ -703,7 +703,7 @@ function applyMoveTreeRootElementsWithPlacementRewrite(
   if (patches.length === 0) {
     return {
       kind: "unsupported",
-      reason: failureReasons[0]!
+      reason: failureReasons[0]
     };
   }
 
@@ -779,7 +779,7 @@ function rewriteSingleMatrixPlacement(
         matrixTarget.target.options!,
         new Map<string, OptionMutation>([["at", { kind: "remove" }]]),
         undefined,
-        matrixTarget.target.optionsFormat!
+        matrixTarget.target.optionsFormat
       );
       const applied = applyTextReplacements(source, [
         { span: matrixTarget.target.optionsSpan!, text: optionReplacement },
@@ -1029,7 +1029,7 @@ function spansEqual(left: Span, right: Span): boolean {
 }
 
 function buildMatrixInlineAtInsertion(source: string, bodyOpenOffset: number, nextCoordinate: string): string {
-  const needsLeadingSpace = !/\s/u.test(source[bodyOpenOffset - 1]!);
+  const needsLeadingSpace = !/\s/u.test(source[bodyOpenOffset - 1]);
   return `${needsLeadingSpace ? " " : ""}at ${nextCoordinate} `;
 }
 
