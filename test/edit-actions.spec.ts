@@ -4071,7 +4071,25 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).toContain("minimum height=");
   });
 
-  it("drops non-binding minimum height when shrinking below intrinsic floor", () => {
+  it("rounds resize-authored minimum dimensions to integer points", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: wp(45.4, 60.6)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("minimum width=91pt");
+    expect(result.newSource).toContain("minimum height=121pt");
+  });
+
+  it("drops non-binding minimum dimensions when shrinking below intrinsic floor", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[draw,minimum width=100pt,minimum height=80pt] at (0,0) {A};
 \end{tikzpicture}`;
@@ -4084,9 +4102,8 @@ describe("applyEditAction – resizeElement", () => {
     });
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
-    expect(result.newSource).toContain("minimum width=");
+    expect(result.newSource).not.toContain("minimum width=");
     expect(result.newSource).not.toContain("minimum height=");
-    expect(result.newSource).not.toContain("minimum width=100pt");
   });
 
   it("updates only the axis targeted by the resize role", () => {
@@ -4212,7 +4229,7 @@ describe("applyEditAction – resizeElement", () => {
     expect(width).toBeGreaterThan(200);
   });
 
-  it("drops non-binding minimum height for unstyled nodes when shrinking", () => {
+  it("drops non-binding minimum dimensions for unstyled nodes when shrinking", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[minimum width=100pt,minimum height=80pt] at (0,0) {A};
 \end{tikzpicture}`;
@@ -4226,9 +4243,30 @@ describe("applyEditAction – resizeElement", () => {
 
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
-    expect(result.newSource).toContain("minimum width=");
+    expect(result.newSource).not.toContain("minimum width=");
     expect(result.newSource).not.toContain("minimum height=");
-    expect(result.newSource).not.toContain("minimum width=100pt");
+  });
+
+  it("drops non-binding minimum width for positioned nodes when shrinking", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[minimum width=40pt] at (1,2) {node};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const bounds = collectSourceWorldBounds(semantic.scene.elements).get("path:0");
+    expect(bounds).toBeDefined();
+    if (!bounds) return;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: wp((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).not.toContain("minimum width=");
   });
 
   it("uses the provided text engine when computing intrinsic resize floors", () => {

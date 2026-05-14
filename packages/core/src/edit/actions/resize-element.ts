@@ -45,6 +45,7 @@ import { parseTikzForEdit, type EditParseOptions } from "../parse-options.js";
 import { FIT_DIRECT_MANIPULATION_BLOCK_REASON, propertyTargetUsesFit, sourceUsesFitNodeFromParseResult } from "../fit.js";
 
 const RESIZE_EPSILON = 1e-3;
+const RESIZE_MINIMUM_DIMENSION_FORMAT = { fractionDigits: 0 } as const;
 
 function wp(x: number, y: number): WorldPoint {
   return worldPoint(pt(x), pt(y));
@@ -320,7 +321,7 @@ function buildNodeResizeMutationCandidates(args: {
     };
     const heightMutation: OptionMutation =
       requestedHeight > intrinsicHeight + RESIZE_EPSILON
-        ? { kind: "set", value: `${formatNumber(requestedHeight)}pt` }
+        ? { kind: "set", value: `${formatNumber(requestedHeight, RESIZE_MINIMUM_DIMENSION_FORMAT)}pt` }
         : { kind: "remove" };
     const candidates: Array<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }> = [];
     if (!affectsHeight) {
@@ -342,13 +343,11 @@ function buildNodeResizeMutationCandidates(args: {
 
   const widthMutation: OptionMutation =
     requestedWidth > intrinsicWidth + RESIZE_EPSILON
-      ? { kind: "set", value: `${formatNumber(requestedWidth)}pt` }
-      : preserveExplicitWidthFloor
-        ? { kind: "set", value: `${formatNumber(intrinsicWidth)}pt` }
-        : { kind: "remove" };
+      ? { kind: "set", value: `${formatNumber(requestedWidth, RESIZE_MINIMUM_DIMENSION_FORMAT)}pt` }
+      : { kind: "remove" };
   const heightMutation: OptionMutation =
     requestedHeight > intrinsicHeight + RESIZE_EPSILON
-      ? { kind: "set", value: `${formatNumber(requestedHeight)}pt` }
+      ? { kind: "set", value: `${formatNumber(requestedHeight, RESIZE_MINIMUM_DIMENSION_FORMAT)}pt` }
       : { kind: "remove" };
 
   const candidates: Array<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }> = [];
@@ -1646,8 +1645,8 @@ function rewriteDiamondSideResize(args: {
     const scale = Math.max(0, requestedPrimary / currentPrimary);
     const nextMinimumWidth = Math.max(0, dimensions.minimumWidth * scale);
     const nextMinimumHeight = Math.max(0, dimensions.minimumHeight * scale);
-    mutations.set("minimum width", { kind: "set", value: `${formatNumber(nextMinimumWidth)}pt` });
-    mutations.set("minimum height", { kind: "set", value: `${formatNumber(nextMinimumHeight)}pt` });
+    mutations.set("minimum width", { kind: "set", value: `${formatNumber(nextMinimumWidth, RESIZE_MINIMUM_DIMENSION_FORMAT)}pt` });
+    mutations.set("minimum height", { kind: "set", value: `${formatNumber(nextMinimumHeight, RESIZE_MINIMUM_DIMENSION_FORMAT)}pt` });
     return applyOptionMutationsToTarget(source, resizeTarget, mutations);
   }
 
@@ -1659,7 +1658,7 @@ function rewriteDiamondSideResize(args: {
       aspect
     });
     const nextMinimumWidth = Math.max(0, requestedWidth - aspect * companionHeight);
-    mutations.set("minimum width", { kind: "set", value: `${formatNumber(nextMinimumWidth)}pt` });
+    mutations.set("minimum width", { kind: "set", value: `${formatNumber(nextMinimumWidth, RESIZE_MINIMUM_DIMENSION_FORMAT)}pt` });
     if (!dimensions.hasExplicitMinimumHeight) {
       mutations.set("minimum height", { kind: "remove" });
     }
@@ -1673,7 +1672,7 @@ function rewriteDiamondSideResize(args: {
     aspect
   });
   const nextMinimumHeight = Math.max(0, requestedHeight - companionWidth / aspect);
-  mutations.set("minimum height", { kind: "set", value: `${formatNumber(nextMinimumHeight)}pt` });
+  mutations.set("minimum height", { kind: "set", value: `${formatNumber(nextMinimumHeight, RESIZE_MINIMUM_DIMENSION_FORMAT)}pt` });
   if (!dimensions.hasExplicitMinimumWidth) {
     mutations.set("minimum width", { kind: "remove" });
   }
