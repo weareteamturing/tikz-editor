@@ -136,6 +136,12 @@ export function useInspectorMutations(dispatch: (action: EditorAction) => void) 
         clearKeys: [...clearKeySet]
       };
     }
+    if (nextValue === "none" && write.clearOnNoneKeys) {
+      return {
+        value: "",
+        clearKeys: write.clearOnNoneKeys
+      };
+    }
 
     return {
       value: nextValue,

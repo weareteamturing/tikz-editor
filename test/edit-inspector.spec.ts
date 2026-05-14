@@ -3040,6 +3040,73 @@ describe("getInspectorDescriptor", () => {
     expect(result.newSource).not.toContain("text color=");
   });
 
+  it.each([
+    {
+      name: "bare standalone node",
+      source: String.raw`\begin{tikzpicture}
+  \node at (1,2) {node};
+\end{tikzpicture}`,
+      expectedValue: null,
+      expectedSyntaxValue: null
+    },
+    {
+      name: "fill-only node",
+      source: String.raw`\begin{tikzpicture}
+  \node[fill=red] at (1,2) {node};
+\end{tikzpicture}`,
+      expectedValue: null,
+      expectedSyntaxValue: null
+    },
+    {
+      name: "node on a draw path",
+      source: String.raw`\begin{tikzpicture}
+  \draw (0,0) node {node};
+\end{tikzpicture}`,
+      expectedValue: null,
+      expectedSyntaxValue: null
+    },
+    {
+      name: "node with explicit draw",
+      source: String.raw`\begin{tikzpicture}
+  \node[draw] at (1,2) {node};
+\end{tikzpicture}`,
+      expectedValue: "black",
+      expectedSyntaxValue: null
+    },
+    {
+      name: "node with every node draw style",
+      source: String.raw`\begin{tikzpicture}[every node/.style={draw=red}]
+  \node at (1,2) {node};
+\end{tikzpicture}`,
+      expectedValue: "red",
+      expectedSyntaxValue: "red"
+    },
+    {
+      name: "node disabling inherited every node draw style",
+      source: String.raw`\begin{tikzpicture}[every node/.style={draw=red}]
+  \node[draw=none] at (1,2) {node};
+\end{tikzpicture}`,
+      expectedValue: null,
+      expectedSyntaxValue: "none"
+    }
+  ])("presents inactive node stroke as none for $name", ({ source, expectedValue, expectedSyntaxValue }) => {
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text" && entry.text === "node");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected text element");
+    }
+
+    const descriptor = getInspectorDescriptor(text, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const strokeColor = getStrokeColorProperty(descriptor);
+
+    expect(strokeColor.value).toBe(expectedValue);
+    expect(strokeColor.syntaxValue).toBe(expectedSyntaxValue);
+  });
+
   it("writes standalone node stroke options outside literal node text", () => {
     const source = String.raw`\begin{tikzpicture}
   \node at (0,3) {node};
@@ -3055,15 +3122,8 @@ describe("getInspectorDescriptor", () => {
       source,
       editHandles: rendered.semantic.editHandles
     });
-    const strokeSection = descriptor.sections.find((section) => section.id === "stroke");
-    expect(strokeSection).toBeDefined();
-    if (!strokeSection) {
-      throw new Error("Expected stroke section");
-    }
-    const strokeColor = strokeSection.properties.find((property) => property.id === "stroke-color");
-    if (!strokeColor || strokeColor.kind !== "color") {
-      throw new Error("Expected stroke color property");
-    }
+    const strokeColor = getStrokeColorProperty(descriptor);
+    expect(strokeColor.value).toBeNull();
 
     const result = applyEditAction(source, [], {
       kind: "setProperty",
@@ -3081,6 +3141,61 @@ describe("getInspectorDescriptor", () => {
   \node[draw=red] at (0,3) {node};
 \end{tikzpicture}`);
     expect(result.changedSourceIds).toEqual(["path:0"]);
+  });
+
+  it("marks local node draw as removable when setting stroke back to none", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw=red] at (0,3) {node};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected text element");
+    }
+
+    const descriptor = getInspectorDescriptor(text, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const strokeColor = getStrokeColorProperty(descriptor);
+    expect(strokeColor.write.clearOnNoneKeys).toEqual([]);
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: strokeColor.write.elementId,
+      level: strokeColor.write.level,
+      key: strokeColor.write.key,
+      value: "",
+      clearKeys: strokeColor.write.clearOnNoneKeys
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected successful stroke color removal");
+    }
+
+    expect(result.newSource).toBe(String.raw`\begin{tikzpicture}
+  \node at (0,3) {node};
+\end{tikzpicture}`);
+  });
+
+  it("keeps none as an override when inherited node draw would reappear", () => {
+    const source = String.raw`\begin{tikzpicture}[every node/.style={draw=blue}]
+  \node[draw=red] at (0,3) {node};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected text element");
+    }
+
+    const descriptor = getInspectorDescriptor(text, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const strokeColor = getStrokeColorProperty(descriptor);
+    expect(strokeColor.write.clearOnNoneKeys).toBeUndefined();
   });
 
   it.each([
@@ -3141,15 +3256,7 @@ describe("getInspectorDescriptor", () => {
       source,
       editHandles: rendered.semantic.editHandles
     });
-    const strokeSection = descriptor.sections.find((section) => section.id === "stroke");
-    expect(strokeSection).toBeDefined();
-    if (!strokeSection) {
-      throw new Error("Expected stroke section");
-    }
-    const strokeColor = strokeSection.properties.find((property) => property.id === "stroke-color");
-    if (!strokeColor || strokeColor.kind !== "color") {
-      throw new Error("Expected stroke color property");
-    }
+    const strokeColor = getStrokeColorProperty(descriptor);
 
     const result = applyEditAction(source, [], {
       kind: "setProperty",
@@ -4681,6 +4788,18 @@ function getNodePropertyById(descriptor: ReturnType<typeof getInspectorDescripto
     throw new Error("Expected node section");
   }
   return nodeSection.properties.find((property) => property.id === propertyId);
+}
+
+function getStrokeColorProperty(descriptor: ReturnType<typeof getInspectorDescriptor>) {
+  const strokeSection = descriptor.sections.find((section) => section.id === "stroke");
+  if (!strokeSection) {
+    throw new Error("Expected stroke section");
+  }
+  const strokeColor = strokeSection.properties.find((property) => property.id === "stroke-color");
+  if (!strokeColor || strokeColor.kind !== "color") {
+    throw new Error("Expected stroke color property");
+  }
+  return strokeColor;
 }
 
 function getNodeLengthProperty(

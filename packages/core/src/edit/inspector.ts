@@ -241,6 +241,7 @@ export type SetPropertyWriteTarget = {
   level: StyleLevel;
   key: string;
   propertyId?: SemanticPropertyId;
+  clearOnNoneKeys?: string[];
   transformContext?: {
     key: TransformInspectorKey;
     values: TransformInspectorValues;
@@ -513,6 +514,9 @@ const GRID_XSTEP_CLEAR_KEYS = ["x step"] as const;
 const GRID_YSTEP_CLEAR_KEYS = ["y step"] as const;
 const FOREACH_TEMPLATE_INFO_NOTE = "Editing the foreach template. Changes apply to all iterations.";
 const FOREACH_VARIABLE_READONLY_REASON = "This property depends on foreach iteration variables and is read-only.";
+const NODE_TARGET_KINDS = new Set(["node-item", "matrix-cell", "tree-child"]);
+const NODE_PAINT_STYLE_KINDS = new Set<StyleChainEntry["kind"]>(["every-node", "every-shape"]);
+const NODE_PAINT_SOURCE_KINDS = new Set(["node-options"]);
 
 type ShapeAdaptiveControlBase = {
   id: string;
@@ -556,6 +560,84 @@ type ShapeAdaptiveControl =
   | ShapeAdaptiveLengthControl
   | ShapeAdaptiveEnumControl
   | ShapeAdaptiveBooleanControl;
+
+function resolveInspectorStrokeColor(element: SceneElement, targetKind: string | null): string | null {
+  if (!shouldPresentNodeStrokeAsActive(element, targetKind)) {
+    return null;
+  }
+  return element.style.stroke;
+}
+
+function resolveInspectorStrokeClearOnNoneKeys(
+  element: SceneElement,
+  targetKind: string | null,
+  resolvedTarget: PropertyTargetResolution | null
+): string[] | undefined {
+  if (!shouldPresentNodeStrokeAsActive(element, targetKind)) {
+    return undefined;
+  }
+  if (element.kind !== "Text" || !targetKind || !NODE_TARGET_KINDS.has(targetKind)) {
+    return undefined;
+  }
+  const nodeOptionsEntry = [...element.styleChain].reverse().find(
+    (entry) => entry.sourceRef?.sourceKind === "node-options"
+  );
+  if (!nodeOptionsEntry || nodeOptionsEntry.before.drawExplicit) {
+    return undefined;
+  }
+  if (!targetHasDrawActivation(resolvedTarget)) {
+    return undefined;
+  }
+  return [];
+}
+
+function shouldPresentNodeStrokeAsActive(element: SceneElement, targetKind: string | null): boolean {
+  if (element.kind !== "Text" || !targetKind || !NODE_TARGET_KINDS.has(targetKind)) {
+    return true;
+  }
+
+  let drawActive = false;
+  for (const entry of element.styleChain) {
+    if (!isNodePaintStyleEntry(entry)) {
+      continue;
+    }
+    if (typeof entry.resolvedContributions.drawExplicit === "boolean") {
+      drawActive = entry.resolvedContributions.drawExplicit;
+    }
+  }
+
+  return drawActive && element.style.stroke != null && element.style.stroke !== "none";
+}
+
+function isNodePaintStyleEntry(entry: StyleChainEntry): boolean {
+  if (NODE_PAINT_STYLE_KINDS.has(entry.kind)) {
+    return true;
+  }
+  return entry.sourceRef?.sourceKind != null && NODE_PAINT_SOURCE_KINDS.has(entry.sourceRef.sourceKind);
+}
+
+function targetHasDrawActivation(resolvedTarget: PropertyTargetResolution | null): boolean {
+  if (resolvedTarget?.kind !== "found" || !resolvedTarget.target.options) {
+    return false;
+  }
+  for (const entry of resolvedTarget.target.options.entries) {
+    if (entry.kind !== "flag" && entry.kind !== "kv") {
+      continue;
+    }
+    const key = normalizeOptionKey(entry.key);
+    if (key !== "draw") {
+      continue;
+    }
+    if (entry.kind === "flag") {
+      return true;
+    }
+    if (entry.kind === "kv") {
+      const value = stripEnclosingBraces(entry.valueRaw).trim().toLowerCase();
+      return value !== "none";
+    }
+  }
+  return false;
+}
 
 const SIGNAL_DIRECTION_ENUM_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "nowhere", label: "Nowhere" },
@@ -1512,13 +1594,18 @@ export function getInspectorDescriptor(
     resolveTarget
   );
   const transformValues = transformContext.values;
-  const strokeColor = normalizeInspectorColorValue(element.style.stroke);
+  const strokeColor = normalizeInspectorColorValue(resolveInspectorStrokeColor(element, inlineTarget.targetKind));
   const strokeColorSyntax = resolveColorSyntaxValue(
     resolvedInlineTarget,
     ["draw", "color"],
     strokeColor,
     colorAliases,
     element.styleChain
+  );
+  const strokeClearOnNoneKeys = resolveInspectorStrokeClearOnNoneKeys(
+    element,
+    inlineTarget.targetKind,
+    resolvedInlineTarget
   );
   const fillColor = normalizeInspectorColorValue(element.style.fill);
   const fillColorSyntax = resolveColorSyntaxValue(
@@ -1789,7 +1876,10 @@ export function getInspectorDescriptor(
           value: strokeColor,
           syntaxValue: strokeColorSyntax,
           options: colorOptionsForValue(strokeColor),
-          write: makeSetPropertyWriteTarget(inlineTarget, "draw")
+          write: {
+            ...makeSetPropertyWriteTarget(inlineTarget, "draw"),
+            clearOnNoneKeys: strokeClearOnNoneKeys
+          }
         },
         {
           kind: "lineWidth",
