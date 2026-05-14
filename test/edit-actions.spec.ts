@@ -1094,12 +1094,12 @@ describe("applyEditAction – moveElement", () => {
     const result = applyEditAction(source, [], {
       kind: "moveElement",
       elementId: "scope:0",
-      delta: wp(5, -2)
+      delta: wp(5.6, -2.4)
     });
 
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
-    expect(result.newSource).toContain("xshift=7pt");
+    expect(result.newSource).toContain("xshift=8pt");
     expect(result.newSource).toContain("yshift=1pt");
     expectPatchesReconstructSource(source, result);
   });
@@ -4320,6 +4320,7 @@ describe("applyEditAction – resizeElement", () => {
     if (result.kind !== "success") return;
     const textWidthMatch = /text width=([0-9.]+)pt/.exec(result.newSource);
     expect(textWidthMatch).not.toBeNull();
+    expect(Number(textWidthMatch?.[1])).toBe(Math.round(Number(textWidthMatch?.[1])));
     expect(result.newSource).not.toContain("minimum width=");
   });
 
@@ -8103,7 +8104,7 @@ describe("applyEditAction – adornment placement", () => {
       throw new Error("Expected non-compass adornment move to succeed");
     }
     expect(result.newSource).toContain("22:L");
-    expect(result.newSource).toContain("label distance=10.77pt");
+    expect(result.newSource).toContain("label distance=11pt");
   });
 
   it("does not serialize synthetic every-pin styles when rewriting a pin repeatedly", () => {
@@ -8316,12 +8317,12 @@ describe("applyEditAction – path-attached nodes", () => {
       pos: 0.5,
       preserveRegime: true,
       sideUpdate: { kind: "explicit-direction", direction: "above" },
-      distanceUpdatePt: 2
+      distanceUpdatePt: 2.6
     });
 
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
-    expect(result.newSource).toContain("node[above=2pt] {A}");
+    expect(result.newSource).toContain("node[above=3pt] {A}");
   });
 
   it("drops explicit directional distance when dragged back near zero", () => {

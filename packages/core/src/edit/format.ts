@@ -5,6 +5,11 @@ export type NumberFormatOptions = {
   fractionDigits?: number;
 };
 
+export const NUMBER_FORMAT_PRESETS = {
+  pointDimension: { fractionDigits: 0 },
+  pointDistance: { fractionDigits: 0 }
+} as const satisfies Record<string, NumberFormatOptions>;
+
 export function formatNumber(value: number, options: NumberFormatOptions = {}): string {
   const fractionDigits = options.fractionDigits ?? 2;
   const scale = 10 ** fractionDigits;

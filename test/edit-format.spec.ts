@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatNumber } from "../packages/core/src/edit/format.js";
+import { NUMBER_FORMAT_PRESETS, formatNumber } from "../packages/core/src/edit/format.js";
 
 describe("formatNumber", () => {
   it("defaults to compact two-decimal formatting", () => {
@@ -10,8 +10,8 @@ describe("formatNumber", () => {
   });
 
   it("supports interaction-specific fractional precision", () => {
-    expect(formatNumber(90.8, { fractionDigits: 0 })).toBe("91");
-    expect(formatNumber(120.2, { fractionDigits: 0 })).toBe("120");
-    expect(formatNumber(-0.1, { fractionDigits: 0 })).toBe("0");
+    expect(formatNumber(90.8, NUMBER_FORMAT_PRESETS.pointDimension)).toBe("91");
+    expect(formatNumber(120.2, NUMBER_FORMAT_PRESETS.pointDistance)).toBe("120");
+    expect(formatNumber(-0.1, NUMBER_FORMAT_PRESETS.pointDistance)).toBe("0");
   });
 });

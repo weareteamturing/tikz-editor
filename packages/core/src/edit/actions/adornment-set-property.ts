@@ -1,6 +1,6 @@
 import { parseStyleValueAsOptionList } from "../../semantic/style/option-utils.js";
 import { parseLength } from "../../semantic/coords/parse-length.js";
-import { formatNumber } from "../format.js";
+import { NUMBER_FORMAT_PRESETS, formatNumber } from "../format.js";
 import { replaceSpan } from "../patch.js";
 import type { PropertyTarget } from "../property-target.js";
 import { normalizeOptionKey, rewriteOptionListMutations, type OptionMutation } from "../option-mutations.js";
@@ -119,7 +119,7 @@ export function applyAdornmentValueRewrite(
   } else {
     baseOptionMutations.set(distanceKey, {
       kind: "set",
-      value: `${formatNumber(distancePt)}pt`
+      value: `${formatNumber(distancePt, NUMBER_FORMAT_PRESETS.pointDistance)}pt`
     });
   }
 

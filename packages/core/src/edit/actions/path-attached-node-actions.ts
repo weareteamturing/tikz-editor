@@ -1,6 +1,6 @@
 import { applyOptionMutationsToTarget, normalizeOptionKey, type OptionMutation } from "../option-mutations.js";
 import { resolvePropertyTarget } from "../property-target.js";
-import { formatNumber } from "../format.js";
+import { NUMBER_FORMAT_PRESETS, formatNumber } from "../format.js";
 import type { EditParseOptions } from "../parse-options.js";
 import type { SourcePatch } from "../types.js";
 import {
@@ -244,5 +244,5 @@ function applyDistanceMutations(
     mutations.set(resolvedDirection, { kind: "set", value: "" });
     return;
   }
-  mutations.set(resolvedDirection, { kind: "set", value: `${formatNumber(resolvedDistance)}pt` });
+  mutations.set(resolvedDirection, { kind: "set", value: `${formatNumber(resolvedDistance, NUMBER_FORMAT_PRESETS.pointDistance)}pt` });
 }

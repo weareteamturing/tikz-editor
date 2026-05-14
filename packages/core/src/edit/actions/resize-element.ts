@@ -29,7 +29,7 @@ import { collectSourceWorldBounds } from "../snapping/index.js";
 import { worldToLocal } from "../coords.js";
 import { replaceSpan } from "../patch.js";
 import { rewriteCoordinate } from "../rewrite.js";
-import { CM_PER_PT, formatNumber } from "../format.js";
+import { CM_PER_PT, NUMBER_FORMAT_PRESETS, formatNumber } from "../format.js";
 import { applyTextReplacements } from "../statement-ops.js";
 import { resolveTransformInspectorMutationContextFromOptionEntries } from "../property-write-builders.js";
 import {
@@ -45,7 +45,6 @@ import { parseTikzForEdit, type EditParseOptions } from "../parse-options.js";
 import { FIT_DIRECT_MANIPULATION_BLOCK_REASON, propertyTargetUsesFit, sourceUsesFitNodeFromParseResult } from "../fit.js";
 
 const RESIZE_EPSILON = 1e-3;
-const RESIZE_MINIMUM_DIMENSION_FORMAT = { fractionDigits: 0 } as const;
 
 function wp(x: number, y: number): WorldPoint {
   return worldPoint(pt(x), pt(y));
@@ -317,11 +316,14 @@ function buildNodeResizeMutationCandidates(args: {
   if (widthResizeStrategy === "text-width" && affectsWidth) {
     const textWidthMutation: OptionMutation = {
       kind: "set",
-      value: `${formatNumber(Math.max(RESIZE_EPSILON, requestedTextWidth!))}pt`
+      value: `${formatNumber(
+        Math.max(RESIZE_EPSILON, requestedTextWidth!),
+        NUMBER_FORMAT_PRESETS.pointDimension
+      )}pt`
     };
     const heightMutation: OptionMutation =
       requestedHeight > intrinsicHeight + RESIZE_EPSILON
-        ? { kind: "set", value: `${formatNumber(requestedHeight, RESIZE_MINIMUM_DIMENSION_FORMAT)}pt` }
+        ? { kind: "set", value: `${formatNumber(requestedHeight, NUMBER_FORMAT_PRESETS.pointDimension)}pt` }
         : { kind: "remove" };
     const candidates: Array<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }> = [];
     if (!affectsHeight) {
@@ -343,11 +345,11 @@ function buildNodeResizeMutationCandidates(args: {
 
   const widthMutation: OptionMutation =
     requestedWidth > intrinsicWidth + RESIZE_EPSILON
-      ? { kind: "set", value: `${formatNumber(requestedWidth, RESIZE_MINIMUM_DIMENSION_FORMAT)}pt` }
+      ? { kind: "set", value: `${formatNumber(requestedWidth, NUMBER_FORMAT_PRESETS.pointDimension)}pt` }
       : { kind: "remove" };
   const heightMutation: OptionMutation =
     requestedHeight > intrinsicHeight + RESIZE_EPSILON
-      ? { kind: "set", value: `${formatNumber(requestedHeight, RESIZE_MINIMUM_DIMENSION_FORMAT)}pt` }
+      ? { kind: "set", value: `${formatNumber(requestedHeight, NUMBER_FORMAT_PRESETS.pointDimension)}pt` }
       : { kind: "remove" };
 
   const candidates: Array<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }> = [];
@@ -568,10 +570,10 @@ function applyScopeTransformRewrite(
 ): OptionMutationApplyResult | null {
   const orderedSetMutations = new Map<string, OptionMutation>();
   if (Math.abs(values.xshift) > RESIZE_EPSILON) {
-    orderedSetMutations.set("xshift", { kind: "set", value: `${formatNumber(values.xshift)}pt` });
+    orderedSetMutations.set("xshift", { kind: "set", value: `${formatNumber(values.xshift, NUMBER_FORMAT_PRESETS.pointDistance)}pt` });
   }
   if (Math.abs(values.yshift) > RESIZE_EPSILON) {
-    orderedSetMutations.set("yshift", { kind: "set", value: `${formatNumber(values.yshift)}pt` });
+    orderedSetMutations.set("yshift", { kind: "set", value: `${formatNumber(values.yshift, NUMBER_FORMAT_PRESETS.pointDistance)}pt` });
   }
   if (Math.abs(values.xscale - 1) > RESIZE_EPSILON) {
     orderedSetMutations.set("xscale", { kind: "set", value: formatNumber(values.xscale) });
@@ -1645,8 +1647,14 @@ function rewriteDiamondSideResize(args: {
     const scale = Math.max(0, requestedPrimary / currentPrimary);
     const nextMinimumWidth = Math.max(0, dimensions.minimumWidth * scale);
     const nextMinimumHeight = Math.max(0, dimensions.minimumHeight * scale);
-    mutations.set("minimum width", { kind: "set", value: `${formatNumber(nextMinimumWidth, RESIZE_MINIMUM_DIMENSION_FORMAT)}pt` });
-    mutations.set("minimum height", { kind: "set", value: `${formatNumber(nextMinimumHeight, RESIZE_MINIMUM_DIMENSION_FORMAT)}pt` });
+    mutations.set("minimum width", {
+      kind: "set",
+      value: `${formatNumber(nextMinimumWidth, NUMBER_FORMAT_PRESETS.pointDimension)}pt`
+    });
+    mutations.set("minimum height", {
+      kind: "set",
+      value: `${formatNumber(nextMinimumHeight, NUMBER_FORMAT_PRESETS.pointDimension)}pt`
+    });
     return applyOptionMutationsToTarget(source, resizeTarget, mutations);
   }
 
@@ -1658,7 +1666,10 @@ function rewriteDiamondSideResize(args: {
       aspect
     });
     const nextMinimumWidth = Math.max(0, requestedWidth - aspect * companionHeight);
-    mutations.set("minimum width", { kind: "set", value: `${formatNumber(nextMinimumWidth, RESIZE_MINIMUM_DIMENSION_FORMAT)}pt` });
+    mutations.set("minimum width", {
+      kind: "set",
+      value: `${formatNumber(nextMinimumWidth, NUMBER_FORMAT_PRESETS.pointDimension)}pt`
+    });
     if (!dimensions.hasExplicitMinimumHeight) {
       mutations.set("minimum height", { kind: "remove" });
     }
@@ -1672,7 +1683,10 @@ function rewriteDiamondSideResize(args: {
     aspect
   });
   const nextMinimumHeight = Math.max(0, requestedHeight - companionWidth / aspect);
-  mutations.set("minimum height", { kind: "set", value: `${formatNumber(nextMinimumHeight, RESIZE_MINIMUM_DIMENSION_FORMAT)}pt` });
+  mutations.set("minimum height", {
+    kind: "set",
+    value: `${formatNumber(nextMinimumHeight, NUMBER_FORMAT_PRESETS.pointDimension)}pt`
+  });
   if (!dimensions.hasExplicitMinimumWidth) {
     mutations.set("minimum width", { kind: "remove" });
   }

@@ -7,7 +7,7 @@ import type { WorldPoint } from "../../coords/points.js";
 import type { EditHandle } from "../../semantic/types.js";
 import { collectSourceWorldBounds } from "../snapping/index.js";
 import { localToSourceUnits, worldToLocal } from "../coords.js";
-import { CM_PER_PT, formatNumber } from "../format.js";
+import { CM_PER_PT, NUMBER_FORMAT_PRESETS, formatNumber } from "../format.js";
 import {
   buildTransformSetPropertyMutations,
   resolveTransformInspectorMutationContextFromOptionEntries
@@ -540,12 +540,18 @@ function rewriteSingleScopeShiftInPlace(
     });
     const optionMutations = new Map<string, OptionMutation>();
     if (hasXShiftEntry || Math.abs(nextShiftX) > 1e-6) {
-      optionMutations.set("xshift", { kind: "set", value: `${formatNumber(nextShiftX)}pt` });
+      optionMutations.set("xshift", {
+        kind: "set",
+        value: `${formatNumber(nextShiftX, NUMBER_FORMAT_PRESETS.pointDistance)}pt`
+      });
     } else {
       optionMutations.set("xshift", { kind: "remove" });
     }
     if (hasYShiftEntry || Math.abs(nextShiftY) > 1e-6) {
-      optionMutations.set("yshift", { kind: "set", value: `${formatNumber(nextShiftY)}pt` });
+      optionMutations.set("yshift", {
+        kind: "set",
+        value: `${formatNumber(nextShiftY, NUMBER_FORMAT_PRESETS.pointDistance)}pt`
+      });
     } else {
       optionMutations.set("yshift", { kind: "remove" });
     }
@@ -575,7 +581,12 @@ function rewriteSingleScopeShiftInPlace(
   const nextShiftX = context.values.xshift + localDelta.x;
   const nextShiftY = context.values.yshift + localDelta.y;
   const optionMutations = new Map<string, OptionMutation>([
-    ["shift", { kind: "set", value: `(${formatNumber(nextShiftX)}pt,${formatNumber(nextShiftY)}pt)` }]
+    ["shift", {
+      kind: "set",
+      value: `(${formatNumber(nextShiftX, NUMBER_FORMAT_PRESETS.pointDistance)}pt,${
+        formatNumber(nextShiftY, NUMBER_FORMAT_PRESETS.pointDistance)
+      }pt)`
+    }]
   ]);
 
   const rewritten = applyOptionMutationsToTarget(source, target, optionMutations);
