@@ -1,4 +1,3 @@
-import type { StyleLevel } from "./actions.js";
 import { TREE_CHILD_NODE_READONLY_KEYS, TREE_ROOT_LAYOUT_KEYS } from "./tree-editing.js";
 import {
   makeForeachTemplateTargetId,
@@ -19,8 +18,7 @@ import {
   normalizeRoundedCornersMax,
   pathHasRoundableCorner
 } from "./inspector/rounded-corners.js";
-import { parseTikz } from "../parser/index.js";
-import type { PathItem, PathStatement, Span, Statement } from "../ast/types.js";
+import type { PathItem, Span } from "../ast/types.js";
 import type { OptionEntry, OptionListAst } from "../options/types.js";
 import {
   findTopLevelCharacter,
@@ -28,25 +26,20 @@ import {
   parseStyleValueAsOptionList,
   stripEnclosingBraces
 } from "../semantic/style/option-utils.js";
-import { parseCoordinateLike, parseLength } from "../semantic/coords/parse-length.js";
+import { parseLength } from "../semantic/coords/parse-length.js";
 import { DEFAULT_TEXT_FONT_SIZE } from "../semantic/style/constants.js";
 import { normalizeColor } from "../semantic/style/colors.js";
 import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../semantic/types.js";
-import { CM_PER_PT } from "./format.js";
 import {
   cloneTransformInspectorValues,
   resolveTransformInspectorMutationContext,
   transformPropertyCandidateKeys,
   type ArrowTipWriteContext,
-  type FillModeMutationContext,
   type FillPatternOptionMutationContext,
   type NodeFontMutationContext,
-  type NodeMinimumDimensionsMutationContext,
   type ShadowMutationContext,
   type TransformInspectorKey,
-  type TransformInspectorMutationContext,
-  type TransformInspectorPresence,
-  type TransformInspectorValues
+  type TransformInspectorMutationContext
 } from "./property-write-builders.js";
 import {
   ARROW_DEFAULT_CLEAR_KEYS,
@@ -112,55 +105,60 @@ import {
 import { PATH_POSITION_PRESETS, resolvePathPositionPreset } from "../semantic/path/path-attached.js";
 import type {
   ArrowTipPresetId,
-  ArrowTipPresetOption,
   ArrowTipSide,
   DashStylePresetId,
-  DashStylePresetOption,
   FillModePresetId,
-  FillModePresetOption,
   FillPatternMetaFamilyId,
-  FillPatternMetaOptionKey,
   FillPatternMetaValues,
   FillPatternPresetId,
-  FillPatternPresetOption,
   FillShadingPresetId,
-  FillShadingPresetOption,
   LineCapPresetId,
-  LineCapPresetOption,
   LineJoinPresetId,
-  LineJoinPresetOption,
   NodeFontFamilyId,
   NodeFontSizePresetId,
-  NodeFontSizePresetOption,
   NodeShapePresetId,
-  NodeShapePresetOption,
   PathMorphingDecorationPresetId,
-  PathMorphingDecorationPresetOption,
   PathMorphingDecorationSuboptionSpec,
-  ShadowPresetId,
-  ShadowPresetOption
+  ShadowPresetId
 } from "./inspector/presets.js";
 import type {
   ArrowMarker,
   ArrowTipKind,
-  EditHandle,
   ResolvedStyle,
   ResolvedPattern,
   SceneElement,
   ScenePathCommand
 } from "../semantic/types.js";
 import { parseBooleanishNormalized } from "../utils/booleanish.js";
-import {
-  resolveNodeShapeGeometryParams,
-  type SignalDirection
-} from "../semantic/nodes/shape-geometry.js";
 import type { StyleChainEntry } from "../semantic/style-chain.js";
 import {
   candidateKeysForProperty,
-  propertyIdForWriteKey,
-  type SemanticPropertyId
+  propertyIdForWriteKey
 } from "./property-registry.js";
+import {
+  resolveNodeShapeAdaptiveControls,
+  type ShapeAdaptiveControl
+} from "./inspector/shape-adaptive-controls.js";
+import { findPathStatementInSource, resolveGridInspectorState } from "./inspector/grid-state.js";
+import type {
+  ArrowTipWriteTarget,
+  InspectorDescriptor,
+  InspectorProperty,
+  InspectorSection,
+  InspectorSnapshot,
+  NodeTextAlignInspectorValue,
+  SetPropertyWriteTarget
+} from "./inspector/types.js";
 export { TIKZPICTURE_GLOBAL_TARGET_ID } from "./property-target.js";
+export type {
+  ArrowTipWriteTarget,
+  InspectorDescriptor,
+  InspectorProperty,
+  InspectorSection,
+  InspectorSnapshot,
+  NodeTextAlignInspectorValue,
+  SetPropertyWriteTarget
+} from "./inspector/types.js";
 export type {
   ArrowTipPresetId,
   ArrowTipPresetOption,
@@ -223,292 +221,7 @@ function createInspectorTargetResolver(
   };
 }
 
-type ArrowTipWriteTarget = SetPropertyWriteTarget & {
-  arrowContext: ArrowTipWriteContext;
-};
-
-export type InspectorSnapshot = {
-  source: string;
-  editHandles?: EditHandle[];
-  parseOptions?: EditParseOptions;
-};
-
-export type NodeTextAlignInspectorValue = "unset" | "left" | "center" | "right" | "justify";
-
-export type SetPropertyWriteTarget = {
-  mode: "setProperty";
-  elementId: string;
-  level: StyleLevel;
-  key: string;
-  propertyId?: SemanticPropertyId;
-  clearOnNoneKeys?: string[];
-  transformContext?: {
-    key: TransformInspectorKey;
-    values: TransformInspectorValues;
-    presence?: TransformInspectorPresence;
-  };
-  shadowContext?: ShadowMutationContext;
-  writable: boolean;
-  reason?: string;
-};
-
-export type InspectorProperty =
-  | {
-      kind: "text";
-      id: string;
-      label: string;
-      value: string;
-      write: SetPropertyWriteTarget;
-      readOnlyReason?: string;
-    }
-  | {
-      kind: "enum";
-      id: string;
-      label: string;
-      value: string;
-      options: Array<{ value: string; label: string }>;
-      write: SetPropertyWriteTarget;
-      readOnlyReason?: string;
-    }
-  | {
-      kind: "boolean";
-      id: string;
-      label: string;
-      value: boolean;
-      trueValue?: string;
-      falseValue?: string;
-      clearKeys?: string[];
-      write: SetPropertyWriteTarget;
-      readOnlyReason?: string;
-    }
-  | {
-      kind: "number";
-      id: string;
-      label: string;
-      value: number;
-      step: number;
-      min?: number;
-      max?: number;
-      unit?: string;
-      clearKeys?: string[];
-      write?: SetPropertyWriteTarget;
-      readOnlyReason?: string;
-    }
-  | {
-      kind: "length";
-      id: string;
-      label: string;
-      value: number;
-      step: number;
-      unit: "pt";
-      clearKeys?: string[];
-      write: SetPropertyWriteTarget;
-      note?: string;
-      minimumDimensionsContext?: NodeMinimumDimensionsMutationContext;
-      readOnlyReason?: string;
-    }
-  | {
-      kind: "slider";
-      id: string;
-      label: string;
-      value: number;
-      min: number;
-      max: number;
-      step: number;
-      ticks?: ReadonlyArray<{ value: number; label?: string }>;
-      displayLabel?: string;
-      write: SetPropertyWriteTarget;
-      readOnlyReason?: string;
-    }
-  | {
-      kind: "optionalLength";
-      id: string;
-      label: string;
-      value: number | null;
-      step: number;
-      unit: "pt";
-      clearKeys?: string[];
-      write: SetPropertyWriteTarget;
-      note?: string;
-      readOnlyReason?: string;
-    }
-  | {
-      kind: "color";
-      id: string;
-      label: string;
-      value: string | null;
-      syntaxValue: string | null;
-      options: string[];
-      write: SetPropertyWriteTarget;
-    }
-  | {
-      kind: "lineWidth";
-      id: string;
-      label: string;
-      value: number;
-      min: number;
-      max: number;
-      step: number;
-      presetLabel: string | null;
-      write: SetPropertyWriteTarget;
-    }
-  | {
-      kind: "dashStyle";
-      id: string;
-      label: string;
-      value: DashStylePresetId;
-      options: DashStylePresetOption[];
-      previewLineWidth: number;
-      write: SetPropertyWriteTarget;
-    }
-  | {
-      kind: "lineCap";
-      id: string;
-      label: string;
-      value: LineCapPresetId;
-      options: LineCapPresetOption[];
-      previewLineWidth: number;
-      write: SetPropertyWriteTarget;
-    }
-  | {
-      kind: "lineJoin";
-      id: string;
-      label: string;
-      value: LineJoinPresetId;
-      options: LineJoinPresetOption[];
-      previewLineWidth: number;
-      write: SetPropertyWriteTarget;
-    }
-  | {
-      kind: "pathMorphingDecoration";
-      id: string;
-      label: string;
-      value: PathMorphingDecorationPresetId;
-      options: PathMorphingDecorationPresetOption[];
-      previewLineWidth: number;
-      write: SetPropertyWriteTarget;
-    }
-  | {
-      kind: "fillMode";
-      id: string;
-      label: string;
-      value: FillModePresetId;
-      options: FillModePresetOption[];
-      context: FillModeMutationContext;
-      write: SetPropertyWriteTarget;
-    }
-  | {
-      kind: "fillShading";
-      id: string;
-      label: string;
-      value: FillShadingPresetId;
-      options: FillShadingPresetOption[];
-      write: SetPropertyWriteTarget;
-      note?: string;
-    }
-  | {
-      kind: "fillPattern";
-      id: string;
-      label: string;
-      value: FillPatternPresetId;
-      options: FillPatternPresetOption[];
-      write: SetPropertyWriteTarget;
-      note?: string;
-    }
-  | {
-      kind: "nodeTextAlign";
-      id: string;
-      label: string;
-      value: NodeTextAlignInspectorValue;
-      write: SetPropertyWriteTarget;
-      clearKeys?: string[];
-      readOnlyReason?: string;
-    }
-  | {
-      kind: "nodeShape";
-      id: string;
-      label: string;
-      value: NodeShapePresetId;
-      options: NodeShapePresetOption[];
-      write: SetPropertyWriteTarget;
-      note?: string;
-    }
-  | {
-      kind: "nodeFont";
-      id: string;
-      label: string;
-      family: NodeFontFamilyId;
-      weight: "normal" | "bold";
-      style: "normal" | "italic";
-      sizePreset: NodeFontSizePresetId;
-      customSizePt: number | null;
-      sizeOptions: NodeFontSizePresetOption[];
-      context: NodeFontMutationContext;
-      write: SetPropertyWriteTarget;
-      note?: string;
-    }
-  | {
-      kind: "fillPatternOption";
-      id: string;
-      label: string;
-      option: FillPatternMetaOptionKey;
-      value: number;
-      step: number;
-      unit?: string;
-      context: FillPatternOptionMutationContext;
-      write: SetPropertyWriteTarget;
-    }
-  | {
-      kind: "roundedCorners";
-      id: string;
-      label: string;
-      enabled: boolean;
-      disableRequiresSharpCorners: boolean;
-      radius: number;
-      defaultRadius: number;
-      min: number;
-      max: number;
-      step: number;
-      write: SetPropertyWriteTarget;
-    }
-  | {
-      kind: "arrowTip";
-      id: string;
-      label: string;
-      side: ArrowTipSide;
-      value: ArrowTipPresetId;
-      options: ArrowTipPresetOption[];
-      previewLineWidth: number;
-      write: ArrowTipWriteTarget;
-    }
-  | {
-      kind: "shadowPreset";
-      id: string;
-      label: string;
-      value: ShadowPresetId;
-      options: ShadowPresetOption[];
-      context: ShadowMutationContext;
-      write: SetPropertyWriteTarget;
-    };
-
-export type InspectorSection = {
-  id: string;
-  title: string;
-  sourceLevel: StyleLevel;
-  properties: InspectorProperty[];
-};
-
-export type InspectorDescriptor = {
-  elementKind: "path" | "circle" | "ellipse" | "text" | "scope";
-  elementId: string;
-  writeTargetId: string | null;
-  readOnlyReason?: string;
-  infoNote?: string;
-  sections: InspectorSection[];
-};
-
 const ROUNDED_CORNERS_MIN = 0.1;
-const GRID_DEFAULT_STEP_CM = 1;
 const GRID_STEP_CLEAR_KEYS = ["xstep", "x step", "ystep", "y step"] as const;
 const GRID_XSTEP_CLEAR_KEYS = ["x step"] as const;
 const GRID_YSTEP_CLEAR_KEYS = ["y step"] as const;
@@ -520,49 +233,6 @@ const NODE_PAINT_SOURCE_KINDS = new Set(["node-options"]);
 const NODE_BACKED_SECTION_ORDER = ["transform", "node", "stroke", "fill", "path", "grid", "text", "shadow"] as const;
 const PATH_SECTION_ORDER = ["transform", "grid", "path", "stroke", "fill", "text", "shadow"] as const;
 const DEFAULT_SECTION_ORDER = ["transform", "stroke", "fill", "text", "shadow"] as const;
-
-type ShapeAdaptiveControlBase = {
-  id: string;
-  label: string;
-  writeKey: string;
-};
-
-type ShapeAdaptiveNumberControl = ShapeAdaptiveControlBase & {
-  kind: "number";
-  value: number;
-  step: number;
-  min?: number;
-  max?: number;
-  unit?: string;
-  clearKeys?: string[];
-};
-
-type ShapeAdaptiveLengthControl = ShapeAdaptiveControlBase & {
-  kind: "length";
-  value: number;
-  step: number;
-  clearKeys?: string[];
-};
-
-type ShapeAdaptiveEnumControl = ShapeAdaptiveControlBase & {
-  kind: "enum";
-  value: string;
-  options: Array<{ value: string; label: string }>;
-};
-
-type ShapeAdaptiveBooleanControl = ShapeAdaptiveControlBase & {
-  kind: "boolean";
-  value: boolean;
-  trueValue?: string;
-  falseValue?: string;
-  clearKeys?: string[];
-};
-
-type ShapeAdaptiveControl =
-  | ShapeAdaptiveNumberControl
-  | ShapeAdaptiveLengthControl
-  | ShapeAdaptiveEnumControl
-  | ShapeAdaptiveBooleanControl;
 
 function resolveInspectorStrokeColor(element: SceneElement, targetKind: string | null): string | null {
   if (!shouldPresentNodeStrokeAsActive(element, targetKind)) {
@@ -663,428 +333,6 @@ function orderInspectorSections(
     }
     return (originalIndex.get(left) ?? 0) - (originalIndex.get(right) ?? 0);
   });
-}
-
-const SIGNAL_DIRECTION_ENUM_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "nowhere", label: "Nowhere" },
-  { value: "north", label: "North" },
-  { value: "south", label: "South" },
-  { value: "east", label: "East" },
-  { value: "west", label: "West" },
-  { value: "north and south", label: "North and south" },
-  { value: "east and west", label: "East and west" }
-];
-
-const TAPE_BEND_ENUM_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "in and out", label: "In and out" },
-  { value: "out and in", label: "Out and in" },
-  { value: "none", label: "None" }
-];
-
-function resolveNodeShapeAdaptiveControls(
-  shape: Exclude<NodeShapePresetId, "custom">,
-  options: OptionListAst | undefined
-): ShapeAdaptiveControl[] {
-  const geometry = resolveNodeShapeGeometryParams(options);
-  const controls: ShapeAdaptiveControl[] = [];
-  const idPrefix = `node-shape-${shape.replace(/\s+/g, "-")}`;
-  const addRotation = shapeSupportsShapeBorderRotate(shape);
-
-  if (shape === "diamond") {
-    controls.push({
-      kind: "number",
-      id: `${idPrefix}-aspect`,
-      label: "Aspect",
-      writeKey: "aspect",
-      value: geometry.diamondAspect,
-      step: 0.05,
-      min: 0.05
-    });
-  } else if (shape === "trapezium") {
-    controls.push(
-      {
-        kind: "number",
-        id: `${idPrefix}-left-angle`,
-        label: "Left angle",
-        writeKey: "trapezium left angle",
-        value: geometry.trapeziumLeftAngle,
-        step: 1,
-        unit: "deg"
-      },
-      {
-        kind: "number",
-        id: `${idPrefix}-right-angle`,
-        label: "Right angle",
-        writeKey: "trapezium right angle",
-        value: geometry.trapeziumRightAngle,
-        step: 1,
-        unit: "deg"
-      },
-      {
-        kind: "boolean",
-        id: `${idPrefix}-stretches`,
-        label: "Stretches",
-        writeKey: "trapezium stretches",
-        value: geometry.trapeziumStretches
-      },
-      {
-        kind: "boolean",
-        id: `${idPrefix}-stretches-body`,
-        label: "Stretches body",
-        writeKey: "trapezium stretches body",
-        value: geometry.trapeziumStretchesBody
-      }
-    );
-  } else if (shape === "regular polygon") {
-    controls.push({
-      kind: "number",
-      id: `${idPrefix}-sides`,
-      label: "Sides",
-      writeKey: "regular polygon sides",
-      value: geometry.regularPolygonSides,
-      step: 1,
-      min: 3
-    });
-  } else if (shape === "star") {
-    controls.push(
-      {
-        kind: "number",
-        id: `${idPrefix}-points`,
-        label: "Points",
-        writeKey: "star points",
-        value: geometry.starPoints,
-        step: 1,
-        min: 2
-      },
-      {
-        kind: "number",
-        id: `${idPrefix}-point-ratio`,
-        label: "Point ratio",
-        writeKey: "star point ratio",
-        value: geometry.starPointRatio,
-        step: 0.05,
-        min: 0.05,
-        clearKeys: ["star point height"]
-      },
-      {
-        kind: "length",
-        id: `${idPrefix}-point-height`,
-        label: "Point height",
-        writeKey: "star point height",
-        value: geometry.starPointHeightPt,
-        step: 0.1,
-        clearKeys: ["star point ratio"]
-      }
-    );
-  } else if (shape === "isosceles triangle") {
-    controls.push(
-      {
-        kind: "number",
-        id: `${idPrefix}-apex-angle`,
-        label: "Apex angle",
-        writeKey: "isosceles triangle apex angle",
-        value: geometry.isoscelesTriangleApexAngle,
-        step: 1,
-        unit: "deg"
-      },
-      {
-        kind: "boolean",
-        id: `${idPrefix}-stretches`,
-        label: "Stretches",
-        writeKey: "isosceles triangle stretches",
-        value: geometry.isoscelesTriangleStretches
-      }
-    );
-  } else if (shape === "kite") {
-    controls.push(
-      {
-        kind: "number",
-        id: `${idPrefix}-upper-vertex-angle`,
-        label: "Upper vertex angle",
-        writeKey: "kite upper vertex angle",
-        value: geometry.kiteUpperVertexAngle,
-        step: 1,
-        unit: "deg"
-      },
-      {
-        kind: "number",
-        id: `${idPrefix}-lower-vertex-angle`,
-        label: "Lower vertex angle",
-        writeKey: "kite lower vertex angle",
-        value: geometry.kiteLowerVertexAngle,
-        step: 1,
-        unit: "deg"
-      }
-    );
-  } else if (shape === "dart") {
-    controls.push(
-      {
-        kind: "number",
-        id: `${idPrefix}-tip-angle`,
-        label: "Tip angle",
-        writeKey: "dart tip angle",
-        value: geometry.dartTipAngle,
-        step: 1,
-        unit: "deg"
-      },
-      {
-        kind: "number",
-        id: `${idPrefix}-tail-angle`,
-        label: "Tail angle",
-        writeKey: "dart tail angle",
-        value: geometry.dartTailAngle,
-        step: 1,
-        unit: "deg"
-      }
-    );
-  } else if (shape === "circular sector") {
-    controls.push({
-      kind: "number",
-      id: `${idPrefix}-angle`,
-      label: "Sector angle",
-      writeKey: "circular sector angle",
-      value: geometry.circularSectorAngle,
-      step: 1,
-      unit: "deg"
-    });
-  } else if (shape === "cylinder") {
-    controls.push({
-      kind: "number",
-      id: `${idPrefix}-aspect`,
-      label: "Aspect",
-      writeKey: "aspect",
-      value: geometry.cylinderAspect,
-      step: 0.05,
-      min: 0.05
-    });
-  } else if (shape === "cloud") {
-    controls.push(
-      {
-        kind: "number",
-        id: `${idPrefix}-aspect`,
-        label: "Aspect",
-        writeKey: "aspect",
-        value: geometry.diamondAspect,
-        step: 0.05,
-        min: 0.05
-      },
-      {
-        kind: "number",
-        id: `${idPrefix}-puffs`,
-        label: "Puffs",
-        writeKey: "cloud puffs",
-        value: geometry.cloudPuffs,
-        step: 1,
-        min: 2
-      },
-      {
-        kind: "number",
-        id: `${idPrefix}-puff-arc`,
-        label: "Puff arc",
-        writeKey: "cloud puff arc",
-        value: geometry.cloudPuffArc,
-        step: 1,
-        unit: "deg"
-      },
-      {
-        kind: "boolean",
-        id: `${idPrefix}-ignores-aspect`,
-        label: "Ignore aspect",
-        writeKey: "cloud ignores aspect",
-        value: geometry.cloudIgnoresAspect
-      }
-    );
-  } else if (shape === "starburst") {
-    controls.push(
-      {
-        kind: "number",
-        id: `${idPrefix}-points`,
-        label: "Points",
-        writeKey: "starburst points",
-        value: geometry.starburstPoints,
-        step: 1,
-        min: 2
-      },
-      {
-        kind: "length",
-        id: `${idPrefix}-point-height`,
-        label: "Point height",
-        writeKey: "starburst point height",
-        value: geometry.starburstPointHeightPt,
-        step: 0.1
-      },
-      {
-        kind: "number",
-        id: `${idPrefix}-random-seed`,
-        label: "Random seed",
-        writeKey: "random starburst",
-        value: geometry.randomStarburstSeed,
-        step: 1,
-        min: 0
-      }
-    );
-  } else if (shape === "signal") {
-    controls.push(
-      {
-        kind: "number",
-        id: `${idPrefix}-pointer-angle`,
-        label: "Pointer angle",
-        writeKey: "signal pointer angle",
-        value: geometry.signalPointerAngle,
-        step: 1,
-        unit: "deg"
-      },
-      {
-        kind: "enum",
-        id: `${idPrefix}-to`,
-        label: "Signal to",
-        writeKey: "signal to",
-        value: signalDirectionsToEnumValue(geometry.signalToSides),
-        options: SIGNAL_DIRECTION_ENUM_OPTIONS
-      },
-      {
-        kind: "enum",
-        id: `${idPrefix}-from`,
-        label: "Signal from",
-        writeKey: "signal from",
-        value: signalDirectionsToEnumValue(geometry.signalFromSides),
-        options: SIGNAL_DIRECTION_ENUM_OPTIONS
-      }
-    );
-  } else if (shape === "tape") {
-    controls.push(
-      {
-        kind: "enum",
-        id: `${idPrefix}-bend-top`,
-        label: "Bend top",
-        writeKey: "tape bend top",
-        value: geometry.tapeBendTop,
-        options: TAPE_BEND_ENUM_OPTIONS
-      },
-      {
-        kind: "enum",
-        id: `${idPrefix}-bend-bottom`,
-        label: "Bend bottom",
-        writeKey: "tape bend bottom",
-        value: geometry.tapeBendBottom,
-        options: TAPE_BEND_ENUM_OPTIONS
-      },
-      {
-        kind: "length",
-        id: `${idPrefix}-bend-height`,
-        label: "Bend height",
-        writeKey: "tape bend height",
-        value: geometry.tapeBendHeightPt,
-        step: 0.1
-      }
-    );
-  } else if (shape === "single arrow") {
-    controls.push(
-      {
-        kind: "number",
-        id: `${idPrefix}-tip-angle`,
-        label: "Tip angle",
-        writeKey: "single arrow tip angle",
-        value: geometry.singleArrowTipAngle,
-        step: 1,
-        unit: "deg"
-      },
-      {
-        kind: "length",
-        id: `${idPrefix}-head-extend`,
-        label: "Head extend",
-        writeKey: "single arrow head extend",
-        value: geometry.singleArrowHeadExtendPt,
-        step: 0.1
-      },
-      {
-        kind: "length",
-        id: `${idPrefix}-head-indent`,
-        label: "Head indent",
-        writeKey: "single arrow head indent",
-        value: geometry.singleArrowHeadIndentPt,
-        step: 0.1
-      }
-    );
-  } else if (shape === "double arrow") {
-    controls.push(
-      {
-        kind: "number",
-        id: `${idPrefix}-tip-angle`,
-        label: "Tip angle",
-        writeKey: "double arrow tip angle",
-        value: geometry.doubleArrowTipAngle,
-        step: 1,
-        unit: "deg"
-      },
-      {
-        kind: "length",
-        id: `${idPrefix}-head-extend`,
-        label: "Head extend",
-        writeKey: "double arrow head extend",
-        value: geometry.doubleArrowHeadExtendPt,
-        step: 0.1
-      },
-      {
-        kind: "length",
-        id: `${idPrefix}-head-indent`,
-        label: "Head indent",
-        writeKey: "double arrow head indent",
-        value: geometry.doubleArrowHeadIndentPt,
-        step: 0.1
-      }
-    );
-  }
-
-  if (addRotation) {
-    controls.push({
-      kind: "number",
-      id: `${idPrefix}-border-rotate`,
-      label: "Border rotate",
-      writeKey: "shape border rotate",
-      value: geometry.shapeBorderRotate,
-      step: 1,
-      unit: "deg"
-    });
-  }
-
-  return controls;
-}
-
-function shapeSupportsShapeBorderRotate(shape: Exclude<NodeShapePresetId, "custom">): boolean {
-  return (
-    shape === "trapezium"
-    || shape === "semicircle"
-    || shape === "regular polygon"
-    || shape === "star"
-    || shape === "isosceles triangle"
-    || shape === "kite"
-    || shape === "dart"
-    || shape === "circular sector"
-    || shape === "cylinder"
-    || shape === "cloud"
-    || shape === "starburst"
-    || shape === "single arrow"
-    || shape === "double arrow"
-  );
-}
-
-function signalDirectionsToEnumValue(sides: SignalDirection[]): string {
-  if (sides.length === 0) {
-    return "nowhere";
-  }
-  const unique = Array.from(new Set(sides));
-  if (unique.length === 1) {
-    return unique[0];
-  }
-  const sorted = [...unique].sort();
-  if (sorted.length === 2 && sorted[0] === "east" && sorted[1] === "west") {
-    return "east and west";
-  }
-  if (sorted.length === 2 && sorted[0] === "north" && sorted[1] === "south") {
-    return "north and south";
-  }
-  return unique[0];
 }
 
 function resolveMatrixSpacingPt(options: OptionListAst | undefined, key: "row sep" | "column sep"): number {
@@ -3837,181 +3085,6 @@ function arrowPresetSideRaw(preset: Exclude<ArrowTipPresetId, "custom">, side: A
   return "Hooks";
 }
 
-function resolveGridInspectorState(
-  element: SceneElement,
-  source: string,
-  parseOptions: EditParseOptions = {}
-): { keywordId: string; step: number; xstep: number; ystep: number } | null {
-  const pathStatement = findPathStatementInSource(source, element.sourceRef.sourceId, parseOptions);
-  if (!pathStatement) {
-    return null;
-  }
-
-  const gridKeywords = collectGridKeywords(pathStatement.items);
-  if (gridKeywords.length !== 1) {
-    return null;
-  }
-
-  const gridKeyword = gridKeywords[0];
-  if (!gridKeyword) {
-    return null;
-  }
-  const values = resolveGridStepValuesFromStyleChainAndOptions(element.styleChain, gridKeyword.options);
-  return {
-    keywordId: gridKeyword.keyword.id,
-    step: values.step,
-    xstep: values.xstep,
-    ystep: values.ystep
-  };
-}
-
-function findPathStatementInSource(source: string, sourceId: string, parseOptions: EditParseOptions = {}): PathStatement | null {
-  if (
-    parseOptions.analysisView &&
-    parseOptions.analysisView.source === source &&
-    parseOptions.analysisView.activeFigureId === parseOptions.activeFigureId
-  ) {
-    return parseOptions.analysisView.findPathStatement(sourceId);
-  }
-  const parsed = parseTikz(source, {
-    recover: true,
-    activeFigureId: parseOptions.activeFigureId,
-  });
-  return findPathStatementById(parsed.figure.body, sourceId);
-}
-
-function findPathStatementById(statements: Statement[], sourceId: string): PathStatement | null {
-  for (const statement of statements) {
-    if (statement.kind === "Path" && statement.id === sourceId) {
-      return statement;
-    }
-    if (statement.kind === "Scope") {
-      const nested = findPathStatementById(statement.body, sourceId);
-      if (nested) {
-        return nested;
-      }
-    }
-  }
-  return null;
-}
-
-function collectGridKeywords(
-  items: readonly PathItem[]
-): Array<{ keyword: Extract<PathItem, { kind: "PathKeyword" }>; options: Extract<PathItem, { kind: "PathOption" }> | null }> {
-  const collected: Array<{ keyword: Extract<PathItem, { kind: "PathKeyword" }>; options: Extract<PathItem, { kind: "PathOption" }> | null }> = [];
-
-  for (let index = 0; index < items.length; index += 1) {
-    const item = items[index];
-    if (!item) {
-      continue;
-    }
-    if (item.kind === "PathKeyword" && item.keyword === "grid") {
-      const next = items[index + 1];
-      collected.push({
-        keyword: item,
-        options: next?.kind === "PathOption" ? next : null
-      });
-      continue;
-    }
-    if (item.kind === "ChildOperation") {
-      collected.push(...collectGridKeywords(item.body));
-    }
-  }
-
-  return collected;
-}
-
-function resolveGridStepValuesFromStyleChainAndOptions(
-  styleChain: readonly StyleChainEntry[],
-  optionItem: Extract<PathItem, { kind: "PathOption" }> | null
-): { step: number; xstep: number; ystep: number } {
-  const optionLists = [
-    ...styleChain.flatMap((entry) => entry.rawOptions),
-    ...(optionItem ? [optionItem.options] : [])
-  ];
-
-  return resolveGridStepValuesFromOptionLists(optionLists);
-}
-
-function resolveGridStepValuesFromOptionLists(optionLists: readonly OptionListAst[]): { step: number; xstep: number; ystep: number } {
-  let xstep = GRID_DEFAULT_STEP_CM;
-  let ystep = GRID_DEFAULT_STEP_CM;
-
-  for (const optionList of optionLists) {
-    for (const entry of optionList.entries) {
-      if (entry.kind !== "kv") {
-        continue;
-      }
-
-      const key = normalizeOptionKey(entry.key);
-      if (key === "step") {
-        const parsed = parseGridStepValueCm(entry.valueRaw);
-        if (!parsed) {
-          continue;
-        }
-        xstep = parsed.x;
-        ystep = parsed.y;
-        continue;
-      }
-
-      if (key === "xstep" || key === "x step") {
-        const parsed = parseGridLengthCm(entry.valueRaw);
-        if (parsed != null) {
-          xstep = parsed;
-        }
-        continue;
-      }
-
-      if (key === "ystep" || key === "y step") {
-        const parsed = parseGridLengthCm(entry.valueRaw);
-        if (parsed != null) {
-          ystep = parsed;
-        }
-      }
-    }
-  }
-
-  return {
-    step: Math.abs(xstep - ystep) <= 1e-6 ? xstep : GRID_DEFAULT_STEP_CM,
-    xstep,
-    ystep
-  };
-}
-
-function parseGridStepValueCm(raw: string): { step: number | null; x: number; y: number } | null {
-  const pair = parseCoordinateLike(raw);
-  if (pair) {
-    const x = parseGridLengthCm(pair.x);
-    const y = parseGridLengthCm(pair.y);
-    if (x == null || y == null) {
-      return null;
-    }
-    return {
-      step: Math.abs(x - y) <= 1e-6 ? x : null,
-      x,
-      y
-    };
-  }
-
-  const scalar = parseGridLengthCm(raw);
-  if (scalar == null) {
-    return null;
-  }
-  return {
-    step: scalar,
-    x: scalar,
-    y: scalar
-  };
-}
-
-function parseGridLengthCm(raw: string): number | null {
-  const parsedPt = parseLength(raw, "cm");
-  if (parsedPt == null || !Number.isFinite(parsedPt) || parsedPt <= 0) {
-    return null;
-  }
-  return normalizeTinyNumber(parsedPt * CM_PER_PT);
-}
-
 function resolveNodeInspectorState(
   source: string,
   targetId: string | null,
@@ -4829,10 +3902,6 @@ function computePathStrokeControlVisibility(
     showLineCap: hasDash || openSubpathHasSegments,
     showLineJoin: hasJoin
   };
-}
-
-function normalizeTinyNumber(value: number): number {
-  return Math.abs(value) <= 1e-9 ? 0 : value;
 }
 
 function canonicalDecorationName(raw: string | null | undefined): string | null {

@@ -25,14 +25,12 @@ type EditAction
 import { PT_PER_CM,formatNumber } from "tikz-editor/edit/format";
 import {
 makeForeachTemplateTargetId,
-resolvePropertyTarget,
 resolvePropertyTargetFromParseResult
 } from "tikz-editor/edit/property-target";
 import {
 type SnapLine
 } from "tikz-editor/edit/snapping";
 import { renderTikzToSvg } from "tikz-editor/render/index";
-import { collectGeometryInvalidation } from "tikz-editor/semantic/index";
 import type {
 SceneElement
 } from "tikz-editor/semantic/types";
@@ -46,7 +44,7 @@ import { createMathJaxNodeTextEngine,getActiveMathJaxOutputJax } from "tikz-edit
 import type { NodeTextEngine,NodeTextLayoutKind } from "tikz-editor/text/types";
 import { useShallow } from "zustand/react/shallow";
 import type { AppMenuCommandId } from "../app-menu";
-import { buildCanvasContextMenuDefinition,type CanvasContextMenuTarget } from "../context-menu";
+import { buildCanvasContextMenuDefinition } from "../context-menu";
 import { getSharedEditAnalysisSession,getSharedEditAnalysisView } from "../edit-analysis-manager";
 import { getActiveEditorPlatform } from "../platform/current";
 import { GRID_SIZE_MINOR_TARGET_PX } from "../settings/types";
@@ -62,7 +60,7 @@ reduceCanvasTextEdit,
 type CanvasTextEditAction
 } from "./canvas-panel/canvas-text-edit-machine";
 import { CanvasPanelView } from "./canvas-panel/CanvasPanelView";
-import { resolveCanvasContextMenuTarget } from "./canvas-panel/context-menu-target";
+import { useCanvasContextMenuController,useCanvasContextMenuState } from "./canvas-panel/useCanvasContextMenus";
 import {
 appendFreehandToolPoint,
 generateFreehandToolSource
@@ -102,10 +100,7 @@ import { collectDensePathSourceIds, resolvePathSelectionHint } from "./canvas-pa
 import type {
 resolveResizeFrameForSource
 } from "./canvas-panel/resize-frames";
-import {
-isSvgPointWithinScopeBounds,
-resolveFocusedScopeIdForSelection
-} from "./canvas-panel/scope-overlay";
+import { isSvgPointWithinScopeBounds } from "./canvas-panel/scope-overlay";
 import {
 clampSnapDebugOverlayRect,
 summarizeSnapContextForDebug,
@@ -120,7 +115,6 @@ import { createSourceRenderOffsetMap } from "./canvas-panel/text-offset-map";
 import { applyTextMeasureFont,collectLogicalLineRanges,createVisualTextLayout,resolveVisualLineLeft } from "./canvas-panel/text-visual-layout";
 import type {
 ApplyActionFeedback,
-CanvasContextMenuState,
 DragState,
 DragTooltipState,
 EditableTextTarget,
@@ -146,37 +140,24 @@ import { useCanvasHandleInteractions } from "./canvas-panel/useCanvasHandleInter
 import { useCanvasKeyboardClipboard } from "./canvas-panel/useCanvasKeyboardClipboard";
 import { useCanvasSelectionDerivedState } from "./canvas-panel/useCanvasSelectionDerivedState";
 import { useCanvasSelectionInteractions } from "./canvas-panel/useCanvasSelectionInteractions";
+import { useCanvasSvgPatchInvalidation } from "./canvas-panel/useCanvasSvgPatchInvalidation";
 import { useCanvasTextEditingEffects } from "./canvas-panel/useCanvasTextEditingEffects";
 import { useCanvasToolInteractions } from "./canvas-panel/useCanvasToolInteractions";
 import { useCanvasViewportEffects } from "./canvas-panel/useCanvasViewportEffects";
+import { useCanvasViewportPersistence } from "./canvas-panel/useCanvasViewportPersistence";
+import { useBucketFillPreview,type BucketPreviewSession } from "./canvas-panel/useBucketFillPreview";
 import type { ClientPoint,SvgBounds,ViewportPoint,WorldPoint } from "./coords/types";
 import { useEditorCommandRuntime,type CommandOrigin } from "./editor-command-runtime";
 import {
 formatEquationText,
-resolveEquationNodeTarget,
 type EquationNodeTarget
 } from "./equation-utils";
-
-type BucketPreviewSession = {
-  sourceId: string;
-  colorToken: string;
-  baseSource: string;
-  previewSource: string;
-};
-
-type PendingNativeContextMenuRequest = {
-  clientPoint: ClientPoint;
-  clickedSourceId: string;
-  clickedHandleId: string | null;
-};
 
 type TextEditCaretOverlay = {
   left: number;
   top: number;
   height: number;
 };
-
-const NATIVE_CONTEXT_MENU_SELECT_DELAY_MS = 75;
 
 const EquationModal = lazy(async () => {
   const mod = await import("./EquationModal");
@@ -214,7 +195,6 @@ type SnapDebugOverlayDragState =
     };
 
 const RULER_SIZE = 24;
-const FIT_PADDING = 44;
 const MIN_SCALE = 0.05;
 const MAX_SCALE = 20;
 const NUDGE_STEP_PT = 0.05 * PT_PER_CM;
@@ -226,31 +206,6 @@ const CANVAS_DRAG_CURSOR_LOCK_CLASS = "is-dragging-canvas-cursor-lock";
 const IMPORTED_SVG_TARGET_RATIO = 0.3;
 const IMPORTED_SVG_MIN_SCALE = 0.2;
 const IMPORTED_SVG_MAX_SCALE = 3;
-
-function computeFitToContentScale(
-  fitViewBox: SvgViewBox | null | undefined,
-  viewportWidth: number,
-  viewportHeight: number
-): number | null {
-  if (
-    !fitViewBox ||
-    viewportWidth <= 0 ||
-    viewportHeight <= 0 ||
-    fitViewBox.width <= 0 ||
-    fitViewBox.height <= 0
-  ) {
-    return null;
-  }
-
-  const availableWidth = Math.max(1, viewportWidth - FIT_PADDING * 2);
-  const availableHeight = Math.max(1, viewportHeight - FIT_PADDING * 2);
-
-  return clamp(
-    Math.min(availableWidth / fitViewBox.width, availableHeight / fitViewBox.height),
-    MIN_SCALE,
-    MAX_SCALE
-  );
-}
 
 const DESKTOP_SVG_CLIPBOARD_FORMATS = [
   "image/svg+xml",
@@ -309,11 +264,6 @@ const TEXTAREA_CARET_MIRROR_STYLE_PROPERTIES = [
   "text-transform",
   "word-spacing"
 ] as const;
-
-type FigureViewportState = {
-  transform: CanvasTransform;
-  fitToContentModeActive: boolean;
-};
 
 function resolveTextareaLineHeightPx(textarea: HTMLTextAreaElement): number {
   const computed = textarea.ownerDocument.defaultView?.getComputedStyle(textarea);
@@ -392,10 +342,6 @@ type TextLineRange = {
   start: number;
   end: number;
 };
-
-function makeFigureViewportKey(documentId: string, figureId: string | null): string {
-  return `${documentId}::${figureId ?? "__none__"}`;
-}
 
 function resolveTextSelectionModeFromClickCount(clickCount: number): TextSelectionDragMode {
   if (clickCount >= 3) {
@@ -850,11 +796,9 @@ export const CanvasPanel = memo(function CanvasPanel({
   const [pendingAdornmentTextEditTargetId, setPendingAdornmentTextEditTargetId] = useState<string | null>(null);
   const [pathAttachedNodePreview, setPathAttachedNodePreview] = useState<{ sourceId: string; dx: number; dy: number } | null>(null);
   const [dragPatchMode, setDragPatchMode] = useState<"partial" | "full">("partial");
-  const [dragAffectedSourceIds, setDragAffectedSourceIds] = useState<string[] | null>(null);
-  const [contextMenuState, setContextMenuState] = useState<CanvasContextMenuState | null>(null);
+  const contextMenus = useCanvasContextMenuState();
+  const { contextMenuState, setContextMenuState, contextMenuContextRef, contextMenuHandleIdOverride } = contextMenus;
   const [equationModalTarget, setEquationModalTarget] = useState<EquationNodeTarget | null>(null);
-  const [pendingNativeContextMenuRequest, setPendingNativeContextMenuRequest] =
-    useState<PendingNativeContextMenuRequest | null>(null);
   const [expandedDensePathSourceId, setExpandedDensePathSourceId] = useState<string | null>(null);
   const fitToContentModeActiveRef = useRef(fitToContentModeActive);
   const setFitToContentModeActive = useCallback(
@@ -865,10 +809,6 @@ export const CanvasPanel = memo(function CanvasPanel({
     [dispatch]
   );
   const bucketPreviewSessionRef = useRef<BucketPreviewSession | null>(null);
-  const contextMenuContextRef = useRef<{ clickedTargetId: string | null; clickedWorld: WorldPoint | null }>({
-    clickedTargetId: null,
-    clickedWorld: null
-  });
 
   useEffect(() => {
     let cancelled = false;
@@ -913,7 +853,6 @@ export const CanvasPanel = memo(function CanvasPanel({
       unlisten?.();
     };
   }, [platform.accessibility]);
-  const pendingNativeContextMenuTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useLayoutEffect(() => {
     canvasTextEditStateRef.current = canvasTextEditState;
   }, [canvasTextEditState]);
@@ -962,8 +901,6 @@ export const CanvasPanel = memo(function CanvasPanel({
     };
   }, [activeCanvasTextEditSourceId, dispatch]);
 
-  const contextMenuHandleIdOverride =
-    pendingNativeContextMenuRequest?.clickedHandleId ?? contextMenuState?.handleIdOverride;
   const editParseOptions = useMemo(
     () => ({
       activeFigureId:
@@ -1023,211 +960,6 @@ export const CanvasPanel = memo(function CanvasPanel({
     },
     [canvasTransform.scale, canvasTransform.translateX, canvasTransform.translateY, dispatch]
   );
-
-  const showNativeContextMenu = useCallback(
-    (
-      target: CanvasContextMenuTarget,
-      options: {
-        includeEditEquationForSingleNode?: boolean;
-        includeMatrixMultiRemoveRow?: boolean;
-        includeMatrixMultiRemoveColumn?: boolean;
-        includeMatrixMultiInsertRowAbove?: boolean;
-        includeMatrixMultiInsertRowBelow?: boolean;
-        includeMatrixMultiInsertColumnLeft?: boolean;
-        includeMatrixMultiInsertColumnRight?: boolean;
-      } = {}
-    ) => {
-      const definition = buildCanvasContextMenuDefinition({
-        includeEditEquationForSingleNode: options.includeEditEquationForSingleNode,
-        includeMatrixMultiRemoveRow: options.includeMatrixMultiRemoveRow,
-        includeMatrixMultiRemoveColumn: options.includeMatrixMultiRemoveColumn,
-        includeMatrixMultiInsertRowAbove: options.includeMatrixMultiInsertRowAbove,
-        includeMatrixMultiInsertRowBelow: options.includeMatrixMultiInsertRowBelow,
-        includeMatrixMultiInsertColumnLeft: options.includeMatrixMultiInsertColumnLeft,
-        includeMatrixMultiInsertColumnRight: options.includeMatrixMultiInsertColumnRight
-      });
-      void platform.menu?.showNativeContextMenu?.({
-        items: definition[target],
-        commandStates: commandRuntime.bindings
-      });
-    },
-    [commandRuntime.bindings, platform.menu]
-  );
-
-  const resolveIncludeEditEquationForSingleNode = useCallback(
-    (target: CanvasContextMenuTarget, sourceId: string | null): boolean => {
-      if ((target !== "selection-single-node" && target !== "selection-single-node-tree") || !sourceId) {
-        return false;
-      }
-      return resolveEquationNodeTarget(source, sourceId, editParseOptions) != null;
-    },
-    [editParseOptions, source]
-  );
-
-  const resolveMatrixMultiContextMenuOptions = useCallback(
-    (target: CanvasContextMenuTarget, sourceIds: ReadonlySet<string>) => {
-      if (target !== "selection-multi") {
-        return {
-          includeMatrixMultiInsertRowAbove: false,
-          includeMatrixMultiInsertRowBelow: false,
-          includeMatrixMultiRemoveRow: false,
-          includeMatrixMultiInsertColumnLeft: false,
-          includeMatrixMultiInsertColumnRight: false,
-          includeMatrixMultiRemoveColumn: false
-        };
-      }
-
-      let matrixSourceId: string | null = null;
-      let row: number | null = null;
-      let column: number | null = null;
-
-      for (const sourceId of sourceIds) {
-        const resolved = resolvePropertyTarget(source, sourceId, editParseOptions);
-        if (resolved.kind !== "found" || resolved.target.kind !== "matrix-cell") {
-          return {
-            includeMatrixMultiInsertRowAbove: false,
-            includeMatrixMultiInsertRowBelow: false,
-            includeMatrixMultiRemoveRow: false,
-            includeMatrixMultiInsertColumnLeft: false,
-            includeMatrixMultiInsertColumnRight: false,
-            includeMatrixMultiRemoveColumn: false
-          };
-        }
-        const currentMatrixSourceId = resolved.target.matrixSourceId?.trim() ?? "";
-        const currentRow = resolved.target.row ?? 0;
-        const currentColumn = resolved.target.column ?? 0;
-        if (!currentMatrixSourceId || currentRow <= 0 || currentColumn <= 0) {
-          return {
-            includeMatrixMultiInsertRowAbove: false,
-            includeMatrixMultiInsertRowBelow: false,
-            includeMatrixMultiRemoveRow: false,
-            includeMatrixMultiInsertColumnLeft: false,
-            includeMatrixMultiInsertColumnRight: false,
-            includeMatrixMultiRemoveColumn: false
-          };
-        }
-        if (matrixSourceId == null) {
-          matrixSourceId = currentMatrixSourceId;
-          row = currentRow;
-          column = currentColumn;
-          continue;
-        }
-        if (matrixSourceId !== currentMatrixSourceId) {
-          return {
-            includeMatrixMultiInsertRowAbove: false,
-            includeMatrixMultiInsertRowBelow: false,
-            includeMatrixMultiRemoveRow: false,
-            includeMatrixMultiInsertColumnLeft: false,
-            includeMatrixMultiInsertColumnRight: false,
-            includeMatrixMultiRemoveColumn: false
-          };
-        }
-        if (row !== null && row !== currentRow) {
-          row = null;
-        }
-        if (column !== null && column !== currentColumn) {
-          column = null;
-        }
-      }
-
-      return {
-        includeMatrixMultiInsertRowAbove: row != null,
-        includeMatrixMultiInsertRowBelow: row != null,
-        includeMatrixMultiRemoveRow: row != null,
-        includeMatrixMultiInsertColumnLeft: column != null,
-        includeMatrixMultiInsertColumnRight: column != null,
-        includeMatrixMultiRemoveColumn: column != null
-      };
-    },
-    [editParseOptions, source]
-  );
-
-  useEffect(() => {
-    if (!platform.menu?.usesNativeContextMenus || !pendingNativeContextMenuRequest) {
-      return;
-    }
-    if (!selectedElementIds.has(pendingNativeContextMenuRequest.clickedSourceId)) {
-      return;
-    }
-
-    const viewport = viewportRef.current;
-    if (!viewport) {
-      return;
-    }
-
-    const resolution = resolveCanvasContextMenuTarget({
-      source,
-      toolMode,
-      clickedSourceId: pendingNativeContextMenuRequest.clickedSourceId,
-      selectedElementIds,
-      parseOptions: editParseOptions
-    });
-
-    contextMenuContextRef.current = {
-      clickedTargetId: pendingNativeContextMenuRequest.clickedSourceId,
-      clickedWorld:
-        svgResult
-          ? viewportToWorldPoint(
-              viewportPointFromClient(pendingNativeContextMenuRequest.clientPoint, viewportRef.current),
-              canvasTransform,
-              svgResult.viewBox
-            )
-          : null
-    };
-
-    if (pendingNativeContextMenuTimeoutRef.current) {
-      clearTimeout(pendingNativeContextMenuTimeoutRef.current);
-    }
-    dispatch({ type: "SET_ACTIVE_HANDLE", handleId: pendingNativeContextMenuRequest.clickedHandleId });
-
-    const nativeEffectiveTarget =
-      pendingNativeContextMenuRequest.clickedHandleId
-      && (resolution.target === "selection-single" || resolution.target === "selection-single-tree")
-        ? (resolution.target === "selection-single-tree"
-            ? "selection-single-path-point-tree"
-            : "selection-single-path-point") as CanvasContextMenuTarget
-        : resolution.target;
-    const includeEditEquationForSingleNode = resolveIncludeEditEquationForSingleNode(
-      nativeEffectiveTarget,
-      pendingNativeContextMenuRequest.clickedSourceId
-    );
-    const matrixMultiOptions = resolveMatrixMultiContextMenuOptions(nativeEffectiveTarget, selectedElementIds);
-
-    pendingNativeContextMenuTimeoutRef.current = setTimeout(() => {
-      pendingNativeContextMenuTimeoutRef.current = null;
-      showNativeContextMenu(nativeEffectiveTarget, {
-        includeEditEquationForSingleNode,
-        includeMatrixMultiRemoveRow: matrixMultiOptions.includeMatrixMultiRemoveRow,
-        includeMatrixMultiRemoveColumn: matrixMultiOptions.includeMatrixMultiRemoveColumn,
-        includeMatrixMultiInsertRowAbove: matrixMultiOptions.includeMatrixMultiInsertRowAbove,
-        includeMatrixMultiInsertRowBelow: matrixMultiOptions.includeMatrixMultiInsertRowBelow,
-        includeMatrixMultiInsertColumnLeft: matrixMultiOptions.includeMatrixMultiInsertColumnLeft,
-        includeMatrixMultiInsertColumnRight: matrixMultiOptions.includeMatrixMultiInsertColumnRight
-      });
-      setPendingNativeContextMenuRequest(null);
-      viewport.focus({ preventScroll: true });
-    }, NATIVE_CONTEXT_MENU_SELECT_DELAY_MS);
-
-    return () => {
-      if (pendingNativeContextMenuTimeoutRef.current) {
-        clearTimeout(pendingNativeContextMenuTimeoutRef.current);
-        pendingNativeContextMenuTimeoutRef.current = null;
-      }
-    };
-  }, [
-    canvasTransform,
-    pendingNativeContextMenuRequest,
-    selectedElementIds,
-    resolveIncludeEditEquationForSingleNode,
-    resolveMatrixMultiContextMenuOptions,
-    showNativeContextMenu,
-    source,
-    svgResult,
-    toolMode,
-    dispatch,
-    editParseOptions,
-    platform.menu?.usesNativeContextMenus
-  ]);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const topRulerRef = useRef<SVGSVGElement | null>(null);
@@ -1314,10 +1046,6 @@ export const CanvasPanel = memo(function CanvasPanel({
     });
   }, [pathAttachedNodePreview, snapshot.source]);
   const pendingTouchViewportRef = useRef<PendingTouchViewport | null>(null);
-  const viewportStateByFigureKeyRef = useRef(new Map<string, FigureViewportState>());
-  const visitedFigureKeysRef = useRef(new Set<string>());
-  const previousFigureViewportKeyRef = useRef<string | null>(null);
-  const pendingFirstVisitAutoFitKeyRef = useRef<string | null>(null);
 
   // Cache viewport boundary once on drag-start, clear on drag-end (avoids getBoundingClientRect per frame)
   if (dragTooltip && !dragTooltipBoundaryRef.current && viewportRef.current) {
@@ -1661,231 +1389,34 @@ export const CanvasPanel = memo(function CanvasPanel({
     canvasTransform
   });
 
-  const fitToContentScale = useMemo(
-    () => computeFitToContentScale(
-      baseSvgResult?.viewBox ?? svgResult?.viewBox,
-      viewportSize.width,
-      viewportSize.height
-    ),
-    [baseSvgResult, svgResult, viewportSize.height, viewportSize.width]
-  );
-  useEffect(() => {
-    dispatch({ type: "SET_CANVAS_FIT_TO_CONTENT_SCALE", scale: fitToContentScale });
-  }, [dispatch, fitToContentScale]);
-  const maxZoomScale = Math.max(MAX_SCALE, fitToContentScale == null ? MAX_SCALE : fitToContentScale * 2);
-
-  const fitToContent = useCallback((): boolean => {
-    const fitViewBox = baseSvgResult?.viewBox ?? svgResult?.viewBox;
-    if (!fitViewBox || !viewportRef.current) return false;
-
-    const viewportWidth = viewportRef.current.clientWidth;
-    const viewportHeight = viewportRef.current.clientHeight;
-
-    const scale = computeFitToContentScale(fitViewBox, viewportWidth, viewportHeight);
-    if (scale == null) {
-      return false;
-    }
-
-    const translateX = (viewportWidth - fitViewBox.width * scale) / 2;
-    const translateY = (viewportHeight - fitViewBox.height * scale) / 2;
-
-    dispatchCanvasTransform({ translateX, translateY, scale });
-    return true;
-  }, [baseSvgResult, dispatchCanvasTransform, svgResult]);
-
-  const activeFigureViewportKey = useMemo(
-    () => makeFigureViewportKey(activeDocumentId, activeFigureId),
-    [activeDocumentId, activeFigureId]
-  );
-  const saveFigureViewportState = useCallback(
-    (key: string, transform: CanvasTransform, fitToContentActive: boolean) => {
-      viewportStateByFigureKeyRef.current.set(key, {
-        transform: {
-          translateX: transform.translateX,
-          translateY: transform.translateY,
-          scale: transform.scale
-        },
-        fitToContentModeActive: fitToContentActive
-      });
-      visitedFigureKeysRef.current.add(key);
-    },
-    []
-  );
-
-  useEffect(() => {
-    const openDocuments = new Set(tabOrder);
-    for (const key of viewportStateByFigureKeyRef.current.keys()) {
-      const delimiter = key.indexOf("::");
-      const documentId = delimiter >= 0 ? key.slice(0, delimiter) : key;
-      if (!openDocuments.has(documentId)) {
-        viewportStateByFigureKeyRef.current.delete(key);
-        visitedFigureKeysRef.current.delete(key);
-        if (pendingFirstVisitAutoFitKeyRef.current === key) {
-          pendingFirstVisitAutoFitKeyRef.current = null;
-        }
-      }
-    }
-  }, [tabOrder]);
-
-  useLayoutEffect(() => {
-    const pendingAutoFit = pendingFirstVisitAutoFitKeyRef.current === activeFigureViewportKey;
-    if (previousFigureViewportKeyRef.current === activeFigureViewportKey && !pendingAutoFit) {
-      return;
-    }
-
-    const previousKey = previousFigureViewportKeyRef.current;
-    if (previousKey && previousKey !== activeFigureViewportKey) {
-      const previousTransform = canvasTransformRef.current;
-      saveFigureViewportState(previousKey, previousTransform, fitToContentModeActiveRef.current);
-    }
-
-    const savedState = viewportStateByFigureKeyRef.current.get(activeFigureViewportKey);
-    if (savedState) {
-      pendingFirstVisitAutoFitKeyRef.current = null;
-      if (fitToContentModeActiveRef.current !== savedState.fitToContentModeActive) {
-        setFitToContentModeActive(savedState.fitToContentModeActive);
-      }
-      dispatchCanvasTransform(savedState.transform);
-      previousFigureViewportKeyRef.current = activeFigureViewportKey;
-      return;
-    }
-
-    const hasVisited = visitedFigureKeysRef.current.has(activeFigureViewportKey);
-    if (!hasVisited || pendingAutoFit) {
-      visitedFigureKeysRef.current.add(activeFigureViewportKey);
-      if (!fitToContentModeActiveRef.current) {
-        setFitToContentModeActive(true);
-      }
-      const didFit = fitToContent();
-      previousFigureViewportKeyRef.current = activeFigureViewportKey;
-      if (didFit) {
-        pendingFirstVisitAutoFitKeyRef.current = null;
-      } else {
-        pendingFirstVisitAutoFitKeyRef.current = activeFigureViewportKey;
-      }
-      return;
-    }
-
-    pendingFirstVisitAutoFitKeyRef.current = null;
-    previousFigureViewportKeyRef.current = activeFigureViewportKey;
-  }, [activeFigureViewportKey, dispatchCanvasTransform, fitToContent, saveFigureViewportState, setFitToContentModeActive]);
-
-  useEffect(() => {
-    if (previousFigureViewportKeyRef.current !== activeFigureViewportKey) {
-      return;
-    }
-    if (!visitedFigureKeysRef.current.has(activeFigureViewportKey)) {
-      return;
-    }
-    if (pendingFirstVisitAutoFitKeyRef.current === activeFigureViewportKey) {
-      return;
-    }
-    saveFigureViewportState(activeFigureViewportKey, canvasTransform, fitToContentModeActive);
-  }, [activeFigureViewportKey, canvasTransform, fitToContentModeActive, saveFigureViewportState]);
-
-  const handledFitRequestRef = useRef(0);
-  useEffect(() => {
-    if (fitToContentRequestToken <= 0) {
-      return;
-    }
-    if (fitToContentRequestToken === handledFitRequestRef.current) {
-      return;
-    }
-    handledFitRequestRef.current = fitToContentRequestToken;
-    if (!fitToContentModeActiveRef.current) {
-      setFitToContentModeActive(true);
-    }
-    fitToContent();
-  }, [fitToContent, fitToContentRequestToken, setFitToContentModeActive]);
-
-  const handledZoomRequestRef = useRef(0);
-  useEffect(() => {
-    if (zoomRequestToken <= 0) {
-      return;
-    }
-    if (zoomRequestToken === handledZoomRequestRef.current) {
-      return;
-    }
-    handledZoomRequestRef.current = zoomRequestToken;
-    if (!zoomRequestDirection || !svgResult || !viewportRef.current) {
-      return;
-    }
-
-    const currentTransform = canvasTransformRef.current;
-    const centerX = viewportRef.current.clientWidth / 2;
-    const centerY = viewportRef.current.clientHeight / 2;
-    const zoomFactor = zoomRequestDirection === "in" ? 1.15 : 1 / 1.15;
-    const nextScale = clamp(currentTransform.scale * zoomFactor, MIN_SCALE, maxZoomScale);
-    if (Math.abs(nextScale - currentTransform.scale) < 1e-9) {
-      return;
-    }
-
-    const svgPoint = viewportToSvgPoint(
-      viewportPoint(px(centerX), px(centerY)),
-      currentTransform,
-      svgResult.viewBox
-    );
-    const translateX = centerX - (svgPoint.x - svgResult.viewBox.x) * nextScale;
-    const translateY = centerY - (svgPoint.y - svgResult.viewBox.y) * nextScale;
-
-    if (fitToContentModeActiveRef.current) {
-      setFitToContentModeActive(false);
-    }
-    dispatchCanvasTransform({ translateX, translateY, scale: nextScale });
-  }, [
-    canvasTransformRef,
-    dispatchCanvasTransform,
-    fitToContentModeActiveRef,
-    maxZoomScale,
-    setFitToContentModeActive,
+  const { maxZoomScale } = useCanvasViewportPersistence({
+    baseSvgResult,
     svgResult,
+    viewportSize,
+    dispatch,
+    dispatchCanvasTransform,
+    activeDocumentId,
+    activeFigureId,
+    tabOrder,
+    canvasTransform,
+    fitToContentModeActive,
+    fitToContentModeActiveRef,
+    setFitToContentModeActive,
+    viewportRef,
+    canvasTransformRef,
+    fitToContentRequestToken,
+    zoomRequestToken,
     zoomRequestDirection,
-    zoomRequestToken
-  ]);
-
-  const handledZoomScaleRequestRef = useRef(0);
-  useEffect(() => {
-    if (zoomScaleRequestToken <= 0) {
-      return;
-    }
-    if (zoomScaleRequestToken === handledZoomScaleRequestRef.current) {
-      return;
-    }
-    handledZoomScaleRequestRef.current = zoomScaleRequestToken;
-    if (!svgResult || !viewportRef.current || zoomScaleRequestValue == null) {
-      return;
-    }
-
-    const currentTransform = canvasTransformRef.current;
-    const nextScale = clamp(zoomScaleRequestValue, MIN_SCALE, maxZoomScale);
-    if (Math.abs(nextScale - currentTransform.scale) < 1e-9) {
-      return;
-    }
-
-    const centerX = viewportRef.current.clientWidth / 2;
-    const centerY = viewportRef.current.clientHeight / 2;
-    const svgPoint = viewportToSvgPoint(
-      viewportPoint(px(centerX), px(centerY)),
-      currentTransform,
-      svgResult.viewBox
-    );
-    const translateX = centerX - (svgPoint.x - svgResult.viewBox.x) * nextScale;
-    const translateY = centerY - (svgPoint.y - svgResult.viewBox.y) * nextScale;
-
-    if (fitToContentModeActiveRef.current) {
-      setFitToContentModeActive(false);
-    }
-    dispatchCanvasTransform({ translateX, translateY, scale: nextScale });
-  }, [
-    canvasTransformRef,
-    dispatchCanvasTransform,
-    fitToContentModeActiveRef,
-    maxZoomScale,
-    setFitToContentModeActive,
-    svgResult,
     zoomScaleRequestToken,
-    zoomScaleRequestValue
-  ]);
+    zoomScaleRequestValue,
+    activeCanvasDragKind,
+    activeSourceScrubSourceId,
+    snapshotSource: snapshot.source,
+    source,
+    lastEditChangeToken,
+    MIN_SCALE,
+    MAX_SCALE
+  });
 
   const copyWarningToClipboard = useCallback(() => {
     if (!warning) {
@@ -3017,133 +2548,21 @@ export const CanvasPanel = memo(function CanvasPanel({
     ]
   );
 
-  const openCanvasContextMenuAt = useCallback(
-    (clientPoint: ClientPoint, clickedSourceId: string | null, clickedHandleId: string | null = null) => {
-      const viewport = viewportRef.current;
-      if (!viewport) {
-        return;
-      }
-
-      const resolution = resolveCanvasContextMenuTarget({
-        source,
-        toolMode,
-        clickedSourceId,
-        selectedElementIds,
-        parseOptions: editParseOptions
-      });
-
-      if (resolution.selectionAction.kind === "clear") {
-        if (selectedElementIds.size > 0 || focusedScopeId != null) {
-          dispatch({ type: "CLEAR_SELECTION" });
-        }
-        if (clickedHandleId != null) {
-          dispatch({ type: "SET_ACTIVE_HANDLE", handleId: clickedHandleId });
-        }
-      } else if (resolution.selectionAction.kind === "select-only") {
-        if (platform.menu?.usesNativeContextMenus) {
-          setPendingNativeContextMenuRequest({
-            clientPoint,
-            clickedSourceId: resolution.selectionAction.sourceId,
-            clickedHandleId
-          });
-          dispatch({ type: "SET_ACTIVE_HANDLE", handleId: clickedHandleId });
-          dispatch({ type: "SELECT", id: resolution.selectionAction.sourceId, additive: false });
-          dispatch({
-            type: "SET_FOCUSED_SCOPE",
-            scopeId: resolveFocusedScopeIdForSelection(resolution.selectionAction.sourceId, scopeOverlay)
-          });
-          viewport.focus({ preventScroll: true });
-          return;
-        }
-        dispatch({ type: "SET_ACTIVE_HANDLE", handleId: clickedHandleId });
-        dispatch({ type: "SELECT", id: resolution.selectionAction.sourceId, additive: false });
-        dispatch({
-          type: "SET_FOCUSED_SCOPE",
-          scopeId: resolveFocusedScopeIdForSelection(resolution.selectionAction.sourceId, scopeOverlay)
-        });
-      } else {
-        dispatch({ type: "SET_ACTIVE_HANDLE", handleId: clickedHandleId });
-      }
-
-      contextMenuContextRef.current = {
-        clickedTargetId: clickedSourceId,
-        clickedWorld:
-          svgResult
-            ? viewportToWorldPoint(
-                viewportPointFromClient(clientPoint, viewport),
-                canvasTransform,
-                svgResult.viewBox
-              )
-            : null
-      };
-
-      const effectiveTarget =
-        clickedHandleId && (resolution.target === "selection-single" || resolution.target === "selection-single-tree")
-          ? (resolution.target === "selection-single-tree"
-              ? "selection-single-path-point-tree"
-              : "selection-single-path-point") as CanvasContextMenuTarget
-          : resolution.target;
-      const equationSourceId = resolution.selectionAction.kind === "select-only"
-        ? resolution.selectionAction.sourceId
-        : clickedSourceId ?? (selectedElementIds.size === 1 ? [...selectedElementIds][0] ?? null : null);
-      const includeEditEquationForSingleNode = resolveIncludeEditEquationForSingleNode(effectiveTarget, equationSourceId);
-      const matrixMultiOptions = resolveMatrixMultiContextMenuOptions(effectiveTarget, selectedElementIds);
-
-      const nextContextMenuState: CanvasContextMenuState = {
-        target: effectiveTarget,
-        anchor: viewportPointFromClient(clientPoint, viewport),
-        handleIdOverride: clickedHandleId,
-        includeEditEquationForSingleNode,
-        includeMatrixMultiInsertRowAbove: matrixMultiOptions.includeMatrixMultiInsertRowAbove,
-        includeMatrixMultiInsertRowBelow: matrixMultiOptions.includeMatrixMultiInsertRowBelow,
-        includeMatrixMultiRemoveRow: matrixMultiOptions.includeMatrixMultiRemoveRow,
-        includeMatrixMultiInsertColumnLeft: matrixMultiOptions.includeMatrixMultiInsertColumnLeft,
-        includeMatrixMultiInsertColumnRight: matrixMultiOptions.includeMatrixMultiInsertColumnRight,
-        includeMatrixMultiRemoveColumn: matrixMultiOptions.includeMatrixMultiRemoveColumn
-      };
-
-      if (platform.menu?.usesNativeContextMenus) {
-        if (clickedHandleId && clickedSourceId) {
-          setPendingNativeContextMenuRequest({
-            clientPoint,
-            clickedSourceId,
-            clickedHandleId
-          });
-          viewport.focus({ preventScroll: true });
-          return;
-        }
-        showNativeContextMenu(effectiveTarget, {
-          includeEditEquationForSingleNode,
-          includeMatrixMultiInsertRowAbove: matrixMultiOptions.includeMatrixMultiInsertRowAbove,
-          includeMatrixMultiInsertRowBelow: matrixMultiOptions.includeMatrixMultiInsertRowBelow,
-          includeMatrixMultiRemoveRow: matrixMultiOptions.includeMatrixMultiRemoveRow,
-          includeMatrixMultiInsertColumnLeft: matrixMultiOptions.includeMatrixMultiInsertColumnLeft,
-          includeMatrixMultiInsertColumnRight: matrixMultiOptions.includeMatrixMultiInsertColumnRight,
-          includeMatrixMultiRemoveColumn: matrixMultiOptions.includeMatrixMultiRemoveColumn
-        });
-        viewport.focus({ preventScroll: true });
-        return;
-      }
-
-      setContextMenuState(nextContextMenuState);
-      viewport.focus({ preventScroll: true });
-    },
-    [
-      canvasTransform,
-      dispatch,
-      focusedScopeId,
-      platform.menu?.usesNativeContextMenus,
-      scopeOverlay,
-      selectedElementIds,
-      resolveIncludeEditEquationForSingleNode,
-      resolveMatrixMultiContextMenuOptions,
-      showNativeContextMenu,
-      source,
-      svgResult,
-      toolMode,
-      editParseOptions
-    ]
-  );
+  const { openCanvasContextMenuAt } = useCanvasContextMenuController({
+    state: contextMenus,
+    platform,
+    commandBindings: commandRuntime.bindings,
+    source,
+    toolMode,
+    selectedElementIds,
+    focusedScopeId,
+    scopeOverlay,
+    svgResult,
+    canvasTransform,
+    editParseOptions,
+    viewportRef,
+    dispatch
+  });
 
   const { onElementContextMenu, onCanvasContextMenu } = useCanvasSelectionInteractions({
     openCanvasContextMenuAt,
@@ -3298,67 +2717,16 @@ export const CanvasPanel = memo(function CanvasPanel({
     showGuides
   });
 
-  useEffect(() => {
-    const current = bucketPreviewSessionRef.current;
-    if (toolMode !== "addBucket" || !hoveredElementId) {
-      if (current && source !== current.baseSource) {
-        dispatch({
-          type: "SET_SOURCE_TRANSIENT",
-          source: current.baseSource,
-          changedSourceIds: [current.sourceId]
-        });
-      }
-      bucketPreviewSessionRef.current = null;
-      return;
-    }
-
-    const baseSource = current?.baseSource ?? source;
-    const resolution = resolveBucketFillEdit({
-      sourceId: hoveredElementId,
-      colorToken: bucketFillColor,
-      source: baseSource,
-      elements: snapshot.scene?.elements ?? [],
-      editHandles: snapshot.editHandles,
-      activeFigureId,
-      figureCount: snapshot.figures.length,
-      propertyWriteMode: "preview"
-    });
-
-    if (resolution.kind !== "ready") {
-      if (current && source !== current.baseSource) {
-        dispatch({
-          type: "SET_SOURCE_TRANSIENT",
-          source: current.baseSource,
-          changedSourceIds: [current.sourceId]
-        });
-      }
-      bucketPreviewSessionRef.current = null;
-      return;
-    }
-
-    const nextPreviewSource = resolution.result.newSource;
-    if (
-      current &&
-      current.sourceId === hoveredElementId &&
-      current.colorToken === bucketFillColor &&
-      current.previewSource === nextPreviewSource &&
-      source === nextPreviewSource
-    ) {
-      return;
-    }
-
-    dispatch({
-      type: "SET_SOURCE_TRANSIENT",
-      source: nextPreviewSource,
-      changedSourceIds: [hoveredElementId]
-    });
-    bucketPreviewSessionRef.current = {
-      sourceId: hoveredElementId,
-      colorToken: bucketFillColor,
-      baseSource,
-      previewSource: nextPreviewSource
-    };
-  }, [activeFigureId, bucketFillColor, dispatch, hoveredElementId, snapshot.editHandles, snapshot.figures.length, snapshot.scene, source, toolMode]);
+  useBucketFillPreview({
+    toolMode,
+    hoveredElementId,
+    bucketFillColor,
+    source,
+    snapshot,
+    activeFigureId,
+    dispatch,
+    bucketPreviewSessionRef
+  });
 
   useEffect(() => {
     if (!lastEditWarningMessage) {
@@ -3424,77 +2792,15 @@ export const CanvasPanel = memo(function CanvasPanel({
     setSnapLines([]);
   }, [snapshot.source, source]);
 
-  useEffect(() => {
-    if (activeCanvasDragKind) {
-      return;
-    }
-    setDragPatchMode("partial");
-    setDragAffectedSourceIds(null);
-  }, [activeCanvasDragKind]);
-
-  useEffect(() => {
-    if (!activeCanvasDragKind || dragPatchMode === "full") {
-      return;
-    }
-    if (
-      activeCanvasDragKind === "element" &&
-      [...selectedElementIds].some((sourceId) =>
-        snapshot.editHandles.some(
-          (handle) =>
-            handle.sourceRef.sourceId === sourceId &&
-            handle.kind === "node-position" &&
-            handle.pathAttachmentContext != null
-        )
-      )
-    ) {
-      setDragPatchMode("full");
-      setDragAffectedSourceIds(null);
-      return;
-    }
-    const dependencies = snapshot.semanticResult?.dependencies;
-    if (!dependencies) {
-      return;
-    }
-    const changedSourceIds = lastEditChangedSourceIds;
-    if (!changedSourceIds || changedSourceIds.length === 0) {
-      setDragAffectedSourceIds(null);
-      return;
-    }
-
-    const matrixDescendantSourceIds = collectMatrixDescendantSourceIdsForChangedSources(
-      snapshot.scene?.elements ?? [],
-      changedSourceIds
-    );
-    const changedSourceIdsForInvalidation =
-      matrixDescendantSourceIds.length > 0
-        ? [...new Set([...changedSourceIds, ...matrixDescendantSourceIds])]
-        : changedSourceIds;
-    const invalidation = collectGeometryInvalidation(dependencies, {
-      changedSourceIds: changedSourceIdsForInvalidation
-    });
-    if (invalidation.reachedOpaque) {
-      setDragPatchMode("full");
-      setDragAffectedSourceIds(null);
-      return;
-    }
-    const affectedSourceIds = mergeSourceIdLists(
-      mergeSourceIdLists(
-        invalidation.affectedSourceIds,
-        matrixDescendantSourceIds
-      ),
-      [...selectedElementIds]
-    );
-    setDragAffectedSourceIds(affectedSourceIds.length > 0 ? affectedSourceIds : null);
-  }, [
+  const dragAffectedSourceIds = useCanvasSvgPatchInvalidation({
     activeCanvasDragKind,
     dragPatchMode,
+    setDragPatchMode,
     lastEditChangeToken,
     lastEditChangedSourceIds,
     selectedElementIds,
-    snapshot.editHandles,
-    snapshot.scene,
-    snapshot.semanticResult
-  ]);
+    snapshot
+  });
 
   useEffect(() => {
     if (toolMode !== "select") {
@@ -3627,39 +2933,6 @@ export const CanvasPanel = memo(function CanvasPanel({
 
     dispatch({ type: "SELECT", id: selectedId, additive: false });
   }, [dispatch, snapshot.scene, snapshot.source, source]);
-
-  useEffect(() => {
-    if (!fitToContentModeActive) {
-      return;
-    }
-    if (!fitToContentModeActiveRef.current) {
-      return;
-    }
-    if (!svgResult) {
-      return;
-    }
-    if (activeCanvasDragKind || activeSourceScrubSourceId) {
-      return;
-    }
-    if (snapshot.source !== source) {
-      return;
-    }
-    if (viewportSize.width <= 0 || viewportSize.height <= 0) {
-      return;
-    }
-    fitToContent();
-  }, [
-    activeCanvasDragKind,
-    activeSourceScrubSourceId,
-    fitToContent,
-    fitToContentModeActive,
-    lastEditChangeToken,
-    snapshot.source,
-    source,
-    svgResult,
-    viewportSize.height,
-    viewportSize.width
-  ]);
 
   const dragControllerConfig = useMemo(() => ({
     applyActionWithFeedback,
@@ -4047,36 +3320,3 @@ export const CanvasPanel = memo(function CanvasPanel({
     </>
   );
 });
-
-function collectMatrixDescendantSourceIdsForChangedSources(
-  elements: readonly SceneElement[],
-  changedSourceIds: readonly string[]
-): string[] {
-  if (elements.length === 0 || changedSourceIds.length === 0) {
-    return [];
-  }
-  const changed = new Set(changedSourceIds);
-  const descendantSourceIds = new Set<string>();
-  for (const element of elements) {
-    const matrixSourceId = element.matrixCell?.matrixSourceId?.trim();
-    if (!matrixSourceId || !changed.has(matrixSourceId)) {
-      continue;
-    }
-    descendantSourceIds.add(element.sourceRef.sourceId);
-    const cellSourceId = element.matrixCell?.cellSourceId?.trim();
-    if (cellSourceId) {
-      descendantSourceIds.add(cellSourceId);
-    }
-  }
-  return [...descendantSourceIds];
-}
-
-function mergeSourceIdLists(left: readonly string[], right: readonly string[]): string[] {
-  if (left.length === 0) {
-    return [...right];
-  }
-  if (right.length === 0) {
-    return [...left];
-  }
-  return [...new Set([...left, ...right])];
-}
