@@ -7979,7 +7979,9 @@ describe("applyEditAction – adornment placement", () => {
     if (result.kind !== "success") {
       throw new Error("Expected adornment insertion to create options");
     }
-    expect(result.newSource).toContain(String.raw`[pin=right:P]{A}`);
+    expect(result.newSource).toBe(String.raw`\begin{tikzpicture}
+  \node[pin=right:P] (A) at (0,0) {A};
+\end{tikzpicture}`);
     expect(result.selectedSourceIds).toEqual([`node-adornment:${node.id}:pin:0`]);
   });
 

@@ -517,6 +517,9 @@ const FOREACH_VARIABLE_READONLY_REASON = "This property depends on foreach itera
 const NODE_TARGET_KINDS = new Set(["node-item", "matrix-cell", "tree-child"]);
 const NODE_PAINT_STYLE_KINDS = new Set<StyleChainEntry["kind"]>(["every-node", "every-shape"]);
 const NODE_PAINT_SOURCE_KINDS = new Set(["node-options"]);
+const NODE_BACKED_SECTION_ORDER = ["transform", "node", "stroke", "fill", "path", "grid", "text", "shadow"] as const;
+const PATH_SECTION_ORDER = ["transform", "grid", "path", "stroke", "fill", "text", "shadow"] as const;
+const DEFAULT_SECTION_ORDER = ["transform", "stroke", "fill", "text", "shadow"] as const;
 
 type ShapeAdaptiveControlBase = {
   id: string;
@@ -637,6 +640,29 @@ function targetHasDrawActivation(resolvedTarget: PropertyTargetResolution | null
     }
   }
   return false;
+}
+
+function orderInspectorSections(
+  sections: InspectorSection[],
+  context: { nodeBacked: boolean; pathBacked: boolean }
+): InspectorSection[] {
+  const order = context.nodeBacked
+    ? NODE_BACKED_SECTION_ORDER
+    : context.pathBacked
+      ? PATH_SECTION_ORDER
+      : DEFAULT_SECTION_ORDER;
+  const orderIndex = new Map<string, number>(order.map((id, index) => [id, index]));
+  const originalIndex = new Map<InspectorSection, number>(
+    sections.map((section, index) => [section, index])
+  );
+  return [...sections].sort((left, right) => {
+    const leftOrder = orderIndex.get(left.id) ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = orderIndex.get(right.id) ?? Number.MAX_SAFE_INTEGER;
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+    return (originalIndex.get(left) ?? 0) - (originalIndex.get(right) ?? 0);
+  });
 }
 
 const SIGNAL_DIRECTION_ENUM_OPTIONS: Array<{ value: string; label: string }> = [
@@ -2690,7 +2716,14 @@ export function getInspectorDescriptor(
     writeTargetId: inlineTarget.targetId,
     readOnlyReason: inlineTarget.reason,
     infoNote: inlineTarget.infoNote,
-    sections: applyForeachVariableReadOnlyToSections(sections, inlineTarget, resolveTarget)
+    sections: applyForeachVariableReadOnlyToSections(
+      orderInspectorSections(sections, {
+        nodeBacked: nodeInspectorState != null,
+        pathBacked: element.kind === "Path"
+      }),
+      inlineTarget,
+      resolveTarget
+    )
   };
 }
 

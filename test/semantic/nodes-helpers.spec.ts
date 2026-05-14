@@ -325,7 +325,16 @@ describe("semantic node helper coverage", () => {
     }
     expect(measuredWrappedCenter.textRenderInfo.paragraphAlignment).toBe("center");
 
-    expect(() => resolveNodeLayout(String.raw`x\\y`, parseOptionListRaw("[text width=10pt]"), style, 1, textEngineWithMetrics(null), "math")).toThrow(/Multiline MathJax/);
+    const fallbackMeasured = resolveNodeLayout(
+      String.raw`x\\y`,
+      parseOptionListRaw("[text width=10pt]"),
+      style,
+      1,
+      textEngineWithMetrics(null),
+      "math"
+    );
+    expect(fallbackMeasured.textRenderInfo.mode).toBe("plain");
+    expect(fallbackMeasured.textLines).toEqual(["x", "y"]);
 
     const empty = resolveNodeLayout("", parseOptionListRaw("[text height=5pt]"), style);
     expect(empty.textBlockHeight).toBeGreaterThan(0);

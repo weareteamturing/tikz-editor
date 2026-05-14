@@ -477,6 +477,27 @@ describe("getInspectorDescriptor", () => {
     expect(arrowProperties).toHaveLength(0);
   });
 
+  it("orders regular path sections as geometry before paint", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[fill=blue] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const sectionIds = descriptor.sections.map((section) => section.id);
+
+    expect(sectionIds.indexOf("path")).toBeLessThan(sectionIds.indexOf("stroke"));
+    expect(sectionIds.indexOf("stroke")).toBeLessThan(sectionIds.indexOf("fill"));
+  });
+
   it("shows grid controls for a single grid operation with keyword-targeted writes", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) grid (2,2);
@@ -494,8 +515,11 @@ describe("getInspectorDescriptor", () => {
     });
     const sectionIds = descriptor.sections.map((section) => section.id);
     expect(sectionIds).toContain("grid");
+    expect(sectionIds).toContain("path");
     expect(sectionIds).toContain("stroke");
     expect(sectionIds.indexOf("grid")).toBeLessThan(sectionIds.indexOf("stroke"));
+    expect(sectionIds.indexOf("grid")).toBeLessThan(sectionIds.indexOf("path"));
+    expect(sectionIds.indexOf("path")).toBeLessThan(sectionIds.indexOf("stroke"));
 
     const gridSection = descriptor.sections.find((section) => section.id === "grid");
     expect(gridSection).toBeDefined();
@@ -3177,6 +3201,30 @@ describe("getInspectorDescriptor", () => {
     expect(result.newSource).toBe(String.raw`\begin{tikzpicture}
   \node at (0,3) {node};
 \end{tikzpicture}`);
+  });
+
+  it("keeps node-backed path sections below node paint controls", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw=red,fill=blue] at (0,3) {node};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const nodeBox = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Path" && entry.id.startsWith("scene-node-box:")
+    );
+    expect(nodeBox).toBeDefined();
+    if (!nodeBox) {
+      throw new Error("Expected node box path element");
+    }
+
+    const descriptor = getInspectorDescriptor(nodeBox, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const sectionIds = descriptor.sections.map((section) => section.id);
+
+    expect(sectionIds.indexOf("node")).toBeLessThan(sectionIds.indexOf("stroke"));
+    expect(sectionIds.indexOf("stroke")).toBeLessThan(sectionIds.indexOf("fill"));
+    expect(sectionIds.indexOf("fill")).toBeLessThan(sectionIds.indexOf("path"));
   });
 
   it("keeps none as an override when inherited node draw would reappear", () => {
