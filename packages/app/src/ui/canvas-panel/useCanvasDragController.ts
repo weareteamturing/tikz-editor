@@ -194,6 +194,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
       const drag = dragRef.current;
       if (!drag || event.pointerId !== drag.pointerId) return;
       const ctrlOrMeta = event.ctrlKey || event.metaKey;
+      const formatPrecision = event.altKey ? "fine" : undefined;
 
       if (drag.kind === "pan") {
         setNodeAnchorOverlay(null);
@@ -465,6 +466,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
             newWorld: world,
             preserveAspect: event.shiftKey,
             preserveAspectRatio: drag.preserveAspectRatio ?? undefined,
+            formatPrecision,
             referenceBounds: resizeFrameWorldBounds(drag.initialFrame),
             referenceScopeTransform: drag.elementId.startsWith("scope:")
               ? drag.initialScopeTransform ?? undefined
@@ -600,7 +602,8 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
                 ownerPoint: adornmentDrag.ownerPoint,
                 newWorld: placementWorldPoint,
                 angleRaw: placement.angleRaw,
-                distancePt: placement.distancePt
+                distancePt: placement.distancePt,
+                formatPrecision
               },
               drag.historyMergeKey
             );
@@ -728,7 +731,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
             }
             const placementKey =
               `${formatNumber(snapped.snappedT)}:${sideUpdate == null ? "neutral" : sideUpdate.kind}:${sideUpdate == null ? "" : sideUpdate.kind === "auto-side" ? sideUpdate.side : sideUpdate.direction}` +
-              (distanceUpdatePt == null ? "" : `:${formatNumber(distanceUpdatePt)}`);
+              (distanceUpdatePt == null ? "" : `:${formatNumber(distanceUpdatePt)}:${formatPrecision ?? "default"}`);
             setSnapLines([]);
             maybeTriggerSnapFeedback(Boolean(snapped.preset));
             if (pathAttachedNodeDrag.lastAppliedPlacementKey === placementKey) {
@@ -742,7 +745,8 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
                 pos: snapped.snappedT,
                 preserveRegime: true,
                 sideUpdate,
-                distanceUpdatePt
+                distanceUpdatePt,
+                formatPrecision
               },
               drag.historyMergeKey
             );
@@ -789,7 +793,8 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
           {
             kind: "moveElements",
             elementIds: drag.elementIds,
-            delta: makeWorldPoint(incremental.x, incremental.y)
+            delta: makeWorldPoint(incremental.x, incremental.y),
+            formatPrecision
           },
           drag.historyMergeKey
         );

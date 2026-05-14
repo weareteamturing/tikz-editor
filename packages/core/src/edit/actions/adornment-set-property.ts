@@ -1,6 +1,6 @@
 import { parseStyleValueAsOptionList } from "../../semantic/style/option-utils.js";
 import { parseLength } from "../../semantic/coords/parse-length.js";
-import { NUMBER_FORMAT_PRESETS, formatNumber } from "../format.js";
+import { formatNumber, pointDistanceFormatOptions, type DragFormatPrecision } from "../format.js";
 import { replaceSpan } from "../patch.js";
 import type { PropertyTarget } from "../property-target.js";
 import { normalizeOptionKey, rewriteOptionListMutations, type OptionMutation } from "../option-mutations.js";
@@ -103,7 +103,8 @@ export function applyAdornmentValueRewrite(
   } | undefined,
   selectedTargetId: string,
   pinEdgeMutations?: ReadonlyMap<string, OptionMutation>,
-  optionMutations?: ReadonlyMap<string, OptionMutation>
+  optionMutations?: ReadonlyMap<string, OptionMutation>,
+  formatPrecision?: DragFormatPrecision
 ): EditActionResult {
   if (target.kind !== "node-adornment" || !target.valueSpan) {
     return { kind: "unsupported", reason: "Adornment target does not have a writable value span." };
@@ -119,7 +120,7 @@ export function applyAdornmentValueRewrite(
   } else {
     baseOptionMutations.set(distanceKey, {
       kind: "set",
-      value: `${formatNumber(distancePt, NUMBER_FORMAT_PRESETS.pointDistance)}pt`
+      value: `${formatNumber(distancePt, pointDistanceFormatOptions(formatPrecision))}pt`
     });
   }
 

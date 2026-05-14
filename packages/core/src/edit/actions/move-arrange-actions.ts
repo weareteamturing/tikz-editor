@@ -7,7 +7,7 @@ import type { WorldPoint } from "../../coords/points.js";
 import type { EditHandle } from "../../semantic/types.js";
 import { collectSourceWorldBounds } from "../snapping/index.js";
 import { localToSourceUnits, worldToLocal } from "../coords.js";
-import { CM_PER_PT, NUMBER_FORMAT_PRESETS, formatNumber } from "../format.js";
+import { CM_PER_PT, formatNumber, pointDistanceFormatOptions, type DragFormatPrecision } from "../format.js";
 import {
   buildTransformSetPropertyMutations,
   resolveTransformInspectorMutationContextFromOptionEntries
@@ -51,6 +51,7 @@ export function applyMoveElementsAction(
   editHandles: EditHandle[],
   elementIds: readonly string[],
   delta: WorldPoint,
+  formatPrecision: DragFormatPrecision | undefined,
   parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
   const normalizedIds = normalizeElementIds(elementIds);
@@ -164,6 +165,7 @@ export function applyMoveElementsAction(
       currentSource,
       scopeElementIds,
       delta,
+      formatPrecision,
       parseOptions
     );
     if (byScopeTransform.kind === "success" || byScopeTransform.kind === "partial") {
@@ -388,6 +390,7 @@ function applyMoveScopeElementsWithTransformRewrite(
   source: string,
   elementIds: readonly string[],
   delta: WorldPoint,
+  formatPrecision: DragFormatPrecision | undefined,
   parseOptions: EditParseOptions
 ): MoveRewriteBatchResult {
   let currentSource = source;
@@ -396,7 +399,7 @@ function applyMoveScopeElementsWithTransformRewrite(
   const failureReasons: string[] = [];
 
   for (const elementId of elementIds) {
-    const rewrite = rewriteSingleScopeTransform(currentSource, elementId, delta, parseOptions);
+    const rewrite = rewriteSingleScopeTransform(currentSource, elementId, delta, formatPrecision, parseOptions);
     if (rewrite.kind === "unsupported") {
       failedElementIds.push(elementId);
       failureReasons.push(rewrite.reason);
@@ -439,6 +442,7 @@ function rewriteSingleScopeTransform(
   source: string,
   elementId: string,
   delta: WorldPoint,
+  formatPrecision: DragFormatPrecision | undefined,
   parseOptions: EditParseOptions
 ): ScopeTransformRewriteResult {
   const resolved = resolvePropertyTarget(source, elementId, parseOptions);
@@ -446,7 +450,7 @@ function rewriteSingleScopeTransform(
     return { kind: "unsupported", reason: `Scope ${elementId} was not found` };
   }
 
-  const inPlaceShiftRewrite = rewriteSingleScopeShiftInPlace(source, resolved.target, elementId, delta);
+  const inPlaceShiftRewrite = rewriteSingleScopeShiftInPlace(source, resolved.target, elementId, delta, formatPrecision);
   if (inPlaceShiftRewrite) {
     return inPlaceShiftRewrite;
   }
@@ -467,7 +471,7 @@ function rewriteSingleScopeTransform(
       mutation.key,
       mutation.value.trim().length === 0
         ? { kind: "remove" }
-        : { kind: "set", value: mutation.value }
+        : { kind: "set", value: formatScopeTranslationMutationValue(mutation.key, mutation.value, formatPrecision) }
     );
   }
   const rewritten = applyOptionMutationsToTarget(source, resolved.target, optionMutations);
@@ -486,7 +490,8 @@ function rewriteSingleScopeShiftInPlace(
   source: string,
   target: PropertyTarget,
   elementId: string,
-  delta: WorldPoint
+  delta: WorldPoint,
+  formatPrecision: DragFormatPrecision | undefined
 ): ScopeTransformRewriteResult | null {
   if (!target.options) {
     return null;
@@ -542,7 +547,7 @@ function rewriteSingleScopeShiftInPlace(
     if (hasXShiftEntry || Math.abs(nextShiftX) > 1e-6) {
       optionMutations.set("xshift", {
         kind: "set",
-        value: `${formatNumber(nextShiftX, NUMBER_FORMAT_PRESETS.pointDistance)}pt`
+        value: `${formatNumber(nextShiftX, pointDistanceFormatOptions(formatPrecision))}pt`
       });
     } else {
       optionMutations.set("xshift", { kind: "remove" });
@@ -550,7 +555,7 @@ function rewriteSingleScopeShiftInPlace(
     if (hasYShiftEntry || Math.abs(nextShiftY) > 1e-6) {
       optionMutations.set("yshift", {
         kind: "set",
-        value: `${formatNumber(nextShiftY, NUMBER_FORMAT_PRESETS.pointDistance)}pt`
+        value: `${formatNumber(nextShiftY, pointDistanceFormatOptions(formatPrecision))}pt`
       });
     } else {
       optionMutations.set("yshift", { kind: "remove" });
@@ -583,8 +588,8 @@ function rewriteSingleScopeShiftInPlace(
   const optionMutations = new Map<string, OptionMutation>([
     ["shift", {
       kind: "set",
-      value: `(${formatNumber(nextShiftX, NUMBER_FORMAT_PRESETS.pointDistance)}pt,${
-        formatNumber(nextShiftY, NUMBER_FORMAT_PRESETS.pointDistance)
+      value: `(${formatNumber(nextShiftX, pointDistanceFormatOptions(formatPrecision))}pt,${
+        formatNumber(nextShiftY, pointDistanceFormatOptions(formatPrecision))
       }pt)`
     }]
   ]);
@@ -599,6 +604,22 @@ function rewriteSingleScopeShiftInPlace(
     source: rewritten.source,
     patches: [rewritten.patch]
   };
+}
+
+function formatScopeTranslationMutationValue(
+  key: string,
+  value: string,
+  formatPrecision: DragFormatPrecision | undefined
+): string {
+  const normalizedKey = normalizeOptionKey(key);
+  if (normalizedKey !== "xshift" && normalizedKey !== "yshift") {
+    return value;
+  }
+  const match = /^([-+]?(?:\d+(?:\.\d+)?|\.\d+))pt$/.exec(value.trim());
+  if (!match) {
+    return value;
+  }
+  return `${formatNumber(Number(match[1]), pointDistanceFormatOptions(formatPrecision))}pt`;
 }
 
 function targetOptionsEntries(target: PropertyTarget): readonly OptionEntry[] {

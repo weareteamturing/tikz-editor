@@ -7,7 +7,7 @@ import type { NodeItem, PathStatement, Statement, Span } from "../ast/types.js";
 import type { SourcePatch } from "./types.js";
 import { applyEditIntent } from "./apply.js";
 import { replaceSpan } from "./patch.js";
-import { PT_PER_CM } from "./format.js";
+import { PT_PER_CM, type DragFormatPrecision } from "./format.js";
 import {
   generateElementSource,
   insertElementIntoSource,
@@ -95,8 +95,8 @@ export { PATH_ATTACHED_NODE_EDIT_NOOP_REASON } from "./actions/path-attached-nod
 export { PROPERTY_WRITE_CLEANUP_NOOP_REASON };
 
 export type EditAction =
-  | { kind: "moveElement"; elementId: string; delta: WorldPoint }
-  | { kind: "moveElements"; elementIds: string[]; delta: WorldPoint }
+  | { kind: "moveElement"; elementId: string; delta: WorldPoint; formatPrecision?: DragFormatPrecision }
+  | { kind: "moveElements"; elementIds: string[]; delta: WorldPoint; formatPrecision?: DragFormatPrecision }
   | { kind: "alignElements"; elementIds: string[]; mode: AlignMode }
   | { kind: "distributeElements"; elementIds: string[]; axis: DistributeAxis }
   | { kind: "moveHandle"; handleId: string; newWorld: WorldPoint }
@@ -129,7 +129,15 @@ export type EditAction =
   | { kind: "pasteStatements"; snippets: string[]; anchorElementId?: string; delta?: WorldPoint }
   | { kind: "duplicateElements"; elementIds: string[]; delta?: WorldPoint }
   | { kind: "duplicateAdornment"; targetId: string }
-  | { kind: "moveAdornment"; targetId: string; ownerPoint: WorldPoint; newWorld: WorldPoint; angleRaw?: string; distancePt?: number }
+  | {
+      kind: "moveAdornment";
+      targetId: string;
+      ownerPoint: WorldPoint;
+      newWorld: WorldPoint;
+      angleRaw?: string;
+      distancePt?: number;
+      formatPrecision?: DragFormatPrecision;
+    }
   | MovePathAttachedNodeAction
   | { kind: "addNodeAdornment"; nodeId: string; adornmentKind: "label" | "pin"; angle: string; text: string }
   | { kind: "reorderElements"; elementIds: string[]; direction: ReorderDirection }
@@ -158,6 +166,7 @@ export type EditAction =
       newWorld: WorldPoint;
       preserveAspect?: boolean;
       preserveAspectRatio?: number;
+      formatPrecision?: DragFormatPrecision;
       referenceBounds?: WorldBounds;
       referenceScopeTransform?: {
         xscale: number;
@@ -227,9 +236,9 @@ export function applyEditAction(
       case "insertPathPoint":
         return applyInsertPathPointAction(source, editHandles, action, parseOptions);
       case "moveElement":
-        return applyMoveElements(source, editHandles, [action.elementId], action.delta, parseOptions);
+        return applyMoveElements(source, editHandles, [action.elementId], action.delta, parseOptions, action.formatPrecision);
       case "moveElements":
-        return applyMoveElements(source, editHandles, action.elementIds, action.delta, parseOptions);
+        return applyMoveElements(source, editHandles, action.elementIds, action.delta, parseOptions, action.formatPrecision);
       case "alignElements":
         return applyAlignElements(source, action, parseOptions);
       case "distributeElements":
@@ -666,9 +675,10 @@ function applyMoveElements(
   editHandles: EditHandle[],
   elementIds: readonly string[],
   delta: WorldPoint,
-  parseOptions: EditParseOptions = {}
+  parseOptions: EditParseOptions = {},
+  formatPrecision?: DragFormatPrecision
 ): EditActionResult {
-  return applyMoveElementsAction(source, editHandles, elementIds, delta, parseOptions);
+  return applyMoveElementsAction(source, editHandles, elementIds, delta, formatPrecision, parseOptions);
 }
 
 function applyAlignElements(

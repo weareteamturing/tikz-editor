@@ -11,7 +11,9 @@ describe("formatNumber", () => {
 
   it("supports interaction-specific fractional precision", () => {
     expect(formatNumber(90.8, NUMBER_FORMAT_PRESETS.pointDimension)).toBe("91");
+    expect(formatNumber(90.84, NUMBER_FORMAT_PRESETS.pointDimensionFine)).toBe("90.8");
     expect(formatNumber(120.2, NUMBER_FORMAT_PRESETS.pointDistance)).toBe("120");
+    expect(formatNumber(120.25, NUMBER_FORMAT_PRESETS.pointDistanceFine)).toBe("120.3");
     expect(formatNumber(-0.1, NUMBER_FORMAT_PRESETS.pointDistance)).toBe("0");
   });
 });

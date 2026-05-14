@@ -1,6 +1,6 @@
 import { applyOptionMutationsToTarget, normalizeOptionKey, type OptionMutation } from "../option-mutations.js";
 import { resolvePropertyTarget } from "../property-target.js";
-import { NUMBER_FORMAT_PRESETS, formatNumber } from "../format.js";
+import { formatNumber, pointDistanceFormatOptions, type DragFormatPrecision } from "../format.js";
 import type { EditParseOptions } from "../parse-options.js";
 import type { SourcePatch } from "../types.js";
 import {
@@ -39,6 +39,7 @@ export type MovePathAttachedNodeAction = {
     side: "left" | "right";
   };
   distanceUpdatePt?: number;
+  formatPrecision?: DragFormatPrecision;
 };
 
 type PathAttachedNodeInspectorAction = {
@@ -244,5 +245,8 @@ function applyDistanceMutations(
     mutations.set(resolvedDirection, { kind: "set", value: "" });
     return;
   }
-  mutations.set(resolvedDirection, { kind: "set", value: `${formatNumber(resolvedDistance, NUMBER_FORMAT_PRESETS.pointDistance)}pt` });
+  mutations.set(resolvedDirection, {
+    kind: "set",
+    value: `${formatNumber(resolvedDistance, pointDistanceFormatOptions(action.formatPrecision))}pt`
+  });
 }

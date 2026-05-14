@@ -5,6 +5,7 @@ import { resolvePropertyTarget } from "../property-target.js";
 import type { SourcePatch } from "../types.js";
 import { applyAdornmentValueRewrite } from "./adornment-set-property.js";
 import type { EditParseOptions } from "../parse-options.js";
+import type { DragFormatPrecision } from "../format.js";
 
 type EditActionResultLike =
   | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[]; changedSourceIds?: string[] }
@@ -26,6 +27,7 @@ export type MoveAdornmentAction = {
   newWorld: WorldPoint;
   angleRaw?: string;
   distancePt?: number;
+  formatPrecision?: DragFormatPrecision;
 };
 
 export type AddNodeAdornmentAction = {
@@ -76,7 +78,15 @@ export function applyMoveAdornmentAction(
     return { kind: "unsupported", reason: "Selected adornment could not be resolved for drag editing." };
   }
 
-  return applyAdornmentValueRewrite(source, resolved.target, resolveAdornmentMoveOverrides(action), action.targetId);
+  return applyAdornmentValueRewrite(
+    source,
+    resolved.target,
+    resolveAdornmentMoveOverrides(action),
+    action.targetId,
+    undefined,
+    undefined,
+    action.formatPrecision
+  );
 }
 
 export function applyAddNodeAdornmentAction(

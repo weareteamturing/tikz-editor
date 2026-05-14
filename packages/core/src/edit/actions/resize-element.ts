@@ -29,7 +29,13 @@ import { collectSourceWorldBounds } from "../snapping/index.js";
 import { worldToLocal } from "../coords.js";
 import { replaceSpan } from "../patch.js";
 import { rewriteCoordinate } from "../rewrite.js";
-import { CM_PER_PT, NUMBER_FORMAT_PRESETS, formatNumber } from "../format.js";
+import {
+  CM_PER_PT,
+  formatNumber,
+  pointDimensionFormatOptions,
+  pointDistanceFormatOptions,
+  type DragFormatPrecision
+} from "../format.js";
 import { applyTextReplacements } from "../statement-ops.js";
 import { resolveTransformInspectorMutationContextFromOptionEntries } from "../property-write-builders.js";
 import {
@@ -79,6 +85,7 @@ export type ResizeElementAction = {
   newWorld: WorldPoint;
   preserveAspect?: boolean;
   preserveAspectRatio?: number;
+  formatPrecision?: DragFormatPrecision;
   referenceBounds?: {
     minX: number;
     minY: number;
@@ -236,7 +243,8 @@ export function applyResizeElementAction(
       requestedWidth,
       requestedHeight,
       currentWidth: liveLocalSize.width,
-      currentHeight: liveLocalSize.height
+      currentHeight: liveLocalSize.height,
+      formatPrecision: action.formatPrecision
     });
     if (rewritten) {
       return {
@@ -262,7 +270,8 @@ export function applyResizeElementAction(
     intrinsicWidth,
     intrinsicHeight,
     preserveExplicitWidthFloor: preserveExplicitWidthFloor && !preservePathAttachedWidthFloor,
-    preserveExplicitHeightFloor
+    preserveExplicitHeightFloor,
+    formatPrecision: action.formatPrecision
   });
   const rewritten = chooseBestNodeResizeMutationCandidate({
     source,
@@ -300,6 +309,7 @@ function buildNodeResizeMutationCandidates(args: {
   intrinsicHeight: number;
   preserveExplicitWidthFloor: boolean;
   preserveExplicitHeightFloor: boolean;
+  formatPrecision?: DragFormatPrecision;
 }): Array<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }> {
   const {
     widthResizeStrategy,
@@ -311,19 +321,20 @@ function buildNodeResizeMutationCandidates(args: {
     intrinsicWidth,
     intrinsicHeight,
     preserveExplicitWidthFloor,
-    preserveExplicitHeightFloor
+    preserveExplicitHeightFloor,
+    formatPrecision
   } = args;
   if (widthResizeStrategy === "text-width" && affectsWidth) {
     const textWidthMutation: OptionMutation = {
       kind: "set",
       value: `${formatNumber(
         Math.max(RESIZE_EPSILON, requestedTextWidth!),
-        NUMBER_FORMAT_PRESETS.pointDimension
+        pointDimensionFormatOptions(formatPrecision)
       )}pt`
     };
     const heightMutation: OptionMutation =
       requestedHeight > intrinsicHeight + RESIZE_EPSILON
-        ? { kind: "set", value: `${formatNumber(requestedHeight, NUMBER_FORMAT_PRESETS.pointDimension)}pt` }
+        ? { kind: "set", value: `${formatNumber(requestedHeight, pointDimensionFormatOptions(formatPrecision))}pt` }
         : { kind: "remove" };
     const candidates: Array<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }> = [];
     if (!affectsHeight) {
@@ -345,11 +356,11 @@ function buildNodeResizeMutationCandidates(args: {
 
   const widthMutation: OptionMutation =
     requestedWidth > intrinsicWidth + RESIZE_EPSILON
-      ? { kind: "set", value: `${formatNumber(requestedWidth, NUMBER_FORMAT_PRESETS.pointDimension)}pt` }
+      ? { kind: "set", value: `${formatNumber(requestedWidth, pointDimensionFormatOptions(formatPrecision))}pt` }
       : { kind: "remove" };
   const heightMutation: OptionMutation =
     requestedHeight > intrinsicHeight + RESIZE_EPSILON
-      ? { kind: "set", value: `${formatNumber(requestedHeight, NUMBER_FORMAT_PRESETS.pointDimension)}pt` }
+      ? { kind: "set", value: `${formatNumber(requestedHeight, pointDimensionFormatOptions(formatPrecision))}pt` }
       : { kind: "remove" };
 
   const candidates: Array<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }> = [];
@@ -550,7 +561,7 @@ function applyResizeScope(
     return { kind: "unsupported", reason: "Scope resize produced a non-finite transform." };
   }
 
-  const rewritten = applyScopeTransformRewrite(source, target, nextValues);
+  const rewritten = applyScopeTransformRewrite(source, target, nextValues, action.formatPrecision);
   if (!rewritten) {
     return { kind: "unsupported", reason: "Resize would not change node constraints." };
   }
@@ -567,13 +578,20 @@ function applyScopeTransformRewrite(
   source: string,
   target: PropertyTarget,
   values: { xscale: number; yscale: number; xshift: number; yshift: number },
+  formatPrecision: DragFormatPrecision | undefined
 ): OptionMutationApplyResult | null {
   const orderedSetMutations = new Map<string, OptionMutation>();
   if (Math.abs(values.xshift) > RESIZE_EPSILON) {
-    orderedSetMutations.set("xshift", { kind: "set", value: `${formatNumber(values.xshift, NUMBER_FORMAT_PRESETS.pointDistance)}pt` });
+    orderedSetMutations.set("xshift", {
+      kind: "set",
+      value: `${formatNumber(values.xshift, pointDistanceFormatOptions(formatPrecision))}pt`
+    });
   }
   if (Math.abs(values.yshift) > RESIZE_EPSILON) {
-    orderedSetMutations.set("yshift", { kind: "set", value: `${formatNumber(values.yshift, NUMBER_FORMAT_PRESETS.pointDistance)}pt` });
+    orderedSetMutations.set("yshift", {
+      kind: "set",
+      value: `${formatNumber(values.yshift, pointDistanceFormatOptions(formatPrecision))}pt`
+    });
   }
   if (Math.abs(values.xscale - 1) > RESIZE_EPSILON) {
     orderedSetMutations.set("xscale", { kind: "set", value: formatNumber(values.xscale) });
@@ -1627,8 +1645,9 @@ function rewriteDiamondSideResize(args: {
   requestedHeight: number;
   currentWidth: number;
   currentHeight: number;
+  formatPrecision?: DragFormatPrecision;
 }): OptionMutationApplyResult | null {
-  const { source, resizeTarget, role, requestedWidth, requestedHeight, currentWidth, currentHeight } = args;
+  const { source, resizeTarget, role, requestedWidth, requestedHeight, currentWidth, currentHeight, formatPrecision } = args;
   const dimensions = resolveTargetMinimumDimensions(resizeTarget);
   if (dimensions.hasMinimumSize) {
     return null;
@@ -1649,11 +1668,11 @@ function rewriteDiamondSideResize(args: {
     const nextMinimumHeight = Math.max(0, dimensions.minimumHeight * scale);
     mutations.set("minimum width", {
       kind: "set",
-      value: `${formatNumber(nextMinimumWidth, NUMBER_FORMAT_PRESETS.pointDimension)}pt`
+      value: `${formatNumber(nextMinimumWidth, pointDimensionFormatOptions(formatPrecision))}pt`
     });
     mutations.set("minimum height", {
       kind: "set",
-      value: `${formatNumber(nextMinimumHeight, NUMBER_FORMAT_PRESETS.pointDimension)}pt`
+      value: `${formatNumber(nextMinimumHeight, pointDimensionFormatOptions(formatPrecision))}pt`
     });
     return applyOptionMutationsToTarget(source, resizeTarget, mutations);
   }
@@ -1668,7 +1687,7 @@ function rewriteDiamondSideResize(args: {
     const nextMinimumWidth = Math.max(0, requestedWidth - aspect * companionHeight);
     mutations.set("minimum width", {
       kind: "set",
-      value: `${formatNumber(nextMinimumWidth, NUMBER_FORMAT_PRESETS.pointDimension)}pt`
+      value: `${formatNumber(nextMinimumWidth, pointDimensionFormatOptions(formatPrecision))}pt`
     });
     if (!dimensions.hasExplicitMinimumHeight) {
       mutations.set("minimum height", { kind: "remove" });
@@ -1685,7 +1704,7 @@ function rewriteDiamondSideResize(args: {
   const nextMinimumHeight = Math.max(0, requestedHeight - companionWidth / aspect);
   mutations.set("minimum height", {
     kind: "set",
-    value: `${formatNumber(nextMinimumHeight, NUMBER_FORMAT_PRESETS.pointDimension)}pt`
+    value: `${formatNumber(nextMinimumHeight, pointDimensionFormatOptions(formatPrecision))}pt`
   });
   if (!dimensions.hasExplicitMinimumWidth) {
     mutations.set("minimum width", { kind: "remove" });

@@ -1102,6 +1102,17 @@ describe("applyEditAction – moveElement", () => {
     expect(result.newSource).toContain("xshift=8pt");
     expect(result.newSource).toContain("yshift=1pt");
     expectPatchesReconstructSource(source, result);
+
+    const fine = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(5.6, -2.4),
+      formatPrecision: "fine"
+    });
+    expect(fine.kind).toBe("success");
+    if (fine.kind !== "success") return;
+    expect(fine.newSource).toContain("xshift=7.6pt");
+    expect(fine.newSource).toContain("yshift=0.6pt");
   });
 
   it("moves scopes with scale before shift by adjusting shift in local scope units", () => {
@@ -4087,6 +4098,19 @@ describe("applyEditAction – resizeElement", () => {
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("minimum width=91pt");
     expect(result.newSource).toContain("minimum height=121pt");
+
+    const fine = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: wp(45.4, 60.6),
+      formatPrecision: "fine"
+    });
+
+    expect(fine.kind).toBe("success");
+    if (fine.kind !== "success") return;
+    expect(fine.newSource).toContain("minimum width=90.8pt");
+    expect(fine.newSource).toContain("minimum height=121.2pt");
   });
 
   it("drops non-binding minimum dimensions when shrinking below intrinsic floor", () => {
@@ -8105,6 +8129,19 @@ describe("applyEditAction – adornment placement", () => {
     }
     expect(result.newSource).toContain("22:L");
     expect(result.newSource).toContain("label distance=11pt");
+
+    const fine = applyEditAction(source, [], {
+      kind: "moveAdornment",
+      targetId: "node-adornment:node:0:2:label:0",
+      ownerPoint: wp(0, 0),
+      newWorld: wp(10, 4),
+      formatPrecision: "fine"
+    });
+    expect(fine.kind).toBe("success");
+    if (fine.kind !== "success") {
+      throw new Error("Expected fine-precision adornment move to succeed");
+    }
+    expect(fine.newSource).toContain("label distance=10.8pt");
   });
 
   it("does not serialize synthetic every-pin styles when rewriting a pin repeatedly", () => {
@@ -8323,6 +8360,21 @@ describe("applyEditAction – path-attached nodes", () => {
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("node[above=3pt] {A}");
+
+    const fine = applyEditAction(source, [], {
+      kind: "movePathAttachedNode",
+      nodeId: node.id,
+      hostPathSourceId: statement.id,
+      pos: 0.5,
+      preserveRegime: true,
+      sideUpdate: { kind: "explicit-direction", direction: "above" },
+      distanceUpdatePt: 2.6,
+      formatPrecision: "fine"
+    });
+
+    expect(fine.kind).toBe("success");
+    if (fine.kind !== "success") return;
+    expect(fine.newSource).toContain("node[above=2.6pt] {A}");
   });
 
   it("drops explicit directional distance when dragged back near zero", () => {
