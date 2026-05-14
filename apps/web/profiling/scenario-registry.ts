@@ -62,6 +62,12 @@ export const PROFILING_SCENARIOS: ProfilingScenarioManifest[] = [
     specPath: "profiling/profile-node-text-edit.spec.ts"
   },
   {
+    id: "node-text-latency",
+    category: "canvas-edit",
+    description: "One-keystroke canvas node text latency from textarea event through SVG patch.",
+    specPath: "profiling/profile-node-text-latency.spec.ts"
+  },
+  {
     id: "source-typing",
     category: "source-edit",
     description: "Source editor typing profiling with paced keystrokes in small and dense TikZ documents.",

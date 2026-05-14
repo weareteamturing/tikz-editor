@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import type { InspectorDescriptor } from "tikz-editor/edit/inspector";
 import type { EditorAction } from "../../store/types";
 import { useEditorStore } from "../../store/store";
@@ -51,6 +51,10 @@ export function useInspectorPreviewScrub(args: {
   const hoverPreviewSessionRef = useRef<HoverPreviewSession | null>(null);
   const numberLabelScrubSessionRef = useRef<NumberLabelScrubSession | null>(null);
   const numberLabelScrubListenersAttachedRef = useRef(false);
+  const selectedChangedSourceIds = useMemo(
+    () => selectedSourceIds.length > 0 ? selectedSourceIds : null,
+    [selectedSourceIds]
+  );
 
   const clearHoverPreviewSession = useCallback((ownerKey?: string) => {
     const current = hoverPreviewSessionRef.current;
@@ -64,12 +68,13 @@ export function useInspectorPreviewScrub(args: {
     if (currentSource !== current.baseSource) {
       dispatch({
         type: "SET_SOURCE_TRANSIENT",
-        source: current.baseSource
+        source: current.baseSource,
+        changedSourceIds: selectedChangedSourceIds
       });
     }
     hoverPreviewSessionRef.current = null;
     setFrozenInspectorView(null);
-  }, [dispatch, setFrozenInspectorView]);
+  }, [dispatch, selectedChangedSourceIds, setFrozenInspectorView]);
 
   const restoreHoverPreviewBase = useCallback((ownerKey?: string) => {
     const current = hoverPreviewSessionRef.current;
@@ -83,10 +88,11 @@ export function useInspectorPreviewScrub(args: {
     if (currentSource !== current.baseSource) {
       dispatch({
         type: "SET_SOURCE_TRANSIENT",
-        source: current.baseSource
+        source: current.baseSource,
+        changedSourceIds: selectedChangedSourceIds
       });
     }
-  }, [dispatch]);
+  }, [dispatch, selectedChangedSourceIds]);
 
   const ensureHoverPreviewSession = useCallback((ownerKey: string) => {
     const current = hoverPreviewSessionRef.current;
@@ -111,14 +117,15 @@ export function useInspectorPreviewScrub(args: {
     if (currentSource !== current.baseSource) {
       dispatch({
         type: "SET_SOURCE_TRANSIENT",
-        source: current.baseSource
+        source: current.baseSource,
+        changedSourceIds: selectedChangedSourceIds
       });
     }
     hoverPreviewSessionRef.current = {
       ownerKey,
       baseSource: current.baseSource
     };
-  }, [descriptor, dispatch, multiModel, multiPropertyProvenance, selectedSourceIds, setFrozenInspectorView, singlePropertyProvenance]);
+  }, [descriptor, dispatch, multiModel, multiPropertyProvenance, selectedChangedSourceIds, selectedSourceIds, setFrozenInspectorView, singlePropertyProvenance]);
 
   const applyHoverPreview = useCallback((ownerKey: string, applyPreview: () => void) => {
     ensureHoverPreviewSession(ownerKey);
@@ -132,14 +139,15 @@ export function useInspectorPreviewScrub(args: {
       if (currentSource !== current.baseSource) {
         dispatch({
           type: "SET_SOURCE_TRANSIENT",
-          source: current.baseSource
+          source: current.baseSource,
+          changedSourceIds: selectedChangedSourceIds
         });
       }
       hoverPreviewSessionRef.current = null;
       setFrozenInspectorView(null);
     }
     commit();
-  }, [dispatch, setFrozenInspectorView]);
+  }, [dispatch, selectedChangedSourceIds, setFrozenInspectorView]);
 
   const stopNumberLabelScrubRef = useRef<(commit: boolean, pointerId?: number) => void>(() => {});
 
@@ -207,7 +215,8 @@ export function useInspectorPreviewScrub(args: {
       if (currentSource !== session.baseSource) {
         dispatch({
           type: "SET_SOURCE_TRANSIENT",
-          source: session.baseSource
+          source: session.baseSource,
+          changedSourceIds: selectedChangedSourceIds
         });
       }
       if (commit) {
@@ -216,7 +225,7 @@ export function useInspectorPreviewScrub(args: {
     }
 
     document.body.classList.remove("is-scrubbing");
-  }, [dispatch, removeNumberLabelScrubListeners]);
+  }, [dispatch, removeNumberLabelScrubListeners, selectedChangedSourceIds]);
 
   useEffect(() => {
     stopNumberLabelScrubRef.current = stopNumberLabelScrub;

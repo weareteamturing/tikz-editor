@@ -943,7 +943,8 @@ export const CanvasPanel = memo(function CanvasPanel({
               newSpan: effect.changedSpan,
               replacement: effect.replacement
             }
-          ]
+          ],
+          changedSourceIds: [effect.sourceId]
         }
       });
     }

@@ -1000,7 +1000,8 @@ function applyElementDeltaMapStrict(
   return {
     kind: "success",
     newSource: currentSource,
-    patches
+    patches,
+    changedSourceIds: normalizedIds
   };
 }
 
