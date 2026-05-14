@@ -270,16 +270,50 @@ const DESKTOP_TIKZ_CLIPBOARD_FORMATS = [
 ] as const;
 const DOCUMENT_BOUNDS_OFF_MIN_PADDING_WORLD = 200;
 const TEXT_CARET_OVERLAY_EPSILON_PX = 0.25;
+const TEXTAREA_CARET_MIRROR_STYLE_PROPERTIES = [
+  "box-sizing",
+  "direction",
+  "width",
+  "height",
+  "overflow-x",
+  "overflow-y",
+  "border-top-width",
+  "border-right-width",
+  "border-bottom-width",
+  "border-left-width",
+  "border-top-style",
+  "border-right-style",
+  "border-bottom-style",
+  "border-left-style",
+  "padding-top",
+  "padding-right",
+  "padding-bottom",
+  "padding-left",
+  "font",
+  "font-family",
+  "font-feature-settings",
+  "font-kerning",
+  "font-optical-sizing",
+  "font-size",
+  "font-stretch",
+  "font-style",
+  "font-variant",
+  "font-variant-ligatures",
+  "font-weight",
+  "letter-spacing",
+  "line-height",
+  "tab-size",
+  "text-align",
+  "text-indent",
+  "text-rendering",
+  "text-transform",
+  "word-spacing"
+] as const;
 
 type FigureViewportState = {
   transform: CanvasTransform;
   fitToContentModeActive: boolean;
 };
-
-function hasCaretPositionSupport(documentRef: Document): boolean {
-  const candidate = documentRef as Document & { caretPositionFromPoint?: unknown };
-  return typeof candidate.caretPositionFromPoint === "function";
-}
 
 function resolveTextareaLineHeightPx(textarea: HTMLTextAreaElement): number {
   const computed = textarea.ownerDocument.defaultView?.getComputedStyle(textarea);
@@ -319,29 +353,22 @@ function resolveTextareaCaretClientRect(textarea: HTMLTextAreaElement, offset: n
   mirror.style.wordBreak = "break-word";
   mirror.style.overflowWrap = "break-word";
   mirror.style.overflow = "hidden";
-  mirror.style.boxSizing = computed.boxSizing;
   mirror.style.left = `${textareaRect.left}px`;
   mirror.style.top = `${textareaRect.top}px`;
-  mirror.style.width = `${textareaRect.width}px`;
-  mirror.style.height = `${textareaRect.height}px`;
-  mirror.style.border = computed.border;
-  mirror.style.padding = computed.padding;
-  mirror.style.font = computed.font;
-  mirror.style.letterSpacing = computed.letterSpacing;
-  mirror.style.lineHeight = computed.lineHeight;
-  mirror.style.textAlign = computed.textAlign;
-  mirror.style.tabSize = computed.tabSize;
-  mirror.style.textIndent = computed.textIndent;
-  mirror.style.textTransform = computed.textTransform;
-  mirror.style.textRendering = computed.textRendering;
-  mirror.style.direction = computed.direction;
-  mirror.style.fontKerning = computed.fontKerning;
-  mirror.style.fontVariantLigatures = computed.fontVariantLigatures;
+  for (const property of TEXTAREA_CARET_MIRROR_STYLE_PROPERTIES) {
+    mirror.style.setProperty(property, computed.getPropertyValue(property));
+  }
 
-  marker.textContent = afterCaret.length > 0 ? afterCaret : " ";
+  marker.style.display = "inline-block";
+  marker.style.width = "0";
+  marker.style.height = `${resolveTextareaLineHeightPx(textarea)}px`;
+  marker.style.padding = "0";
+  marker.style.border = "0";
+  marker.style.margin = "0";
+  marker.style.verticalAlign = "text-bottom";
 
   try {
-    mirror.append(beforeCaret, marker);
+    mirror.append(beforeCaret, marker, afterCaret);
     documentRef.body.append(mirror);
     const markerRect = marker.getBoundingClientRect();
     if (!Number.isFinite(markerRect.left) || !Number.isFinite(markerRect.top)) {
@@ -357,41 +384,6 @@ function resolveTextareaCaretClientRect(textarea: HTMLTextAreaElement, offset: n
   } finally {
     mirror.remove();
   }
-}
-
-function refineCaretClientRectWithCaretPosition(
-  textarea: HTMLTextAreaElement,
-  fallbackRect: DOMRect
-): DOMRect {
-  const documentRef = textarea.ownerDocument as Document & {
-    caretPositionFromPoint?: (x: number, y: number) => { getClientRect?: () => DOMRect } | null;
-  };
-  if (typeof documentRef.caretPositionFromPoint !== "function") {
-    return fallbackRect;
-  }
-
-  const probeX = fallbackRect.left + 1;
-  const probeY = fallbackRect.top + Math.max(1, fallbackRect.height / 2);
-  const caretPosition = documentRef.caretPositionFromPoint(probeX, probeY);
-  const refinedRect = caretPosition?.getClientRect?.();
-  if (!refinedRect) {
-    return fallbackRect;
-  }
-  if (!Number.isFinite(refinedRect.left) || !Number.isFinite(refinedRect.top)) {
-    return fallbackRect;
-  }
-
-  const textareaRect = textarea.getBoundingClientRect();
-  if (
-    refinedRect.left < textareaRect.left - 1 ||
-    refinedRect.left > textareaRect.right + 1 ||
-    refinedRect.top < textareaRect.top - 1 ||
-    refinedRect.top > textareaRect.bottom + 1
-  ) {
-    return fallbackRect;
-  }
-  const height = Math.max(1, refinedRect.height || resolveTextareaLineHeightPx(textarea));
-  return new DOMRect(refinedRect.left, refinedRect.top, 1, height);
 }
 
 type TextSelectionDragMode = "char" | "word" | "line";
@@ -1260,7 +1252,6 @@ export const CanvasPanel = memo(function CanvasPanel({
   const textEditPopupRef = useRef<HTMLDivElement | null>(null);
   const [textEditPopupHeight, setTextEditPopupHeight] = useState<number | null>(null);
   const [textEditCaretOverlay, setTextEditCaretOverlay] = useState<TextEditCaretOverlay | null>(null);
-  const canUseCustomTextEditCaret = typeof document !== "undefined" && hasCaretPositionSupport(document);
   const supportsFieldSizing = typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("field-sizing", "content");
   const textEditTextareaSizing = useMemo(() => {
     if (!textEditingSession || supportsFieldSizing) {
@@ -2705,8 +2696,7 @@ export const CanvasPanel = memo(function CanvasPanel({
 
   useLayoutEffect(() => {
     const textarea = textEditTextareaRef.current;
-    const popup = textEditPopupRef.current;
-    if (!textEditingSession || !textarea || !popup) {
+    if (!textEditingSession || !textarea) {
       setTextEditCaretOverlay(null);
       return;
     }
@@ -2714,11 +2704,6 @@ export const CanvasPanel = memo(function CanvasPanel({
       setTextEditCaretOverlay(null);
       return;
     }
-    if (!hasCaretPositionSupport(textarea.ownerDocument)) {
-      setTextEditCaretOverlay(null);
-      return;
-    }
-
     const syncTextEditCaretOverlay = () => {
       const currentTextarea = textEditTextareaRef.current;
       if (!currentTextarea) {
@@ -2735,13 +2720,12 @@ export const CanvasPanel = memo(function CanvasPanel({
         setTextEditCaretOverlay(null);
         return;
       }
-      const refinedRect = refineCaretClientRectWithCaretPosition(currentTextarea, measuredRect);
       const textareaRect = currentTextarea.getBoundingClientRect();
-      const rawLeft = refinedRect.left - textareaRect.left;
-      const rawTop = refinedRect.top - textareaRect.top;
+      const rawLeft = measuredRect.left - textareaRect.left;
+      const rawTop = measuredRect.top - textareaRect.top;
       const minLeft = 0;
       const maxLeft = textareaRect.width;
-      const height = Math.max(1, Math.min(refinedRect.height, textareaRect.height));
+      const height = Math.max(1, Math.min(measuredRect.height, textareaRect.height));
       const minTop = 0;
       const maxTop = textareaRect.height - height;
       const nextOverlay = {
@@ -3892,9 +3876,9 @@ export const CanvasPanel = memo(function CanvasPanel({
   }, [textEditingSession, textEditPopup]);
 
   const hideNativeTextEditCaret =
-    canUseCustomTextEditCaret &&
     textEditingSession != null &&
-    textEditingSession.selectionStart === textEditingSession.selectionEnd;
+    textEditingSession.selectionStart === textEditingSession.selectionEnd &&
+    textEditCaretOverlay != null;
 
   const contextMenuDefinition = useMemo(
     () =>

@@ -1,11 +1,13 @@
-import type {
-  ClipboardEvent as ReactClipboardEvent,
-  DragEvent as ReactDragEvent,
-  KeyboardEvent as ReactKeyboardEvent,
-  MouseEvent as ReactMouseEvent,
-  PointerEvent as ReactPointerEvent,
-  RefObject,
-  SyntheticEvent as ReactSyntheticEvent
+import {
+  useEffect,
+  useState,
+  type ClipboardEvent as ReactClipboardEvent,
+  type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+  type SyntheticEvent as ReactSyntheticEvent
 } from "react";
 import type { AppMenuCommandId } from "../../app-menu";
 import type { CanvasContextMenuDefinition } from "../../context-menu";
@@ -54,6 +56,9 @@ import css from "../CanvasPanel.module.css";
 
 const MAGNIFIER_DIAMETER_PX = 300;
 const MAGNIFIER_SCALE = 2.25;
+const TEXT_CARET_BLINK_PERIOD_MS = 1000;
+const TEXT_CARET_BLINK_VISIBLE_MS = TEXT_CARET_BLINK_PERIOD_MS / 2;
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 type CanvasPanelViewProps = {
   prefersNonBlinkingTextInsertionIndicator: boolean;
@@ -298,9 +303,58 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
   const magnifierTop = magnifierVisible
     ? Math.max(0, Math.min(viewportSize.height - MAGNIFIER_DIAMETER_PX, magnifierState.center.y - magnifierRadius))
     : 0;
-  const textCaretBlinkSyncKey = textEditingSession
-    ? `${textEditingSession.sourceId}:${textEditingSession.selectionStart}:${textEditingSession.selectionEnd}:${textEditingSession.text.length}`
-    : null;
+  const textCaretBlinkKey =
+    textEditingSession && textEditingSession.selectionStart === textEditingSession.selectionEnd
+      ? `${textEditingSession.sourceId}:${textEditingSession.selectionStart}:${textEditingSession.selectionEnd}:${textEditingSession.text}`
+      : null;
+  const [textCaretBlinkVisible, setTextCaretBlinkVisible] = useState(true);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const shouldBlinkTextCaret = !props.prefersNonBlinkingTextInsertionIndicator && !prefersReducedMotion;
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return;
+    }
+    const query = window.matchMedia(REDUCED_MOTION_QUERY);
+    const updatePreference = () => {
+      setPrefersReducedMotion(query.matches);
+    };
+    updatePreference();
+    if (typeof query.addEventListener === "function") {
+      query.addEventListener("change", updatePreference);
+      return () => {
+        query.removeEventListener("change", updatePreference);
+      };
+    }
+    query.addListener(updatePreference);
+    return () => {
+      query.removeListener(updatePreference);
+    };
+  }, []);
+
+  useEffect(() => {
+    setTextCaretBlinkVisible(true);
+    if (!textCaretBlinkKey || !shouldBlinkTextCaret) {
+      return;
+    }
+
+    let visible = true;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const scheduleNextBlink = () => {
+      timeoutId = setTimeout(() => {
+        visible = !visible;
+        setTextCaretBlinkVisible(visible);
+        scheduleNextBlink();
+      }, TEXT_CARET_BLINK_VISIBLE_MS);
+    };
+
+    scheduleNextBlink();
+    return () => {
+      if (timeoutId != null) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [shouldBlinkTextCaret, textCaretBlinkKey]);
 
   return (
     <div className={css.panel}>
@@ -663,7 +717,6 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                   const height = caret.bounds.maxY - caret.bounds.minY;
                   return (
                     <div
-                      key={textCaretBlinkSyncKey ?? `${textSelectionOverlay.sourceId}:${textSelectionOverlay.selectionStart}:${textSelectionOverlay.selectionEnd}`}
                       className={[
                         css.textSelectionViewportCaret,
                         props.prefersNonBlinkingTextInsertionIndicator ? css.textCaretNoBlink : ""
@@ -675,6 +728,8 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                         left: hasRotatedPlacement ? caret.center!.x : caret.bounds.minX,
                         top: hasRotatedPlacement ? caret.center!.y : caret.bounds.minY,
                         height,
+                        animation: "none",
+                        opacity: textCaretBlinkVisible ? 1 : 0,
                         transform: hasRotatedPlacement
                           ? `translate(-50%, -50%) rotate(${caret.rotationDeg}deg)`
                           : undefined,
@@ -723,10 +778,6 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                 />
                 {textEditCaretOverlay ? (
                   <div
-                    key={
-                      textCaretBlinkSyncKey ??
-                      `${Math.round(textEditCaretOverlay.left * 4)}:${Math.round(textEditCaretOverlay.top * 4)}:${Math.round(textEditCaretOverlay.height * 4)}`
-                    }
                     className={[
                       css.textEditViewportCaret,
                       props.prefersNonBlinkingTextInsertionIndicator ? css.textCaretNoBlink : ""
@@ -737,7 +788,9 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                     style={{
                       left: textEditCaretOverlay.left,
                       top: textEditCaretOverlay.top,
-                      height: textEditCaretOverlay.height
+                      height: textEditCaretOverlay.height,
+                      animation: "none",
+                      opacity: textCaretBlinkVisible ? 1 : 0
                     }}
                   />
                 ) : null}
