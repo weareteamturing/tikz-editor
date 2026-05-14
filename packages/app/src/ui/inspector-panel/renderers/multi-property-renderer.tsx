@@ -65,6 +65,7 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
     applyNodeShapeValueMany,
     applyHoverPreview,
     clearHoverPreviewSession,
+    restoreHoverPreviewBase,
     renderNodeFontToolbar,
     applyNodeFontValueMany,
     normalizeColorSetPropertyChange,
@@ -264,7 +265,8 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
                 { applyHoverPreview(previewOwnerKey, () =>
                   { applyNodeShapeValueMany(property.writes, nextValue, { recordInHistory: false }); }
                 ); },
-              () => { clearHoverPreviewSession(previewOwnerKey); }
+              () => { clearHoverPreviewSession(previewOwnerKey); },
+              () => { restoreHoverPreviewBase(previewOwnerKey); }
             ),
             true
           )}
@@ -329,7 +331,8 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
                   { recordInHistory: false }
                 ); }
               ); },
-            () => { clearHoverPreviewSession(previewOwnerKey); }
+            () => { clearHoverPreviewSession(previewOwnerKey); },
+            () => { restoreHoverPreviewBase(previewOwnerKey); }
             ),
             true
           )}
@@ -558,7 +561,7 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
                 }
                 const presetValue = LINE_WIDTH_PRESET_BY_LABEL.get(nextValue);
                 if (presetValue == null) {
-                  clearHoverPreviewSession(previewOwnerKey);
+                  restoreHoverPreviewBase(previewOwnerKey);
                   return;
                 }
                 applyHoverPreview(previewOwnerKey, () => {
@@ -570,6 +573,7 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
                 });
               }}
               onOptionHoverEnd={() => { clearHoverPreviewSession(previewOwnerKey); }}
+              onOptionHoverLeave={() => { restoreHoverPreviewBase(previewOwnerKey); }}
               renderValue={() => {
                 return (
                   <span className={css.lineWidthValue}>
@@ -651,7 +655,8 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
                 { applyHoverPreview(previewOwnerKey, () =>
                   { applyDashStyleValueMany(property.writes, nextValue, { recordInHistory: false }); }
                 ); },
-              () => { clearHoverPreviewSession(previewOwnerKey); }
+              () => { clearHoverPreviewSession(previewOwnerKey); },
+              () => { restoreHoverPreviewBase(previewOwnerKey); }
             ),
             true
           )}
@@ -687,7 +692,8 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
               { applyHoverPreview(previewOwnerKey, () =>
                 { applyLineCapValueMany(property.writes, nextValue, { recordInHistory: false }); }
               ); },
-            () => { clearHoverPreviewSession(previewOwnerKey); }
+            () => { clearHoverPreviewSession(previewOwnerKey); },
+            () => { restoreHoverPreviewBase(previewOwnerKey); }
             ),
             true
           )}
@@ -723,7 +729,8 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
               { applyHoverPreview(previewOwnerKey, () =>
                 { applyLineJoinValueMany(property.writes, nextValue, { recordInHistory: false }); }
               ); },
-            () => { clearHoverPreviewSession(previewOwnerKey); }
+            () => { clearHoverPreviewSession(previewOwnerKey); },
+            () => { restoreHoverPreviewBase(previewOwnerKey); }
             ),
             true
           )}
@@ -761,7 +768,8 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
               { applyHoverPreview(previewOwnerKey, () =>
                 { applyPathMorphingDecorationValueMany(property.writes, nextValue, { recordInHistory: false }); }
               ); },
-            () => { clearHoverPreviewSession(previewOwnerKey); }
+            () => { clearHoverPreviewSession(previewOwnerKey); },
+            () => { restoreHoverPreviewBase(previewOwnerKey); }
             ),
             true
           )}
@@ -858,7 +866,8 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
             { applyHoverPreview(previewOwnerKey, () =>
               { applyArrowTipValueMany(property.writes, property.side, nextValue, { recordInHistory: false }); }
             ); },
-          () => { clearHoverPreviewSession(previewOwnerKey); }
+          () => { clearHoverPreviewSession(previewOwnerKey); },
+          () => { restoreHoverPreviewBase(previewOwnerKey); }
           ),
           true
         )}

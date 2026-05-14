@@ -45,6 +45,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
     applyNodeShapeValue,
     applyHoverPreview,
     clearHoverPreviewSession,
+    restoreHoverPreviewBase,
     renderNodeFontToolbar,
     applyNodeFontValue,
     normalizeColorSetPropertyChange,
@@ -301,7 +302,8 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                 { applyHoverPreview(previewOwnerKey, () =>
                   { applyNodeShapeValue(property.write, nextValue, { recordInHistory: false }); }
                 ); },
-              () => { clearHoverPreviewSession(previewOwnerKey); }
+              () => { clearHoverPreviewSession(previewOwnerKey); },
+              () => { restoreHoverPreviewBase(previewOwnerKey); }
             ),
             true
           )}
@@ -384,7 +386,8 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                     { recordInHistory: false }
                   ); }
                 ); },
-              () => { clearHoverPreviewSession(previewOwnerKey); }
+              () => { clearHoverPreviewSession(previewOwnerKey); },
+              () => { restoreHoverPreviewBase(previewOwnerKey); }
             ),
             true
           )}
@@ -590,7 +593,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                 }
                 const presetValue = LINE_WIDTH_PRESET_BY_LABEL.get(nextValue);
                 if (presetValue == null) {
-                  clearHoverPreviewSession(previewOwnerKey);
+                  restoreHoverPreviewBase(previewOwnerKey);
                   return;
                 }
                 applyHoverPreview(previewOwnerKey, () => {
@@ -602,6 +605,7 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                 });
               }}
               onOptionHoverEnd={() => { clearHoverPreviewSession(previewOwnerKey); }}
+              onOptionHoverLeave={() => { restoreHoverPreviewBase(previewOwnerKey); }}
               renderValue={() => (
                 <span className={css.lineWidthValue}>
                   <span className={css.lineWidthValuePreview}>
@@ -677,7 +681,8 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                 { applyHoverPreview(previewOwnerKey, () =>
                   { applyDashStyleValue(property.write, nextValue, { recordInHistory: false }); }
                 ); },
-              () => { clearHoverPreviewSession(previewOwnerKey); }
+              () => { clearHoverPreviewSession(previewOwnerKey); },
+              () => { restoreHoverPreviewBase(previewOwnerKey); }
             ),
             true
           )}
@@ -712,7 +717,8 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                 { applyHoverPreview(previewOwnerKey, () =>
                   { applyLineCapValue(property.write, nextValue, { recordInHistory: false }); }
                 ); },
-              () => { clearHoverPreviewSession(previewOwnerKey); }
+              () => { clearHoverPreviewSession(previewOwnerKey); },
+              () => { restoreHoverPreviewBase(previewOwnerKey); }
             ),
             true
           )}
@@ -747,7 +753,8 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                 { applyHoverPreview(previewOwnerKey, () =>
                   { applyLineJoinValue(property.write, nextValue, { recordInHistory: false }); }
                 ); },
-              () => { clearHoverPreviewSession(previewOwnerKey); }
+              () => { clearHoverPreviewSession(previewOwnerKey); },
+              () => { restoreHoverPreviewBase(previewOwnerKey); }
             ),
             true
           )}
@@ -782,7 +789,8 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                 { applyHoverPreview(previewOwnerKey, () =>
                   { applyPathMorphingDecorationValue(property.write, nextValue, { recordInHistory: false }); }
                 ); },
-              () => { clearHoverPreviewSession(previewOwnerKey); }
+              () => { clearHoverPreviewSession(previewOwnerKey); },
+              () => { restoreHoverPreviewBase(previewOwnerKey); }
             ),
             true
           )}
@@ -894,7 +902,8 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
               { applyHoverPreview(previewOwnerKey, () =>
                 { applyArrowTipValue(property.write, property.side, nextValue, { recordInHistory: false }); }
               ); },
-            () => { clearHoverPreviewSession(previewOwnerKey); }
+            () => { clearHoverPreviewSession(previewOwnerKey); },
+            () => { restoreHoverPreviewBase(previewOwnerKey); }
           ),
           true
         )}

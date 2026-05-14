@@ -89,7 +89,8 @@ export function renderArrowTipDropdown(
   valueOverride?: ArrowTipDropdownValue,
   valueClassName?: string,
   onHoverPreview?: (value: Exclude<ArrowTipPresetId, "custom">) => void,
-  onHoverPreviewEnd?: () => void
+  onHoverPreviewEnd?: () => void,
+  onHoverPreviewLeave?: () => void
 ) {
   const dropdownValue: ArrowTipDropdownValue = valueOverride ?? property.value;
   const dropdownOptions = toArrowTipDropdownOptions(property.options);
@@ -115,6 +116,7 @@ export function renderArrowTipDropdown(
         onHoverPreview(nextValue);
       }}
       onOptionHoverEnd={onHoverPreviewEnd}
+      onOptionHoverLeave={onHoverPreviewLeave}
       renderValue={() => (
         <span className={css.arrowTipValue}>
           <span className={css.arrowTipValuePreview}>
@@ -153,7 +155,8 @@ export function renderDashStyleDropdown(
   valueOverride?: DashStyleDropdownValue,
   valueClassName?: string,
   onHoverPreview?: (value: Exclude<DashStylePresetId, "custom">) => void,
-  onHoverPreviewEnd?: () => void
+  onHoverPreviewEnd?: () => void,
+  onHoverPreviewLeave?: () => void
 ) {
   const dropdownValue: DashStyleDropdownValue = valueOverride ?? property.value;
   const dropdownOptions = toDashStyleDropdownOptions(property.options);
@@ -179,6 +182,7 @@ export function renderDashStyleDropdown(
         onHoverPreview(nextValue);
       }}
       onOptionHoverEnd={onHoverPreviewEnd}
+      onOptionHoverLeave={onHoverPreviewLeave}
       renderValue={() => (
         <span className={css.dashStyleValue}>
           <span className={css.dashStyleValuePreview}>
@@ -217,7 +221,8 @@ export function renderLineCapDropdown(
   valueOverride?: LineCapDropdownValue,
   valueClassName?: string,
   onHoverPreview?: (value: Exclude<LineCapPresetId, "custom">) => void,
-  onHoverPreviewEnd?: () => void
+  onHoverPreviewEnd?: () => void,
+  onHoverPreviewLeave?: () => void
 ) {
   const dropdownValue: LineCapDropdownValue = valueOverride ?? property.value;
   const dropdownOptions = toLineCapDropdownOptions(property.options);
@@ -243,6 +248,7 @@ export function renderLineCapDropdown(
         onHoverPreview(nextValue);
       }}
       onOptionHoverEnd={onHoverPreviewEnd}
+      onOptionHoverLeave={onHoverPreviewLeave}
       renderValue={() => (
         <span className={css.lineCapValue}>
           <span className={css.lineCapValuePreview}>
@@ -281,7 +287,8 @@ export function renderLineJoinDropdown(
   valueOverride?: LineJoinDropdownValue,
   valueClassName?: string,
   onHoverPreview?: (value: Exclude<LineJoinPresetId, "custom">) => void,
-  onHoverPreviewEnd?: () => void
+  onHoverPreviewEnd?: () => void,
+  onHoverPreviewLeave?: () => void
 ) {
   const dropdownValue: LineJoinDropdownValue = valueOverride ?? property.value;
   const dropdownOptions = toLineJoinDropdownOptions(property.options);
@@ -307,6 +314,7 @@ export function renderLineJoinDropdown(
         onHoverPreview(nextValue);
       }}
       onOptionHoverEnd={onHoverPreviewEnd}
+      onOptionHoverLeave={onHoverPreviewLeave}
       renderValue={() => (
         <span className={css.lineJoinValue}>
           <span className={css.lineJoinValuePreview}>
@@ -345,7 +353,8 @@ export function renderPathMorphingDecorationDropdown(
   valueOverride?: PathMorphingDecorationDropdownValue,
   valueClassName?: string,
   onHoverPreview?: (value: Exclude<PathMorphingDecorationPresetId, "custom">) => void,
-  onHoverPreviewEnd?: () => void
+  onHoverPreviewEnd?: () => void,
+  onHoverPreviewLeave?: () => void
 ) {
   const dropdownValue: PathMorphingDecorationDropdownValue = valueOverride ?? property.value;
   const dropdownOptions = toPathMorphingDecorationDropdownOptions(property.options);
@@ -371,6 +380,7 @@ export function renderPathMorphingDecorationDropdown(
         onHoverPreview(nextValue);
       }}
       onOptionHoverEnd={onHoverPreviewEnd}
+      onOptionHoverLeave={onHoverPreviewLeave}
       renderValue={() => (
         <span className={css.pathMorphingDecorationValue}>
           <span className={css.pathMorphingDecorationValuePreview}>
@@ -523,7 +533,8 @@ export function renderNodeShapeDropdown(
   valueOverride?: NodeShapeDropdownValue,
   valueClassName?: string,
   onHoverPreview?: (value: Exclude<NodeShapePresetId, "custom">) => void,
-  onHoverPreviewEnd?: () => void
+  onHoverPreviewEnd?: () => void,
+  onHoverPreviewLeave?: () => void
 ) {
   const dropdownValue: NodeShapeDropdownValue = valueOverride ?? property.value;
   const dropdownOptions = toNodeShapeDropdownOptions(property.options);
@@ -542,12 +553,13 @@ export function renderNodeShapeDropdown(
       }}
       onOptionHover={(nextValue) => {
         if (!writable || !isSelectableNodeShapeValue(nextValue) || !onHoverPreview) {
-          onHoverPreviewEnd?.();
+          onHoverPreviewLeave?.();
           return;
         }
         onHoverPreview(nextValue);
       }}
       onOptionHoverEnd={onHoverPreviewEnd}
+      onOptionHoverLeave={onHoverPreviewLeave}
       renderValue={() => <span className={valueClassName}>{displayLabel}</span>}
     />
   );
@@ -565,7 +577,8 @@ export function renderNodeFontSizeDropdown(
   valueOverride?: NodeFontSizeDropdownValue,
   valueClassName?: string,
   onHoverPreview?: (value: Exclude<NodeFontSizePresetId, "custom">) => void,
-  onHoverPreviewEnd?: () => void
+  onHoverPreviewEnd?: () => void,
+  onHoverPreviewLeave?: () => void
 ) {
   const dropdownValue: NodeFontSizeDropdownValue = valueOverride ?? property.value;
   const dropdownOptions = toNodeFontSizeDropdownOptions(property.options);
@@ -584,12 +597,13 @@ export function renderNodeFontSizeDropdown(
       }}
       onOptionHover={(nextValue) => {
         if (!writable || !isSelectableNodeFontSizeValue(nextValue) || !onHoverPreview) {
-          onHoverPreviewEnd?.();
+          onHoverPreviewLeave?.();
           return;
         }
         onHoverPreview(nextValue);
       }}
       onOptionHoverEnd={onHoverPreviewEnd}
+      onOptionHoverLeave={onHoverPreviewLeave}
       renderValue={() => <span className={valueClassName}>{displayLabel}</span>}
       renderOption={(option) => {
         const ptLabel = nodeFontSizePresetPtLabel(option.value as Exclude<NodeFontSizePresetId, "custom">);

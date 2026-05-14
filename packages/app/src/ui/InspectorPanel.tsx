@@ -121,6 +121,7 @@ export function InspectorPanel() {
 
   const {
     clearHoverPreviewSession,
+    restoreHoverPreviewBase,
     applyHoverPreview,
     commitAfterHoverPreview,
     beginNumberLabelScrub
@@ -1115,7 +1116,8 @@ export function InspectorPanel() {
     onSizePresetChange: (sizePreset: Exclude<NodeFontSizePresetId, "custom">) => void,
     sizeValueClassName?: string,
     onSizePresetHoverPreview?: (sizePreset: Exclude<NodeFontSizePresetId, "custom">) => void,
-    onSizePresetHoverPreviewEnd?: () => void
+    onSizePresetHoverPreviewEnd?: () => void,
+    onSizePresetHoverPreviewLeave?: () => void
   ) {
     const boldActive = !property.weightMixed && property.weight === "bold";
     const italicActive = !property.styleMixed && property.style === "italic";
@@ -1192,7 +1194,8 @@ export function InspectorPanel() {
               sizeValue,
               sizeValueClassName,
               onSizePresetHoverPreview,
-              onSizePresetHoverPreviewEnd
+              onSizePresetHoverPreviewEnd,
+              onSizePresetHoverPreviewLeave
             )}
           </div>
         </div>
@@ -1228,6 +1231,7 @@ export function InspectorPanel() {
     applyNodeShapeValueMany,
     applyHoverPreview,
     clearHoverPreviewSession,
+    restoreHoverPreviewBase,
     renderNodeFontToolbar,
     applyNodeFontValue,
     applyNodeFontValueMany,

@@ -71,6 +71,23 @@ export function useInspectorPreviewScrub(args: {
     setFrozenInspectorView(null);
   }, [dispatch, setFrozenInspectorView]);
 
+  const restoreHoverPreviewBase = useCallback((ownerKey?: string) => {
+    const current = hoverPreviewSessionRef.current;
+    if (!current) {
+      return;
+    }
+    if (ownerKey && current.ownerKey !== ownerKey) {
+      return;
+    }
+    const currentSource = useEditorStore.getState().source;
+    if (currentSource !== current.baseSource) {
+      dispatch({
+        type: "SET_SOURCE_TRANSIENT",
+        source: current.baseSource
+      });
+    }
+  }, [dispatch]);
+
   const ensureHoverPreviewSession = useCallback((ownerKey: string) => {
     const current = hoverPreviewSessionRef.current;
     if (!current) {
@@ -259,6 +276,7 @@ export function useInspectorPreviewScrub(args: {
 
   return {
     clearHoverPreviewSession,
+    restoreHoverPreviewBase,
     applyHoverPreview,
     commitAfterHoverPreview,
     beginNumberLabelScrub

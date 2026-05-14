@@ -30,6 +30,7 @@ export type RenderPropertyApi = {
   applyNodeShapeValueMany(this: void, ...args: unknown[]): void;
   applyHoverPreview(this: void, ...args: unknown[]): void;
   clearHoverPreviewSession(this: void, ...args: unknown[]): void;
+  restoreHoverPreviewBase(this: void, ...args: unknown[]): void;
   applyNodeFontValue(this: void, ...args: unknown[]): void;
   applyNodeFontValueMany(this: void, ...args: unknown[]): void;
   normalizeColorSetPropertyChange(this: void, ...args: unknown[]): { value: string | null; clearKeys?: readonly string[] };

@@ -25,6 +25,7 @@ type CustomDropdownProps<TValue extends string> = {
   onOpen?: () => void;
   onOptionHover?: (value: TValue) => void;
   onOptionHoverEnd?: () => void;
+  onOptionHoverLeave?: () => void;
   renderOption?: (option: CustomDropdownOption<TValue>, state: { selected: boolean }) => ReactNode;
   renderValue?: (option: CustomDropdownOption<TValue> | null) => ReactNode;
   menuHeader?: ReactNode;
@@ -57,6 +58,7 @@ export function CustomDropdown<TValue extends string>({
   onOpen,
   onOptionHover,
   onOptionHoverEnd,
+  onOptionHoverLeave,
   renderOption,
   renderValue,
   menuHeader,
@@ -306,7 +308,13 @@ export function CustomDropdown<TValue extends string>({
             role="listbox"
             aria-label={ariaLabel}
             ref={menuListRef}
-            onPointerLeave={() => onOptionHoverEnd?.()}
+            onPointerLeave={() => {
+              if (onOptionHoverLeave) {
+                onOptionHoverLeave();
+                return;
+              }
+              onOptionHoverEnd?.();
+            }}
           >
             {menuHeader ? <div className={css.menuHeader}>{menuHeader}</div> : null}
             {displayOptions.map((item) => {
