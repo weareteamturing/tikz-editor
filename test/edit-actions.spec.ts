@@ -297,6 +297,36 @@ describe("applyEditAction – connectHandle", () => {
     expect(result.changedSourceIds).toEqual([]);
   });
 
+  it("inserts lazy node names after standalone node options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw, shape=star, minimum width=2.2cm, minimum height=1.4cm] at (0.88,2.2) {};
+  \draw (0.13,3.66) -- (0.88,2.2);
+\end{tikzpicture}`;
+    const raw = "(0.88,2.2)";
+    const from = source.lastIndexOf(raw);
+    const handle = makeHandle(source, {
+      world: wp(cm(0.88), cm(2.2)),
+      sourceSpan: { from, to: from + raw.length },
+      sourceId: "path:1"
+    });
+
+    const result = applyEditAction(source, [handle], {
+      kind: "connectHandle",
+      handleId: handle.id,
+      nodeName: "",
+      nodeSourceId: "path:0",
+      anchor: "north"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toBe(String.raw`\begin{tikzpicture}
+  \node[draw, shape=star, minimum width=2.2cm, minimum height=1.4cm] (node1) at (0.88,2.2) {};
+  \draw (0.13,3.66) -- (node1.north);
+\end{tikzpicture}`);
+    expect(result.changedSourceIds).toEqual([]);
+  });
+
   it("rejects handles whose source span is shared by expansion", () => {
     const source = "\\draw (0,0) -- (1,1);";
     const raw = "(1,1)";

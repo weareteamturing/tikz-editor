@@ -566,6 +566,9 @@ function findNodeItemForSourceId(statement: PathStatement, sourceId: string): No
 
 function nodeNameInsertionOffset(source: string, statement: PathStatement, node: NodeItem): number | null {
   if (statement.command === "node") {
+    if (node.optionsSpan) {
+      return node.optionsSpan.to;
+    }
     if (statement.options) {
       const optionEnd = statement.options.entries.reduce((max, entry) => Math.max(max, entry.span.to), statement.span.from);
       const rawAfterOptions = source.slice(optionEnd, statement.span.to);
