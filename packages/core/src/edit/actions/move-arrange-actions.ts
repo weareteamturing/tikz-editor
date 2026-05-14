@@ -471,7 +471,7 @@ function rewriteSingleScopeTransform(
       mutation.key,
       mutation.value.trim().length === 0
         ? { kind: "remove" }
-        : { kind: "set", value: formatScopeTranslationMutationValue(mutation.key, mutation.value, formatPrecision) }
+        : formatScopeTranslationMutation(mutation.key, mutation.value, formatPrecision)
     );
   }
   const rewritten = applyOptionMutationsToTarget(source, resolved.target, optionMutations);
@@ -535,27 +535,21 @@ function rewriteSingleScopeShiftInPlace(
     const context = resolveTransformInspectorMutationContextFromOptionEntries(entries);
     const nextShiftX = context.values.xshift + localDelta.x;
     const nextShiftY = context.values.yshift + localDelta.y;
-    const hasXShiftEntry = xyTranslationEntries.some((candidate) => {
-      const key = normalizeOptionKey(candidate.entry.key);
-      return key === "xshift" || key === "/tikz/xshift";
-    });
-    const hasYShiftEntry = xyTranslationEntries.some((candidate) => {
-      const key = normalizeOptionKey(candidate.entry.key);
-      return key === "yshift" || key === "/tikz/yshift";
-    });
+    const nextShiftXValue = formatScopeShiftValue(nextShiftX, formatPrecision);
+    const nextShiftYValue = formatScopeShiftValue(nextShiftY, formatPrecision);
     const optionMutations = new Map<string, OptionMutation>();
-    if (hasXShiftEntry || Math.abs(nextShiftX) > 1e-6) {
+    if (nextShiftXValue != null) {
       optionMutations.set("xshift", {
         kind: "set",
-        value: `${formatNumber(nextShiftX, pointDistanceFormatOptions(formatPrecision))}pt`
+        value: nextShiftXValue
       });
     } else {
       optionMutations.set("xshift", { kind: "remove" });
     }
-    if (hasYShiftEntry || Math.abs(nextShiftY) > 1e-6) {
+    if (nextShiftYValue != null) {
       optionMutations.set("yshift", {
         kind: "set",
-        value: `${formatNumber(nextShiftY, pointDistanceFormatOptions(formatPrecision))}pt`
+        value: nextShiftYValue
       });
     } else {
       optionMutations.set("yshift", { kind: "remove" });
@@ -585,13 +579,16 @@ function rewriteSingleScopeShiftInPlace(
   const context = resolveTransformInspectorMutationContextFromOptionEntries(entries);
   const nextShiftX = context.values.xshift + localDelta.x;
   const nextShiftY = context.values.yshift + localDelta.y;
+  const nextShiftXValue = formatScopeShiftValue(nextShiftX, formatPrecision);
+  const nextShiftYValue = formatScopeShiftValue(nextShiftY, formatPrecision);
+  const shiftMutation: OptionMutation = nextShiftXValue == null && nextShiftYValue == null
+    ? { kind: "remove" }
+    : {
+        kind: "set",
+        value: `(${nextShiftXValue ?? "0pt"},${nextShiftYValue ?? "0pt"})`
+      };
   const optionMutations = new Map<string, OptionMutation>([
-    ["shift", {
-      kind: "set",
-      value: `(${formatNumber(nextShiftX, pointDistanceFormatOptions(formatPrecision))}pt,${
-        formatNumber(nextShiftY, pointDistanceFormatOptions(formatPrecision))
-      }pt)`
-    }]
+    ["shift", shiftMutation]
   ]);
 
   const rewritten = applyOptionMutationsToTarget(source, target, optionMutations);
@@ -606,20 +603,29 @@ function rewriteSingleScopeShiftInPlace(
   };
 }
 
-function formatScopeTranslationMutationValue(
+function formatScopeTranslationMutation(
   key: string,
   value: string,
   formatPrecision: DragFormatPrecision | undefined
-): string {
+): OptionMutation {
   const normalizedKey = normalizeOptionKey(key);
   if (normalizedKey !== "xshift" && normalizedKey !== "yshift") {
-    return value;
+    return { kind: "set", value };
   }
   const match = /^([-+]?(?:\d+(?:\.\d+)?|\.\d+))pt$/.exec(value.trim());
   if (!match) {
-    return value;
+    return { kind: "set", value };
   }
-  return `${formatNumber(Number(match[1]), pointDistanceFormatOptions(formatPrecision))}pt`;
+  const formatted = formatScopeShiftValue(Number(match[1]), formatPrecision);
+  return formatted == null ? { kind: "remove" } : { kind: "set", value: formatted };
+}
+
+function formatScopeShiftValue(
+  value: number,
+  formatPrecision: DragFormatPrecision | undefined
+): string | null {
+  const formatted = formatNumber(value, pointDistanceFormatOptions(formatPrecision));
+  return Number(formatted) === 0 ? null : `${formatted}pt`;
 }
 
 function targetOptionsEntries(target: PropertyTarget): readonly OptionEntry[] {

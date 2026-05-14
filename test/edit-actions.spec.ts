@@ -1293,7 +1293,7 @@ describe("applyEditAction – moveElement", () => {
     expectPatchesReconstructSource(yscaleSource, yscale);
   });
 
-  it("removes implicit scope shift components when a move cancels them out", () => {
+  it("removes scope shift components when a move cancels them out", () => {
     const xOnly = String.raw`\begin{tikzpicture}
   \begin{scope}[xshift=2pt]
     \draw (0,0) -- (1,0);
@@ -1307,7 +1307,7 @@ describe("applyEditAction – moveElement", () => {
 
     expect(movedXOnly.kind).toBe("success");
     if (movedXOnly.kind !== "success") return;
-    expect(movedXOnly.newSource).toContain("xshift=0pt");
+    expect(movedXOnly.newSource).not.toContain("xshift");
     expect(movedXOnly.newSource).not.toContain("yshift");
     expectPatchesReconstructSource(xOnly, movedXOnly);
 
@@ -1325,8 +1325,47 @@ describe("applyEditAction – moveElement", () => {
     expect(movedYOnly.kind).toBe("success");
     if (movedYOnly.kind !== "success") return;
     expect(movedYOnly.newSource).not.toContain("xshift");
-    expect(movedYOnly.newSource).toContain("yshift=0pt");
+    expect(movedYOnly.newSource).not.toContain("yshift");
     expectPatchesReconstructSource(yOnly, movedYOnly);
+
+    const explicitZero = String.raw`\begin{tikzpicture}[
+  box/.style={draw,rounded corners=2pt,fill=blue!10,minimum width=2.4cm,minimum height=9mm,align=center},
+  >=Stealth
+]
+  \begin{scope}[yshift=0pt]
+    \node[box] (start) at (0,0) {Start};
+    \node[box] (step)  at (0,-1.6) {Process};
+    \node[box] (check) at (0,-3.2) {Check};
+    \draw[->] (start) -- (step);
+    \draw[->] (step)  -- (check);
+  \end{scope}
+  \node[box,fill=green!15] (done) at (4,-3.2) {Done};
+  \draw[->] (check) -- node[above] {ok} (done);
+\end{tikzpicture}`;
+    const movedExplicitZero = applyEditAction(explicitZero, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(4, 0)
+    });
+
+    expect(movedExplicitZero.kind).toBe("success");
+    if (movedExplicitZero.kind !== "success") return;
+    expect(movedExplicitZero.newSource).toContain("xshift=4pt");
+    expect(movedExplicitZero.newSource).not.toContain("yshift");
+    expectPatchesReconstructSource(explicitZero, movedExplicitZero);
+
+    const tinyMoveExplicitZero = applyEditAction(explicitZero, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: wp(0.4, 0.4)
+    });
+
+    expect(tinyMoveExplicitZero.kind).toBe("success");
+    if (tinyMoveExplicitZero.kind !== "success") return;
+    expect(tinyMoveExplicitZero.newSource).not.toContain("xshift=0pt");
+    expect(tinyMoveExplicitZero.newSource).not.toContain("yshift=0pt");
+    expect(tinyMoveExplicitZero.newSource).not.toContain("yshift");
+    expectPatchesReconstructSource(explicitZero, tinyMoveExplicitZero);
   });
 
   it("rejects no-op scope moves for each scope placement rewrite path", () => {
