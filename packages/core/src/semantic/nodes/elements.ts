@@ -9,20 +9,22 @@ import type { StyleChainEntry } from "../style-chain.js";
 import { cloneStyleChain } from "../style-chain.js";
 import {
   makeCircularSector,
-  makeChamferedRectanglePolygon,
+  makeChamferedRectanglePolygonForSizing,
   makeCloudCallout,
   makeCloud,
   makeCylinder,
   makeDoubleArrow,
   makeDartPolygon,
   makeDiamondPolygon,
+  makeDiamondPolygonForSizing,
+  makeDiamondSplitPolygonForSizing,
   makeMagnifyingGlassHandle,
   makeEllipseCallout,
   makeIsoscelesTrianglePolygon,
   makeKitePolygon,
   makeRectangleCallout,
   makeRegularPolygon,
-  makeRoundedRectanglePolygon,
+  makeRoundedRectanglePolygonForSizing,
   makeSemicircle,
   makeSignal,
   makeSingleArrow,
@@ -31,6 +33,7 @@ import {
   makeTape,
   type SignalDirection,
   type TapeBendStyle,
+  type TwoPartShapeSizingInput,
   makeTrapeziumPolygon
 } from "./shape-geometry.js";
 import { normalizeOptionValue } from "./utils.js";
@@ -41,6 +44,10 @@ function wp(x: number, y: number): WorldPoint {
 
 function translatePolygon(center: WorldPoint, polygon: readonly WorldPoint[]): WorldPoint[] {
   return polygon.map((point) => wp(center.x + point.x, center.y + point.y));
+}
+
+function translatePoint(center: WorldPoint, point: WorldPoint): WorldPoint {
+  return wp(center.x + point.x, center.y + point.y);
 }
 
 export function makeCircleElement(
@@ -281,12 +288,60 @@ export function makeNodeDiamondElement(
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
+export function makeNodeDiamondSizingElement(
+  sourceId: string,
+  itemId: string,
+  center: WorldPoint,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  aspect: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
+): ScenePath {
+  const corners = translatePolygon(
+    center,
+    makeDiamondPolygonForSizing(
+      {
+        naturalWidth,
+        naturalHeight,
+        minimumWidth,
+        minimumHeight
+      },
+      aspect
+    )
+  );
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
+}
+
+export function makeNodeDiamondSplitElement(
+  sourceId: string,
+  itemId: string,
+  center: WorldPoint,
+  sizing: TwoPartShapeSizingInput,
+  aspect: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
+): ScenePath {
+  const corners = translatePolygon(center, makeDiamondSplitPolygonForSizing(sizing, aspect));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
+}
+
 export function makeNodeRoundedRectangleElement(
   sourceId: string,
   itemId: string,
   center: WorldPoint,
-  width: number,
-  height: number,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  textBlockWidth: number,
+  textBlockHeight: number,
+  innerXSep: number,
+  innerYSep: number,
   arcLength: number,
   westArc: "convex" | "concave" | "none",
   eastArc: "convex" | "concave" | "none",
@@ -294,7 +349,24 @@ export function makeNodeRoundedRectangleElement(
   span: { from: number; to: number },
   styleChain: StyleChainEntry[] = []
 ): ScenePath {
-  const corners = translatePolygon(center, makeRoundedRectanglePolygon(width, height, arcLength, westArc, eastArc));
+  const corners = translatePolygon(
+    center,
+    makeRoundedRectanglePolygonForSizing(
+      {
+        naturalWidth,
+        naturalHeight,
+        minimumWidth,
+        minimumHeight,
+        textBlockWidth,
+        textBlockHeight,
+        innerXSep,
+        innerYSep
+      },
+      arcLength,
+      westArc,
+      eastArc
+    )
+  );
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
@@ -302,8 +374,10 @@ export function makeNodeChamferedRectangleElement(
   sourceId: string,
   itemId: string,
   center: WorldPoint,
-  width: number,
-  height: number,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
   chamferX: number,
   chamferY: number,
   chamferAngle: number,
@@ -314,7 +388,18 @@ export function makeNodeChamferedRectangleElement(
 ): ScenePath {
   const corners = translatePolygon(
     center,
-    makeChamferedRectanglePolygon(width, height, chamferX, chamferY, chamferAngle, cornersRaw)
+    makeChamferedRectanglePolygonForSizing(
+      {
+        naturalWidth,
+        naturalHeight,
+        minimumWidth,
+        minimumHeight
+      },
+      chamferX,
+      chamferY,
+      chamferAngle,
+      cornersRaw
+    )
   );
   return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
@@ -577,6 +662,7 @@ export function makeNodeCylinderElement(
   naturalHeight: number,
   minimumWidth: number,
   minimumHeight: number,
+  innerYSep: number,
   aspect: number,
   rotation: number,
   style: ResolvedStyle,
@@ -588,14 +674,24 @@ export function makeNodeCylinderElement(
       naturalWidth,
       naturalHeight,
       minimumWidth,
-      minimumHeight
+      minimumHeight,
+      innerYSep
     },
     aspect,
     rotation,
     0
   );
   const corners = translatePolygon(center, cylinder.polygon);
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
+  const element = makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
+  const endCapArc = translatePolygon(center, cylinder.endCapArc);
+  const [firstEndCapPoint, ...remainingEndCapPoints] = endCapArc;
+  if (firstEndCapPoint) {
+    element.commands.push({ kind: "M", to: firstEndCapPoint });
+    for (const point of remainingEndCapPoints) {
+      element.commands.push({ kind: "L", to: point });
+    }
+  }
+  return element;
 }
 
 export function makeNodeStarElement(
@@ -662,8 +758,7 @@ export function makeNodeCloudElement(
     ignoresAspect,
     rotation
   );
-  const corners = translatePolygon(center, cloud.polygon);
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
+  return makeNodeCloudPathElement(sourceId, itemId, center, cloud, style, span, styleChain);
 }
 
 export function makeNodeStarburstElement(
@@ -864,9 +959,11 @@ export function makeNodeCloudCalloutElement(
     pointerIsAbsolute,
     pointerShortenPt
   );
-  const cloudPolygon = translatePolygon(center, callout.polygon);
-  const pointerPolygon = translatePolygon(center, callout.pointerPolygon);
-  return makeNodeMultiPolygonElement(sourceId, itemId, [cloudPolygon, pointerPolygon], style, span, styleChain);
+  const cloudCommands = makeCloudPathCommands(center, callout);
+  const pointerPolygons = callout.pointerPolygons.map((polygon) => translatePolygon(center, polygon));
+  const commands = [...cloudCommands];
+  appendPolygonSubpaths(commands, pointerPolygons);
+  return makeNodePathElement(sourceId, itemId, commands, style, span, styleChain);
 }
 
 export function makeNodeSingleArrowElement(
@@ -950,6 +1047,72 @@ function makeNodePolygonElement(
     commands.push({ kind: "L", to: corners[index] });
   }
   commands.push({ kind: "Z" });
+  return {
+    kind: "Path",
+    id: `scene-node-box:${sourceId}:${itemId}`,
+    runtimeId: `scene-node-box:${sourceId}:${itemId}`,
+    sourceRef: { sourceId, sourceSpan: span, sourceFingerprint: "" },
+    style: { ...style },
+    styleChain: cloneStyleChain(styleChain),
+    commands
+  };
+}
+
+function makeNodeCloudPathElement(
+  sourceId: string,
+  itemId: string,
+  center: WorldPoint,
+  cloud: { polygon: WorldPoint[]; curves: Array<{ c1: WorldPoint; c2: WorldPoint; to: WorldPoint }> },
+  style: ResolvedStyle,
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
+): ScenePath {
+  return makeNodePathElement(sourceId, itemId, makeCloudPathCommands(center, cloud), style, span, styleChain);
+}
+
+function makeCloudPathCommands(
+  center: WorldPoint,
+  cloud: { polygon: WorldPoint[]; curves: Array<{ c1: WorldPoint; c2: WorldPoint; to: WorldPoint }> }
+): ScenePathCommand[] {
+  const first = cloud.polygon[0];
+  if (!first) {
+    throw new Error("Node cloud geometry requires at least one point.");
+  }
+  const commands: ScenePathCommand[] = [{ kind: "M", to: translatePoint(center, first) }];
+  for (const curve of cloud.curves) {
+    commands.push({
+      kind: "C",
+      c1: translatePoint(center, curve.c1),
+      c2: translatePoint(center, curve.c2),
+      to: translatePoint(center, curve.to)
+    });
+  }
+  commands.push({ kind: "Z" });
+  return commands;
+}
+
+function appendPolygonSubpaths(commands: ScenePathCommand[], polygons: WorldPoint[][]): void {
+  for (const polygon of polygons) {
+    const first = polygon[0];
+    if (!first) {
+      continue;
+    }
+    commands.push({ kind: "M", to: first });
+    for (let index = 1; index < polygon.length; index += 1) {
+      commands.push({ kind: "L", to: polygon[index] });
+    }
+    commands.push({ kind: "Z" });
+  }
+}
+
+function makeNodePathElement(
+  sourceId: string,
+  itemId: string,
+  commands: ScenePathCommand[],
+  style: ResolvedStyle,
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
+): ScenePath {
   return {
     kind: "Path",
     id: `scene-node-box:${sourceId}:${itemId}`,

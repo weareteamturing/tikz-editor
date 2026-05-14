@@ -58,7 +58,8 @@ import {
   makeNodeMagnifyingHandleElement,
   makeNodeCylinderElement,
   makeNodeDartElement,
-  makeNodeDiamondElement,
+  makeNodeDiamondSplitElement,
+  makeNodeDiamondSizingElement,
   makeNodeEllipseCalloutElement,
   makeNodeEllipseElement,
   makeNodeRoundedRectangleElement,
@@ -89,7 +90,15 @@ import {
   resolveNodeShape,
   withDefaultNodePosition
 } from "./options.js";
-import { resolveCalloutPointerOffset, resolveNodeShapeGeometryParams } from "./shape-geometry.js";
+import {
+  resolveCalloutPointerOffset,
+  resolveCircleSolidusRadius,
+  resolveCircleSplitRadius,
+  resolveEllipseSplitRadii,
+  makeDiamondSplitPolygonForSizing,
+  resolveNodeShapeGeometryParams,
+  type TwoPartShapeSizingInput
+} from "./shape-geometry.js";
 import {
   isMultipartShape,
   parseNodeParts,
@@ -98,7 +107,7 @@ import {
   resolveRectangleSplitPartTexts,
   resolveRectangleSplitParts
 } from "./multipart.js";
-import type { NodeShape } from "./types.js";
+import type { NodeLayout, NodeShape } from "./types.js";
 import { resolveNodeTargetPoint } from "./placement.js";
 import { normalizeEscapedTextSpaces, normalizeNodeTextFontSize } from "./normalize-text.js";
 import { normalizeOptionValue } from "./utils.js";
@@ -619,6 +628,19 @@ export function evaluateNodeItem(
     placementOptions.textMode ?? "text"
   );
   const adjustedNodeLayout = adjustNodeLayoutForShape(baseNodeLayout, nodeShape);
+  const shapeGeometry = resolveNodeShapeGeometryParams(expandedNodeOptions, () => context.mathRandom.nextRaw());
+  const twoPartShapeSizing = resolveTwoPartShapeSizing({
+    nodeShape,
+    rawNodeParts,
+    options: expandedNodeOptions,
+    style: nodeTextStyle,
+    textMode: placementOptions.textMode ?? "text",
+    context,
+    baseLayout: adjustedNodeLayout
+  });
+  const twoPartVisual = twoPartShapeSizing
+    ? resolveTwoPartShapeVisual(nodeShape, twoPartShapeSizing, shapeGeometry.diamondAspect)
+    : null;
   const rectangleSplitLayout =
     nodeShape === "rectangle split"
       ? resolveRectangleSplitLayoutGeometry({
@@ -643,8 +665,21 @@ export function evaluateNodeItem(
           rectangleSplitLayout.height / 2 + adjustedNodeLayout.outerYSep
         )
       }
+    : twoPartVisual
+      ? {
+          ...adjustedNodeLayout,
+          visualWidth: twoPartVisual.width,
+          visualHeight: twoPartVisual.height,
+          visualRadius: twoPartVisual.radius,
+          anchorHalfWidth: twoPartVisual.width / 2 + adjustedNodeLayout.outerXSep,
+          anchorHalfHeight: twoPartVisual.height / 2 + adjustedNodeLayout.outerYSep,
+          anchorRadius: Math.max(
+            twoPartVisual.width / 2 + adjustedNodeLayout.outerXSep,
+            twoPartVisual.height / 2 + adjustedNodeLayout.outerYSep
+          ),
+          twoPartShapeSizing: twoPartShapeSizing ?? undefined
+        }
     : adjustedNodeLayout;
-  const shapeGeometry = resolveNodeShapeGeometryParams(expandedNodeOptions, () => context.mathRandom.nextRaw());
   const slopedRotation = resolveSlopedNodeRotation(expandedNodeOptions, segment, effectiveBaseStyleChain);
   const inheritedNodeTransform: WorldTransform = frame.transformShape
     ? worldTransform(frame.transform.a, frame.transform.b, frame.transform.c, frame.transform.d, 0, 0)
@@ -816,8 +851,14 @@ export function evaluateNodeItem(
           nodeSourceId,
           item.id,
           center,
-          nodeLayout.visualWidth,
-          nodeLayout.visualHeight,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          nodeLayout.textBlockWidth,
+          nodeLayout.textBlockHeight,
+          Math.max(0, (nodeLayout.naturalWidth - nodeLayout.textBlockWidth) / 2),
+          Math.max(0, (nodeLayout.naturalHeight - nodeLayout.textBlockHeight) / 2),
           shapeGeometry.roundedRectangleArcLength,
           shapeGeometry.roundedRectangleWestArc,
           shapeGeometry.roundedRectangleEastArc,
@@ -833,8 +874,10 @@ export function evaluateNodeItem(
           nodeSourceId,
           item.id,
           center,
-          nodeLayout.visualWidth,
-          nodeLayout.visualHeight,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
           shapeGeometry.chamferedRectangleXSepPt,
           shapeGeometry.chamferedRectangleYSepPt,
           shapeGeometry.chamferedRectangleAngle,
@@ -947,18 +990,34 @@ export function evaluateNodeItem(
       markFeature("shape_ellipse_split", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "diamond split") {
-      pushNodeElement(
-        makeNodeDiamondElement(
-          nodeSourceId,
-          item.id,
-          center,
-          nodeLayout.visualWidth,
-          nodeLayout.visualHeight,
-          shapeGeometry.diamondAspect,
-          nodeBoxStyle,
-          item.span
-        )
-      );
+      if (twoPartShapeSizing) {
+        pushNodeElement(
+          makeNodeDiamondSplitElement(
+            nodeSourceId,
+            item.id,
+            center,
+            twoPartShapeSizing,
+            shapeGeometry.diamondAspect,
+            nodeBoxStyle,
+            item.span
+          )
+        );
+      } else {
+        pushNodeElement(
+          makeNodeDiamondSizingElement(
+            nodeSourceId,
+            item.id,
+            center,
+            nodeLayout.naturalWidth,
+            nodeLayout.naturalHeight,
+            nodeLayout.minimumWidth,
+            nodeLayout.minimumHeight,
+            shapeGeometry.diamondAspect,
+            nodeBoxStyle,
+            item.span
+          )
+        );
+      }
       pushNodeElement(
           makeNodeLineElement(
             nodeSourceId,
@@ -1080,12 +1139,14 @@ export function evaluateNodeItem(
       markFeature("shape_ellipse", "supported");
     } else if (nodeShape === "diamond") {
       pushNodeElement(
-        makeNodeDiamondElement(
+        makeNodeDiamondSizingElement(
           nodeSourceId,
           item.id,
           center,
-          nodeLayout.visualWidth,
-          nodeLayout.visualHeight,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
           shapeGeometry.diamondAspect,
           nodeBoxStyle,
           item.span
@@ -1216,6 +1277,7 @@ export function evaluateNodeItem(
           nodeLayout.naturalHeight,
           nodeLayout.minimumWidth,
           nodeLayout.minimumHeight,
+          Math.max(0, (nodeLayout.naturalHeight - nodeLayout.textBlockHeight) / 2),
           shapeGeometry.cylinderAspect,
           shapeGeometry.shapeBorderRotate,
           nodeBoxStyle,
@@ -1368,10 +1430,10 @@ export function evaluateNodeItem(
           nodeSourceId,
           item.id,
           center,
-          nodeLayout.naturalWidth,
-          nodeLayout.naturalHeight,
-          nodeLayout.minimumWidth,
-          nodeLayout.minimumHeight,
+          nodeLayout.visualWidth,
+          nodeLayout.visualHeight,
+          0,
+          0,
           calloutWorldPointerOffset,
           shapeGeometry.calloutPointerArc,
           shapeGeometry.calloutPointerIsAbsolute,
@@ -1457,9 +1519,11 @@ export function evaluateNodeItem(
   }
 
   const renderedNodeText = nodeLayout.textLines.join("\n");
+  const isTwoPartSplitShape =
+    nodeShape === "circle split" || nodeShape === "circle solidus" || nodeShape === "ellipse split" || nodeShape === "diamond split";
   const hasMultipartSecondaryParts =
     isMultipartShape(nodeShape) && rawNodeParts.some((part) => part.name !== "text" && part.text.length > 0);
-  if (renderedNodeText.length > 0 && !hasMultipartSecondaryParts) {
+  if (renderedNodeText.length > 0 && !hasMultipartSecondaryParts && !isTwoPartSplitShape) {
     pushNodeElement(
       makeTextElement(
         nodeSourceId,
@@ -1484,15 +1548,9 @@ export function evaluateNodeItem(
 
   if (isMultipartShape(nodeShape)) {
     const parts = rawNodeParts.filter((part) => part.name !== "text" && part.text.length > 0);
-    if (parts.length > 0) {
+    if (parts.length > 0 || isTwoPartSplitShape) {
       if (nodeShape === "circle split" || nodeShape === "ellipse split" || nodeShape === "diamond split") {
-        const splitTextStyle: ResolvedStyle =
-          nodeShape === "circle split"
-            ? {
-                ...nodeTextStyle,
-                fontSize: nodeTextStyle.fontSize * 0.9
-              }
-            : nodeTextStyle;
+        const splitTextStyle: ResolvedStyle = nodeTextStyle;
         if (mainNodeText.length > 0) {
           const upperLayout = resolveNodeLayout(
             mainNodeText,
@@ -1506,7 +1564,15 @@ export function evaluateNodeItem(
             makeTextElement(
               nodeSourceId,
               `${item.id}:upper`,
-              wp(center.x, center.y + resolveCircleSplitTextOffset(nodeLayout.visualHeight, upperLayout.textBlockHeight)),
+              resolveTwoPartSplitTextPosition({
+                nodeShape,
+                nodeLayout,
+                partLayout: upperLayout,
+                center,
+                anchor: "text",
+                options: expandedNodeOptions,
+                lineWidth: nodeStyle.lineWidth
+              }),
               splitTextStyle,
               item.span,
               mainNodeText,
@@ -1536,7 +1602,15 @@ export function evaluateNodeItem(
             makeTextElement(
               nodeSourceId,
               `${item.id}:lower`,
-              wp(center.x, center.y - resolveCircleSplitTextOffset(nodeLayout.visualHeight, lowerLayout.textBlockHeight)),
+              resolveTwoPartSplitTextPosition({
+                nodeShape,
+                nodeLayout,
+                partLayout: lowerLayout,
+                center,
+                anchor: "lower",
+                options: expandedNodeOptions,
+                lineWidth: nodeStyle.lineWidth
+              }),
               splitTextStyle,
               item.span,
               lower.text,
@@ -1553,10 +1627,7 @@ export function evaluateNodeItem(
           );
         }
       } else if (nodeShape === "circle solidus") {
-        const solidusTextStyle: ResolvedStyle = {
-          ...nodeTextStyle,
-          fontSize: nodeTextStyle.fontSize * 0.52
-        };
+        const solidusTextStyle: ResolvedStyle = nodeTextStyle;
         if (mainNodeText.length > 0) {
           const upperLayout = resolveNodeLayout(
             mainNodeText,
@@ -1570,7 +1641,10 @@ export function evaluateNodeItem(
             makeTextElement(
               nodeSourceId,
               `${item.id}:upper`,
-              wp(center.x - nodeLayout.visualWidth * 0.22, center.y + nodeLayout.visualHeight * 0.22),
+              wp(
+                center.x - resolveCircleSolidusHorizontalTextOffset(upperLayout, nodeStyle.lineWidth),
+                center.y + resolveCircleSolidusVerticalTextOffset(upperLayout, nodeStyle.lineWidth)
+              ),
               solidusTextStyle,
               item.span,
               mainNodeText,
@@ -1600,7 +1674,10 @@ export function evaluateNodeItem(
             makeTextElement(
               nodeSourceId,
               `${item.id}:lower`,
-              wp(center.x + nodeLayout.visualWidth * 0.22, center.y - nodeLayout.visualHeight * 0.22),
+              wp(
+                center.x + resolveCircleSolidusHorizontalTextOffset(lowerLayout, nodeStyle.lineWidth),
+                center.y - resolveCircleSolidusVerticalTextOffset(lowerLayout, nodeStyle.lineWidth)
+              ),
               solidusTextStyle,
               item.span,
               lower.text,
@@ -2942,9 +3019,143 @@ function mergeOptionLists(lists: Array<OptionListAst | undefined>): OptionListAs
   };
 }
 
-function resolveCircleSplitTextOffset(totalHeight: number, textHeight: number): number {
-  const heightFactor = textHeight > totalHeight * 0.42 ? 0.33 : 0.31;
-  return totalHeight * heightFactor;
+function resolveHorizontalSplitTextOffset(layout: NodeLayout, lineWidth: number): number {
+  const innerYSep = Math.max(0, (layout.naturalHeight - layout.textBlockHeight) / 2);
+  return layout.textBlockHeight / 2 + innerYSep + lineWidth / 2;
+}
+
+function resolveTwoPartSplitTextPosition(params: {
+  nodeShape: NodeShape;
+  nodeLayout: NodeLayout;
+  partLayout: NodeLayout;
+  center: WorldPoint;
+  anchor: "lower" | "text";
+  options: OptionListAst | undefined;
+  lineWidth: number;
+}): WorldPoint {
+  if (params.nodeShape === "diamond split") {
+    return wp(
+      params.center.x,
+      params.center.y + resolveDiamondSplitTextBaselineOffset(params.anchor, params.nodeLayout, params.partLayout)
+    );
+  }
+
+  const sign = params.anchor === "text" ? 1 : -1;
+  return wp(
+    params.center.x,
+    params.center.y + sign * resolveHorizontalSplitTextOffset(params.partLayout, params.lineWidth)
+  );
+}
+
+function resolveDiamondSplitTextBaselineOffset(
+  anchor: "lower" | "text",
+  nodeLayout: NodeLayout,
+  partLayout: NodeLayout
+): number {
+  if (anchor === "lower") {
+    return -1.25 * partLayout.textBlockHeight - nodeLayout.outerYSep - partLayout.baseLineY;
+  }
+  return partLayout.textBlockHeight / 4 + nodeLayout.outerYSep - partLayout.baseLineY;
+}
+
+function resolveCircleSolidusHorizontalTextOffset(layout: NodeLayout, lineWidth: number): number {
+  const innerXSep = Math.max(0, (layout.naturalWidth - layout.textBlockWidth) / 2);
+  return layout.textBlockHeight / 2 + innerXSep + lineWidth * 0.3536;
+}
+
+function resolveCircleSolidusVerticalTextOffset(layout: NodeLayout, lineWidth: number): number {
+  const innerYSep = Math.max(0, (layout.naturalHeight - layout.textBlockHeight) / 2);
+  return layout.textBlockWidth / 2 + innerYSep + lineWidth * 0.3536;
+}
+
+type TwoPartShapeVisual = {
+  width: number;
+  height: number;
+  radius: number;
+};
+
+function resolveTwoPartShapeSizing(params: {
+  nodeShape: NodeShape;
+  rawNodeParts: ReturnType<typeof parseNodeParts>;
+  options: OptionListAst | undefined;
+  style: ResolvedStyle;
+  textMode: "text" | "math";
+  context: SemanticContext;
+  baseLayout: NodeLayout;
+}): TwoPartShapeSizingInput | null {
+  if (
+    params.nodeShape !== "circle split" &&
+    params.nodeShape !== "circle solidus" &&
+    params.nodeShape !== "ellipse split" &&
+    params.nodeShape !== "diamond split"
+  ) {
+    return null;
+  }
+
+  const upperText = params.rawNodeParts.find((part) => part.name === "text")?.text ?? "";
+  const lowerText =
+    params.rawNodeParts.find((part) => part.name === "lower")?.text ??
+    params.rawNodeParts.find((part) => part.name !== "text")?.text ??
+    "";
+  const upperLayout = resolveNodeLayout(upperText, params.options, params.style, 1, params.context.textEngine, params.textMode);
+  const lowerLayout = resolveNodeLayout(lowerText, params.options, params.style, 1, params.context.textEngine, params.textMode);
+  const innerXSep = Math.max(0, (upperLayout.naturalWidth - upperLayout.textBlockWidth) / 2);
+  const innerYSep = Math.max(0, (upperLayout.naturalHeight - upperLayout.textBlockHeight) / 2);
+
+  return {
+    upperWidth: upperLayout.textBlockWidth,
+    upperHeight: upperLayout.textBlockHeight,
+    upperDepth: textDepthFromLayout(upperLayout),
+    lowerWidth: lowerText.trim().length > 0 ? lowerLayout.textBlockWidth : 0,
+    lowerHeight: lowerText.trim().length > 0 ? lowerLayout.textBlockHeight : 0,
+    lowerAscent: lowerText.trim().length > 0 ? textAscentFromLayout(lowerLayout) : 0,
+    lowerDepth: lowerText.trim().length > 0 ? textDepthFromLayout(lowerLayout) : 0,
+    innerXSep,
+    innerYSep,
+    lineWidth: params.style.lineWidth,
+    minimumWidth: params.baseLayout.minimumWidth,
+    minimumHeight: params.baseLayout.minimumHeight
+  };
+}
+
+function textAscentFromLayout(layout: NodeLayout): number {
+  return Math.max(0, layout.textBlockHeight / 2 - layout.baseLineY);
+}
+
+function textDepthFromLayout(layout: NodeLayout): number {
+  return Math.max(0, layout.textBlockHeight / 2 + layout.baseLineY);
+}
+
+function resolveTwoPartShapeVisual(
+  shape: NodeShape,
+  sizing: TwoPartShapeSizingInput,
+  aspect: number
+): TwoPartShapeVisual {
+  if (shape === "circle split") {
+    const radius = resolveCircleSplitRadius(sizing);
+    return { width: 2 * radius, height: 2 * radius, radius };
+  }
+
+  if (shape === "circle solidus") {
+    const radius = resolveCircleSolidusRadius(sizing);
+    return { width: 2 * radius, height: 2 * radius, radius };
+  }
+
+  if (shape === "ellipse split") {
+    const radii = resolveEllipseSplitRadii(sizing);
+    return { width: 2 * radii.rx, height: 2 * radii.ry, radius: Math.max(radii.rx, radii.ry) };
+  }
+
+  if (shape === "diamond split") {
+    const points = makeDiamondSplitPolygonForSizing(sizing, aspect);
+    const xs = points.map((point) => point.x);
+    const ys = points.map((point) => point.y);
+    const width = Math.max(...xs) - Math.min(...xs);
+    const height = Math.max(...ys) - Math.min(...ys);
+    return { width, height, radius: Math.max(width, height) / 2 };
+  }
+
+  return { width: 0, height: 0, radius: 0 };
 }
 
 function resolveRectangleSplitLayoutGeometry(params: {
@@ -2972,7 +3183,8 @@ function resolveRectangleSplitLayoutGeometry(params: {
   });
 
   const metrics = parts.map((part) => Math.max(1e-3, horizontal ? part.metricWidth : part.metricHeight));
-  const sumMetric = metrics.reduce((sum, metric) => sum + metric, 0);
+  const splitLineTotal = Math.max(0, parts.length - 1) * params.style.lineWidth;
+  const sumMetric = metrics.reduce((sum, metric) => sum + metric, 0) + splitLineTotal;
   const maxWidth = parts.reduce((max, part) => Math.max(max, part.metricWidth), 0);
   const maxHeight = parts.reduce((max, part) => Math.max(max, part.metricHeight), 0);
   const rawWidth = horizontal ? sumMetric : maxWidth;

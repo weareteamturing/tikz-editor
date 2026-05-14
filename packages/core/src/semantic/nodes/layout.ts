@@ -224,6 +224,7 @@ export function resolveNodeLayout(
     naturalHeight,
     minimumWidth: resolvedMinWidth,
     minimumHeight: resolvedMinHeight,
+    lineWidth: style.lineWidth,
     outerXSep: resolvedOuterX,
     outerYSep: resolvedOuterY,
     visualWidth,
@@ -248,7 +249,7 @@ function resolveTextLayoutKind(text: string, textWidth: number | null, explicitL
 }
 
 export function adjustNodeLayoutForShape(layout: NodeLayout, shape: NodeShape): NodeLayout {
-  if (shape === "ellipse") {
+  if (shape === "ellipse" || shape === "ellipse callout") {
     const naturalHalfWidth = layout.naturalWidth / 2;
     const naturalHalfHeight = layout.naturalHeight / 2;
     const minimumHalfWidth = layout.minimumWidth / 2;
@@ -270,7 +271,7 @@ export function adjustNodeLayoutForShape(layout: NodeLayout, shape: NodeShape): 
     };
   }
 
-  if (shape === "circle") {
+  if (shape === "circle" || shape === "magnifying glass") {
     const naturalHalfWidth = layout.naturalWidth / 2;
     const naturalHalfHeight = layout.naturalHeight / 2;
     const minimumHalfWidth = layout.minimumWidth / 2;

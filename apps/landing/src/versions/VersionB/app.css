@@ -73,7 +73,7 @@ body {
 .vBHero h1 {
   margin: 0 0 12px;
   color: var(--vB-ink);
-  font-size: clamp(3.6rem, 8.2vw, 7rem);
+  font-size: clamp(2.8rem, 6.8vw, 5.6rem);
   line-height: 0.92;
   font-weight: 760;
 }
@@ -81,7 +81,7 @@ body {
 .vBHeroLead {
   margin: 0;
   color: var(--vB-ink);
-  font-size: clamp(1.28rem, 2.2vw, 2rem);
+  font-size: clamp(1.05rem, 1.75vw, 1.55rem);
   line-height: 1.08;
   font-weight: 640;
 }
@@ -90,7 +90,7 @@ body {
   max-width: 620px;
   margin: 12px 0 0;
   color: var(--vB-muted);
-  font-size: clamp(0.98rem, 1.2vw, 1.08rem);
+  font-size: clamp(0.86rem, 0.98vw, 0.9rem);
   line-height: 1.55;
 }
 
@@ -135,7 +135,7 @@ body {
 
 .vBEditorRow {
   display: grid;
-  grid-template-columns: minmax(250px, 0.34fr) minmax(0, 0.66fr);
+  grid-template-columns: minmax(290px, 0.42fr) minmax(0, 0.58fr);
   gap: clamp(22px, 3.2vw, 40px);
   align-items: start;
   padding: clamp(36px, 5vw, 58px) 0;
@@ -164,7 +164,7 @@ body {
 .vBFeatureCopy h2 {
   margin: 0;
   color: var(--vB-ink);
-  font-size: clamp(1.75rem, 3.5vw, 3.35rem);
+  font-size: clamp(1.35rem, 2.9vw, 2.7rem);
   line-height: 0.98;
   font-weight: 760;
 }
@@ -351,7 +351,7 @@ body {
 }
 
 .vBResultPane svg {
-  width: min(100%, 560px);
+  width: min(100%, 500px);
   height: auto;
 }
 
@@ -406,7 +406,7 @@ body {
 
 .vBSyncedDemo .featureDemo {
   display: grid;
-  grid-template-columns: minmax(250px, 0.34fr) minmax(0, 0.66fr);
+  grid-template-columns: minmax(290px, 0.42fr) minmax(0, 0.58fr);
   gap: clamp(22px, 3.2vw, 40px);
   align-items: center;
   border: 0;
@@ -429,7 +429,7 @@ body {
 .vBSyncedDemo .featureScene {
   grid-column: 2;
   grid-row: 1;
-  width: min(100%, 590px);
+  width: min(100%, 500px);
   justify-self: start;
   border: 1px solid var(--vB-line);
   background:
@@ -548,7 +548,7 @@ body {
   }
 
   .vBHero h1 {
-    font-size: clamp(3rem, 13vw, 5.5rem);
+    font-size: clamp(2.4rem, 11.2vw, 4.4rem);
   }
 
   .vBEditorRow,
@@ -600,7 +600,7 @@ body {
   }
 
   .vBFeatureCopy h2 {
-    font-size: clamp(1.55rem, 8vw, 2.45rem);
+    font-size: clamp(1.28rem, 6.7vw, 2rem);
   }
 
   .vBEditorRow {

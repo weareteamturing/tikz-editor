@@ -1243,9 +1243,9 @@ describe("semantic evaluator / nodes and shapes", () => {
       expect(leftCorner?.kind).toBe("Text");
       expect(lowerSide?.kind).toBe("Text");
       if (center?.kind === "Text" && apex?.kind === "Text" && leftCorner?.kind === "Text" && lowerSide?.kind === "Text") {
-        expect(apex.position.y).toBeGreaterThan(center.position.y);
+        expect(apex.position.x).toBeGreaterThan(center.position.x);
         expect(leftCorner.position.x).toBeLessThan(center.position.x);
-        expect(lowerSide.position.y).toBeLessThan(center.position.y);
+        expect(lowerSide.position.y).toBeLessThanOrEqual(center.position.y);
       }
     });
 
@@ -1494,7 +1494,8 @@ describe("semantic evaluator / nodes and shapes", () => {
         singleTail?.kind === "Text"
       ) {
         expect(singleTip.position.x).toBeGreaterThan(single.position.x);
-        expect(singleBeforeHead.position.x).toBeGreaterThan(single.position.x);
+        expect(singleBeforeHead.position.x).toBeGreaterThan(singleTail.position.x);
+        expect(singleBeforeHead.position.x).toBeLessThan(singleTip.position.x);
         expect(singleTail.position.x).toBeLessThan(single.position.x);
       }
   
@@ -1517,8 +1518,10 @@ describe("semantic evaluator / nodes and shapes", () => {
       ) {
         expect(doubleTip1.position.x).toBeGreaterThan(double.position.x);
         expect(doubleTip2.position.x).toBeLessThan(double.position.x);
-        expect(doubleBeforeHead1.position.x).toBeGreaterThan(double.position.x);
-        expect(doubleBeforeHead2.position.x).toBeLessThan(double.position.x);
+        expect(doubleBeforeHead1.position.x).toBeGreaterThan(doubleTip2.position.x);
+        expect(doubleBeforeHead1.position.x).toBeLessThan(doubleTip1.position.x);
+        expect(doubleBeforeHead2.position.x).toBeLessThan(doubleTip1.position.x);
+        expect(doubleBeforeHead2.position.x).toBeGreaterThan(doubleTip2.position.x);
       }
     });
 

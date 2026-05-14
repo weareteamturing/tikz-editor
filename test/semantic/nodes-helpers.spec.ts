@@ -549,7 +549,8 @@ describe("semantic node helper coverage", () => {
   it("covers cloud aspect handling and ray intersection edge cases", () => {
     const stretched = makeCloud(box(10, 40, 10, 40), 5, 0, 2, false, 0);
     const ignored = makeCloud(box(10, 40, 10, 40), 5, 360, 2, true, 45);
-    expect(stretched.polygon).toHaveLength(10);
+    expect(stretched.polygon.length).toBeGreaterThan(10);
+    expect(stretched.puffs).toHaveLength(5);
     expect(ignored.puffs[0]!.x).not.toBeCloseTo(stretched.puffs[0]!.x);
 
     const square = [wp(-10, -10), wp(10, -10), wp(10, 10), wp(-10, 10)];

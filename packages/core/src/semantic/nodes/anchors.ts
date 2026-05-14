@@ -11,19 +11,20 @@ import type { WorldTransform } from "../../coords/transforms.js";
 import { applyMatrix, identityMatrix } from "../transform.js";
 import {
   makeCircularSector,
-  makeChamferedRectanglePolygon,
+  makeChamferedRectanglePolygonForSizing,
   makeCloud,
   makeCylinder,
   makeDoubleArrow,
   makeDartPolygon,
   makeEllipseCallout,
+  makeDiamondSplitPolygonForSizing,
   intersectRayWithPolygon,
-  makeDiamondPolygon,
+  makeDiamondPolygonForSizing,
   makeIsoscelesTrianglePolygon,
   makeKitePolygon,
   makeRectangleCallout,
   makeRegularPolygon,
-  makeRoundedRectanglePolygon,
+  makeRoundedRectanglePolygonForSizing,
   makeSemicircle,
   makeSignal,
   makeSingleArrow,
@@ -34,7 +35,9 @@ import {
   makeCloudCallout,
   midpoint,
   resolveCalloutPointerOffset,
-  resolveNodeShapeGeometryParams
+  resolveNodeShapeGeometryParams,
+  type SignalDirection,
+  type TapeBendStyle
 } from "./shape-geometry.js";
 import { resolveRectangleSplitHorizontal, resolveRectangleSplitParts } from "./multipart.js";
 import type { NodeLayout, NodeShape } from "./types.js";
@@ -69,21 +72,31 @@ export function nodeAnchorOffset(
   const anchor = anchorRaw.trim().toLowerCase().replaceAll("_", " ");
   const shapeGeometry = resolveNodeShapeGeometryParams(options);
 
-  if (anchor === "text") {
-    return worldPoint(pt(-layout.textBlockWidth / 2), pt(layout.baseLineY));
-  }
-
   if (shape === "coordinate") {
     return worldPoint(pt(0), pt(0));
   }
 
-  if (shape === "magnifying glass" || shape === "circle split" || shape === "circle solidus") {
-    const base = nodeAnchorOffset("circle", layout, anchor, options);
-    if (anchor === "upper") {
-      return worldPoint(pt(0), pt(layout.anchorRadius * 0.5));
+  if (shape === "circle solidus") {
+    if (anchor === "text") {
+      return circleSolidusTextAnchorOffset(layout);
     }
     if (anchor === "lower") {
-      return worldPoint(pt(0), pt(-layout.anchorRadius * 0.5));
+      return circleSolidusEmptyLowerAnchorOffset(layout);
+    }
+  }
+
+  if (shape === "diamond split" && anchor === "text") {
+    return diamondSplitTextAnchorOffset(layout);
+  }
+
+  if (anchor === "text") {
+    return worldPoint(pt(-layout.textBlockWidth / 2), pt(layout.baseLineY));
+  }
+
+  if (shape === "magnifying glass" || shape === "circle split" || shape === "circle solidus") {
+    const base = nodeAnchorOffset("circle", layout, anchor, options);
+    if (shape === "circle split" && anchor === "lower") {
+      return horizontalTwoPartLowerAnchorOffset(layout);
     }
     return base;
   }
@@ -166,29 +179,23 @@ export function nodeAnchorOffset(
 
   if (shape === "ellipse split") {
     const base = nodeAnchorOffset("ellipse", layout, anchor, options);
-    if (anchor === "upper") {
-      return worldPoint(pt(0), pt(layout.anchorHalfHeight * 0.5));
-    }
     if (anchor === "lower") {
-      return worldPoint(pt(0), pt(-layout.anchorHalfHeight * 0.5));
+      return horizontalTwoPartLowerAnchorOffset(layout);
     }
     return base;
   }
 
   if (shape === "diamond") {
-    const polygon = makeDiamondPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight, shapeGeometry.diamondAspect);
+    const polygon = makeDiamondPolygonForSizing(anchorSizingWithOuter(layout), shapeGeometry.diamondAspect);
     return polygonShapeAnchorOffset(anchor, polygon, layout.baseLineY, layout.midLineY);
   }
 
   if (shape === "diamond split") {
-    const base = nodeAnchorOffset("diamond", layout, anchor, options);
-    if (anchor === "upper") {
-      return worldPoint(pt(0), pt(layout.anchorHalfHeight * 0.5));
-    }
     if (anchor === "lower") {
-      return worldPoint(pt(0), pt(-layout.anchorHalfHeight * 0.5));
+      return diamondSplitLowerAnchorOffset(layout);
     }
-    return base;
+    const polygon = makeDiamondSplitAnchorPolygon(layout, shapeGeometry.diamondAspect);
+    return polygonShapeAnchorOffset(anchor, polygon, layout.baseLineY, layout.midLineY);
   }
 
   if (shape === "trapezium") {
@@ -198,7 +205,7 @@ export function nodeAnchorOffset(
 
   if (shape === "isosceles triangle") {
     const polygon = makeIsoscelesTrianglePolygon(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.isoscelesTriangleApexAngle,
       shapeGeometry.shapeBorderRotate,
       shapeGeometry.isoscelesTriangleStretches
@@ -212,7 +219,7 @@ export function nodeAnchorOffset(
 
   if (shape === "kite") {
     const polygon = makeKitePolygon(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.kiteUpperVertexAngle,
       shapeGeometry.kiteLowerVertexAngle,
       shapeGeometry.shapeBorderRotate
@@ -226,7 +233,7 @@ export function nodeAnchorOffset(
 
   if (shape === "dart") {
     const polygon = makeDartPolygon(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.dartTipAngle,
       shapeGeometry.dartTailAngle,
       shapeGeometry.shapeBorderRotate
@@ -239,7 +246,7 @@ export function nodeAnchorOffset(
   }
 
   if (shape === "regular polygon") {
-    const polygon = makeRegularPolygon(anchorSizingWithOuter(layout), shapeGeometry.regularPolygonSides, shapeGeometry.shapeBorderRotate);
+    const polygon = makeRegularPolygon(rawSizing(layout), shapeGeometry.regularPolygonSides, shapeGeometry.shapeBorderRotate);
     const special = regularPolygonSpecialAnchor(anchor, polygon);
     if (special) {
       return special;
@@ -249,7 +256,7 @@ export function nodeAnchorOffset(
 
   if (shape === "star") {
     const star = makeStar(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.starPoints,
       shapeGeometry.starPointRatio,
       shapeGeometry.starPointHeightPt,
@@ -265,7 +272,7 @@ export function nodeAnchorOffset(
 
   if (shape === "cloud") {
     const cloud = makeCloud(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.cloudPuffs,
       shapeGeometry.cloudPuffArc,
       shapeGeometry.diamondAspect,
@@ -281,7 +288,7 @@ export function nodeAnchorOffset(
 
   if (shape === "starburst") {
     const starburst = makeStarburst(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.starburstPoints,
       shapeGeometry.starburstPointHeightPt,
       shapeGeometry.randomStarburstSeed,
@@ -296,28 +303,36 @@ export function nodeAnchorOffset(
 
   if (shape === "signal") {
     const signal = makeSignal(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.signalPointerAngle,
       shapeGeometry.signalToSides,
       shapeGeometry.signalFromSides
     );
+    const special = signalSpecialAnchor(anchor, layout, shapeGeometry);
+    if (special) {
+      return special;
+    }
     return polygonShapeAnchorOffset(anchor, signal.polygon, layout.baseLineY, layout.midLineY);
   }
 
   if (shape === "tape") {
     const tape = makeTape(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.tapeBendTop,
       shapeGeometry.tapeBendBottom,
       shapeGeometry.tapeBendHeightPt
     );
+    const special = tapeSpecialAnchor(anchor, layout, shapeGeometry);
+    if (special) {
+      return special;
+    }
     return polygonShapeAnchorOffset(anchor, tape.polygon, layout.baseLineY, layout.midLineY);
   }
 
   if (shape === "rectangle callout") {
     const pointerOffset = resolveCalloutPointerOffset(shapeGeometry, null, null);
     const callout = makeRectangleCallout(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       pointerOffset,
       shapeGeometry.calloutPointerWidthPt,
       shapeGeometry.calloutPointerIsAbsolute,
@@ -326,13 +341,13 @@ export function nodeAnchorOffset(
     if (anchor === "pointer") {
       return callout.pointerAnchor;
     }
-    return nodeAnchorOffset("rectangle", layout, anchor, options);
+    return rectangleBodyAnchorOffset(anchor, layout);
   }
 
   if (shape === "ellipse callout") {
     const pointerOffset = resolveCalloutPointerOffset(shapeGeometry, null, null);
     const callout = makeEllipseCallout(
-      anchorSizingWithOuter(layout),
+      rawVisualSizing(layout),
       pointerOffset,
       shapeGeometry.calloutPointerArc,
       shapeGeometry.calloutPointerIsAbsolute,
@@ -341,13 +356,13 @@ export function nodeAnchorOffset(
     if (anchor === "pointer") {
       return callout.pointerAnchor;
     }
-    return nodeAnchorOffset("ellipse", layout, anchor, options);
+    return ellipseBodyAnchorOffset(anchor, layout);
   }
 
   if (shape === "cloud callout") {
     const pointerOffset = resolveCalloutPointerOffset(shapeGeometry, null, null);
     const callout = makeCloudCallout(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.cloudPuffs,
       shapeGeometry.cloudPuffArc,
       shapeGeometry.diamondAspect,
@@ -372,7 +387,7 @@ export function nodeAnchorOffset(
 
   if (shape === "single arrow") {
     const singleArrow = makeSingleArrow(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.singleArrowTipAngle,
       shapeGeometry.singleArrowHeadExtendPt,
       shapeGeometry.singleArrowHeadIndentPt,
@@ -387,7 +402,7 @@ export function nodeAnchorOffset(
 
   if (shape === "double arrow") {
     const doubleArrow = makeDoubleArrow(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.doubleArrowTipAngle,
       shapeGeometry.doubleArrowHeadExtendPt,
       shapeGeometry.doubleArrowHeadIndentPt,
@@ -401,7 +416,7 @@ export function nodeAnchorOffset(
   }
 
   if (shape === "semicircle") {
-    const semicircle = makeSemicircle(anchorSizingWithOuter(layout), shapeGeometry.shapeBorderRotate, 0);
+    const semicircle = makeSemicircle(rawSizing(layout), shapeGeometry.shapeBorderRotate, 0);
     if (anchor === "apex") {
       return semicircle.apex;
     }
@@ -419,7 +434,7 @@ export function nodeAnchorOffset(
 
   if (shape === "circular sector") {
     const sector = makeCircularSector(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.circularSectorAngle,
       shapeGeometry.shapeBorderRotate,
       0
@@ -441,7 +456,7 @@ export function nodeAnchorOffset(
 
   if (shape === "cylinder") {
     const cylinder = makeCylinder(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.cylinderAspect,
       shapeGeometry.shapeBorderRotate,
       0
@@ -528,19 +543,35 @@ function makeTrapeziumAnchorPolygon(
   layout: NodeLayout,
   shapeGeometry: ReturnType<typeof resolveNodeShapeGeometryParams>
 ): WorldPoint[] {
-  return makeTrapeziumPolygon(
+  const polygon = makeTrapeziumPolygon(
     {
-      naturalHalfWidth: layout.naturalWidth / 2 + layout.outerXSep,
-      naturalHalfHeight: layout.naturalHeight / 2 + layout.outerYSep,
-      minimumWidth: layout.minimumWidth + layout.outerXSep * 2,
-      minimumHeight: layout.minimumHeight + layout.outerYSep * 2
+      naturalHalfWidth: layout.naturalWidth / 2,
+      naturalHalfHeight: layout.naturalHeight / 2,
+      minimumWidth: layout.minimumWidth,
+      minimumHeight: layout.minimumHeight
     },
     shapeGeometry.trapeziumLeftAngle,
     shapeGeometry.trapeziumRightAngle,
-    shapeGeometry.shapeBorderRotate,
+    0,
     shapeGeometry.trapeziumStretches,
     shapeGeometry.trapeziumStretchesBody
   );
+  const outerSep = Math.max(layout.outerXSep, layout.outerYSep);
+  const border = trapeziumBorderPolygon(polygon, outerSep);
+  return Math.abs(shapeGeometry.shapeBorderRotate) <= 1e-6
+    ? border
+    : border.map((point) => rotateAnchorPoint(point, shapeGeometry.shapeBorderRotate));
+}
+
+function makeDiamondSplitAnchorPolygon(layout: NodeLayout, aspect: number): WorldPoint[] {
+  const sizing = layout.twoPartShapeSizing;
+  if (!sizing) {
+    return makeDiamondPolygonForSizing(anchorSizingWithOuter(layout), aspect);
+  }
+  const polygon = makeDiamondSplitPolygonForSizing(sizing, aspect);
+  const rx = Math.max(...polygon.map((point) => Math.abs(point.x))) + layout.outerXSep;
+  const ry = Math.max(...polygon.map((point) => Math.abs(point.y))) + layout.outerYSep;
+  return [worldPoint(pt(0), pt(ry)), worldPoint(pt(rx), pt(0)), worldPoint(pt(0), pt(-ry)), worldPoint(pt(-rx), pt(0))];
 }
 
 function resolveAnchorPolygon(
@@ -549,14 +580,14 @@ function resolveAnchorPolygon(
   shapeGeometry: ReturnType<typeof resolveNodeShapeGeometryParams>
 ): WorldPoint[] | undefined {
   if (shape === "diamond") {
-    return makeDiamondPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight, shapeGeometry.diamondAspect);
+    return makeDiamondPolygonForSizing(anchorSizingWithOuter(layout), shapeGeometry.diamondAspect);
   }
   if (shape === "trapezium") {
     return makeTrapeziumAnchorPolygon(layout, shapeGeometry);
   }
   if (shape === "isosceles triangle") {
     return makeIsoscelesTrianglePolygon(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.isoscelesTriangleApexAngle,
       shapeGeometry.shapeBorderRotate,
       shapeGeometry.isoscelesTriangleStretches
@@ -564,7 +595,7 @@ function resolveAnchorPolygon(
   }
   if (shape === "kite") {
     return makeKitePolygon(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.kiteUpperVertexAngle,
       shapeGeometry.kiteLowerVertexAngle,
       shapeGeometry.shapeBorderRotate
@@ -572,24 +603,24 @@ function resolveAnchorPolygon(
   }
   if (shape === "dart") {
     return makeDartPolygon(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.dartTipAngle,
       shapeGeometry.dartTailAngle,
       shapeGeometry.shapeBorderRotate
     );
   }
   if (shape === "circular sector") {
-    return makeCircularSector(anchorSizingWithOuter(layout), shapeGeometry.circularSectorAngle, shapeGeometry.shapeBorderRotate, 0).polygon;
+    return makeCircularSector(rawSizing(layout), shapeGeometry.circularSectorAngle, shapeGeometry.shapeBorderRotate, 0).polygon;
   }
   if (shape === "cylinder") {
-    return makeCylinder(anchorSizingWithOuter(layout), shapeGeometry.cylinderAspect, shapeGeometry.shapeBorderRotate, 0).polygon;
+    return makeCylinder(rawSizing(layout), shapeGeometry.cylinderAspect, shapeGeometry.shapeBorderRotate, 0).polygon;
   }
   if (shape === "regular polygon") {
-    return makeRegularPolygon(anchorSizingWithOuter(layout), shapeGeometry.regularPolygonSides, shapeGeometry.shapeBorderRotate);
+    return makeRegularPolygon(rawSizing(layout), shapeGeometry.regularPolygonSides, shapeGeometry.shapeBorderRotate);
   }
   if (shape === "star") {
     return makeStar(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.starPoints,
       shapeGeometry.starPointRatio,
       shapeGeometry.starPointHeightPt,
@@ -598,11 +629,11 @@ function resolveAnchorPolygon(
     ).polygon;
   }
   if (shape === "semicircle") {
-    return makeSemicircle(anchorSizingWithOuter(layout), shapeGeometry.shapeBorderRotate, 0).polygon;
+    return makeSemicircle(rawSizing(layout), shapeGeometry.shapeBorderRotate, 0).polygon;
   }
   if (shape === "cloud") {
     return makeCloud(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.cloudPuffs,
       shapeGeometry.cloudPuffArc,
       shapeGeometry.diamondAspect,
@@ -612,7 +643,7 @@ function resolveAnchorPolygon(
   }
   if (shape === "starburst") {
     return makeStarburst(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.starburstPoints,
       shapeGeometry.starburstPointHeightPt,
       shapeGeometry.randomStarburstSeed,
@@ -621,7 +652,7 @@ function resolveAnchorPolygon(
   }
   if (shape === "signal") {
     return makeSignal(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.signalPointerAngle,
       shapeGeometry.signalToSides,
       shapeGeometry.signalFromSides
@@ -629,7 +660,7 @@ function resolveAnchorPolygon(
   }
   if (shape === "tape") {
     return makeTape(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.tapeBendTop,
       shapeGeometry.tapeBendBottom,
       shapeGeometry.tapeBendHeightPt
@@ -637,18 +668,19 @@ function resolveAnchorPolygon(
   }
   if (shape === "rectangle callout") {
     return [
-      worldPoint(-layout.anchorHalfWidth, layout.anchorHalfHeight),
-      worldPoint(layout.anchorHalfWidth, layout.anchorHalfHeight),
-      worldPoint(layout.anchorHalfWidth, -layout.anchorHalfHeight),
-      worldPoint(-layout.anchorHalfWidth, -layout.anchorHalfHeight)
+      rectangleBodyAnchorOffset("north west", layout),
+      rectangleBodyAnchorOffset("north east", layout),
+      rectangleBodyAnchorOffset("south east", layout),
+      rectangleBodyAnchorOffset("south west", layout)
     ];
   }
   if (shape === "ellipse callout") {
-    return makeEllipseAnchorPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight);
+    const radii = ellipseCalloutBodyRadii(layout);
+    return makeEllipseAnchorPolygon(radii.rx, radii.ry);
   }
   if (shape === "cloud callout") {
     return makeCloud(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.cloudPuffs,
       shapeGeometry.cloudPuffArc,
       shapeGeometry.diamondAspect,
@@ -658,7 +690,7 @@ function resolveAnchorPolygon(
   }
   if (shape === "single arrow") {
     return makeSingleArrow(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.singleArrowTipAngle,
       shapeGeometry.singleArrowHeadExtendPt,
       shapeGeometry.singleArrowHeadIndentPt,
@@ -667,7 +699,7 @@ function resolveAnchorPolygon(
   }
   if (shape === "double arrow") {
     return makeDoubleArrow(
-      anchorSizingWithOuter(layout),
+      rawSizing(layout),
       shapeGeometry.doubleArrowTipAngle,
       shapeGeometry.doubleArrowHeadExtendPt,
       shapeGeometry.doubleArrowHeadIndentPt,
@@ -689,21 +721,25 @@ function resolveAnchorPolygon(
     return makeEllipseAnchorPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight);
   }
   if (shape === "diamond split") {
-    return makeDiamondPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight, shapeGeometry.diamondAspect);
+    return makeDiamondSplitAnchorPolygon(layout, shapeGeometry.diamondAspect);
   }
   if (shape === "rounded rectangle") {
-    return makeRoundedRectanglePolygon(
-      layout.anchorHalfWidth * 2,
-      layout.anchorHalfHeight * 2,
+    return makeRoundedRectanglePolygonForSizing(
+      {
+        ...anchorSizingWithOuter(layout),
+        textBlockWidth: layout.textBlockWidth,
+        textBlockHeight: layout.textBlockHeight,
+        innerXSep: Math.max(0, (layout.naturalWidth - layout.textBlockWidth) / 2),
+        innerYSep: Math.max(0, (layout.naturalHeight - layout.textBlockHeight) / 2)
+      },
       shapeGeometry.roundedRectangleArcLength,
       shapeGeometry.roundedRectangleWestArc,
       shapeGeometry.roundedRectangleEastArc
     );
   }
   if (shape === "chamfered rectangle") {
-    return makeChamferedRectanglePolygon(
-      layout.anchorHalfWidth * 2,
-      layout.anchorHalfHeight * 2,
+    return makeChamferedRectanglePolygonForSizing(
+      anchorSizingWithOuter(layout),
       shapeGeometry.chamferedRectangleXSepPt,
       shapeGeometry.chamferedRectangleYSepPt,
       shapeGeometry.chamferedRectangleAngle,
@@ -1025,6 +1061,313 @@ function polygonDirectionalOffset(polygon: WorldPoint[], reference: WorldPoint, 
   return hit;
 }
 
+function addAnchorPoints(first: WorldPoint, second: WorldPoint): WorldPoint {
+  return worldPoint(pt(first.x + second.x), pt(first.y + second.y));
+}
+
+function pointPolar(angleDegrees: number, radius: number): WorldPoint {
+  const radians = toRadians(angleDegrees);
+  return worldPoint(pt(radius * Math.cos(radians)), pt(radius * Math.sin(radians)));
+}
+
+function rotateAnchorPoint(point: WorldPoint, degrees: number): WorldPoint {
+  const radians = toRadians(degrees);
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  return worldPoint(pt(point.x * cosine - point.y * sine), pt(point.x * sine + point.y * cosine));
+}
+
+function cotDegrees(degrees: number): number {
+  const radians = toRadians(degrees);
+  const tangent = Math.tan(radians);
+  if (!Number.isFinite(tangent) || Math.abs(tangent) <= 1e-9) {
+    return 0;
+  }
+  return 1 / tangent;
+}
+
+function toRadians(degrees: number): number {
+  return (degrees * Math.PI) / 180;
+}
+
+function trapeziumBorderPolygon(polygon: WorldPoint[], outerSep: number): WorldPoint[] {
+  if (polygon.length !== 4 || outerSep <= 1e-9) {
+    return polygon;
+  }
+  const [lowerLeft, upperLeft, upperRight, lowerRight] = polygon;
+  return [
+    worldPoint(pt(lowerLeft.x - trapeziumMiterX(lowerLeft, lowerRight, upperLeft, outerSep)), pt(lowerLeft.y - outerSep)),
+    worldPoint(pt(upperLeft.x - trapeziumMiterX(upperLeft, lowerLeft, upperRight, outerSep)), pt(upperLeft.y + outerSep)),
+    worldPoint(pt(upperRight.x + trapeziumMiterX(upperRight, upperLeft, lowerRight, outerSep)), pt(upperRight.y + outerSep)),
+    worldPoint(pt(lowerRight.x + trapeziumMiterX(lowerRight, upperRight, lowerLeft, outerSep)), pt(lowerRight.y - outerSep))
+  ];
+}
+
+function trapeziumMiterX(vertex: WorldPoint, first: WorldPoint, second: WorldPoint, outerSep: number): number {
+  const firstAngle = Math.atan2(first.y - vertex.y, first.x - vertex.x);
+  const secondAngle = Math.atan2(second.y - vertex.y, second.x - vertex.x);
+  let angle = Math.abs(firstAngle - secondAngle);
+  if (angle > Math.PI) {
+    angle = 2 * Math.PI - angle;
+  }
+  const tangent = Math.tan(angle / 2);
+  if (!Number.isFinite(tangent) || Math.abs(tangent) <= 1e-9) {
+    return outerSep;
+  }
+  return Math.abs(outerSep / tangent);
+}
+
+function signalSpecialAnchor(
+  anchor: string,
+  layout: NodeLayout,
+  shapeGeometry: ReturnType<typeof resolveNodeShapeGeometryParams>
+): WorldPoint | null {
+  const anchors = resolveSignalAnchors(layout, shapeGeometry);
+  return anchors[anchor] ?? null;
+}
+
+function resolveSignalAnchors(
+  layout: NodeLayout,
+  shapeGeometry: ReturnType<typeof resolveNodeShapeGeometryParams>
+): Record<string, WorldPoint> {
+  const pointerAngle = Math.max(1e-3, Math.min(179.999, shapeGeometry.signalPointerAngle));
+  const halfPointerAngle = pointerAngle / 2;
+  const quarterPointerAngle = halfPointerAngle / 2;
+  const complementQuarterPointerAngle = 90 - quarterPointerAngle;
+  const cotHalfPointerAngle = cotDegrees(halfPointerAngle);
+  const outerSep = Math.max(layout.outerXSep, layout.outerYSep);
+  const statuses: Record<SignalDirection, "nowhere" | "from" | "to"> = {
+    north: signalDirectionStatus("north", shapeGeometry.signalToSides, shapeGeometry.signalFromSides),
+    south: signalDirectionStatus("south", shapeGeometry.signalToSides, shapeGeometry.signalFromSides),
+    east: signalDirectionStatus("east", shapeGeometry.signalToSides, shapeGeometry.signalFromSides),
+    west: signalDirectionStatus("west", shapeGeometry.signalToSides, shapeGeometry.signalFromSides)
+  };
+
+  let halfWidth = Math.max(1e-9, layout.naturalWidth / 2);
+  let halfHeight = Math.max(1e-9, layout.naturalHeight / 2);
+  let horizontalDepth = halfHeight * cotHalfPointerAngle;
+  let verticalDepth = halfWidth * cotHalfPointerAngle;
+
+  const verticalPointers = (statuses.north !== "nowhere" ? 1 : 0) + (statuses.south !== "nowhere" ? 1 : 0);
+  const horizontalPointers = (statuses.east !== "nowhere" ? 1 : 0) + (statuses.west !== "nowhere" ? 1 : 0);
+  if (2 * halfHeight + verticalPointers * verticalDepth < layout.minimumHeight) {
+    halfHeight = Math.max(1e-9, (layout.minimumHeight - verticalPointers * verticalDepth) / 2);
+    horizontalDepth = halfHeight * cotHalfPointerAngle;
+  }
+  if (2 * halfWidth + horizontalPointers * horizontalDepth < layout.minimumWidth) {
+    halfWidth = Math.max(1e-9, (layout.minimumWidth - horizontalPointers * horizontalDepth) / 2);
+    verticalDepth = halfWidth * cotHalfPointerAngle;
+  }
+
+  const pointerApexMiter = outerSep / Math.max(Math.sin(toRadians(halfPointerAngle)), 1e-9);
+  const toCornerMiter = outerSep / Math.max(Math.cos(toRadians(quarterPointerAngle)), 1e-9);
+  const fromCornerMiter = outerSep / Math.max(Math.sin(toRadians(quarterPointerAngle)), 1e-9);
+  const base = {
+    north: worldPoint(pt(0), pt(halfHeight + (statuses.north === "to" ? verticalDepth : 0))),
+    south: worldPoint(pt(0), pt(-halfHeight - (statuses.south === "to" ? verticalDepth : 0))),
+    east: worldPoint(pt(halfWidth + (statuses.east === "to" ? horizontalDepth : 0)), pt(0)),
+    west: worldPoint(pt(-halfWidth - (statuses.west === "to" ? horizontalDepth : 0)), pt(0)),
+    "north east": worldPoint(
+      pt(halfWidth + (statuses.east === "from" ? horizontalDepth : 0)),
+      pt(halfHeight + (statuses.north === "from" ? verticalDepth : 0))
+    ),
+    "south east": worldPoint(
+      pt(halfWidth + (statuses.east === "from" ? horizontalDepth : 0)),
+      pt(-halfHeight - (statuses.south === "from" ? verticalDepth : 0))
+    ),
+    "south west": worldPoint(
+      pt(-halfWidth - (statuses.west === "from" ? horizontalDepth : 0)),
+      pt(-halfHeight - (statuses.south === "from" ? verticalDepth : 0))
+    ),
+    "north west": worldPoint(
+      pt(-halfWidth - (statuses.west === "from" ? horizontalDepth : 0)),
+      pt(halfHeight + (statuses.north === "from" ? verticalDepth : 0))
+    )
+  };
+
+  return {
+    north: addAnchorPoints(base.north, worldPoint(pt(0), pt(statuses.north === "nowhere" ? outerSep : pointerApexMiter))),
+    south: addAnchorPoints(base.south, worldPoint(pt(0), pt(statuses.south === "nowhere" ? -outerSep : -pointerApexMiter))),
+    east: addAnchorPoints(base.east, worldPoint(pt(statuses.east === "nowhere" ? outerSep : pointerApexMiter), pt(0))),
+    west: addAnchorPoints(base.west, worldPoint(pt(statuses.west === "nowhere" ? -outerSep : -pointerApexMiter), pt(0))),
+    "north east": addAnchorPoints(
+      base["north east"],
+      signalCornerMiter(
+        statuses.east,
+        statuses.north,
+        quarterPointerAngle,
+        complementQuarterPointerAngle,
+        toCornerMiter,
+        fromCornerMiter,
+        1,
+        1,
+        outerSep
+      )
+    ),
+    "south east": addAnchorPoints(
+      base["south east"],
+      signalCornerMiter(
+        statuses.east,
+        statuses.south,
+        -quarterPointerAngle,
+        -complementQuarterPointerAngle,
+        toCornerMiter,
+        fromCornerMiter,
+        1,
+        -1,
+        outerSep
+      )
+    ),
+    "south west": addAnchorPoints(
+      base["south west"],
+      signalCornerMiter(
+        statuses.west,
+        statuses.south,
+        180 + quarterPointerAngle,
+        180 + complementQuarterPointerAngle,
+        toCornerMiter,
+        fromCornerMiter,
+        -1,
+        -1,
+        outerSep
+      )
+    ),
+    "north west": addAnchorPoints(
+      base["north west"],
+      signalCornerMiter(
+        statuses.west,
+        statuses.north,
+        180 - quarterPointerAngle,
+        180 - complementQuarterPointerAngle,
+        toCornerMiter,
+        fromCornerMiter,
+        -1,
+        1,
+        outerSep
+      )
+    )
+  };
+}
+
+function signalDirectionStatus(
+  direction: SignalDirection,
+  toSides: SignalDirection[],
+  fromSides: SignalDirection[]
+): "nowhere" | "from" | "to" {
+  if (toSides.includes(direction)) {
+    return "to";
+  }
+  if (fromSides.includes(direction)) {
+    return "from";
+  }
+  return "nowhere";
+}
+
+function signalCornerMiter(
+  horizontalStatus: "nowhere" | "from" | "to",
+  verticalStatus: "nowhere" | "from" | "to",
+  quarterAngle: number,
+  complementQuarterAngle: number,
+  toCornerMiter: number,
+  fromCornerMiter: number,
+  xSign: -1 | 1,
+  ySign: -1 | 1,
+  outerSep: number
+): WorldPoint {
+  let miter = horizontalStatus === "nowhere"
+    ? worldPoint(pt(xSign * outerSep), pt(ySign * outerSep))
+    : pointPolar(horizontalStatus === "from" ? quarterAngle : complementQuarterAngle, horizontalStatus === "from" ? fromCornerMiter : toCornerMiter);
+  if (verticalStatus === "from") {
+    miter = pointPolar(complementQuarterAngle, fromCornerMiter);
+  } else if (verticalStatus === "to") {
+    miter = pointPolar(quarterAngle, toCornerMiter);
+  }
+  return miter;
+}
+
+function tapeSpecialAnchor(
+  anchor: string,
+  layout: NodeLayout,
+  shapeGeometry: ReturnType<typeof resolveNodeShapeGeometryParams>
+): WorldPoint | null {
+  const anchors = resolveTapeAnchors(layout, shapeGeometry.tapeBendTop, shapeGeometry.tapeBendBottom, shapeGeometry.tapeBendHeightPt);
+  return anchors[anchor] ?? null;
+}
+
+function resolveTapeAnchors(
+  layout: NodeLayout,
+  bendTop: TapeBendStyle,
+  bendBottom: TapeBendStyle,
+  bendHeightPt: number
+): Record<string, WorldPoint> {
+  const halfBendHeight = Math.max(0, bendHeightPt) / 2;
+  let halfWidth = Math.max(1e-9, layout.naturalWidth / 2);
+  let halfHeight = Math.max(1e-9, layout.naturalHeight / 2);
+  if (bendTop !== "none") {
+    halfHeight += halfBendHeight;
+  }
+  if (bendBottom !== "none") {
+    halfHeight += halfBendHeight;
+  }
+  halfWidth = Math.max(halfWidth, layout.minimumWidth / 2);
+  halfHeight = Math.max(halfHeight, layout.minimumHeight / 2);
+  if (bendTop !== "none") {
+    halfHeight -= halfBendHeight;
+  }
+  if (bendBottom !== "none") {
+    halfHeight -= halfBendHeight;
+  }
+
+  const outerHalfWidth = halfWidth + layout.outerXSep;
+  const bendYRadius = 3.414213 * halfBendHeight;
+  const bendXRadius = 0.707106 * halfWidth;
+  const halfAngle = Math.atan2(bendYRadius, Math.max(bendXRadius, 1e-9)) * 90 / Math.PI;
+  const cotHalfAngleIn = cotDegrees(45 - halfAngle);
+  const cotHalfAngleOut = cotDegrees(90 - halfAngle);
+
+  const northEast = tapeCornerAnchor(outerHalfWidth, halfHeight, layout.outerYSep, halfBendHeight, bendTop, cotHalfAngleIn, cotHalfAngleOut, 1, 1);
+  const northWest = tapeCornerAnchor(outerHalfWidth, halfHeight, layout.outerYSep, halfBendHeight, bendTop, cotHalfAngleIn, cotHalfAngleOut, -1, 1);
+  const southEast = tapeCornerAnchor(outerHalfWidth, halfHeight, layout.outerYSep, halfBendHeight, bendBottom, cotHalfAngleIn, cotHalfAngleOut, 1, -1);
+  const southWest = tapeCornerAnchor(outerHalfWidth, halfHeight, layout.outerYSep, halfBendHeight, bendBottom, cotHalfAngleIn, cotHalfAngleOut, -1, -1);
+
+  return {
+    north: midpoint(northEast, northWest),
+    south: midpoint(southEast, southWest),
+    east: worldPoint(pt(outerHalfWidth), pt(0)),
+    west: worldPoint(pt(-outerHalfWidth), pt(0)),
+    "north east": northEast,
+    "north west": northWest,
+    "south east": southEast,
+    "south west": southWest,
+    "base east": worldPoint(pt(outerHalfWidth), pt(layout.baseLineY)),
+    "base west": worldPoint(pt(-outerHalfWidth), pt(layout.baseLineY)),
+    "mid east": worldPoint(pt(outerHalfWidth), pt(layout.midLineY)),
+    "mid west": worldPoint(pt(-outerHalfWidth), pt(layout.midLineY))
+  };
+}
+
+function tapeCornerAnchor(
+  outerHalfWidth: number,
+  halfHeight: number,
+  outerYSep: number,
+  halfBendHeight: number,
+  bend: TapeBendStyle,
+  cotHalfAngleIn: number,
+  cotHalfAngleOut: number,
+  xSign: -1 | 1,
+  ySign: -1 | 1
+): WorldPoint {
+  let y = ySign * halfHeight;
+  if (bend === "in and out") {
+    y += ySign * (halfBendHeight + (xSign === ySign ? cotHalfAngleOut : cotHalfAngleIn) * outerYSep);
+  } else if (bend === "out and in") {
+    y += ySign * (halfBendHeight + (xSign === ySign ? cotHalfAngleIn : cotHalfAngleOut) * outerYSep);
+  } else {
+    y += ySign * outerYSep;
+  }
+  return worldPoint(pt(xSign * outerHalfWidth), pt(y));
+}
+
 function anchorDirection(anchor: string): WorldVector | null {
   switch (anchor) {
     case "north":
@@ -1066,6 +1409,172 @@ function circleHorizontalOffsetAtY(radius: number, y: number, direction: -1 | 1)
   return direction < 0 ? -xMagnitude : xMagnitude;
 }
 
+function circleSolidusTextAnchorOffset(layout: NodeLayout): WorldPoint {
+  const innerXSep = Math.max(0, (layout.naturalWidth - layout.textBlockWidth) / 2);
+  const innerYSep = Math.max(0, (layout.naturalHeight - layout.textBlockHeight) / 2);
+  const lineInset = layout.lineWidth * 0.3536;
+  return worldPoint(
+    pt(-layout.textBlockWidth / 2 - layout.textBlockHeight / 2 - innerXSep - lineInset),
+    pt(layout.textBlockWidth / 2 - layout.textBlockHeight / 2 + innerYSep + lineInset)
+  );
+}
+
+function circleSolidusEmptyLowerAnchorOffset(layout: NodeLayout): WorldPoint {
+  const innerXSep = Math.max(0, (layout.naturalWidth - layout.textBlockWidth) / 2);
+  const innerYSep = Math.max(0, (layout.naturalHeight - layout.textBlockHeight) / 2);
+  const lineInset = layout.lineWidth * 0.3535;
+  return worldPoint(pt(innerXSep + lineInset), pt(-innerYSep - lineInset));
+}
+
+function horizontalTwoPartLowerAnchorOffset(layout: NodeLayout): WorldPoint {
+  const sizing = layout.twoPartShapeSizing;
+  if (!sizing) {
+    return worldPoint(pt(0), pt(-layout.anchorHalfHeight * 0.5));
+  }
+  return worldPoint(
+    pt(-sizing.lowerWidth / 2),
+    pt(-sizing.innerYSep - sizing.lowerAscent - sizing.lineWidth / 2)
+  );
+}
+
+function diamondSplitTextAnchorOffset(layout: NodeLayout): WorldPoint {
+  const sizing = layout.twoPartShapeSizing;
+  if (!sizing) {
+    return worldPoint(pt(-layout.textBlockWidth / 2), pt(layout.baseLineY));
+  }
+  return worldPoint(
+    pt(-sizing.upperWidth / 2),
+    pt(sizing.upperHeight / 4 + layout.outerYSep)
+  );
+}
+
+function diamondSplitLowerAnchorOffset(layout: NodeLayout): WorldPoint {
+  const sizing = layout.twoPartShapeSizing;
+  if (!sizing) {
+    return worldPoint(pt(0), pt(-layout.anchorHalfHeight * 0.5));
+  }
+  return worldPoint(
+    pt(-sizing.lowerWidth / 2),
+    pt(-1.25 * sizing.lowerHeight - layout.outerYSep)
+  );
+}
+
+function rawSizing(layout: NodeLayout): {
+  naturalWidth: number;
+  naturalHeight: number;
+  minimumWidth: number;
+  minimumHeight: number;
+  innerYSep?: number;
+} {
+  return {
+    naturalWidth: layout.naturalWidth,
+    naturalHeight: layout.naturalHeight,
+    minimumWidth: layout.minimumWidth,
+    minimumHeight: layout.minimumHeight,
+    innerYSep: Math.max(0, (layout.naturalHeight - layout.textBlockHeight) / 2)
+  };
+}
+
+function rawVisualSizing(layout: NodeLayout): {
+  naturalWidth: number;
+  naturalHeight: number;
+  minimumWidth: number;
+  minimumHeight: number;
+} {
+  return {
+    naturalWidth: layout.visualWidth,
+    naturalHeight: layout.visualHeight,
+    minimumWidth: 0,
+    minimumHeight: 0
+  };
+}
+
+function rectangleBodyAnchorOffset(anchor: string, layout: NodeLayout): WorldPoint {
+  const halfWidth = Math.max(layout.naturalWidth, layout.minimumWidth) / 2 + layout.outerXSep;
+  const halfHeight = Math.max(layout.naturalHeight, layout.minimumHeight) / 2 + layout.outerYSep;
+  return rectangleAnchorOffset(anchor, halfWidth, halfHeight, layout.baseLineY, layout.midLineY);
+}
+
+function rectangleAnchorOffset(anchor: string, halfWidth: number, halfHeight: number, baseLineY: number, midLineY: number): WorldPoint {
+  switch (anchor) {
+    case "north":
+      return worldPoint(pt(0), pt(halfHeight));
+    case "south":
+      return worldPoint(pt(0), pt(-halfHeight));
+    case "east":
+      return worldPoint(pt(halfWidth), pt(0));
+    case "west":
+      return worldPoint(pt(-halfWidth), pt(0));
+    case "north east":
+      return worldPoint(pt(halfWidth), pt(halfHeight));
+    case "north west":
+      return worldPoint(pt(-halfWidth), pt(halfHeight));
+    case "south east":
+      return worldPoint(pt(halfWidth), pt(-halfHeight));
+    case "south west":
+      return worldPoint(pt(-halfWidth), pt(-halfHeight));
+    case "base east":
+      return worldPoint(pt(halfWidth), pt(baseLineY));
+    case "base west":
+      return worldPoint(pt(-halfWidth), pt(baseLineY));
+    case "mid":
+      return worldPoint(pt(0), pt(midLineY));
+    case "mid east":
+      return worldPoint(pt(halfWidth), pt(midLineY));
+    case "mid west":
+      return worldPoint(pt(-halfWidth), pt(midLineY));
+    case "base":
+      return worldPoint(pt(0), pt(baseLineY));
+    case "center":
+    default:
+      return worldPoint(pt(0), pt(0));
+  }
+}
+
+function ellipseCalloutBodyRadii(layout: NodeLayout): { rx: number; ry: number } {
+  return {
+    rx: layout.visualWidth / 2 + layout.outerXSep,
+    ry: layout.visualHeight / 2 + layout.outerYSep
+  };
+}
+
+function ellipseBodyAnchorOffset(anchor: string, layout: NodeLayout): WorldPoint {
+  const { rx, ry } = ellipseCalloutBodyRadii(layout);
+  switch (anchor) {
+    case "north":
+      return worldPoint(pt(0), pt(ry));
+    case "south":
+      return worldPoint(pt(0), pt(-ry));
+    case "east":
+      return worldPoint(pt(rx), pt(0));
+    case "west":
+      return worldPoint(pt(-rx), pt(0));
+    case "north east":
+      return ellipseCompassOffset(rx, ry, 1, 1);
+    case "north west":
+      return ellipseCompassOffset(rx, ry, -1, 1);
+    case "south east":
+      return ellipseCompassOffset(rx, ry, 1, -1);
+    case "south west":
+      return ellipseCompassOffset(rx, ry, -1, -1);
+    case "base east":
+      return worldPoint(pt(rx), pt(layout.baseLineY));
+    case "base west":
+      return worldPoint(pt(-rx), pt(layout.baseLineY));
+    case "mid":
+      return worldPoint(pt(0), pt(layout.midLineY));
+    case "mid east":
+      return worldPoint(pt(rx), pt(layout.midLineY));
+    case "mid west":
+      return worldPoint(pt(-rx), pt(layout.midLineY));
+    case "base":
+      return worldPoint(pt(0), pt(layout.baseLineY));
+    case "center":
+    default:
+      return worldPoint(pt(0), pt(0));
+  }
+}
+
 function anchorSizingWithOuter(layout: NodeLayout): {
   naturalWidth: number;
   naturalHeight: number;
@@ -1077,6 +1586,20 @@ function anchorSizingWithOuter(layout: NodeLayout): {
     naturalHeight: layout.naturalHeight + layout.outerYSep * 2,
     minimumWidth: layout.minimumWidth + layout.outerXSep * 2,
     minimumHeight: layout.minimumHeight + layout.outerYSep * 2
+  };
+}
+
+function visualSizingWithOuter(layout: NodeLayout): {
+  naturalWidth: number;
+  naturalHeight: number;
+  minimumWidth: number;
+  minimumHeight: number;
+} {
+  return {
+    naturalWidth: layout.visualWidth + layout.outerXSep * 2,
+    naturalHeight: layout.visualHeight + layout.outerYSep * 2,
+    minimumWidth: 0,
+    minimumHeight: 0
   };
 }
 
@@ -1277,7 +1800,7 @@ export function registerNamedNodeAnchors(
       ).pointerAnchor;
     } else if (shape === "ellipse callout") {
       offsets.pointer = makeEllipseCallout(
-        anchorSizingWithOuter(layout),
+        visualSizingWithOuter(layout),
         pointerOffset,
         shapeGeometry.calloutPointerArc,
         true,

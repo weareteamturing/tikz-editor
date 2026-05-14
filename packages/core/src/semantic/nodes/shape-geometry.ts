@@ -78,6 +78,25 @@ export type CircularSizingInput = {
   naturalHeight: number;
   minimumWidth: number;
   minimumHeight: number;
+  textBlockWidth?: number;
+  textBlockHeight?: number;
+  innerXSep?: number;
+  innerYSep?: number;
+};
+
+export type TwoPartShapeSizingInput = {
+  upperWidth: number;
+  upperHeight: number;
+  upperDepth: number;
+  lowerWidth: number;
+  lowerHeight: number;
+  lowerAscent: number;
+  lowerDepth: number;
+  innerXSep: number;
+  innerYSep: number;
+  lineWidth: number;
+  minimumWidth: number;
+  minimumHeight: number;
 };
 
 export type SignalDirection = "north" | "south" | "east" | "west";
@@ -113,12 +132,24 @@ export type CylinderGeometry = {
   beforeBottom: WorldPoint;
   bottom: WorldPoint;
   afterBottom: WorldPoint;
+  endCapArc: WorldPoint[];
   polygon: WorldPoint[];
 };
 
 export type CloudGeometry = {
   polygon: WorldPoint[];
+  curves: CloudCurveSegment[];
   puffs: WorldPoint[];
+  innerRx: number;
+  innerRy: number;
+  outerRx: number;
+  outerRy: number;
+};
+
+export type CloudCurveSegment = {
+  c1: WorldPoint;
+  c2: WorldPoint;
+  to: WorldPoint;
 };
 
 export type StarburstGeometry = {
@@ -149,7 +180,9 @@ export type EllipseCalloutGeometry = {
 
 export type CloudCalloutGeometry = {
   polygon: WorldPoint[];
+  curves: CloudCurveSegment[];
   pointerPolygon: WorldPoint[];
+  pointerPolygons: WorldPoint[][];
   pointer: WorldPoint;
   pointerAnchor: WorldPoint;
   puffs: WorldPoint[];
@@ -198,7 +231,7 @@ const DEFAULT_RANDOM_STARBURST_SEED = 100;
 const DEFAULT_SIGNAL_POINTER_ANGLE = 90;
 const DEFAULT_TAPE_BEND_STYLE: TapeBendStyle = "in and out";
 const DEFAULT_TAPE_BEND_HEIGHT_PT = parseLength("5pt", "pt") ?? 5;
-const DEFAULT_CALLOUT_RELATIVE_POINTER_RAW = "(315:.5cm)";
+const DEFAULT_CALLOUT_RELATIVE_POINTER_RAW = "(300:.5cm)";
 const DEFAULT_CALLOUT_POINTER_SHORTEN_PT = 0;
 const DEFAULT_CALLOUT_POINTER_WIDTH_PT = parseLength(".25cm", "pt") ?? 7.1132;
 const DEFAULT_CALLOUT_POINTER_ARC = 15;
@@ -206,10 +239,10 @@ const DEFAULT_CALLOUT_POINTER_START_SIZE_RAW = ".2 of callout";
 const DEFAULT_CALLOUT_POINTER_END_SIZE_RAW = ".1 of callout";
 const DEFAULT_CALLOUT_POINTER_SEGMENTS = 2;
 const DEFAULT_SINGLE_ARROW_TIP_ANGLE = 90;
-const DEFAULT_SINGLE_ARROW_HEAD_EXTEND_PT = parseLength(".5cm", "pt") ?? 14.2264;
+const DEFAULT_SINGLE_ARROW_HEAD_EXTEND_PT = parseLength(".25cm", "pt") ?? 7.1132;
 const DEFAULT_SINGLE_ARROW_HEAD_INDENT_PT = 0;
 const DEFAULT_DOUBLE_ARROW_TIP_ANGLE = 90;
-const DEFAULT_DOUBLE_ARROW_HEAD_EXTEND_PT = parseLength(".5cm", "pt") ?? 14.2264;
+const DEFAULT_DOUBLE_ARROW_HEAD_EXTEND_PT = parseLength(".25cm", "pt") ?? 7.1132;
 const DEFAULT_DOUBLE_ARROW_HEAD_INDENT_PT = 0;
 const DEFAULT_TRAPEZIUM_ANGLE = 60;
 const DEFAULT_SHAPE_BORDER_ROTATE = 0;
@@ -927,6 +960,88 @@ export function makeRoundedRectanglePolygon(
   return points;
 }
 
+export function makeRoundedRectanglePolygonForSizing(
+  sizing: CircularSizingInput,
+  arcLength: number,
+  westArc: RoundedRectangleArcType,
+  eastArc: RoundedRectangleArcType
+): WorldPoint[] {
+  const halfArcAngle = Math.max(1e-3, Math.min(90, Math.abs(arcLength) / 2));
+  const sineHalfArc = Math.sin(toRadians(halfArcAngle));
+  const cosineHalfArc = Math.cos(toRadians(halfArcAngle));
+  const textBlockWidth = Math.max(0, sizing.textBlockWidth ?? sizing.naturalWidth);
+  const textBlockHeight = Math.max(0, sizing.textBlockHeight ?? sizing.naturalHeight);
+  const innerXSep = Math.max(0, sizing.innerXSep ?? Math.max(0, (sizing.naturalWidth - textBlockWidth) / 2));
+  const innerYSep = Math.max(0, sizing.innerYSep ?? Math.max(0, (sizing.naturalHeight - textBlockHeight) / 2));
+  const halfTextWidth = textBlockWidth / 2;
+  const halfTextHeight = textBlockHeight / 2;
+  const halfHeight = Math.max(halfTextHeight + innerYSep, sizing.minimumHeight / 2, EPSILON);
+  const radius = halfHeight / Math.max(sineHalfArc, EPSILON);
+  const arcWidth = radius * (1 - cosineHalfArc);
+  const chordAngle = Math.asin(clamp(halfTextHeight / Math.max(radius, EPSILON), -1, 1));
+  const chordWidth = radius * (1 - Math.cos(chordAngle));
+  const sideContribution = (arc: RoundedRectangleArcType): number => {
+    if (arc === "concave") {
+      return arcWidth;
+    }
+    if (arc === "convex") {
+      return chordWidth;
+    }
+    return 0;
+  };
+
+  const westContribution = sideContribution(westArc);
+  const eastContribution = sideContribution(eastArc);
+  let resolvedXSep = innerXSep;
+  const naturalPathWidth = 2 * (halfTextWidth + innerXSep) + westContribution + eastContribution;
+  if (naturalPathWidth + EPSILON < sizing.minimumWidth) {
+    resolvedXSep = (sizing.minimumWidth - naturalPathWidth) / 2;
+  }
+  resolvedXSep = Math.max(resolvedXSep, radius - chordWidth - halfTextWidth, 0);
+  const halfWidth = halfTextWidth + resolvedXSep;
+
+  const points: WorldPoint[] = [];
+  points.push(worldPoint(0, halfHeight));
+  if (eastArc === "convex") {
+    const centerX = halfWidth + chordWidth - radius;
+    points.push(worldPoint(halfWidth + chordWidth - arcWidth, halfHeight));
+    for (let index = 1; index <= 24; index += 1) {
+      const angle = toRadians(halfArcAngle - (2 * halfArcAngle * index) / 24);
+      points.push(worldPoint(centerX + radius * Math.cos(angle), radius * Math.sin(angle)));
+    }
+  } else if (eastArc === "concave") {
+    const centerX = halfWidth + arcWidth - radius;
+    points.push(worldPoint(halfWidth + arcWidth, halfHeight));
+    for (let index = 1; index <= 24; index += 1) {
+      const angle = toRadians(180 - halfArcAngle + (2 * halfArcAngle * index) / 24);
+      points.push(worldPoint(centerX + radius * Math.cos(angle), radius * Math.sin(angle)));
+    }
+  } else {
+    points.push(worldPoint(halfWidth, halfHeight));
+    points.push(worldPoint(halfWidth, -halfHeight));
+  }
+  if (westArc === "convex") {
+    const centerX = -halfWidth - chordWidth + radius;
+    points.push(worldPoint(-halfWidth - chordWidth + arcWidth, -halfHeight));
+    for (let index = 1; index <= 24; index += 1) {
+      const angle = toRadians(180 + halfArcAngle - (2 * halfArcAngle * index) / 24);
+      points.push(worldPoint(centerX + radius * Math.cos(angle), radius * Math.sin(angle)));
+    }
+  } else if (westArc === "concave") {
+    const centerX = -halfWidth - arcWidth + radius;
+    points.push(worldPoint(-halfWidth - arcWidth, -halfHeight));
+    for (let index = 1; index <= 24; index += 1) {
+      const angle = toRadians(-halfArcAngle + (2 * halfArcAngle * index) / 24);
+      points.push(worldPoint(centerX + radius * Math.cos(angle), radius * Math.sin(angle)));
+    }
+  } else {
+    points.push(worldPoint(-halfWidth, -halfHeight));
+    points.push(worldPoint(-halfWidth, halfHeight));
+  }
+
+  return points;
+}
+
 export function makeChamferedRectanglePolygon(
   width: number,
   height: number,
@@ -967,6 +1082,56 @@ export function makeChamferedRectanglePolygon(
   ];
 }
 
+export function makeChamferedRectanglePolygonForSizing(
+  sizing: CircularSizingInput,
+  chamferX: number,
+  chamferY: number,
+  chamferAngle: number,
+  cornersRaw: string
+): WorldPoint[] {
+  const angle = Math.max(1, Math.min(89, Math.abs(chamferAngle)));
+  const complement = 90 - angle;
+  const tanAngle = Math.tan(toRadians(complement));
+  const cotAngle = cotDegrees(complement);
+  let halfBodyWidth = Math.max(EPSILON, sizing.naturalWidth / 2);
+  let halfBodyHeight = Math.max(EPSILON, sizing.naturalHeight / 2);
+  let xChamfer = Math.max(0, chamferX);
+  let yFromXChamfer = tanAngle * xChamfer;
+  if (yFromXChamfer > halfBodyHeight) {
+    yFromXChamfer = halfBodyHeight;
+    xChamfer = cotAngle * yFromXChamfer;
+  }
+  let yChamfer = Math.max(0, chamferY);
+  let xFromYChamfer = cotAngle * yChamfer;
+  if (xFromYChamfer > halfBodyWidth) {
+    xFromYChamfer = halfBodyWidth;
+    yChamfer = tanAngle * xFromYChamfer;
+  }
+
+  if (halfBodyWidth + xChamfer + EPSILON < sizing.minimumWidth / 2) {
+    halfBodyWidth = Math.max(EPSILON, sizing.minimumWidth / 2 - xChamfer);
+  }
+  if (halfBodyHeight + yChamfer + EPSILON < sizing.minimumHeight / 2) {
+    halfBodyHeight = Math.max(EPSILON, sizing.minimumHeight / 2 - yChamfer);
+  }
+
+  const corners = parseChamferedCorners(cornersRaw);
+  const isChamfered = (corner: "north west" | "north east" | "south east" | "south west"): boolean => corners.has(corner);
+  const corner = (xSign: -1 | 1, ySign: -1 | 1): WorldPoint =>
+    worldPoint(xSign * (halfBodyWidth + xChamfer), ySign * (halfBodyHeight + yChamfer));
+
+  return [
+    isChamfered("north east") ? worldPoint(halfBodyWidth + xChamfer, halfBodyHeight - yFromXChamfer) : corner(1, 1),
+    isChamfered("north east") ? worldPoint(halfBodyWidth - xFromYChamfer, halfBodyHeight + yChamfer) : corner(1, 1),
+    isChamfered("north west") ? worldPoint(-halfBodyWidth + xFromYChamfer, halfBodyHeight + yChamfer) : corner(-1, 1),
+    isChamfered("north west") ? worldPoint(-halfBodyWidth - xChamfer, halfBodyHeight - yFromXChamfer) : corner(-1, 1),
+    isChamfered("south west") ? worldPoint(-halfBodyWidth - xChamfer, -halfBodyHeight + yFromXChamfer) : corner(-1, -1),
+    isChamfered("south west") ? worldPoint(-halfBodyWidth + xFromYChamfer, -halfBodyHeight - yChamfer) : corner(-1, -1),
+    isChamfered("south east") ? worldPoint(halfBodyWidth - xFromYChamfer, -halfBodyHeight - yChamfer) : corner(1, -1),
+    isChamfered("south east") ? worldPoint(halfBodyWidth + xChamfer, -halfBodyHeight + yFromXChamfer) : corner(1, -1)
+  ];
+}
+
 export function makeMagnifyingGlassHandle(
   radius: number,
   angleDegrees: number,
@@ -984,6 +1149,59 @@ export function makeDiamondPolygon(halfWidth: number, halfHeight: number, aspect
   const safeAspect = normalizeAspect(aspect);
   const horizontalRadius = safeHalfWidth + safeAspect * safeHalfHeight;
   const verticalRadius = safeHalfWidth / safeAspect + safeHalfHeight;
+  return makeDiamondPolygonFromRadii(horizontalRadius, verticalRadius);
+}
+
+export function makeDiamondPolygonForSizing(sizing: CircularSizingInput, aspect: number): WorldPoint[] {
+  const safeAspect = normalizeAspect(aspect);
+  const naturalHalfWidth = Math.max(0, sizing.naturalWidth / 2);
+  const naturalHalfHeight = Math.max(0, sizing.naturalHeight / 2);
+  const horizontalRadius = Math.max(naturalHalfWidth + safeAspect * naturalHalfHeight, Math.max(0, sizing.minimumWidth / 2));
+  const verticalRadius = Math.max(naturalHalfWidth / safeAspect + naturalHalfHeight, Math.max(0, sizing.minimumHeight / 2));
+  return makeDiamondPolygonFromRadii(horizontalRadius, verticalRadius);
+}
+
+export function makeDiamondSplitPolygonForSizing(sizing: TwoPartShapeSizingInput, aspect: number): WorldPoint[] {
+  const safeAspect = normalizeAspect(aspect);
+  const upperWidth = Math.max(0, sizing.upperWidth);
+  const upperHeight = Math.max(0, sizing.upperHeight);
+  const lowerWidth = Math.max(0, sizing.lowerWidth + sizing.innerXSep);
+  const lowerHeight = Math.max(0, sizing.lowerHeight + sizing.innerYSep);
+  const contentWidth = Math.max(upperWidth, lowerWidth);
+  const contentHeight = Math.max(upperHeight, lowerHeight);
+  const horizontalRadius = Math.max(contentWidth + safeAspect * contentHeight, Math.max(0, sizing.minimumWidth / 2));
+  const verticalRadius = Math.max(contentWidth / safeAspect + contentHeight, Math.max(0, sizing.minimumHeight / 2));
+  return makeDiamondPolygonFromRadii(horizontalRadius, verticalRadius);
+}
+
+export function resolveCircleSplitRadius(sizing: TwoPartShapeSizingInput): number {
+  const widthRadius = Math.max(sizing.upperWidth, sizing.lowerWidth) / 2 + sizing.innerXSep;
+  const heightRadius = Math.max(sizing.upperHeight, sizing.lowerHeight) + sizing.lineWidth / 2 + 2 * sizing.innerYSep;
+  return Math.max(Math.hypot(widthRadius, heightRadius), sizing.minimumWidth / 2, sizing.minimumHeight / 2);
+}
+
+export function resolveCircleSolidusRadius(sizing: TwoPartShapeSizingInput): number {
+  const upperRadius = sizing.upperWidth + sizing.upperHeight;
+  const lowerRadius = sizing.lowerWidth + sizing.lowerHeight;
+  const contentRadius = Math.SQRT1_2 * Math.max(upperRadius, lowerRadius);
+  const sepRadius = Math.hypot(2 * sizing.innerXSep, 2 * sizing.innerYSep);
+  return Math.max(
+    contentRadius + sizing.lineWidth / 2 + sepRadius,
+    sizing.minimumWidth / 2,
+    sizing.minimumHeight / 2
+  );
+}
+
+export function resolveEllipseSplitRadii(sizing: TwoPartShapeSizingInput): { rx: number; ry: number } {
+  const contentHalfWidth = Math.max(sizing.upperWidth, sizing.lowerWidth) / 2 + sizing.innerXSep;
+  const contentHeight = Math.max(sizing.upperHeight, sizing.lowerHeight) + 2 * sizing.innerYSep + sizing.lineWidth / 2;
+  return {
+    rx: Math.max(Math.SQRT2 * contentHalfWidth, sizing.minimumWidth / 2),
+    ry: Math.max(Math.SQRT2 * contentHeight, sizing.minimumHeight / 2)
+  };
+}
+
+function makeDiamondPolygonFromRadii(horizontalRadius: number, verticalRadius: number): WorldPoint[] {
   return [
     worldPoint(0, verticalRadius),
     worldPoint(horizontalRadius, 0),
@@ -1000,30 +1218,45 @@ export function makeIsoscelesTrianglePolygon(
 ): WorldPoint[] {
   const apexAngle = normalizeAcuteAngle(apexAngleRaw, DEFAULT_ISOSCELES_TRIANGLE_APEX_ANGLE);
   const halfAngleRadians = toRadians(apexAngle / 2);
-  const tangent = Math.tan(halfAngleRadians);
-  const safeTangent = Number.isFinite(tangent) && Math.abs(tangent) > EPSILON ? Math.abs(tangent) : 1;
-  const targetHalfWidth = Math.max(0, Math.max(sizing.naturalWidth, sizing.minimumWidth) / 2);
-  const targetHalfHeight = Math.max(0, Math.max(sizing.naturalHeight, sizing.minimumHeight) / 2);
+  const tangentRaw = Math.tan(halfAngleRadians);
+  const tangent = Number.isFinite(tangentRaw) && Math.abs(tangentRaw) > EPSILON ? Math.abs(tangentRaw) : 1;
+  const cotangent = 1 / tangent;
+  const sine = Math.sin(halfAngleRadians);
+  const cosine = Math.cos(halfAngleRadians);
+  const contentHalfWidth = Math.max(0, sizing.naturalWidth / 2);
+  const contentHalfHeight = Math.max(0, sizing.naturalHeight / 2);
 
-  let halfWidth = targetHalfWidth;
-  let halfHeight = targetHalfHeight;
-  if (!stretches) {
-    halfHeight = Math.max(targetHalfHeight, EPSILON);
-    halfWidth = halfHeight * safeTangent;
-    if (halfWidth + EPSILON < targetHalfWidth) {
-      halfWidth = targetHalfWidth;
-      halfHeight = halfWidth / safeTangent;
-    }
-    if (halfHeight + EPSILON < targetHalfHeight) {
-      halfHeight = targetHalfHeight;
-      halfWidth = halfHeight * safeTangent;
+  // PGF's default is an east-pointing isosceles triangle. It first constructs
+  // the smallest triangle that contains the text rectangle, then applies
+  // minimum width to the vertical span and minimum height to the tip-to-base span.
+  let tipToBase = 2 * contentHalfWidth + cotangent * contentHalfHeight;
+  let baseHalfHeight = tangent * (2 * contentHalfWidth) + contentHalfHeight;
+  const minimumBaseHalfHeight = Math.max(0, sizing.minimumWidth / 2);
+  if (baseHalfHeight + EPSILON < minimumBaseHalfHeight) {
+    baseHalfHeight = minimumBaseHalfHeight;
+    if (stretches) {
+      tipToBase = Math.max(tipToBase, EPSILON);
+    } else {
+      tipToBase = cotangent * baseHalfHeight;
     }
   }
 
+  const minimumTipToBase = Math.max(0, sizing.minimumHeight);
+  if (tipToBase + EPSILON < minimumTipToBase) {
+    tipToBase = minimumTipToBase;
+    if (stretches) {
+      baseHalfHeight = Math.max(baseHalfHeight, EPSILON);
+    } else {
+      baseHalfHeight = tangent * tipToBase;
+    }
+  }
+
+  const numerator = cosine * (baseHalfHeight - contentHalfHeight) - 2 * sine * contentHalfWidth;
+  const offset = contentHalfWidth + numerator / Math.max(1 + sine, EPSILON);
   const polygon = [
-    worldPoint(0, halfHeight),
-    worldPoint(-halfWidth, -halfHeight),
-    worldPoint(halfWidth, -halfHeight)
+    worldPoint(tipToBase - offset, 0),
+    worldPoint(-offset, baseHalfHeight),
+    worldPoint(-offset, -baseHalfHeight)
   ];
   return rotatePolygon(polygon, rotation);
 }
@@ -1036,29 +1269,51 @@ export function makeKitePolygon(
 ): WorldPoint[] {
   const upperAngle = normalizeAcuteAngle(upperAngleRaw, DEFAULT_KITE_UPPER_VERTEX_ANGLE);
   const lowerAngle = normalizeAcuteAngle(lowerAngleRaw, DEFAULT_KITE_LOWER_VERTEX_ANGLE);
-  const targetWidth = Math.max(0, Math.max(sizing.naturalWidth, sizing.minimumWidth));
-  const targetHeight = Math.max(0, Math.max(sizing.naturalHeight, sizing.minimumHeight));
-  const halfWidth = Math.max(targetWidth / 2, EPSILON);
+  const upperHalfRadians = toRadians(upperAngle / 2);
+  const lowerHalfRadians = toRadians(lowerAngle / 2);
+  const upperTanRaw = Math.tan(upperHalfRadians);
+  const lowerTanRaw = Math.tan(lowerHalfRadians);
+  const upperTan = Number.isFinite(upperTanRaw) && Math.abs(upperTanRaw) > EPSILON ? Math.abs(upperTanRaw) : 1;
+  const lowerTan = Number.isFinite(lowerTanRaw) && Math.abs(lowerTanRaw) > EPSILON ? Math.abs(lowerTanRaw) : 1;
+  const sineSum = Math.sin(upperHalfRadians + lowerHalfRadians);
+  const safeSineSum = Number.isFinite(sineSum) && Math.abs(sineSum) > EPSILON ? Math.abs(sineSum) : 1;
+  const contentWidth = Math.max(0, sizing.naturalWidth);
+  const contentHeight = Math.max(0, sizing.naturalHeight);
+  const contentHalfWidth = contentWidth / 2;
 
-  const upperTan = Math.tan(toRadians(upperAngle / 2));
-  const lowerTan = Math.tan(toRadians(lowerAngle / 2));
-  const safeUpperTan = Number.isFinite(upperTan) && Math.abs(upperTan) > EPSILON ? Math.abs(upperTan) : 1;
-  const safeLowerTan = Number.isFinite(lowerTan) && Math.abs(lowerTan) > EPSILON ? Math.abs(lowerTan) : 1;
-  let topHeight = halfWidth / safeUpperTan;
-  let bottomHeight = halfWidth / safeLowerTan;
+  let upperContentHeight =
+    contentHeight * Math.cos(upperHalfRadians) * Math.sin(lowerHalfRadians) / safeSineSum;
+  let lowerContentHeight = contentHeight - upperContentHeight;
+  if (!Number.isFinite(upperContentHeight) || !Number.isFinite(lowerContentHeight)) {
+    upperContentHeight = contentHeight / 2;
+    lowerContentHeight = contentHeight / 2;
+  }
+  const diagonalYOffset = contentHeight / 2 - upperContentHeight;
+  let halfWidth = contentHalfWidth + upperTan * upperContentHeight;
+  let topHeight = upperContentHeight + contentHalfWidth / upperTan;
+  let bottomHeight = lowerContentHeight + contentHalfWidth / lowerTan;
 
   const totalHeight = topHeight + bottomHeight;
-  if (totalHeight + EPSILON < targetHeight) {
-    const scale = targetHeight / Math.max(totalHeight, EPSILON);
+  if (totalHeight + EPSILON < sizing.minimumHeight) {
+    const scale = sizing.minimumHeight / Math.max(totalHeight, EPSILON);
+    halfWidth *= scale;
+    topHeight *= scale;
+    bottomHeight *= scale;
+  }
+
+  const totalWidth = halfWidth * 2;
+  if (totalWidth + EPSILON < sizing.minimumWidth) {
+    const scale = sizing.minimumWidth / Math.max(totalWidth, EPSILON);
+    halfWidth *= scale;
     topHeight *= scale;
     bottomHeight *= scale;
   }
 
   const polygon = [
-    worldPoint(0, topHeight),
-    worldPoint(-halfWidth, 0),
-    worldPoint(0, -bottomHeight),
-    worldPoint(halfWidth, 0)
+    worldPoint(0, diagonalYOffset + topHeight),
+    worldPoint(-halfWidth, diagonalYOffset),
+    worldPoint(0, diagonalYOffset - bottomHeight),
+    worldPoint(halfWidth, diagonalYOffset)
   ];
   return rotatePolygon(polygon, rotation);
 }
@@ -1071,29 +1326,48 @@ export function makeDartPolygon(
 ): WorldPoint[] {
   const tipAngle = normalizeAcuteAngle(tipAngleRaw, DEFAULT_DART_TIP_ANGLE);
   const tailAngle = normalizeTailAngle(tailAngleRaw);
-  const targetWidth = Math.max(0, Math.max(sizing.naturalWidth, sizing.minimumWidth));
-  const targetHeight = Math.max(0, Math.max(sizing.naturalHeight, sizing.minimumHeight));
+  const halfTipRadians = toRadians(tipAngle / 2);
+  const halfTailRadians = toRadians(tailAngle / 2);
+  const tipTan = Math.tan(halfTipRadians);
+  const cotTip = Number.isFinite(tipTan) && Math.abs(tipTan) > EPSILON ? 1 / Math.abs(tipTan) : 1;
+  const contentHalfWidth = Math.max(0, sizing.naturalWidth / 2);
+  const contentHalfHeight = Math.max(0, sizing.naturalHeight / 2);
 
-  let halfHeight = Math.max(targetHeight / 2, EPSILON);
-  let tipDistance = halfHeight / Math.max(Math.tan(toRadians(tipAngle / 2)), EPSILON);
-  let tailDistance = halfHeight / Math.max(Math.tan(toRadians(tailAngle / 2)), EPSILON);
+  let dartLength = cotTip * contentHalfHeight + 2 * contentHalfWidth;
+  const separationAngle = halfTailRadians - halfTipRadians;
+  const separationSine = Math.sin(separationAngle);
+  const safeSeparationSine = Number.isFinite(separationSine) && Math.abs(separationSine) > EPSILON ? Math.abs(separationSine) : 1;
+  let halfTailSeparation = (dartLength / safeSeparationSine) * Math.sin(halfTipRadians) * Math.cos(halfTipRadians);
+  let totalLength = cotTip * halfTailSeparation;
+  let tailLength = Math.max(0, totalLength - dartLength);
 
-  if (tipDistance + EPSILON < targetWidth) {
-    const scale = targetWidth / Math.max(tipDistance, EPSILON);
-    halfHeight *= scale;
-    tipDistance = halfHeight / Math.max(Math.tan(toRadians(tipAngle / 2)), EPSILON);
-    tailDistance = halfHeight / Math.max(Math.tan(toRadians(tailAngle / 2)), EPSILON);
+  if (totalLength + EPSILON < sizing.minimumHeight) {
+    const scale = sizing.minimumHeight / Math.max(totalLength, EPSILON);
+    dartLength *= scale;
+    halfTailSeparation *= scale;
+    totalLength *= scale;
+    tailLength *= scale;
   }
 
-  const leftX = -tipDistance / 2;
-  const tipX = tipDistance / 2;
-  const tailCenterX = Math.min(tipX - 1e-3, leftX + Math.max(0, tailDistance));
+  const tailSeparation = halfTailSeparation * 2;
+  if (tailSeparation + EPSILON < sizing.minimumWidth) {
+    const scale = sizing.minimumWidth / Math.max(tailSeparation, EPSILON);
+    dartLength *= scale;
+    halfTailSeparation *= scale;
+    totalLength *= scale;
+    tailLength *= scale;
+  }
+
+  const deltaX = contentHalfWidth;
+  const tipX = dartLength - deltaX;
+  const tailCenterX = -deltaX;
+  const tailX = tailCenterX - tailLength;
 
   const polygon = [
     worldPoint(tipX, 0),
-    worldPoint(leftX, halfHeight),
+    worldPoint(tailX, halfTailSeparation),
     worldPoint(tailCenterX, 0),
-    worldPoint(leftX, -halfHeight)
+    worldPoint(tailX, -halfTailSeparation)
   ];
   return rotatePolygon(polygon, rotation);
 }
@@ -1137,10 +1411,10 @@ export function makeRegularPolygon(
   rotation: number
 ): WorldPoint[] {
   const sides = normalizeInteger(Math.round(sidesRaw), 3, 360, DEFAULT_REGULAR_POLYGON_SIDES);
-  const diagonalHalf = Math.hypot(sizing.naturalWidth / 2, sizing.naturalHeight / 2);
+  const contentIncircleRadius = Math.SQRT2 * Math.max(Math.max(0, sizing.naturalWidth / 2), Math.max(0, sizing.naturalHeight / 2));
   const minRadius = Math.max(sizing.minimumWidth, sizing.minimumHeight) / 2;
   const cosine = Math.cos(Math.PI / sides);
-  const circumRadius = cosine <= 1e-6 ? minRadius : Math.max(diagonalHalf / cosine, minRadius);
+  const circumRadius = cosine <= 1e-6 ? minRadius : Math.max(contentIncircleRadius / cosine, minRadius);
   const startAngle = regularPolygonStartAngle(sides, rotation);
 
   const vertices: WorldPoint[] = [];
@@ -1161,7 +1435,7 @@ export function makeStar(
 ): { polygon: WorldPoint[]; outer: WorldPoint[]; inner: WorldPoint[] } {
   const points = normalizeInteger(Math.round(pointsRaw), 2, 360, DEFAULT_STAR_POINTS);
   const safeRatio = normalizeRatio(ratioRaw);
-  const innerBase = Math.hypot(sizing.naturalWidth / 2, sizing.naturalHeight / 2);
+  const innerBase = Math.SQRT2 * Math.max(Math.max(0, sizing.naturalWidth / 2), Math.max(0, sizing.naturalHeight / 2));
   const safeHeight = Math.max(0, pointHeightPt);
 
   let innerRadius = innerBase;
@@ -1260,25 +1534,41 @@ export function makeCircularSector(
 ): CircularSectorGeometry {
   const sectorAngle = normalizeSectorAngle(sectorAngleRaw);
   const halfAngle = sectorAngle / 2;
-  const sineHalfAngle = Math.sin(toRadians(halfAngle));
+  const halfAngleRadians = toRadians(halfAngle);
+  const sineHalfAngle = Math.sin(halfAngleRadians);
+  const cosineHalfAngle = Math.cos(Math.abs(halfAngleRadians));
   const safeSine = Math.max(Math.abs(sineHalfAngle), 1e-3);
-  const targetWidth = Math.max(0, Math.max(sizing.naturalWidth, sizing.minimumWidth));
-  const targetHeight = Math.max(0, Math.max(sizing.naturalHeight, sizing.minimumHeight));
-  const baseRadius = Math.max(targetWidth, targetHeight / (2 * safeSine), EPSILON);
+  const contentHalfWidth = Math.max(0, sizing.naturalWidth / 2);
+  const contentHalfHeight = Math.max(0, sizing.naturalHeight / 2);
+  let centerOffset = (contentHalfHeight / safeSine) * cosineHalfAngle + contentHalfWidth;
+  let radius = Math.hypot(centerOffset + contentHalfWidth, contentHalfHeight);
+
+  const halfWidthAtCenter = Math.abs(centerOffset / Math.max(Math.cos(halfAngleRadians), 1e-3));
+  if (halfWidthAtCenter + EPSILON < sizing.minimumWidth / 2) {
+    const scale = (sizing.minimumWidth / 2) / Math.max(halfWidthAtCenter, EPSILON);
+    centerOffset *= scale;
+    radius *= scale;
+  }
+  if (radius + EPSILON < sizing.minimumHeight) {
+    const scale = sizing.minimumHeight / Math.max(radius, EPSILON);
+    centerOffset *= scale;
+    radius = sizing.minimumHeight;
+  }
+
   const safeOuterSep = Math.max(0, outerSep);
-  const radius = baseRadius + safeOuterSep;
-  const sectorCenterUnrotated = worldPoint(radius / 2, 0);
-  const arcCenterUnrotated = worldPoint(sectorCenterUnrotated.x - radius, 0);
+  const paintedRadius = radius + safeOuterSep;
+  const sectorCenterUnrotated = worldPoint(centerOffset, 0);
+  const arcCenterUnrotated = worldPoint(sectorCenterUnrotated.x - paintedRadius, 0);
   const startAngle = 180 - halfAngle;
   const endAngle = 180 + halfAngle;
-  const arcStartUnrotated = pointPolarOffset(startAngle, radius, sectorCenterUnrotated);
-  const arcEndUnrotated = pointPolarOffset(endAngle, radius, sectorCenterUnrotated);
+  const arcStartUnrotated = pointPolarOffset(startAngle, paintedRadius, sectorCenterUnrotated);
+  const arcEndUnrotated = pointPolarOffset(endAngle, paintedRadius, sectorCenterUnrotated);
 
   const polygonUnrotated: WorldPoint[] = [sectorCenterUnrotated];
   const steps = Math.max(8, sampleSteps);
   for (let index = 0; index <= steps; index += 1) {
     const t = index / steps;
-    polygonUnrotated.push(pointPolarOffset(startAngle + sectorAngle * t, radius, sectorCenterUnrotated));
+    polygonUnrotated.push(pointPolarOffset(startAngle + sectorAngle * t, paintedRadius, sectorCenterUnrotated));
   }
 
   return {
@@ -1286,7 +1576,7 @@ export function makeCircularSector(
     arcStart: rotateWorldPoint(arcStartUnrotated, rotation),
     arcEnd: rotateWorldPoint(arcEndUnrotated, rotation),
     arcCenter: rotateWorldPoint(arcCenterUnrotated, rotation),
-    radius,
+    radius: paintedRadius,
     rotation,
     polygon: polygonUnrotated.map((point) => rotateWorldPoint(point, rotation))
   };
@@ -1300,22 +1590,31 @@ export function makeCylinder(
   sampleSteps = 24
 ): CylinderGeometry {
   const aspect = normalizeAspect(aspectRaw);
-  const totalLength = Math.max(EPSILON, Math.max(sizing.naturalWidth, sizing.minimumHeight));
-  const totalThickness = Math.max(EPSILON, Math.max(sizing.naturalHeight, sizing.minimumWidth));
+  const contentHalfWidth = Math.max(EPSILON, sizing.naturalWidth / 2);
+  const contentHalfHeight = Math.max(EPSILON, sizing.naturalHeight / 2);
+  const capRadiusX = Math.max(EPSILON, contentHalfHeight * aspect);
+  const capRadiusY = Math.max(EPSILON, contentHalfHeight, sizing.minimumWidth / 2);
+  const innerYSep = Math.max(0, sizing.innerYSep ?? 0);
+  const capInsetRatio = clamp((capRadiusY - innerYSep) / Math.max(capRadiusY, EPSILON), -1, 1);
+  const capInset = Math.cos(Math.asin(capInsetRatio)) * capRadiusX;
+  let bodyHalfLength = contentHalfWidth;
+  const totalLength = sizing.naturalWidth + 3 * capRadiusX + 0.2 - capInset;
+  if (totalLength + EPSILON < sizing.minimumHeight) {
+    bodyHalfLength += (sizing.minimumHeight - totalLength) / 2;
+  }
   const safeOuterSep = Math.max(0, outerSep);
-  const capRadiusY = totalThickness / 2 + safeOuterSep;
-  const capRadiusX = Math.max(EPSILON, (totalThickness / 2) * aspect + safeOuterSep);
-  const bodyHalfLength = Math.max(0, totalLength / 2 - capRadiusX);
+  const paintedCapRadiusX = capRadiusX + safeOuterSep;
+  const paintedCapRadiusY = capRadiusY + safeOuterSep;
 
-  const leftCenter = worldPoint(-bodyHalfLength, 0);
-  const rightCenter = worldPoint(bodyHalfLength, 0);
-  const beforeTopUnrotated = worldPoint(rightCenter.x, capRadiusY);
-  const topUnrotated = worldPoint(rightCenter.x + capRadiusX, 0);
-  const afterTopUnrotated = worldPoint(rightCenter.x, -capRadiusY);
-  const beforeBottomUnrotated = worldPoint(leftCenter.x, -capRadiusY);
-  const bottomUnrotated = worldPoint(leftCenter.x - capRadiusX, 0);
-  const afterBottomUnrotated = worldPoint(leftCenter.x, capRadiusY);
-  const shapeCenterUnrotated = worldPoint(capRadiusX / 2, 0);
+  const leftCenter = worldPoint(-bodyHalfLength + capInset, 0);
+  const rightCenter = worldPoint(bodyHalfLength + capRadiusX + 0.2, 0);
+  const beforeTopUnrotated = worldPoint(rightCenter.x, paintedCapRadiusY);
+  const topUnrotated = worldPoint(rightCenter.x + paintedCapRadiusX, 0);
+  const afterTopUnrotated = worldPoint(rightCenter.x, -paintedCapRadiusY);
+  const beforeBottomUnrotated = worldPoint(leftCenter.x, -paintedCapRadiusY);
+  const bottomUnrotated = worldPoint(leftCenter.x - paintedCapRadiusX, 0);
+  const afterBottomUnrotated = worldPoint(leftCenter.x, paintedCapRadiusY);
+  const shapeCenterUnrotated = worldPoint((capRadiusX + 0.2 + capInset) / 2, 0);
 
   const polygonUnrotated: WorldPoint[] = [];
   const rightArcSteps = Math.max(8, sampleSteps);
@@ -1323,11 +1622,16 @@ export function makeCylinder(
 
   for (let index = 0; index <= leftArcSteps; index += 1) {
     const t = index / leftArcSteps;
-    polygonUnrotated.push(pointEllipsePolarOffset(90 + 180 * t, capRadiusX, capRadiusY, leftCenter));
+    polygonUnrotated.push(pointEllipsePolarOffset(90 + 180 * t, paintedCapRadiusX, paintedCapRadiusY, leftCenter));
   }
   for (let index = 0; index <= rightArcSteps; index += 1) {
     const t = index / rightArcSteps;
-    polygonUnrotated.push(pointEllipsePolarOffset(-90 + 180 * t, capRadiusX, capRadiusY, rightCenter));
+    polygonUnrotated.push(pointEllipsePolarOffset(-90 + 180 * t, paintedCapRadiusX, paintedCapRadiusY, rightCenter));
+  }
+  const endCapArcUnrotated: WorldPoint[] = [];
+  for (let index = 0; index <= rightArcSteps; index += 1) {
+    const t = index / rightArcSteps;
+    endCapArcUnrotated.push(pointEllipsePolarOffset(90 + 180 * t, paintedCapRadiusX, paintedCapRadiusY, rightCenter));
   }
 
   return {
@@ -1338,6 +1642,7 @@ export function makeCylinder(
     beforeBottom: rotateWorldPoint(beforeBottomUnrotated, rotation),
     bottom: rotateWorldPoint(bottomUnrotated, rotation),
     afterBottom: rotateWorldPoint(afterBottomUnrotated, rotation),
+    endCapArc: endCapArcUnrotated.map((point) => rotateWorldPoint(point, rotation)),
     polygon: polygonUnrotated.map((point) => rotateWorldPoint(point, rotation))
   };
 }
@@ -1352,42 +1657,73 @@ export function makeCloud(
 ): CloudGeometry {
   const puffs = normalizeInteger(Math.round(puffsRaw), 2, 360, DEFAULT_CLOUD_PUFFS);
   const puffArc = normalizeCloudPuffArc(puffArcRaw);
-  let rx = Math.max(EPSILON, Math.max(sizing.naturalWidth, sizing.minimumWidth) / 2);
-  let ry = Math.max(EPSILON, Math.max(sizing.naturalHeight, sizing.minimumHeight) / 2);
+  let innerRx = Math.SQRT2 * Math.max(0, sizing.naturalWidth / 2);
+  let innerRy = Math.SQRT2 * Math.max(0, sizing.naturalHeight / 2);
   const aspect = normalizeAspect(aspectRaw);
   if (!ignoreAspect) {
-    if (rx + EPSILON < aspect * ry) {
-      rx = aspect * ry;
+    let adjustedRx = aspect * innerRy;
+    if (adjustedRx + EPSILON < innerRx) {
+      adjustedRx = innerRx;
     }
-    if (ry + EPSILON < rx / aspect) {
-      ry = rx / aspect;
+    let adjustedRy = adjustedRx / aspect;
+    if (adjustedRy + EPSILON < innerRy) {
+      adjustedRy = innerRy;
+      adjustedRx = aspect * innerRy;
     }
+    innerRx = adjustedRx;
+    innerRy = adjustedRy;
   }
 
   const step = 360 / puffs;
-  const depth = Math.max(0, Math.min(rx, ry) * (0.12 + (puffArc / 180) * 0.2));
-  const valleyDepth = depth * 0.28;
+  const halfStep = toRadians(step / 2);
+  const halfArc = toRadians(puffArc / 2);
+  const k = Math.sin(halfStep) * ((1 - Math.cos(halfArc)) / Math.max(Math.sin(halfArc), EPSILON));
+  const cosHalfStep = Math.cos(halfStep);
+  let outerRx = cosHalfStep * innerRx + k * innerRy;
+  let outerRy = cosHalfStep * innerRy + k * innerRx;
+  outerRx = Math.max(outerRx, Math.max(0, sizing.minimumWidth / 2));
+  outerRy = Math.max(outerRy, Math.max(0, sizing.minimumHeight / 2));
+
+  const denominator = Math.max(EPSILON, cosHalfStep * cosHalfStep - k * k);
+  innerRx = Math.max(EPSILON, (outerRx * cosHalfStep - k * outerRy) / denominator);
+  innerRy = Math.max(EPSILON, (outerRy * cosHalfStep - k * outerRx) / denominator);
+
+  const halfComplementArc = (180 - puffArc) / 2;
+  const arcRadiusQuotient = 0.5 / Math.max(Math.cos(toRadians(halfComplementArc)), EPSILON);
+  const sinHalfComplementArc = Math.sin(toRadians(halfComplementArc));
+  const samplesPerPuff = Math.max(6, Math.min(24, Math.ceil(puffArc / 12)));
   const polygon: WorldPoint[] = [];
-  const peaks: WorldPoint[] = [];
+  const curves: CloudCurveSegment[] = [];
+  const puffAnchors: WorldPoint[] = [];
+
   for (let index = 0; index < puffs; index += 1) {
-    const peakAngle = 90 + rotation - index * step;
-    const valleyAngle = peakAngle - step / 2;
-    const peakBase = pointEllipsePolar(peakAngle, rx, ry);
-    const valleyBase = pointEllipsePolar(valleyAngle, rx, ry);
-    const peakNormal = ellipseOutwardUnit(peakBase, rx, ry);
-    const valleyNormal = ellipseOutwardUnit(valleyBase, rx, ry);
-    const peak = worldPoint(
-      peakBase.x + peakNormal.x * depth,
-      peakBase.y + peakNormal.y * depth
+    const startAngle = 90 - step / 2 + index * step;
+    const endAngle = startAngle + step;
+    const start = pointEllipsePolar(startAngle, innerRx, innerRy);
+    const end = pointEllipsePolar(endAngle, innerRx, innerRy);
+    const puff = makeCloudPuffParameters(
+      start,
+      end,
+      arcRadiusQuotient,
+      sinHalfComplementArc
     );
-    const valley = worldPoint(
-      valleyBase.x + valleyNormal.x * valleyDepth,
-      valleyBase.y + valleyNormal.y * valleyDepth
+    const firstSample = index === 0 ? 0 : 1;
+    for (let sample = firstSample; sample <= samplesPerPuff; sample += 1) {
+      const angle = puff.arcSlope + halfComplementArc + (puffArc * sample) / samplesPerPuff;
+      const point = pointPolarOffset(angle, puff.arcRadius, puff.circleCenter);
+      polygon.push(rotateWorldPoint(point, rotation));
+    }
+    curves.push(
+      ...makeCloudPuffCurves(start, end, puff, puffArc).map((curve) => ({
+        c1: rotateWorldPoint(curve.c1, rotation),
+        c2: rotateWorldPoint(curve.c2, rotation),
+        to: rotateWorldPoint(curve.to, rotation)
+      }))
     );
-    peaks.push(peak);
-    polygon.push(peak, valley);
+    puffAnchors.push(rotateWorldPoint(pointPolarOffset(puff.arcSlope + 90, puff.arcRadius, puff.circleCenter), rotation));
   }
-  return { polygon, puffs: peaks };
+
+  return { polygon, curves, puffs: puffAnchors, innerRx, innerRy, outerRx, outerRy };
 }
 
 export function makeStarburst(
@@ -1399,10 +1735,14 @@ export function makeStarburst(
 ): StarburstGeometry {
   const points = normalizeInteger(Math.round(pointsRaw), 2, 360, DEFAULT_STARBURST_POINTS);
   const pointHeight = Math.max(0, pointHeightPt);
-  const targetWidth = Math.max(0, Math.max(sizing.naturalWidth, sizing.minimumWidth));
-  const targetHeight = Math.max(0, Math.max(sizing.naturalHeight, sizing.minimumHeight));
-  const innerRx = Math.max(EPSILON, targetWidth / 2 - pointHeight);
-  const innerRy = Math.max(EPSILON, targetHeight / 2 - pointHeight);
+  let innerRx = Math.SQRT2 * Math.max(0, sizing.naturalWidth / 2);
+  let innerRy = Math.SQRT2 * Math.max(0, sizing.naturalHeight / 2);
+  if (innerRx + pointHeight + EPSILON < sizing.minimumWidth / 2) {
+    innerRx = Math.max(EPSILON, sizing.minimumWidth / 2 - pointHeight);
+  }
+  if (innerRy + pointHeight + EPSILON < sizing.minimumHeight / 2) {
+    innerRy = Math.max(EPSILON, sizing.minimumHeight / 2 - pointHeight);
+  }
   const step = 180 / points;
   const rng = makeSeededRng(randomSeedRaw);
   const polygon: WorldPoint[] = [];
@@ -1410,8 +1750,8 @@ export function makeStarburst(
   const inner: WorldPoint[] = [];
 
   for (let index = 0; index < points; index += 1) {
-    const outerAngle = 90 + rotation - index * 2 * step;
-    const innerAngle = outerAngle - step;
+    const outerAngle = 90 + rotation + index * 2 * step;
+    const innerAngle = outerAngle + step;
     const outerScale = randomSeedRaw === 0 ? 1 : 0.25 + 0.75 * rng();
     const delta = pointHeight * outerScale;
     const outerWorldPoint = pointEllipsePolar(outerAngle, innerRx + delta, innerRy + delta);
@@ -1424,6 +1764,73 @@ export function makeStarburst(
   return { polygon, outer, inner };
 }
 
+function makeCloudPuffParameters(
+  arcStart: WorldPoint,
+  arcEnd: WorldPoint,
+  arcRadiusQuotient: number,
+  sinHalfComplementArc: number
+): {
+  arcSlope: number;
+  arcRadius: number;
+  circleCenter: WorldPoint;
+} {
+  const arcSlope = Math.atan2(arcStart.y - arcEnd.y, arcStart.x - arcEnd.x) * 180 / Math.PI;
+  const chordLength = Math.hypot(arcEnd.x - arcStart.x, arcEnd.y - arcStart.y);
+  const halfChordLength = chordLength / 2;
+  const arcRadius = Math.max(EPSILON, arcRadiusQuotient * chordLength);
+  const segmentHeight = (1 - sinHalfComplementArc) * arcRadius;
+  const localCenter = worldPoint(-halfChordLength, segmentHeight - arcRadius);
+  const rotatedCenter = rotateWorldPoint(localCenter, arcSlope);
+  return {
+    arcSlope,
+    arcRadius,
+    circleCenter: worldPoint(arcStart.x + rotatedCenter.x, arcStart.y + rotatedCenter.y)
+  };
+}
+
+function makeCloudPuffCurves(
+  arcStart: WorldPoint,
+  arcEnd: WorldPoint,
+  puff: ReturnType<typeof makeCloudPuffParameters>,
+  puffArc: number
+): CloudCurveSegment[] {
+  const quarterArc = puffArc / 4;
+  const sinQuarterArc = Math.sin(toRadians(quarterArc));
+  const cosQuarterArc = Math.cos(toRadians(quarterArc));
+  const tanQuarterArc = sinQuarterArc / Math.max(cosQuarterArc, EPSILON);
+  const controlScale = puff.arcRadius * tanQuarterArc;
+  const halfChordLength = Math.hypot(arcEnd.x - arcStart.x, arcEnd.y - arcStart.y) / 2;
+  const halfComplementArc = (180 - puffArc) / 2;
+  const segmentHeight = (1 - Math.sin(toRadians(halfComplementArc))) * puff.arcRadius;
+  const localMidpoint = worldPoint(-halfChordLength, segmentHeight);
+  const rotatedMidpoint = rotateWorldPoint(localMidpoint, puff.arcSlope);
+  const arcMidpoint = worldPoint(arcStart.x + rotatedMidpoint.x, arcStart.y + rotatedMidpoint.y);
+
+  const controlPoint = (base: WorldPoint, rotation: number, ySign: 1 | -1): WorldPoint => {
+    const local = worldPoint(
+      0.55228475 * sinQuarterArc * controlScale,
+      ySign * 0.55228475 * cosQuarterArc * controlScale
+    );
+    const rotated = rotateWorldPoint(local, rotation);
+    return worldPoint(base.x + rotated.x, base.y + rotated.y);
+  };
+
+  const firstRotation = puff.arcSlope + 90 - quarterArc;
+  const secondRotation = puff.arcSlope + 90 + quarterArc;
+  return [
+    {
+      c1: controlPoint(arcStart, firstRotation, 1),
+      c2: controlPoint(arcMidpoint, firstRotation, -1),
+      to: arcMidpoint
+    },
+    {
+      c1: controlPoint(arcMidpoint, secondRotation, 1),
+      c2: controlPoint(arcEnd, secondRotation, -1),
+      to: arcEnd
+    }
+  ];
+}
+
 export function makeSignal(
   sizing: CircularSizingInput,
   pointerAngleRaw: number,
@@ -1431,14 +1838,42 @@ export function makeSignal(
   fromSides: SignalDirection[]
 ): SignalGeometry {
   const pointerAngle = normalizeSignalPointerAngle(pointerAngleRaw);
-  const halfWidth = Math.max(EPSILON, Math.max(sizing.naturalWidth, sizing.minimumWidth) / 2);
-  const halfHeight = Math.max(EPSILON, Math.max(sizing.naturalHeight, sizing.minimumHeight) / 2);
   const halfAngle = toRadians(pointerAngle / 2);
   const cotHalf = Math.abs(1 / Math.max(Math.tan(halfAngle), 1e-3));
-  const horizontalDepth = halfHeight * cotHalf;
-  const verticalDepth = halfWidth * cotHalf;
   const to = new Set<SignalDirection>(toSides);
   const from = new Set<SignalDirection>(fromSides);
+  const isActive = (side: SignalDirection): boolean => to.has(side) || from.has(side);
+
+  let halfWidth = Math.max(EPSILON, sizing.naturalWidth / 2);
+  let halfHeight = Math.max(EPSILON, sizing.naturalHeight / 2);
+  let horizontalDepth = halfHeight * cotHalf;
+  let verticalDepth = halfWidth * cotHalf;
+
+  let totalHeight =
+    2 * halfHeight +
+    (isActive("north") ? verticalDepth : 0) +
+    (isActive("south") ? verticalDepth : 0);
+  if (totalHeight + EPSILON < sizing.minimumHeight) {
+    totalHeight =
+      sizing.minimumHeight -
+      (isActive("north") ? verticalDepth : 0) -
+      (isActive("south") ? verticalDepth : 0);
+    halfHeight = Math.max(EPSILON, totalHeight / 2);
+    horizontalDepth = halfHeight * cotHalf;
+  }
+
+  let totalWidth =
+    2 * halfWidth +
+    (isActive("east") ? horizontalDepth : 0) +
+    (isActive("west") ? horizontalDepth : 0);
+  if (totalWidth + EPSILON < sizing.minimumWidth) {
+    totalWidth =
+      sizing.minimumWidth -
+      (isActive("east") ? horizontalDepth : 0) -
+      (isActive("west") ? horizontalDepth : 0);
+    halfWidth = Math.max(EPSILON, totalWidth / 2);
+    verticalDepth = halfWidth * cotHalf;
+  }
 
   const north = worldPoint(0, halfHeight + (to.has("north") ? verticalDepth : 0));
   const south = worldPoint(0, -halfHeight - (to.has("south") ? verticalDepth : 0));
@@ -1473,22 +1908,28 @@ export function makeTape(
   bendHeightPt: number
 ): TapeGeometry {
   const halfWidth = Math.max(EPSILON, Math.max(sizing.naturalWidth, sizing.minimumWidth) / 2);
-  const halfHeight = Math.max(EPSILON, Math.max(sizing.naturalHeight, sizing.minimumHeight) / 2);
   const halfBend = Math.max(0, bendHeightPt) / 2;
+  const topMinimumContribution = bendTop === "none" ? 0 : halfBend;
+  const bottomMinimumContribution = bendBottom === "none" ? 0 : halfBend;
+  let halfHeight = Math.max(EPSILON, sizing.naturalHeight / 2);
+  halfHeight += topMinimumContribution + bottomMinimumContribution;
+  halfHeight = Math.max(halfHeight, sizing.minimumHeight / 2);
+  halfHeight = Math.max(EPSILON, halfHeight - topMinimumContribution - bottomMinimumContribution);
+  const bendAmplitude = Math.max(0, bendHeightPt);
   const samples = 18;
   const polygon: WorldPoint[] = [];
 
   for (let index = 0; index <= samples; index += 1) {
     const t = index / samples;
     const x = -halfWidth + 2 * halfWidth * t;
-    const y = halfHeight + tapeEdgeOffset(t, bendTop, true, halfBend);
+    const y = halfHeight + tapeEdgeOffset(t, bendTop, true, bendAmplitude);
     polygon.push(worldPoint(x, y));
   }
 
-  for (let index = 1; index <= samples; index += 1) {
+  for (let index = 0; index <= samples; index += 1) {
     const t = index / samples;
     const x = halfWidth - 2 * halfWidth * t;
-    const y = -halfHeight + tapeEdgeOffset(t, bendBottom, false, halfBend);
+    const y = -halfHeight + tapeEdgeOffset(t, bendBottom, false, bendAmplitude);
     polygon.push(worldPoint(x, y));
   }
 
@@ -1608,7 +2049,7 @@ export function makeEllipseCallout(
   const beforeAngle = pointerAngle + halfArc;
   const afterAngle = pointerAngle - halfArc;
 
-  const arcWorldPoints = sampleEllipseArc(afterAngle, beforeAngle, rx, ry, sampleSteps);
+  const arcWorldPoints = sampleEllipseArc(beforeAngle, afterAngle, rx, ry, sampleSteps);
   return {
     polygon: [pointer, ...arcWorldPoints],
     pointer,
@@ -1632,26 +2073,26 @@ export function makeCloudCallout(
 ): CloudCalloutGeometry {
   const cloud = makeCloud(sizing, puffsRaw, puffArcRaw, aspectRaw, ignoreAspect, rotation);
   const relativeWorldPointer = Math.hypot(pointerOffset.x, pointerOffset.y) > EPSILON ? pointerOffset : worldPoint(0, 0);
-  const relativeBorder =
-    intersectRayWithPolygon(worldPoint(0, 0), worldVector(relativeWorldPointer.x, relativeWorldPointer.y), cloud.polygon) ??
-    worldPoint(0, 0);
+  const relativeBorder = ellipseBorderPoint(relativeWorldPointer, cloud.outerRx, cloud.outerRy);
   let pointer = pointerIsAbsolute
     ? relativeWorldPointer
     : resolveRelativeCalloutPointer(relativeWorldPointer, relativeBorder);
   pointer = shortenCalloutPointer(pointer, pointerShortenPt);
-  const border =
-    intersectRayWithPolygon(worldPoint(0, 0), worldVector(pointer.x, pointer.y), cloud.polygon) ??
-    worldPoint(0, 0);
+  const border = ellipseBorderPoint(pointer, cloud.outerRx, cloud.outerRy);
 
-  const { width: calloutWidth, height: calloutHeight } = polygonSize(cloud.polygon);
+  const calloutWidth = 2 * cloud.outerRx;
+  const calloutHeight = 2 * cloud.innerRy;
   const startSize = resolveCloudCalloutPointerSize(startSizeRaw, calloutWidth, calloutHeight, 0.2);
   const endSize = resolveCloudCalloutPointerSize(endSizeRaw, calloutWidth, calloutHeight, 0.1);
   const segmentCount = normalizeInteger(Math.round(segmentsRaw), 1, 128, DEFAULT_CALLOUT_POINTER_SEGMENTS);
-  const pointerPolygon = makeCloudCalloutPointerPolygon(border, pointer, startSize, endSize, segmentCount);
+  const pointerPolygons = makeCloudCalloutPointerPolygons(border, pointer, startSize, endSize, segmentCount);
+  const pointerPolygon = pointerPolygons.flat();
 
   return {
     polygon: cloud.polygon,
+    curves: cloud.curves,
     pointerPolygon,
+    pointerPolygons,
     pointer,
     pointerAnchor: pointer,
     puffs: cloud.puffs
@@ -1665,10 +2106,10 @@ export function makeSingleArrow(
   headIndentPt: number,
   rotation: number
 ): SingleArrowGeometry {
-  const arrow = resolveArrowCore(sizing, tipAngleRaw, headExtendPt, headIndentPt, DEFAULT_SINGLE_ARROW_TIP_ANGLE);
-  const tipUnrotated = worldPoint(arrow.bodyHalfLength + arrow.tipHalfLength, 0);
-  const beforeTipUnrotated = worldPoint(arrow.bodyHalfLength, arrow.headHalfHeight);
-  const beforeHeadUnrotated = worldPoint(arrow.bodyHalfLength + arrow.headIndent, arrow.shaftHalfHeight);
+  const arrow = resolveSingleArrowCore(sizing, tipAngleRaw, headExtendPt, headIndentPt, DEFAULT_SINGLE_ARROW_TIP_ANGLE);
+  const tipUnrotated = worldPoint(arrow.bodyHalfLength + arrow.tipExtension, 0);
+  const beforeTipUnrotated = worldPoint(arrow.bodyHalfLength - arrow.headBackInset, arrow.headHalfHeight);
+  const beforeHeadUnrotated = worldPoint(arrow.bodyHalfLength - arrow.headBackInset + arrow.headIndent, arrow.shaftHalfHeight);
   const afterTailUnrotated = worldPoint(-arrow.bodyHalfLength, arrow.shaftHalfHeight);
   const beforeTailUnrotated = worldPoint(afterTailUnrotated.x, pt(-1 * afterTailUnrotated.y));
   const afterHeadUnrotated = worldPoint(beforeHeadUnrotated.x, pt(-1 * beforeHeadUnrotated.y));
@@ -1708,10 +2149,10 @@ export function makeDoubleArrow(
   headIndentPt: number,
   rotation: number
 ): DoubleArrowGeometry {
-  const arrow = resolveArrowCore(sizing, tipAngleRaw, headExtendPt, headIndentPt, DEFAULT_DOUBLE_ARROW_TIP_ANGLE);
-  const tip1Unrotated = worldPoint(arrow.bodyHalfLength + arrow.tipHalfLength, 0);
-  const beforeTip1Unrotated = worldPoint(arrow.bodyHalfLength, arrow.headHalfHeight);
-  const beforeHead1Unrotated = worldPoint(arrow.bodyHalfLength + arrow.headIndent, arrow.shaftHalfHeight);
+  const arrow = resolveDoubleArrowCore(sizing, tipAngleRaw, headExtendPt, headIndentPt, DEFAULT_DOUBLE_ARROW_TIP_ANGLE);
+  const tip1Unrotated = worldPoint(arrow.bodyHalfLength + arrow.tipExtension, 0);
+  const beforeTip1Unrotated = worldPoint(arrow.bodyHalfLength - arrow.headBackInset, arrow.headHalfHeight);
+  const beforeHead1Unrotated = worldPoint(arrow.bodyHalfLength - arrow.headBackInset + arrow.headIndent, arrow.shaftHalfHeight);
   const afterTip1Unrotated = worldPoint(beforeTip1Unrotated.x, pt(-1 * beforeTip1Unrotated.y));
   const afterHead1Unrotated = worldPoint(beforeHead1Unrotated.x, pt(-1 * beforeHead1Unrotated.y));
 
@@ -2088,7 +2529,7 @@ function normalizeInteger(value: number, min: number, max: number, fallback: num
   return value;
 }
 
-function resolveArrowCore(
+function resolveSingleArrowCore(
   sizing: CircularSizingInput,
   tipAngleRaw: number,
   headExtendPt: number,
@@ -2098,26 +2539,87 @@ function resolveArrowCore(
   bodyHalfLength: number;
   shaftHalfHeight: number;
   headHalfHeight: number;
-  tipHalfLength: number;
+  tipExtension: number;
+  headBackInset: number;
+  headIndent: number;
+} {
+  const dimensions = resolveArrowDimensions(sizing, tipAngleRaw, headExtendPt, headIndentPt, fallbackTipAngle);
+  const minimumTotalLength = Math.max(0, sizing.minimumHeight);
+  const contentLengthWithTip = sizing.naturalWidth + dimensions.tipExtension;
+  const totalLength = Math.max(contentLengthWithTip, minimumTotalLength);
+  const bodyHalfLength = Math.max(EPSILON, (totalLength - dimensions.tipExtension) / 2);
+
+  return {
+    ...dimensions,
+    bodyHalfLength
+  };
+}
+
+function resolveDoubleArrowCore(
+  sizing: CircularSizingInput,
+  tipAngleRaw: number,
+  headExtendPt: number,
+  headIndentPt: number,
+  fallbackTipAngle: number
+): {
+  bodyHalfLength: number;
+  shaftHalfHeight: number;
+  headHalfHeight: number;
+  tipExtension: number;
+  headBackInset: number;
+  headIndent: number;
+} {
+  const dimensions = resolveArrowDimensions(sizing, tipAngleRaw, headExtendPt, headIndentPt, fallbackTipAngle);
+  const minimumTotalLength = Math.max(0, sizing.minimumHeight);
+  const contentLengthWithTips = 2 * (sizing.naturalWidth / 2 + dimensions.tipExtension);
+  const totalLength = Math.max(contentLengthWithTips, minimumTotalLength);
+  const bodyHalfLength = Math.max(EPSILON, totalLength / 2 - dimensions.tipExtension);
+
+  return {
+    ...dimensions,
+    bodyHalfLength
+  };
+}
+
+function resolveArrowDimensions(
+  sizing: CircularSizingInput,
+  tipAngleRaw: number,
+  headExtendPt: number,
+  headIndentPt: number,
+  fallbackTipAngle: number
+): {
+  shaftHalfHeight: number;
+  headHalfHeight: number;
+  tipExtension: number;
+  headBackInset: number;
   headIndent: number;
 } {
   const tipAngle = normalizeArrowTipAngle(tipAngleRaw, fallbackTipAngle);
   const halfAngle = toRadians(tipAngle / 2);
-  const tangent = Math.tan(halfAngle);
-  const safeTangent = Number.isFinite(tangent) && Math.abs(tangent) > EPSILON ? Math.abs(tangent) : 1;
+  const tangentRaw = Math.tan(halfAngle);
+  const tangent = Number.isFinite(tangentRaw) && Math.abs(tangentRaw) > EPSILON ? Math.abs(tangentRaw) : 1;
+  const cotangent = 1 / tangent;
 
-  // Arrow shapes interpret "minimum width" as shaft thickness and "minimum height" as tip-to-tail span.
-  const shaftHalfHeight = Math.max(EPSILON, Math.max(sizing.naturalHeight, sizing.minimumWidth) / 2);
-  const bodyHalfLength = Math.max(EPSILON, Math.max(sizing.naturalWidth, sizing.minimumHeight) / 2);
-  const headHalfHeight = shaftHalfHeight + Math.max(0, headExtendPt);
-  const tipHalfLength = Math.max(EPSILON, headHalfHeight / safeTangent);
-  const headIndent = Math.min(Math.max(0, headIndentPt), Math.max(0, tipHalfLength - EPSILON));
+  let shaftHalfHeight = Math.max(EPSILON, sizing.naturalHeight / 2);
+  let headExtend = Math.max(0, headExtendPt);
+  let headHalfHeight = shaftHalfHeight + headExtend;
+  let tipExtension = shaftHalfHeight * cotangent;
+  const minimumHeadHalfHeight = Math.max(0, sizing.minimumWidth / 2);
+  if (headHalfHeight + EPSILON < minimumHeadHalfHeight) {
+    const scale = minimumHeadHalfHeight / Math.max(headHalfHeight, EPSILON);
+    shaftHalfHeight *= scale;
+    headExtend *= scale;
+    headHalfHeight *= scale;
+    tipExtension *= scale;
+  }
+  const headBackInset = headExtend * cotangent;
+  const headIndent = Math.min(Math.max(0, headIndentPt), Math.max(0, tipExtension + headBackInset - EPSILON));
 
   return {
-    bodyHalfLength,
     shaftHalfHeight,
     headHalfHeight,
-    tipHalfLength,
+    tipExtension,
+    headBackInset,
     headIndent
   };
 }
@@ -2256,48 +2758,51 @@ function resolveCloudCalloutPointerSize(
   return fallback;
 }
 
-function makeCloudCalloutPointerPolygon(
+function makeCloudCalloutPointerPolygons(
   borderWorldPoint: WorldPoint,
   pointer: WorldPoint,
   startSize: { xDiameter: number; yDiameter: number },
   endSize: { xDiameter: number; yDiameter: number },
   segments: number
-): WorldPoint[] {
+): WorldPoint[][] {
   const direction = worldVector(
-    pointer.x - borderWorldPoint.x,
-    pointer.y - borderWorldPoint.y
+    borderWorldPoint.x - pointer.x,
+    borderWorldPoint.y - pointer.y
   );
   const length = Math.hypot(direction.x, direction.y);
   if (length <= EPSILON) {
-    return [pointer];
+    return [[pointer]];
   }
 
-  const ux = direction.x / length;
-  const uy = direction.y / length;
-  const nx = -uy;
-  const ny = ux;
   const segmentCount = Math.max(1, segments);
-  const left: WorldPoint[] = [];
-  const right: WorldPoint[] = [];
+  const ellipses: WorldPoint[][] = [];
 
-  for (let index = 0; index <= segmentCount; index += 1) {
+  for (let index = 0; index < segmentCount; index += 1) {
     const t = index / segmentCount;
     const center = worldPoint(
-      pt(borderWorldPoint.x + direction.x * t),
-      pt(borderWorldPoint.y + direction.y * t)
+      pt(pointer.x + direction.x * t),
+      pt(pointer.y + direction.y * t)
     );
-    const diameterX = lerp(startSize.xDiameter, endSize.xDiameter, t);
-    const diameterY = lerp(startSize.yDiameter, endSize.yDiameter, t);
-    const halfWidth = Math.max(EPSILON, (diameterX + diameterY) / 4);
-    left.push(worldPoint(pt(center.x + nx * halfWidth), pt(center.y + ny * halfWidth)));
-    right.push(worldPoint(pt(center.x - nx * halfWidth), pt(center.y - ny * halfWidth)));
+    const diameterX = lerp(endSize.xDiameter, startSize.xDiameter, t);
+    const diameterY = lerp(endSize.yDiameter, startSize.yDiameter, t);
+    ellipses.push(makeEllipsePolygon(center, diameterX / 2, diameterY / 2, 24));
   }
 
-  return [...left, ...right.reverse()];
+  return ellipses;
 }
 
 function lerp(from: number, to: number, t: number): number {
   return from + (to - from) * t;
+}
+
+function makeEllipsePolygon(center: WorldPoint, rx: number, ry: number, samples: number): WorldPoint[] {
+  const count = Math.max(8, samples);
+  const points: WorldPoint[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const angle = (360 * index) / count;
+    points.push(pointEllipsePolarOffset(angle, Math.max(EPSILON, rx), Math.max(EPSILON, ry), center));
+  }
+  return points;
 }
 
 function pointPolar(degrees: number, radius: number): WorldPoint {
@@ -2335,13 +2840,23 @@ function pointEllipsePolarOffset(degrees: number, rx: number, ry: number, center
 }
 
 function makeSeededRng(seedRaw: number): () => number {
-  let state = Math.abs(Math.round(seedRaw)) >>> 0;
+  const modulus = 2_147_483_647;
+  const multiplier = 69_621;
+  const quotient = 30_845;
+  const remainderFactor = 23_902;
+  let state = Math.trunc(seedRaw);
   if (state === 0) {
     state = 1;
   }
+  state = Math.abs(state) % modulus;
   return () => {
-    state = (1664525 * state + 1013904223) >>> 0;
-    return state / 0x100000000;
+    const hi = Math.trunc(state / quotient);
+    const lo = state - hi * quotient;
+    state = multiplier * lo - remainderFactor * hi;
+    if (state < 0) {
+      state += modulus;
+    }
+    return (state % 100_001) / 100_000;
   };
 }
 
@@ -2349,7 +2864,7 @@ function tapeEdgeOffset(t: number, bend: TapeBendStyle, isTopEdge: boolean, half
   if (bend === "none" || halfBend <= EPSILON) {
     return 0;
   }
-  let wave = Math.sin((t - 0.5) * Math.PI);
+  let wave = (1 + Math.cos(t * Math.PI * 2)) / 2;
   if (bend === "out and in") {
     wave *= -1;
   }

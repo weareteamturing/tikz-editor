@@ -25,11 +25,6 @@ export function computeSvgPathBounds(commands: ScenePathCommand[], viewBox: Pick
       continue;
     }
 
-    if (command.kind === "C") {
-      includePoint(worldToSvgPoint(command.c1, viewBox));
-      includePoint(worldToSvgPoint(command.c2, viewBox));
-    }
-
     if (command.kind === "A") {
       const to = worldToSvgPoint(command.to, viewBox);
       if (previous) {
@@ -50,6 +45,25 @@ export function computeSvgPathBounds(commands: ScenePathCommand[], viewBox: Pick
       continue;
     }
 
+    if (command.kind === "C") {
+      const to = worldToSvgPoint(command.to, viewBox);
+      if (previous) {
+        includePoint(to);
+        for (const point of cubicExtremaPoints(
+          previous,
+          worldToSvgPoint(command.c1, viewBox),
+          worldToSvgPoint(command.c2, viewBox),
+          to
+        )) {
+          includePoint(point);
+        }
+      } else {
+        includePoint(to);
+      }
+      previous = to;
+      continue;
+    }
+
     const point = worldToSvgPoint(command.to, viewBox);
     includePoint(point);
     previous = point;
@@ -60,6 +74,43 @@ export function computeSvgPathBounds(commands: ScenePathCommand[], viewBox: Pick
   }
 
   return svgBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
+}
+
+function cubicExtremaPoints(p0: SvgPoint, p1: SvgPoint, p2: SvgPoint, p3: SvgPoint): SvgPoint[] {
+  const roots = new Set<number>();
+  for (const axis of ["x", "y"] as const) {
+    for (const root of cubicExtremaRoots(p0[axis], p1[axis], p2[axis], p3[axis])) {
+      roots.add(root);
+    }
+  }
+  return [...roots].map((t) => cubicPoint(p0, p1, p2, p3, t));
+}
+
+function cubicExtremaRoots(p0: number, p1: number, p2: number, p3: number): number[] {
+  const a = -p0 + 3 * p1 - 3 * p2 + p3;
+  const b = 2 * (p0 - 2 * p1 + p2);
+  const c = -p0 + p1;
+  if (Math.abs(a) < 1e-9) {
+    if (Math.abs(b) < 1e-9) {
+      return [];
+    }
+    const t = -c / b;
+    return t > 0 && t < 1 ? [t] : [];
+  }
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant < 0) {
+    return [];
+  }
+  const sqrt = Math.sqrt(discriminant);
+  return [(-b + sqrt) / (2 * a), (-b - sqrt) / (2 * a)].filter((t) => t > 0 && t < 1);
+}
+
+function cubicPoint(p0: SvgPoint, p1: SvgPoint, p2: SvgPoint, p3: SvgPoint, t: number): SvgPoint {
+  const u = 1 - t;
+  return svgPoint(
+    pt(u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x),
+    pt(u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y)
+  );
 }
 
 export function includeSvgArcBounds(args: {

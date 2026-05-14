@@ -2012,7 +2012,10 @@ function pathBoundsPoints(commands: ScenePathCommand[]): WorldPoint[] {
     }
 
     if (command.kind === "C") {
-      points.push(command.c1, command.c2, command.to);
+      points.push(command.to);
+      if (current) {
+        points.push(...cubicExtremaPoints(current, command.c1, command.c2, command.to));
+      }
       current = command.to;
       continue;
     }
@@ -2033,6 +2036,43 @@ function pathBoundsPoints(commands: ScenePathCommand[]): WorldPoint[] {
   }
 
   return points;
+}
+
+function cubicExtremaPoints(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint): WorldPoint[] {
+  const roots = new Set<number>();
+  for (const axis of ["x", "y"] as const) {
+    for (const root of cubicExtremaRoots(p0[axis], p1[axis], p2[axis], p3[axis])) {
+      roots.add(root);
+    }
+  }
+  return [...roots].map((t) => cubicPoint(p0, p1, p2, p3, t));
+}
+
+function cubicExtremaRoots(p0: number, p1: number, p2: number, p3: number): number[] {
+  const a = -p0 + 3 * p1 - 3 * p2 + p3;
+  const b = 2 * (p0 - 2 * p1 + p2);
+  const c = -p0 + p1;
+  if (Math.abs(a) < 1e-9) {
+    if (Math.abs(b) < 1e-9) {
+      return [];
+    }
+    const t = -c / b;
+    return t > 0 && t < 1 ? [t] : [];
+  }
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant < 0) {
+    return [];
+  }
+  const sqrt = Math.sqrt(discriminant);
+  return [(-b + sqrt) / (2 * a), (-b - sqrt) / (2 * a)].filter((t) => t > 0 && t < 1);
+}
+
+function cubicPoint(p0: WorldPoint, p1: WorldPoint, p2: WorldPoint, p3: WorldPoint, t: number): WorldPoint {
+  const u = 1 - t;
+  return worldPoint(
+    pt(u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x),
+    pt(u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y)
+  );
 }
 
 type ArcUnitVector = Readonly<{ x: number; y: number }>;

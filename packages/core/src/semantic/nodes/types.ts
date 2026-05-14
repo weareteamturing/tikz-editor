@@ -1,4 +1,5 @@
 import type { NodeTextRenderInfo } from "../../text/types.js";
+import type { TwoPartShapeSizingInput } from "./shape-geometry.js";
 
 export type NodeShape =
   | "rectangle"
@@ -45,6 +46,7 @@ export type NodeLayout = {
   naturalHeight: number;
   minimumWidth: number;
   minimumHeight: number;
+  lineWidth: number;
   outerXSep: number;
   outerYSep: number;
   visualWidth: number;
@@ -55,4 +57,5 @@ export type NodeLayout = {
   anchorRadius: number;
   baseLineY: number;
   midLineY: number;
+  twoPartShapeSizing?: TwoPartShapeSizingInput;
 };

@@ -7,6 +7,7 @@ import type { EmitSvgOptions, EmitSvgResult } from "../svg/index.js";
 import { createMathJaxNodeTextEngine } from "../text/mathjax-engine.js";
 import type { NodeTextEngine } from "../text/types.js";
 import type { NodeItem } from "../ast/types.js";
+import { parseNodeParts } from "../semantic/nodes/multipart.js";
 
 let mathJaxEngineUnavailable = false;
 let mathJaxEngineUnavailableReason: string | null = null;
@@ -98,7 +99,7 @@ export async function renderTikzToSvgAsync(source: string, opts: RenderTikzOptio
             if (isMatrixNode(node)) {
               return null;
             }
-            return textEngine?.validate(node.text) ?? null;
+            return textEngine?.validate(normalizeNodeTextForValidation(node.text)) ?? null;
           }
         : undefined)
   };
@@ -158,6 +159,14 @@ function isMatrixNode(node: NodeItem): boolean {
     const normalized = entry.key.trim().toLowerCase().replace(/^\/tikz\//, "");
     return normalized === "matrix" || normalized === "matrix of nodes" || normalized === "matrix of math nodes";
   });
+}
+
+function normalizeNodeTextForValidation(text: string): string {
+  const parts = parseNodeParts(text);
+  if (parts.length <= 1 && parts[0]?.name === "text") {
+    return text;
+  }
+  return parts.map((part) => part.text).filter((partText) => partText.length > 0).join(" ");
 }
 
 function logMathJaxWarning(message: string): void {
