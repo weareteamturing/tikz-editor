@@ -25,8 +25,10 @@ import type { SvgViewBox } from "tikz-editor/svg/index";
 export type GridLines = {
   verticalMinor: number[];
   verticalMajor: number[];
+  verticalAxisX: number | null;
   horizontalMinor: number[];
   horizontalMajor: number[];
+  horizontalAxisY: number | null;
   yMin: number;
   yMax: number;
 };
@@ -168,7 +170,11 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
 
     const verticalMinor: number[] = [];
     const verticalMajor: number[] = [];
+    const verticalAxisX = rangeContainsZero(visibleRanges.worldMinX, visibleRanges.worldMaxX) ? 0 : null;
     for (const worldX of worldXs) {
+      if (isZeroGridValue(worldX)) {
+        continue;
+      }
       if (isMultipleOfStep(worldX, majorStep)) {
         verticalMajor.push(worldX);
       } else {
@@ -178,8 +184,14 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
 
     const horizontalMinor: number[] = [];
     const horizontalMajor: number[] = [];
+    const horizontalAxisY = rangeContainsZero(visibleRanges.worldMinY, visibleRanges.worldMaxY)
+      ? worldToSvgY(0, svgResult.viewBox)
+      : null;
     for (const worldY of worldYs) {
       const svgY = worldToSvgY(worldY, svgResult.viewBox);
+      if (isZeroGridValue(worldY)) {
+        continue;
+      }
       if (isMultipleOfStep(worldY, majorStep)) {
         horizontalMajor.push(svgY);
       } else {
@@ -190,8 +202,10 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
     return {
       verticalMinor,
       verticalMajor,
+      verticalAxisX,
       horizontalMinor,
       horizontalMajor,
+      horizontalAxisY,
       yMin: visibleRanges.svgMinY,
       yMax: visibleRanges.svgMaxY
     };
@@ -352,4 +366,12 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
     onTopRulerPointerDown,
     onLeftRulerPointerDown
   };
+}
+
+function isZeroGridValue(value: number): boolean {
+  return Math.abs(value) < 1e-8;
+}
+
+function rangeContainsZero(min: number, max: number): boolean {
+  return min <= 0 && max >= 0;
 }

@@ -105,6 +105,7 @@ type CanvasPanelViewProps = {
   gridLines: GridLines | null;
   gridMinorStrokeWidth: number;
   gridMajorStrokeWidth: number;
+  gridAxisStrokeWidth: number;
   visibleRanges: VisibleRanges | null;
   showGuides: boolean;
   renderedGuides: { vertical: number[]; horizontal: number[] };
@@ -222,6 +223,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     gridLines,
     gridMinorStrokeWidth,
     gridMajorStrokeWidth,
+    gridAxisStrokeWidth,
     visibleRanges,
     showGuides,
     renderedGuides,
@@ -562,6 +564,28 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                         strokeWidth={gridMajorStrokeWidth}
                       />
                     ))}
+                    {gridLines.verticalAxisX != null && (
+                      <line
+                        key="v-axis-0"
+                        x1={gridLines.verticalAxisX}
+                        x2={gridLines.verticalAxisX}
+                        y1={gridLines.yMin}
+                        y2={gridLines.yMax}
+                        className={css.gridAxis}
+                        strokeWidth={gridAxisStrokeWidth}
+                      />
+                    )}
+                    {gridLines.horizontalAxisY != null && (
+                      <line
+                        key="h-axis-0"
+                        x1={visibleRanges?.worldMinX ?? svgResult.viewBox.x}
+                        x2={visibleRanges?.worldMaxX ?? (svgResult.viewBox.x + svgResult.viewBox.width)}
+                        y1={gridLines.horizontalAxisY}
+                        y2={gridLines.horizontalAxisY}
+                        className={css.gridAxis}
+                        strokeWidth={gridAxisStrokeWidth}
+                      />
+                    )}
                   </g>
                 )}
 
