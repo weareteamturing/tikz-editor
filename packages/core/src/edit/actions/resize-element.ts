@@ -1684,12 +1684,12 @@ function rewriteDiamondSideResize(args: {
       currentHeight,
       aspect
     });
-    const nextMinimumWidth = Math.max(0, requestedWidth - aspect * companionHeight);
+    const nextMinimumWidth = Math.max(0, requestedWidth);
     mutations.set("minimum width", {
       kind: "set",
       value: `${formatNumber(nextMinimumWidth, pointDimensionFormatOptions(formatPrecision))}pt`
     });
-    if (!dimensions.hasExplicitMinimumHeight) {
+    if (!dimensions.hasExplicitMinimumHeight && companionHeight <= RESIZE_EPSILON) {
       mutations.set("minimum height", { kind: "remove" });
     }
     return applyOptionMutationsToTarget(source, resizeTarget, mutations);
@@ -1701,12 +1701,12 @@ function rewriteDiamondSideResize(args: {
     currentHeight,
     aspect
   });
-  const nextMinimumHeight = Math.max(0, requestedHeight - companionWidth / aspect);
+  const nextMinimumHeight = Math.max(0, requestedHeight);
   mutations.set("minimum height", {
     kind: "set",
     value: `${formatNumber(nextMinimumHeight, pointDimensionFormatOptions(formatPrecision))}pt`
   });
-  if (!dimensions.hasExplicitMinimumWidth) {
+  if (!dimensions.hasExplicitMinimumWidth && companionWidth <= RESIZE_EPSILON) {
     mutations.set("minimum width", { kind: "remove" });
   }
   return applyOptionMutationsToTarget(source, resizeTarget, mutations);

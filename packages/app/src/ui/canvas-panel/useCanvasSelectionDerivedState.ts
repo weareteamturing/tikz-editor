@@ -1066,6 +1066,59 @@ function buildResizeHandleDisplaysForFrame({
   const topLeft = resizeFrame.cornersByRole["top-left"].svg;
   const topRight = resizeFrame.cornersByRole["top-right"].svg;
   const frameRotationDeg = (Math.atan2(topRight.y - topLeft.y, topRight.x - topLeft.x) * 180) / Math.PI;
+
+  const showSideResizeHandles = shouldShowSideResizeHandles(resizeFrame.boundsSvg, canvasScale);
+  if (showSideResizeHandles) {
+    const edgeHandles: Array<{
+      role: Extract<ResizeRole, "top" | "right" | "bottom" | "left">;
+      svg: SvgPoint;
+      world: WorldPoint;
+    }> = [
+      {
+        role: "top",
+        svg: svgMidpoint(resizeFrame.cornersByRole["top-left"].svg, resizeFrame.cornersByRole["top-right"].svg),
+        world: worldMidpoint(resizeFrame.cornersByRole["top-left"].world, resizeFrame.cornersByRole["top-right"].world)
+      },
+      {
+        role: "right",
+        svg: svgMidpoint(resizeFrame.cornersByRole["top-right"].svg, resizeFrame.cornersByRole["bottom-right"].svg),
+        world: worldMidpoint(resizeFrame.cornersByRole["top-right"].world, resizeFrame.cornersByRole["bottom-right"].world)
+      },
+      {
+        role: "bottom",
+        svg: svgMidpoint(resizeFrame.cornersByRole["bottom-left"].svg, resizeFrame.cornersByRole["bottom-right"].svg),
+        world: worldMidpoint(resizeFrame.cornersByRole["bottom-left"].world, resizeFrame.cornersByRole["bottom-right"].world)
+      },
+      {
+        role: "left",
+        svg: svgMidpoint(resizeFrame.cornersByRole["top-left"].svg, resizeFrame.cornersByRole["bottom-left"].svg),
+        world: worldMidpoint(resizeFrame.cornersByRole["top-left"].world, resizeFrame.cornersByRole["bottom-left"].world)
+      }
+    ];
+    for (const edgeHandle of edgeHandles) {
+      const resizeVector = worldVector(
+        pt(edgeHandle.world.x - resizeFrame.centerWorld.x),
+        pt(edgeHandle.world.y - resizeFrame.centerWorld.y)
+      );
+      displays.push({
+        key: `node-handle:${sourceId}:${edgeHandle.role}`,
+        point: edgeHandle.svg,
+        cursor:
+          resizeDisabled
+            ? "not-allowed"
+            : (
+                vectorLengthSquared(resizeVector) > 1e-12
+                  ? resizeCursorForVector(resizeVector)
+                  : resizeCursorForRole(edgeHandle.role)
+              ),
+        kind: "resize-element",
+        elementId: sourceId,
+        role: edgeHandle.role,
+        rotationDeg: frameRotationDeg
+      });
+    }
+  }
+
   for (const role of RESIZE_FRAME_CORNER_ROLES) {
     const corner = resizeFrame.cornersByRole[role];
     const resizeVector = worldVector(
@@ -1086,59 +1139,6 @@ function buildResizeHandleDisplaysForFrame({
       kind: "resize-element",
       elementId: sourceId,
       role,
-      rotationDeg: frameRotationDeg
-    });
-  }
-
-  if (!shouldShowSideResizeHandles(resizeFrame.boundsSvg, canvasScale)) {
-    return displays;
-  }
-
-  const edgeHandles: Array<{
-    role: Extract<ResizeRole, "top" | "right" | "bottom" | "left">;
-    svg: SvgPoint;
-    world: WorldPoint;
-  }> = [
-    {
-      role: "top",
-      svg: svgMidpoint(resizeFrame.cornersByRole["top-left"].svg, resizeFrame.cornersByRole["top-right"].svg),
-      world: worldMidpoint(resizeFrame.cornersByRole["top-left"].world, resizeFrame.cornersByRole["top-right"].world)
-    },
-    {
-      role: "right",
-      svg: svgMidpoint(resizeFrame.cornersByRole["top-right"].svg, resizeFrame.cornersByRole["bottom-right"].svg),
-      world: worldMidpoint(resizeFrame.cornersByRole["top-right"].world, resizeFrame.cornersByRole["bottom-right"].world)
-    },
-    {
-      role: "bottom",
-      svg: svgMidpoint(resizeFrame.cornersByRole["bottom-left"].svg, resizeFrame.cornersByRole["bottom-right"].svg),
-      world: worldMidpoint(resizeFrame.cornersByRole["bottom-left"].world, resizeFrame.cornersByRole["bottom-right"].world)
-    },
-    {
-      role: "left",
-      svg: svgMidpoint(resizeFrame.cornersByRole["top-left"].svg, resizeFrame.cornersByRole["bottom-left"].svg),
-      world: worldMidpoint(resizeFrame.cornersByRole["top-left"].world, resizeFrame.cornersByRole["bottom-left"].world)
-    }
-  ];
-  for (const edgeHandle of edgeHandles) {
-    const resizeVector = worldVector(
-      pt(edgeHandle.world.x - resizeFrame.centerWorld.x),
-      pt(edgeHandle.world.y - resizeFrame.centerWorld.y)
-    );
-    displays.push({
-      key: `node-handle:${sourceId}:${edgeHandle.role}`,
-      point: edgeHandle.svg,
-      cursor:
-        resizeDisabled
-          ? "not-allowed"
-          : (
-              vectorLengthSquared(resizeVector) > 1e-12
-                ? resizeCursorForVector(resizeVector)
-                : resizeCursorForRole(edgeHandle.role)
-            ),
-      kind: "resize-element",
-      elementId: sourceId,
-      role: edgeHandle.role,
       rotationDeg: frameRotationDeg
     });
   }

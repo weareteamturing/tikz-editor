@@ -8,7 +8,7 @@ import {
   makeCloudCallout,
   makeCylinder,
   makeDartPolygon,
-  makeDiamondPolygon,
+  makeDiamondPolygonForSizing,
   makeDoubleArrow,
   makeEllipseCallout,
   makeIsoscelesTrianglePolygon,
@@ -181,7 +181,7 @@ function buildPreviewGeometry(
 
   if (shape === "diamond") {
     return pathPreviewFromPolygons([
-      makeDiamondPolygon(sizing.minimumWidth / 2, sizing.minimumHeight / 2, params.diamondAspect)
+      makeDiamondPolygonForSizing(sizing, params.diamondAspect)
     ]);
   }
 
