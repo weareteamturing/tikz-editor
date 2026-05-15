@@ -1090,7 +1090,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       }
 
       const lines = input.lines ?? [];
-      setSnapDebug({
+      const nextSnapDebug = {
         atIso: new Date().toISOString(),
         phase: input.phase,
         note: input.note ?? null,
@@ -1104,9 +1104,27 @@ export const CanvasPanel = memo(function CanvasPanel({
         context: summarizeSnapContextForDebug(input.context),
         lineCount: lines.length,
         lineSummary: summarizeSnapLinesForDebug(lines)
+      };
+      setSnapDebug(nextSnapDebug);
+      dispatch({
+        type: "SET_SNAP_DEBUG",
+        snapDebug: nextSnapDebug,
+        log: {
+          id: `snap:${nextSnapDebug.atIso}:${nextSnapDebug.phase}`,
+          atIso: nextSnapDebug.atIso,
+          source: "snap",
+          level: input.note ? "warning" : "info",
+          message: input.note ? `${input.phase}: ${input.note}` : input.phase,
+          data: {
+            dragKind: nextSnapDebug.dragKind,
+            snapshotMatchesSource: nextSnapDebug.snapshotMatchesSource,
+            lineCount: nextSnapDebug.lineCount,
+            context: nextSnapDebug.context
+          }
+        }
       });
     },
-    [showDevPanel]
+    [dispatch, showDevPanel]
   );
 
   const performSnapHapticFeedback = useCallback(() => {
@@ -3289,7 +3307,7 @@ export const CanvasPanel = memo(function CanvasPanel({
         onTextEditTextareaDrop={handleTextEditTextareaDrop}
         onTextEditTextareaKeyDown={handleTextEditTextareaKeyDown}
         selectionHint={pathSelectionHint}
-        showDevPanel={showDevPanel}
+        showDevPanel={false}
         snapDebugRect={snapDebugRect}
         onSnapDebugMovePointerDown={onSnapDebugMovePointerDown}
         snapDebug={snapDebug}

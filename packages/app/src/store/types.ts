@@ -38,6 +38,31 @@ export type SnapModes = {
 
 export type ZoomRequestDirection = "in" | "out";
 
+export type DeveloperLogEntry = {
+  id: string;
+  atIso: string;
+  source: "compute" | "editing" | "snap" | "ui";
+  level: "info" | "warning" | "error";
+  message: string;
+  data?: unknown;
+};
+
+export type DeveloperSnapDebugState = {
+  atIso: string;
+  phase: string;
+  note: string | null;
+  snapshotMatchesSource: boolean;
+  dragKind: string | null;
+  rawPoint: unknown;
+  rawDelta: unknown;
+  snappedPoint: unknown;
+  snappedDelta: unknown;
+  offset: unknown;
+  context: unknown;
+  lineCount: number;
+  lineSummary: unknown[];
+};
+
 export type CanvasTransform = {
   translateX: number;
   translateY: number;
@@ -178,6 +203,8 @@ export type WorkspaceEphemeralState = {
 
   // ── debug ─────────────────────────────────────────────────────────────────────
   showDevPanel: boolean;
+  developerLogs: DeveloperLogEntry[];
+  snapDebug: DeveloperSnapDebugState | null;
 };
 
 export type EditorState = {
@@ -264,6 +291,8 @@ export type EditorState = {
 
   // ── debug ─────────────────────────────────────────────────────────────────────
   showDevPanel: boolean;
+  developerLogs: DeveloperLogEntry[];
+  snapDebug: DeveloperSnapDebugState | null;
 };
 
 export type EditorAction =
@@ -376,4 +405,7 @@ export type EditorAction =
   | { type: "TOGGLE_PANEL"; panel: "source" | "inspector" }
   | { type: "SYNC_LAYOUT_STATE"; sourceVisible: boolean; inspectorVisible: boolean; objectsVisible: boolean; stylesVisible: boolean; figuresVisible: boolean; assistantVisible: boolean; activeRightTab: "inspector" | "objects" | "styles" | "assistant" }
   // Debug
-  | { type: "TOGGLE_DEV_PANEL" };
+  | { type: "TOGGLE_DEV_PANEL" }
+  | { type: "SET_SNAP_DEBUG"; snapDebug: DeveloperSnapDebugState | null; log?: DeveloperLogEntry }
+  | { type: "PUSH_DEVELOPER_LOG"; log: DeveloperLogEntry }
+  | { type: "CLEAR_DEVELOPER_LOGS" };

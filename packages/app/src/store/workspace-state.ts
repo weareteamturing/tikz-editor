@@ -241,7 +241,9 @@ export function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEp
     showFiguresPanel: ui.showFiguresPanel,
     showAssistantPanel: ui.showAssistantPanel,
     rightSidebarTab: ui.rightSidebarTab,
-    showDevPanel: ui.showDevPanel
+    showDevPanel: ui.showDevPanel,
+    developerLogs: ui.developerLogs,
+    snapDebug: ui.snapDebug
   };
 }
 
@@ -291,6 +293,8 @@ export function uiStateFromEditorState(state: EditorState): WorkspaceEphemeralSt
     showAssistantPanel: state.showAssistantPanel,
     showFiguresPanel: state.showFiguresPanel,
     rightSidebarTab: state.rightSidebarTab,
-    showDevPanel: state.showDevPanel
+    showDevPanel: state.showDevPanel,
+    developerLogs: state.developerLogs,
+    snapDebug: state.snapDebug
   };
 }

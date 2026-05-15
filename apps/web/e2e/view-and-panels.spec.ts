@@ -75,13 +75,14 @@ test("developer panel toggles from shortcut and menu checked state", async ({ pa
   await gotoApp(page);
 
   await page.keyboard.press("ControlOrMeta+Shift+D");
-  await expect(page.getByText("Dev Panel")).toBeVisible();
+  await expect(page.getByTestId("developer-panel")).toBeVisible();
+  await expect(page.getByText("Developer Panel")).toBeVisible();
 
   await openMenuSection(page, "view");
   await expect(page.getByTestId("menu-cmd-view.toggle-dev-panel")).toHaveAttribute("aria-checked", "true");
 
   await openMenuCommand(page, "view", "view.toggle-dev-panel");
-  await expect(page.getByText("Dev Panel")).toHaveCount(0);
+  await expect(page.getByTestId("developer-panel")).toHaveCount(0);
 
   await openMenuSection(page, "view");
   await expect(page.getByTestId("menu-cmd-view.toggle-dev-panel")).toHaveAttribute("aria-checked", "false");

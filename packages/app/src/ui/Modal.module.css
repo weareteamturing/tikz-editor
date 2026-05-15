@@ -79,6 +79,12 @@
   background: color-mix(in srgb, var(--text) 22%, transparent);
 }
 
+.panelLayerPassive {
+  z-index: 25;
+  pointer-events: none;
+  background: transparent;
+}
+
 .panelWrap {
   pointer-events: auto;
   position: relative;

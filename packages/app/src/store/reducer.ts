@@ -33,6 +33,12 @@ const DEFAULT_ADD_MATRIX_ROWS = 2;
 const DEFAULT_ADD_MATRIX_COLUMNS = 2;
 const DEFAULT_CREATION_STROKE_COLOR = "black";
 const DEFAULT_CREATION_FILL_COLOR = "none";
+const MAX_DEVELOPER_LOGS = 80;
+const MAX_DEVELOPER_LOG_MESSAGE_CHARS = 500;
+const MAX_DEVELOPER_LOG_STRING_CHARS = 1_000;
+const MAX_DEVELOPER_LOG_ARRAY_ITEMS = 20;
+const MAX_DEVELOPER_LOG_OBJECT_KEYS = 24;
+const MAX_DEVELOPER_LOG_DEPTH = 4;
 
 function initialUiState(): WorkspaceEphemeralState {
   return {
@@ -75,7 +81,9 @@ function initialUiState(): WorkspaceEphemeralState {
     showFiguresPanel: false,
     showAssistantPanel: false,
     rightSidebarTab: "inspector",
-    showDevPanel: false
+    showDevPanel: false,
+    developerLogs: [],
+    snapDebug: null
   };
 }
 
@@ -92,6 +100,69 @@ function actionLabel(kind: HistoryEntry["kind"]): string {
     case "align": return "Aligned elements";
     case "distribute": return "Distributed elements";
   }
+}
+
+function prependDeveloperLog(
+  logs: WorkspaceEphemeralState["developerLogs"],
+  entry: WorkspaceEphemeralState["developerLogs"][number]
+): WorkspaceEphemeralState["developerLogs"] {
+  return [compactDeveloperLogEntry(entry), ...logs].slice(0, MAX_DEVELOPER_LOGS);
+}
+
+function compactDeveloperLogEntry(
+  entry: WorkspaceEphemeralState["developerLogs"][number]
+): WorkspaceEphemeralState["developerLogs"][number] {
+  return {
+    ...entry,
+    message: truncateDeveloperLogString(entry.message, MAX_DEVELOPER_LOG_MESSAGE_CHARS),
+    data: entry.data === undefined ? undefined : compactDeveloperLogData(entry.data, 0)
+  };
+}
+
+function compactDeveloperLogData(value: unknown, depth: number): unknown {
+  if (value == null || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    return truncateDeveloperLogString(value, MAX_DEVELOPER_LOG_STRING_CHARS);
+  }
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  if (typeof value === "function" || typeof value === "symbol") {
+    return `[${typeof value}]`;
+  }
+  if (depth >= MAX_DEVELOPER_LOG_DEPTH) {
+    return "[truncated]";
+  }
+  if (Array.isArray(value)) {
+    const compacted = value
+      .slice(0, MAX_DEVELOPER_LOG_ARRAY_ITEMS)
+      .map((item) => compactDeveloperLogData(item, depth + 1));
+    if (value.length > MAX_DEVELOPER_LOG_ARRAY_ITEMS) {
+      compacted.push(`[${value.length - MAX_DEVELOPER_LOG_ARRAY_ITEMS} more]`);
+    }
+    return compacted;
+  }
+  if (value instanceof Map) {
+    return compactDeveloperLogData(Object.fromEntries([...value.entries()].slice(0, MAX_DEVELOPER_LOG_OBJECT_KEYS)), depth + 1);
+  }
+  if (value instanceof Set) {
+    return compactDeveloperLogData([...value].slice(0, MAX_DEVELOPER_LOG_ARRAY_ITEMS), depth + 1);
+  }
+  const output: Record<string, unknown> = {};
+  const entries = Object.entries(value as Record<string, unknown>);
+  for (const [key, nested] of entries.slice(0, MAX_DEVELOPER_LOG_OBJECT_KEYS)) {
+    output[key] = compactDeveloperLogData(nested, depth + 1);
+  }
+  if (entries.length > MAX_DEVELOPER_LOG_OBJECT_KEYS) {
+    output.__truncatedKeys = entries.length - MAX_DEVELOPER_LOG_OBJECT_KEYS;
+  }
+  return output;
+}
+
+function truncateDeveloperLogString(value: string, maxChars: number): string {
+  return value.length > maxChars ? `${value.slice(0, maxChars - 3)}...` : value;
 }
 
 function applyEditWarningToDocument(doc: DocumentSession, message: string | null): DocumentSession {
@@ -1169,7 +1240,27 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       break;
 
     case "TOGGLE_DEV_PANEL":
-      ui = { ...ui, showDevPanel: !ui.showDevPanel };
+      ui = {
+        ...ui,
+        showDevPanel: !ui.showDevPanel,
+        snapDebug: ui.showDevPanel ? null : ui.snapDebug
+      };
+      break;
+
+    case "SET_SNAP_DEBUG":
+      ui = {
+        ...ui,
+        snapDebug: action.snapDebug,
+        developerLogs: action.log ? prependDeveloperLog(ui.developerLogs, action.log) : ui.developerLogs
+      };
+      break;
+
+    case "PUSH_DEVELOPER_LOG":
+      ui = { ...ui, developerLogs: prependDeveloperLog(ui.developerLogs, action.log) };
+      break;
+
+    case "CLEAR_DEVELOPER_LOGS":
+      ui = { ...ui, developerLogs: [] };
       break;
   }
 

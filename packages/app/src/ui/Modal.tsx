@@ -239,8 +239,10 @@ function ModalPanel({
     className
   ].filter(Boolean).join(" ");
 
+  const layerClasses = [css.panelLayer, closeOnBackdrop ? "" : css.panelLayerPassive].filter(Boolean).join(" ");
+
   return (
-    <div className={css.panelLayer} onPointerDown={onPanelLayerPointerDown}>
+    <div className={layerClasses} onPointerDown={onPanelLayerPointerDown}>
       <div
         ref={panelRef}
         className={classes}
