@@ -590,6 +590,17 @@ export const APP_MENU_DEFINITION = [
         kind: "command",
         commandId: APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL,
         label: "Open PGF/TikZ Manual"
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.OPEN_GITHUB_REPOSITORY,
+        label: "GitHub Repository"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.OPEN_GITHUB_ISSUES,
+        label: "Report an Issue..."
       }
     ]
   }

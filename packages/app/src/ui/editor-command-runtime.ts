@@ -139,6 +139,10 @@ export type EditorCommandRuntime = {
   runCommand: (commandId: AppMenuCommandId, origin: CommandOrigin) => boolean;
 };
 
+const PGF_TIKZ_MANUAL_URL = "https://tikz.dev";
+const GITHUB_REPOSITORY_URL = "https://github.com/DominikPeters/tikz-editor";
+const GITHUB_ISSUES_URL = "https://github.com/DominikPeters/tikz-editor/issues";
+
 export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRuntime {
   const {
     source,
@@ -226,6 +230,13 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const canOpenBinary = typeof getActiveEditorPlatform().files?.openBinary === "function";
   const canSave = typeof getActiveEditorPlatform().files?.saveText === "function";
   const canOpenExternalUrl = typeof getActiveEditorPlatform().window?.openExternalUrl === "function";
+  const openExternalUrlCommand = (url: string): void => {
+    const openExternalUrl = getActiveEditorPlatform().window?.openExternalUrl;
+    if (typeof openExternalUrl !== "function") {
+      return;
+    }
+    void openExternalUrl(url);
+  };
   const canCheckForUpdates =
     typeof getActiveEditorPlatform().updates?.checkForUpdate === "function" &&
     typeof getActiveEditorPlatform().updates?.installUpdate === "function" &&
@@ -984,11 +995,19 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     [APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL]: {
       enabled: canOpenExternalUrl,
       run: () => {
-        const openExternalUrl = getActiveEditorPlatform().window?.openExternalUrl;
-        if (typeof openExternalUrl !== "function") {
-          return;
-        }
-        void openExternalUrl("https://tikz.dev");
+        openExternalUrlCommand(PGF_TIKZ_MANUAL_URL);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.OPEN_GITHUB_REPOSITORY]: {
+      enabled: canOpenExternalUrl,
+      run: () => {
+        openExternalUrlCommand(GITHUB_REPOSITORY_URL);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.OPEN_GITHUB_ISSUES]: {
+      enabled: canOpenExternalUrl,
+      run: () => {
+        openExternalUrlCommand(GITHUB_ISSUES_URL);
       }
     }
   };

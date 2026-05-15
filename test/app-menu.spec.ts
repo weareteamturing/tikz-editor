@@ -107,8 +107,10 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.MATRIX_REMOVE_COLUMN).toBe("matrix.remove-column");
   });
 
-  it("defines a help manual command id", () => {
+  it("defines help external link command ids", () => {
     expect(APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL).toBe("help.open-pgf-tikz-manual");
+    expect(APP_MENU_COMMAND_IDS.OPEN_GITHUB_REPOSITORY).toBe("help.open-github-repository");
+    expect(APP_MENU_COMMAND_IDS.OPEN_GITHUB_ISSUES).toBe("help.open-github-issues");
   });
 
   it("defines a check for updates command id", () => {
@@ -549,13 +551,22 @@ describe("app menu definition", () => {
     const helpSection = APP_MENU_DEFINITION.find((section) => section.id === "help");
     expect(helpSection).toBeDefined();
     const items = helpSection?.items ?? [];
-    const commandItem = items.find(
-      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL
-    );
-    expect(commandItem).toBeDefined();
-    if (!commandItem || commandItem.kind !== "command") {
-      throw new Error("Expected help.open-pgf-tikz-manual command item in Help menu.");
-    }
-    expect(commandItem.label).toBe("Open PGF/TikZ Manual");
+    expect(items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL,
+        label: "Open PGF/TikZ Manual"
+      }),
+      expect.objectContaining({
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.OPEN_GITHUB_REPOSITORY,
+        label: "GitHub Repository"
+      }),
+      expect.objectContaining({
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.OPEN_GITHUB_ISSUES,
+        label: "Report an Issue..."
+      })
+    ]));
   });
 });

@@ -99,6 +99,8 @@ export const APP_MENU_COMMAND_IDS = {
   SAVE_WORKSPACE_AS: "view.save-workspace-as",
   MANAGE_WORKSPACES: "view.manage-workspaces",
   OPEN_PGF_TIKZ_MANUAL: "help.open-pgf-tikz-manual",
+  OPEN_GITHUB_REPOSITORY: "help.open-github-repository",
+  OPEN_GITHUB_ISSUES: "help.open-github-issues",
   CHECK_FOR_UPDATES: "help.check-for-updates",
   SHOW_COMPILED_PICTURE: "file.show-compiled-picture",
   OPEN_SETTINGS: "file.open-settings",

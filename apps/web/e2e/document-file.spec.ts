@@ -489,7 +489,7 @@ test("close tab unsaved modal supports cancel, discard and save flows", async ({
   expect(writes.length).toBeGreaterThan(0);
 });
 
-test("help command opens PGF/TikZ manual via external url hook", async ({ page }) => {
+test("help commands open external resources via external url hook", async ({ page }) => {
   await page.addInitScript(() => {
     const calls: string[] = [];
     const originalOpen = window.open;
@@ -505,10 +505,14 @@ test("help command opens PGF/TikZ manual via external url hook", async ({ page }
 
   await gotoApp(page);
   await openMenuCommand(page, "help", "help.open-pgf-tikz-manual");
+  await openMenuCommand(page, "help", "help.open-github-repository");
+  await openMenuCommand(page, "help", "help.open-github-issues");
 
   const calls = await page.evaluate(() => {
     return (globalThis as unknown as { __PW_WINDOW_OPEN_CALLS__?: string[] }).__PW_WINDOW_OPEN_CALLS__ ?? [];
   });
-  expect(calls).toHaveLength(1);
+  expect(calls).toHaveLength(3);
   expect(calls[0]).toContain("https://tikz.dev");
+  expect(calls[1]).toContain("https://github.com/DominikPeters/tikz-editor");
+  expect(calls[2]).toContain("https://github.com/DominikPeters/tikz-editor/issues");
 });
