@@ -217,6 +217,9 @@ type NativeCommandRef = {
 
 type NativeMenuNode = CheckMenuItem | MenuItem | PredefinedMenuItem | Submenu;
 
+const TAURI_HELP_SUBMENU_ID = "__tauri_help_menu__";
+const TAURI_WINDOW_SUBMENU_ID = "__tauri_window_menu__";
+
 function readInjectedTestEnvironment(): DesktopPlatformEnvironment {
   return ((globalThis as BrowserLikeGlobal).__TIKZ_EDITOR_DESKTOP_PLATFORM_ENV__) ?? {};
 }
@@ -569,12 +572,15 @@ function createNativeDesktopMenuManager(options: {
     commandStates: Record<AppMenuCommandId, NativeCommandState>
   ): Promise<Submenu> {
     const menuApi = await import("@tauri-apps/api/menu");
-    const aboutItem = await menuApi.PredefinedMenuItem.new({
+    const aboutItem = await menuApi.MenuItem.new({
+      id: "app.about",
       text: `About ${APP_DISPLAY_NAME}`,
-      item: {
-        About: {
-          name: APP_DISPLAY_NAME
-        }
+      action: () => {
+        void import("@tauri-apps/api/core")
+          .then(({ invoke }) => invoke("desktop_show_about_panel"))
+          .catch((error: unknown) => {
+            logDesktopPlatformDebug("Failed to show native About dialog.", error);
+          });
       }
     });
     const separator1 = await menuApi.PredefinedMenuItem.new({ item: "Separator" });
@@ -614,6 +620,20 @@ function createNativeDesktopMenuManager(options: {
     });
   }
 
+  async function buildMacWindowSubmenu(): Promise<Submenu> {
+    const menuApi = await import("@tauri-apps/api/menu");
+    const minimizeItem = await menuApi.PredefinedMenuItem.new({ item: "Minimize" });
+    const zoomItem = await menuApi.PredefinedMenuItem.new({ item: "Maximize", text: "Zoom" });
+    const separator = await menuApi.PredefinedMenuItem.new({ item: "Separator" });
+    const bringAllToFrontItem = await menuApi.PredefinedMenuItem.new({ item: "BringAllToFront" });
+
+    return await menuApi.Submenu.new({
+      id: TAURI_WINDOW_SUBMENU_ID,
+      text: "Window",
+      items: [minimizeItem, zoomItem, separator, bringAllToFrontItem]
+    });
+  }
+
   async function rebuildMenu(payload: NativeMenuSyncPayload): Promise<void> {
     const menuApi = await import("@tauri-apps/api/menu");
     const recentFiles = await getBridge().listRecentFiles().catch((error: unknown) => {
@@ -623,12 +643,19 @@ function createNativeDesktopMenuManager(options: {
 
     commandRefs.clear();
     const topLevelItems: Submenu[] = [];
+    let windowSubmenu: Submenu | null = null;
 
     if (isMacPlatform()) {
       topLevelItems.push(await buildMacApplicationSubmenu(payload.commandStates));
+      windowSubmenu = await buildMacWindowSubmenu();
     }
 
     for (const section of payload.definition) {
+      if (isMacPlatform() && section.id === "help" && windowSubmenu) {
+        topLevelItems.push(windowSubmenu);
+        windowSubmenu = null;
+      }
+
       const sectionItems = await buildMenuItems(section.items, payload.commandStates, recentFiles, "platform");
 
       if (sectionItems.length === 0) {
@@ -636,14 +663,14 @@ function createNativeDesktopMenuManager(options: {
       }
 
       const submenu = await menuApi.Submenu.new({
-        id: `section.${section.id}`,
+        id: isMacPlatform() && section.id === "help" ? TAURI_HELP_SUBMENU_ID : `section.${section.id}`,
         text: section.label,
         items: sectionItems
       });
-      if (isMacPlatform() && section.id === "help") {
-        await submenu.setAsHelpMenuForNSApp();
-      }
       topLevelItems.push(submenu);
+    }
+    if (windowSubmenu) {
+      topLevelItems.push(windowSubmenu);
     }
 
     const menu = await menuApi.Menu.new({ items: topLevelItems });

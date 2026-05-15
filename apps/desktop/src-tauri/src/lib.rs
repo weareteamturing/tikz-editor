@@ -79,6 +79,98 @@ mod macos_accessibility {
     }
 }
 
+#[cfg(target_os = "macos")]
+mod macos_about {
+    use objc2::rc::Retained;
+    use objc2::runtime::AnyObject;
+    use objc2::AllocAnyThread;
+    use objc2_app_kit::{
+        NSAboutPanelOptionApplicationIcon, NSAboutPanelOptionApplicationName,
+        NSAboutPanelOptionApplicationVersion, NSAboutPanelOptionCredits, NSApplication, NSImage,
+        NSLinkAttributeName, NSMutableAttributedStringAppKitAdditions, NSTextAlignment,
+    };
+    use objc2_foundation::{
+        MainThreadMarker, NSData, NSDictionary, NSMutableAttributedString, NSRange, NSString, NSURL,
+    };
+    use tauri::AppHandle;
+
+    const APP_DISPLAY_NAME: &str = "TikZ Editor";
+    const APP_AUTHOR: &str = "Dominik Peters";
+    const APP_LICENSE: &str = "MIT";
+    const APP_WEBSITE: &str = "https://tikz.dev/editor/";
+    const APP_ICON: &[u8] = include_bytes!("../icons/icon.png");
+
+    pub fn show(app: AppHandle) -> Result<(), String> {
+        let version = app.package_info().version.to_string();
+        app.run_on_main_thread(move || {
+            show_on_main_thread(&version);
+        })
+        .map_err(|error| error.to_string())
+    }
+
+    fn show_on_main_thread(version: &str) {
+        let mut keys: Vec<&NSString> = Vec::new();
+        let mut objects: Vec<Retained<AnyObject>> = Vec::new();
+
+        keys.push(unsafe { NSAboutPanelOptionApplicationName });
+        objects.push(Retained::into_super(Retained::into_super(
+            NSString::from_str(APP_DISPLAY_NAME),
+        )));
+
+        keys.push(unsafe { NSAboutPanelOptionApplicationVersion });
+        objects.push(Retained::into_super(Retained::into_super(
+            NSString::from_str(version),
+        )));
+
+        if let Some(icon) = app_icon() {
+            keys.push(unsafe { NSAboutPanelOptionApplicationIcon });
+            objects.push(Retained::into_super(Retained::into_super(icon)));
+        }
+
+        keys.push(unsafe { NSAboutPanelOptionCredits });
+        objects.push(Retained::into_super(Retained::into_super(
+            Retained::into_super(credits()),
+        )));
+
+        let dict = NSDictionary::from_retained_objects(&keys, &objects);
+        let mtm = MainThreadMarker::new().expect("About panel must be shown on the main thread");
+        unsafe {
+            NSApplication::sharedApplication(mtm).orderFrontStandardAboutPanelWithOptions(&dict)
+        };
+    }
+
+    fn app_icon() -> Option<Retained<NSImage>> {
+        let data = NSData::with_bytes(APP_ICON);
+        NSImage::initWithData(NSImage::alloc(), &data)
+    }
+
+    fn credits() -> Retained<NSMutableAttributedString> {
+        let text = format!("Author: {APP_AUTHOR}\nLicense: {APP_LICENSE}\nWebsite: {APP_WEBSITE}");
+        let credits = NSMutableAttributedString::from_nsstring(&NSString::from_str(&text));
+        credits.setAlignment_range(
+            NSTextAlignment::Center,
+            NSRange::new(0, text.encode_utf16().count()),
+        );
+
+        if let Some(link_start) = text.find(APP_WEBSITE) {
+            if let Some(url) = NSURL::URLWithString(&NSString::from_str(APP_WEBSITE)) {
+                let link_start = text[..link_start].encode_utf16().count();
+                let link_len = APP_WEBSITE.encode_utf16().count();
+                let url: Retained<AnyObject> = Retained::into_super(Retained::into_super(url));
+                unsafe {
+                    credits.addAttribute_value_range(
+                        NSLinkAttributeName,
+                        &url,
+                        NSRange::new(link_start, link_len),
+                    );
+                }
+            }
+        }
+
+        credits
+    }
+}
+
 const MAX_RECENT_FILES: usize = 10;
 const LATEX_COMMAND_TIMEOUT_SECS: u64 = 20;
 const RECENTS_FILENAME: &str = "recent-files.json";
@@ -875,6 +967,20 @@ struct CodexStatus {
     has_npm: bool,
     has_brew: bool,
     has_wsl: bool,
+}
+
+#[tauri::command]
+fn desktop_show_about_panel(app: AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        return macos_about::show(app);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Ok(())
+    }
 }
 
 #[tauri::command]
@@ -2011,6 +2117,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             desktop_check_codex_status,
+            desktop_show_about_panel,
             desktop_install_codex,
             desktop_check_latex_available,
             desktop_compile_tikz,
@@ -2119,8 +2226,9 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        changed_linked_paths_for_event, collect_associated_file_paths, has_supported_association_extension,
-        map_unsaved_changes_dialog_result, validate_external_url,
+        changed_linked_paths_for_event, collect_associated_file_paths,
+        has_supported_association_extension, map_unsaved_changes_dialog_result,
+        validate_external_url,
     };
     use rfd::MessageDialogResult;
     use std::collections::HashSet;
@@ -2220,7 +2328,8 @@ mod tests {
             PathBuf::from("/tmp/project/b.tex"),
             PathBuf::from("/tmp/other/c.tex"),
         ]);
-        let changed = changed_linked_paths_for_event(&[PathBuf::from("/tmp/project/.a.tex.swp")], &watched);
+        let changed =
+            changed_linked_paths_for_event(&[PathBuf::from("/tmp/project/.a.tex.swp")], &watched);
         assert_eq!(
             changed.into_iter().collect::<HashSet<_>>(),
             HashSet::from([
