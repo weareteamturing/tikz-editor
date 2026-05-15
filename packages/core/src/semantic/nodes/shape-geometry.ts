@@ -1338,14 +1338,13 @@ export function makeDartPolygon(
   const separationSine = Math.sin(separationAngle);
   const safeSeparationSine = Number.isFinite(separationSine) && Math.abs(separationSine) > EPSILON ? Math.abs(separationSine) : 1;
   let halfTailSeparation = (dartLength / safeSeparationSine) * Math.sin(halfTipRadians) * Math.cos(halfTipRadians);
-  let totalLength = cotTip * halfTailSeparation;
+  const totalLength = cotTip * halfTailSeparation;
   let tailLength = Math.max(0, totalLength - dartLength);
 
   if (totalLength + EPSILON < sizing.minimumHeight) {
     const scale = sizing.minimumHeight / Math.max(totalLength, EPSILON);
     dartLength *= scale;
     halfTailSeparation *= scale;
-    totalLength *= scale;
     tailLength *= scale;
   }
 
@@ -1354,7 +1353,6 @@ export function makeDartPolygon(
     const scale = sizing.minimumWidth / Math.max(tailSeparation, EPSILON);
     dartLength *= scale;
     halfTailSeparation *= scale;
-    totalLength *= scale;
     tailLength *= scale;
   }
 
@@ -2702,18 +2700,6 @@ function sampleEllipseArc(startRadians: number, endRadians: number, rx: number, 
   return points;
 }
 
-function polygonSize(points: WorldPoint[]): { width: number; height: number } {
-  if (points.length === 0) {
-    return { width: 0, height: 0 };
-  }
-  const xs = points.map((point) => point.x);
-  const ys = points.map((point) => point.y);
-  return {
-    width: Math.max(...xs) - Math.min(...xs),
-    height: Math.max(...ys) - Math.min(...ys)
-  };
-}
-
 function resolveCloudCalloutPointerSize(
   raw: string,
   calloutWidth: number,
@@ -2818,20 +2804,6 @@ function pointPolarOffset(degrees: number, radius: number, center: WorldPoint): 
 function pointEllipsePolar(degrees: number, rx: number, ry: number): WorldPoint {
   const radians = toRadians(degrees);
   return worldPoint(pt(rx * Math.cos(radians)), pt(ry * Math.sin(radians)));
-}
-
-function ellipseOutwardUnit(point: WorldPoint, rx: number, ry: number): WorldVector {
-  const gx = point.x / Math.max(rx * rx, EPSILON);
-  const gy = point.y / Math.max(ry * ry, EPSILON);
-  const norm = Math.hypot(gx, gy);
-  if (norm > EPSILON && Number.isFinite(norm)) {
-    return worldVector(gx / norm, gy / norm);
-  }
-  const radialNorm = Math.hypot(point.x, point.y);
-  if (radialNorm > EPSILON && Number.isFinite(radialNorm)) {
-    return worldVector(point.x / radialNorm, point.y / radialNorm);
-  }
-  return worldVector(1, 0);
 }
 
 function pointEllipsePolarOffset(degrees: number, rx: number, ry: number, center: WorldPoint): WorldPoint {

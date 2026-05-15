@@ -1123,39 +1123,3 @@ function makeNodePathElement(
     commands
   };
 }
-
-function makeNodeMultiPolygonElement(
-  sourceId: string,
-  itemId: string,
-  polygons: WorldPoint[][],
-  style: ResolvedStyle,
-  span: { from: number; to: number },
-  styleChain: StyleChainEntry[] = []
-): ScenePath {
-  const commands: ScenePathCommand[] = [];
-  for (const polygon of polygons) {
-    const first = polygon[0];
-    if (!first) {
-      continue;
-    }
-    commands.push({ kind: "M", to: first });
-    for (let index = 1; index < polygon.length; index += 1) {
-      commands.push({ kind: "L", to: polygon[index] });
-    }
-    commands.push({ kind: "Z" });
-  }
-
-  if (commands.length === 0) {
-    throw new Error("Node multi-polygon geometry requires at least one non-empty polygon.");
-  }
-
-  return {
-    kind: "Path",
-    id: `scene-node-box:${sourceId}:${itemId}`,
-    runtimeId: `scene-node-box:${sourceId}:${itemId}`,
-    sourceRef: { sourceId, sourceSpan: span, sourceFingerprint: "" },
-    style: { ...style },
-    styleChain: cloneStyleChain(styleChain),
-    commands
-  };
-}
