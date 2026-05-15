@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import {
   canvasViewport,
   gotoApp,
@@ -11,6 +11,38 @@ import {
 test.beforeEach(async ({ page }) => {
   await resetStorageBeforeNavigation(page);
 });
+
+async function readViewportCenterSvg(page: Page): Promise<{ x: number; y: number }> {
+  return await page.evaluate(() => {
+    const viewport = document.querySelector("[data-testid='canvas-viewport']");
+    const rootSvg = document.querySelector("[data-testid='canvas-svg-layer'] svg");
+    const stage = document.querySelector("[data-testid='canvas-world-stage']");
+    if (!(viewport instanceof HTMLElement) || !(rootSvg instanceof SVGSVGElement) || !(stage instanceof HTMLElement)) {
+      throw new Error("Canvas viewport is not ready.");
+    }
+    const [viewBoxX, viewBoxY] = (rootSvg.getAttribute("viewBox") ?? "")
+      .split(/\s+/)
+      .map((value) => Number(value));
+    const translateX = Number(stage.dataset.canvasTranslateX);
+    const translateY = Number(stage.dataset.canvasTranslateY);
+    const scale = Number(stage.dataset.canvasScale);
+    if (![viewBoxX, viewBoxY, translateX, translateY, scale].every(Number.isFinite) || scale <= 0) {
+      throw new Error("Canvas geometry is not measurable.");
+    }
+    return {
+      x: viewBoxX + (viewport.clientWidth / 2 - translateX) / scale,
+      y: viewBoxY + (viewport.clientHeight / 2 - translateY) / scale
+    };
+  });
+}
+
+async function waitForViewportEffects(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { resolve(); });
+    });
+  }));
+}
 
 test("view menu toggles source and inspector panels", async ({ page }) => {
   await gotoApp(page);
@@ -147,6 +179,29 @@ test("view menu toggles transparency grid and infinite canvas, then marquee star
   });
   expect(dragKindAfterMove).toBe("marquee");
   await page.mouse.up();
+});
+
+test("infinite canvas toggle preserves the current viewport center", async ({ page }) => {
+  await gotoApp(page);
+  await expect(page.getByTestId("canvas-svg-layer")).toBeVisible();
+
+  const before = await readViewportCenterSvg(page);
+
+  await openMenuCommand(page, "view", "view.toggle-infinite-canvas");
+  await expect(page.getByTestId("canvas-svg-layer")).toHaveAttribute("data-show-document-bounds", "false");
+  await waitForViewportEffects(page);
+
+  const afterInfinite = await readViewportCenterSvg(page);
+  expect(afterInfinite.x).toBeCloseTo(before.x, 3);
+  expect(afterInfinite.y).toBeCloseTo(before.y, 3);
+
+  await openMenuCommand(page, "view", "view.toggle-infinite-canvas");
+  await expect(page.getByTestId("canvas-svg-layer")).toHaveAttribute("data-show-document-bounds", "true");
+  await waitForViewportEffects(page);
+
+  const afterBounded = await readViewportCenterSvg(page);
+  expect(afterBounded.x).toBeCloseTo(before.x, 3);
+  expect(afterBounded.y).toBeCloseTo(before.y, 3);
 });
 
 test("magnify tool shows a temporary lens while the pointer is held down", async ({ page }) => {

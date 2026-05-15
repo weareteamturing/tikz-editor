@@ -1,4 +1,4 @@
-import { useEffect, type MutableRefObject, type RefObject } from "react";
+import { useEffect, useLayoutEffect, type MutableRefObject, type RefObject } from "react";
 import { viewportPoint as makeViewportPoint, clientPoint, px } from "tikz-editor/coords/index";
 import { clamp, distanceSquared, viewportToSvgPoint } from "./geometry";
 import { resolveToolCreateCurrentWorld } from "./interaction-helpers";
@@ -147,7 +147,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
     liveResizeFramesRef.current = resizeFramesBySource;
   }, [liveResizeFramesRef, resizeFramesBySource]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!svgResult) {
       previousViewBoxRef.current = null;
       return;

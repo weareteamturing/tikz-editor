@@ -99,7 +99,8 @@ export function useCanvasViewportPersistence({
 
   const fitToContent = useCallback((): boolean => {
     const fitViewBox = baseSvgResult?.viewBox ?? svgResult?.viewBox;
-    if (!fitViewBox || !viewportRef.current) return false;
+    const renderViewBox = svgResult?.viewBox ?? fitViewBox;
+    if (!fitViewBox || !renderViewBox || !viewportRef.current) return false;
 
     const viewportWidth = viewportRef.current.clientWidth;
     const viewportHeight = viewportRef.current.clientHeight;
@@ -109,8 +110,10 @@ export function useCanvasViewportPersistence({
       return false;
     }
 
-    const translateX = (viewportWidth - fitViewBox.width * scale) / 2;
-    const translateY = (viewportHeight - fitViewBox.height * scale) / 2;
+    const fitLeft = (viewportWidth - fitViewBox.width * scale) / 2;
+    const fitTop = (viewportHeight - fitViewBox.height * scale) / 2;
+    const translateX = fitLeft - (fitViewBox.x - renderViewBox.x) * scale;
+    const translateY = fitTop - (fitViewBox.y - renderViewBox.y) * scale;
 
     dispatchCanvasTransform({ translateX, translateY, scale });
     return true;
