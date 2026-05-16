@@ -227,14 +227,14 @@ export function applyCursorOverlayFrame(target: SVGGElement, frame: CursorOverla
   const opacity = frame.visible ? "1" : "0";
 
   const previous = LAST_CURSOR_DOM_FRAME.get(target);
-  if (!previous || previous.transform !== transform) {
+  if (previous?.transform !== transform) {
     target.style.transform = transform;
   }
   const glyph = cursorGlyphFor(target);
-  if (glyph && (!previous || previous.glyphTransform !== glyphTransform)) {
+  if (glyph && (previous?.glyphTransform !== glyphTransform)) {
     glyph.setAttribute("transform", glyphTransform);
   }
-  if (!previous || previous.opacity !== opacity) {
+  if (previous?.opacity !== opacity) {
     target.style.opacity = opacity;
   }
   LAST_CURSOR_DOM_FRAME.set(target, { glyphTransform, transform, opacity });

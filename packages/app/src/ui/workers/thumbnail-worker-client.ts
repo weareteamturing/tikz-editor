@@ -98,7 +98,7 @@ export function cancelGroup(groupId: string): void {
 
 function onWorkerMessage(event: MessageEvent<ThumbnailWorkerResponseMessage>): void {
   const message = event.data;
-  if (!message || message.type !== "result") {
+  if (message?.type !== "result") {
     return;
   }
   const pending = pendingRequests.get(message.requestId);

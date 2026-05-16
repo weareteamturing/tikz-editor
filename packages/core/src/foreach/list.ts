@@ -72,7 +72,7 @@ function expandDotsEntry(
   }
 
   const next = extractDotValue(nextRaw, prefix, suffix, opts.parseExpressions);
-  if (!next || next.kind !== previous.kind) {
+  if (next?.kind !== previous.kind) {
     return { inserted: false, consumeNext: false };
   }
 
@@ -80,7 +80,7 @@ function expandDotsEntry(
   if (expandedSoFar.length >= 2) {
     const prevPrevRaw = expandedSoFar[expandedSoFar.length - 2];
     const prevPrev = extractDotValue(prevPrevRaw, prefix, suffix, opts.parseExpressions);
-    if (prevPrev && prevPrev.kind === previous.kind) {
+    if (prevPrev?.kind === previous.kind) {
       step = previous.value - prevPrev.value;
     } else {
       step = next.value > previous.value ? 1 : -1;

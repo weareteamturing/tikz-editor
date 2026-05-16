@@ -398,7 +398,7 @@ function resolveTreeGrowOption(options: OptionListAst | undefined): string {
       candidate.kind === "kv"
       && normalizeOptionKey(candidate.key) === "grow"
   );
-  if (!growEntry || growEntry.kind !== "kv") {
+  if (growEntry?.kind !== "kv") {
     return "down";
   }
   const normalized = growEntry.valueRaw.trim();
@@ -608,8 +608,7 @@ export function buildTreeInspectorDescriptor(
   }
 
   const rootStatement =
-    parseOptions.analysisView &&
-    parseOptions.analysisView.source === source &&
+    parseOptions.analysisView?.source === source &&
     parseOptions.analysisView.activeFigureId === parseOptions.activeFigureId
       ? parseOptions.analysisView.findPathStatement(sourceId)
       : findPathStatementInSource(source, sourceId, parseOptions);

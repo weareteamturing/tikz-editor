@@ -1,8 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
-import {
-  type InspectorProperty,
-  type SetPropertyWriteTarget
-} from "tikz-editor/edit/inspector";
+import type { InspectorProperty, SetPropertyWriteTarget } from "tikz-editor/edit/inspector";
 import { buildPropertyMutationsFromRequest } from "tikz-editor/edit/property-registry";
 import {
   areStylesCascadeModelsIdentical,
@@ -300,7 +297,7 @@ export function StylesPanel() {
         ? section.addPropertyTemplates[templateId] ?? null
         : Object.values(section.addPropertyTemplates).find(
             (t) => {
-              if ("write" in t && t.write && t.write.key === keyName) return true;
+              if ("write" in t && t.write?.key === keyName) return true;
               return t.label.toLowerCase() === keyName.toLowerCase();
             }
           ) ?? null;

@@ -36,8 +36,7 @@ export function getSharedEditAnalysisView(params: {
   };
 
   if (
-    !cachedEntry ||
-    cachedEntry.key.documentId !== key.documentId ||
+    cachedEntry?.key.documentId !== key.documentId ||
     cachedEntry.key.activeFigureId !== key.activeFigureId
   ) {
     cachedEntry = {
@@ -51,8 +50,7 @@ export function getSharedEditAnalysisView(params: {
 
   const session = cachedEntry.session;
   if (
-    params.snapshot.parseResult &&
-    params.snapshot.parseResult.activeFigureId === params.activeFigureId &&
+    params.snapshot.parseResult?.activeFigureId === params.activeFigureId &&
     cachedEntry.primedSnapshotRevision !== params.snapshot.revision
   ) {
     session.primeFromParse(params.snapshot.parseResult, params.source, {

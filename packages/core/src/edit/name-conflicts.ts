@@ -131,7 +131,7 @@ function collectDeclaredNamesFromPathStatement(
 
   for (let index = 0; index < nodeItemIndex; index += 1) {
     const item = statement.items[index];
-    if (!item || item.kind !== "Coordinate" || item.form !== "named") {
+    if (item?.kind !== "Coordinate" || item.form !== "named") {
       continue;
     }
     addName(item.x, target);

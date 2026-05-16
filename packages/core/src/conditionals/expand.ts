@@ -315,7 +315,7 @@ function findElseAndFi(
     // Check for any \if-family command (increment nesting depth)
     IF_FAMILY_REGEX.lastIndex = cursor;
     const ifMatch = IF_FAMILY_REGEX.exec(input);
-    if (ifMatch && ifMatch.index === cursor) {
+    if (ifMatch?.index === cursor) {
       depth += 1;
       cursor += ifMatch[0].length;
       continue;

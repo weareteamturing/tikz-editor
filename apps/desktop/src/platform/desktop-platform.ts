@@ -302,7 +302,7 @@ const DESKTOP_OPEN_REQUESTS_CHANGED_EVENT = "desktop-open-requests-changed";
 function basename(path: string): string {
   const segments = path.split(/[\\/]/g);
   const last = segments[segments.length - 1];
-  return last && last.trim() ? last : path;
+  return last.trim() ? last : path;
 }
 
 function serializeDesktopContextMenuItems(
@@ -1130,22 +1130,18 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
   }
 
   function ensureNativeEventHooks(): void {
-    if (!windowCloseUnlistenPromise) {
-      windowCloseUnlistenPromise = getBridge().onWindowCloseRequest(() => {
+    windowCloseUnlistenPromise ??= getBridge().onWindowCloseRequest(() => {
         closeRequestHandler?.();
       }).catch((error: unknown) => {
         logDesktopPlatformDebug("Failed to register native window close hook.", error);
         return null;
       });
-    }
-    if (!contextMenuCommandUnlistenPromise) {
-      contextMenuCommandUnlistenPromise = getBridge().onContextMenuCommand((payload) => {
+    contextMenuCommandUnlistenPromise ??= getBridge().onContextMenuCommand((payload) => {
         menuHandler?.(payload.commandId, "context-menu");
       }).catch((error: unknown) => {
         logDesktopPlatformDebug("Failed to register native context menu hook.", error);
         return null;
       });
-    }
     if (!openRequestsChangedUnlistenPromise) {
       openRequestsChangedUnlistenPromise = getBridge().onPendingOpenRequestsChanged(() => {
         syncPendingOpenQueues();
@@ -1410,7 +1406,7 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
           if (!active) {
             return;
           }
-          const name = payload.path.split(/[\\/]/).pop() || "document.tex";
+          const name = payload.path.split(/[\\/]/).pop() ?? "document.tex";
           handler(toDesktopFileRef(payload.path, name));
         }).then((fn) => {
           if (!active) {

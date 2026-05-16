@@ -15,14 +15,12 @@ import {
   type ElementTemplate
 } from "./element-templates.js";
 import { resolvePropertyTarget } from "./property-target.js";
-import { type AlignMode, type DistributeAxis } from "./arrange.js";
+import type { AlignMode, DistributeAxis } from "./arrange.js";
 import {
   applyTextReplacements,
   parseStatementSnapshot
 } from "./statement-ops.js";
-import {
-  type PathPointKind
-} from "./path-editing.js";
+import type { PathPointKind } from "./path-editing.js";
 import {
   applyMovePathAttachedNodeAction,
   type MovePathAttachedNodeAction
@@ -518,7 +516,7 @@ function ensureNodeSourceHasName(
 ): { source: string; name: string; insertedSpan?: Span; insertedLength: number } | null {
   const snapshot = parseStatementSnapshot(source, parseOptions);
   const ref = snapshot.byId.get(nodeSourceId);
-  if (!ref || ref.statement.kind !== "Path") {
+  if (ref?.statement.kind !== "Path") {
     return null;
   }
   const node = findNodeItemForSourceId(ref.statement, nodeSourceId);

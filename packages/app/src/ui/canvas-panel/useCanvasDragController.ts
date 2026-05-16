@@ -192,7 +192,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
 
     function onWorldPointerMove(event: PointerEvent) {
       const drag = dragRef.current;
-      if (!drag || event.pointerId !== drag.pointerId) return;
+      if (event.pointerId !== drag?.pointerId) return;
       const ctrlOrMeta = event.ctrlKey || event.metaKey;
       const formatPrecision = event.altKey ? "fine" : undefined;
 
@@ -876,7 +876,7 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
 
     function onWorldPointerUp(event: PointerEvent) {
       const drag = dragRef.current;
-      if (!drag || event.pointerId !== drag.pointerId) return;
+      if (event.pointerId !== drag?.pointerId) return;
       resetSnapFeedbackState();
       suppressNextBackgroundClickRef.current = true;
       const ctrlOrMeta = event.ctrlKey || event.metaKey;

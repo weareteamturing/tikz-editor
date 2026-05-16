@@ -451,7 +451,7 @@ function readPointPair(tokens: SvgToken[], start: number, current: WorldPoint, r
 }
 
 function getNumber(token: SvgToken | undefined): number {
-  if (!token || token.kind !== "number") {
+  if (token?.kind !== "number") {
     return 0;
   }
   return token.value;

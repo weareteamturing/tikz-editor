@@ -295,7 +295,7 @@ export function readPrefixUnitsFromTable(
   }
 
   const normalizedIndex = normalizeIndex(index, sourceLength);
-  if (table != null && table.length === sourceLength + 1) {
+  if (table?.length === sourceLength + 1) {
     const measured: number | undefined = table[normalizedIndex];
     if (Number.isFinite(measured)) {
       return Number(measured);

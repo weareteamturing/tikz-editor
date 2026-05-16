@@ -174,7 +174,7 @@ function inferNodeNameFromTemplate(templateRaw: string, atRaw: string | undefine
     return null;
   }
 
-  if (atRaw && atRaw.replace(/\s+/g, "") === `(${inferred})`) {
+  if (atRaw?.replace(/\s+/g, "") === `(${inferred})`) {
     return null;
   }
 

@@ -562,7 +562,7 @@ function makeUngroupRule(): AvailabilityRule {
 
     const snapshot = resolveStatementSnapshot(facts);
     const ref = snapshot.byId.get(parsedTarget.id);
-    if (!ref || ref.statement.kind !== "Scope") {
+    if (ref?.statement.kind !== "Scope") {
       return "Ungroup currently supports scope selections only.";
     }
     if (!isUngroupableScopeStatement(ref.statement)) {
@@ -573,9 +573,7 @@ function makeUngroupRule(): AvailabilityRule {
 }
 
 function resolveStatementSnapshot(facts: AvailabilityFacts): StatementSnapshot {
-  if (!facts.statementSnapshot) {
-    facts.statementSnapshot = parseStatementSnapshot(facts.source, facts.parseOptions);
-  }
+  facts.statementSnapshot ??= parseStatementSnapshot(facts.source, facts.parseOptions);
   return facts.statementSnapshot;
 }
 

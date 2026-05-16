@@ -189,7 +189,7 @@ function resolveGridAxisStep(
 function hasExplicitLengthUnit(raw: string): boolean {
   const compact = normalizeOptionValue(raw).replace(/\s+/g, "");
   const match = compact.match(/^([+-]?(?:\d+(?:\.\d+)?|\.\d+))([A-Za-z]+)?$/);
-  return Boolean(match && match[2]);
+  return Boolean(match?.[2]);
 }
 
 export function makeGridElements(

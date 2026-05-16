@@ -2852,19 +2852,19 @@ export function resolveFrameMeta(
 
       if (entry.key === "growth function") {
         const parsed = parseBoolish(entry.valueRaw);
-        treeDeferredGrowthFunction = parsed == null ? true : parsed;
+        treeDeferredGrowthFunction = parsed ?? true;
         continue;
       }
 
       if (entry.key === "edge from parent path") {
         const parsed = parseBoolish(entry.valueRaw);
-        treeDeferredEdgeFromParentPath = parsed == null ? true : parsed;
+        treeDeferredEdgeFromParentPath = parsed ?? true;
         continue;
       }
 
       if (entry.key === "edge from parent macro") {
         const parsed = parseBoolish(entry.valueRaw);
-        treeDeferredEdgeFromParentMacro = parsed == null ? true : parsed;
+        treeDeferredEdgeFromParentMacro = parsed ?? true;
         continue;
       }
 

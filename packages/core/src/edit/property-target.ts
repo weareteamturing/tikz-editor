@@ -93,8 +93,7 @@ export type PropertyTargetResolution =
 export function resolvePropertyTarget(source: string, elementId: string, parseOptions: EditParseOptions = {}): PropertyTargetResolution {
   incrementProfilingCounter("resolvePropertyTargetCalls");
   if (
-    parseOptions.analysisView &&
-    parseOptions.analysisView.source === source &&
+    parseOptions.analysisView?.source === source &&
     parseOptions.analysisView.activeFigureId === parseOptions.activeFigureId
   ) {
     return parseOptions.analysisView.resolvePropertyTarget(elementId);
@@ -278,7 +277,7 @@ function resolveStandaloneCommandTarget(targetId: string, raw: string, span: Spa
 function resolveStyleDefinitionEntryTarget(targetId: string, raw: string, span: Span): PropertyTarget | null {
   const parsedEntry = parseOptionListRaw(`[${raw}]`, span.from);
   const entry = parsedEntry.entries[0];
-  if (!entry || entry.kind !== "kv") {
+  if (entry?.kind !== "kv") {
     return null;
   }
   const definition = parseCustomStyleDefinition(entry.key) ?? parseReservedStyleDefinition(entry.key);
@@ -401,7 +400,7 @@ function detectWrappedOptionValue(
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
     const leading = rawValue.indexOf("{");
     const block = readBalancedBlock(rawValue, leading, "{", "}");
-    if (block && block.nextIndex === rawValue.trimEnd().length) {
+    if (block?.nextIndex === rawValue.trimEnd().length) {
       const span = { from: absoluteFrom + leading + 1, to: absoluteFrom + block.nextIndex - 1 };
       return {
         options: parseOptionListRaw(block.content, absoluteFrom + leading + 1),
@@ -413,7 +412,7 @@ function detectWrappedOptionValue(
   if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
     const leading = rawValue.indexOf("[");
     const block = readBalancedBlock(rawValue, leading, "[", "]");
-    if (block && block.nextIndex === rawValue.trimEnd().length) {
+    if (block?.nextIndex === rawValue.trimEnd().length) {
       const span = { from: absoluteFrom + leading, to: absoluteFrom + block.nextIndex };
       return {
         options: parseOptionListRaw(rawValue.slice(leading, block.nextIndex), absoluteFrom + leading),
@@ -1111,7 +1110,7 @@ function resolveTreeChildOperationFromSegments(
     }
     const index = segment.childIndexOneBased - 1;
     const indexed = index >= 0 && index < childOperations.length ? childOperations[index] ?? null : null;
-    const matched = indexed && indexed.id === segment.childOperationId
+    const matched = indexed?.id === segment.childOperationId
       ? indexed
       : childOperations.find((candidate) => candidate.id === segment.childOperationId) ?? indexed;
     if (!matched) {
@@ -1395,7 +1394,7 @@ function makeToLikeOperationTarget(
 function resolveInsertOffset(source: string, span: Span, tokenRegex: RegExp): number {
   const slice = source.slice(span.from, span.to);
   const match = tokenRegex.exec(slice);
-  if (!match || match.index == null) {
+  if (match?.index == null) {
     return span.from;
   }
   return span.from + match.index + match[0].length;

@@ -65,7 +65,8 @@ export function createDocumentSession(params: {
   assistantFigurePath?: string | null;
   assistantPreviewPath?: string | null;
 }): DocumentSession {
-  const title = params.title?.trim() || "Untitled";
+  const trimmedTitle = params.title?.trim();
+  const title = trimmedTitle === undefined || trimmedTitle.length === 0 ? "Untitled" : trimmedTitle;
   return {
     id: createDocumentId(),
     title,

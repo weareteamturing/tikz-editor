@@ -635,12 +635,12 @@ function buildRunRawRanges(
   const consumeTextLike = (count: number): { rawStart: number; rawEnd: number } | null => {
     const need = Math.max(0, Math.floor(count));
     const first = advanceToNextText();
-    if (!first || first.kind !== 'text') return null;
+    if (first?.kind !== 'text') return null;
     const rawStart = Math.max(0, spanOffset);
     let remaining = need;
     while (remaining > 0) {
       const span = currentSpan();
-      if (!span || span.kind !== 'text') return null;
+      if (span?.kind !== 'text') return null;
       const start = Math.max(spanOffset, span.rawStart);
       const available = span.rawEnd - start;
       if (available <= 0) {
@@ -702,7 +702,7 @@ function buildRunRawRanges(
 
   const consumeSpaceLike = (): { rawStart: number; rawEnd: number } | null => {
     const span = advanceToNextText();
-    if (!span || span.kind !== 'text') return null;
+    if (span?.kind !== 'text') return null;
     const start = Math.max(spanOffset, span.rawStart);
     if (start >= span.rawEnd) {
       return null;
@@ -725,7 +725,7 @@ function buildRunRawRanges(
     spanOffset = cursor;
     while (true) {
       const current = currentSpan();
-      if (!current || current.kind !== 'text') break;
+      if (current?.kind !== 'text') break;
       if (spanOffset < current.rawEnd) break;
       spanIndex += 1;
       spanOffset = current.rawEnd;
@@ -1210,8 +1210,7 @@ async function getParagraphHitMap(
   const existing = map.get(report.paragraphId);
   const containerGeometry = readContainerGeometrySnapshot(containerElement);
   if (
-    existing &&
-    existing.report === report &&
+    existing?.report === report &&
     existing.sourceText === sourceText &&
     existing.containerElement === containerElement &&
     sameContainerGeometry(existing.containerGeometry, containerGeometry)

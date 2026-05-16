@@ -76,7 +76,7 @@ export function evaluateTurnCoordinate(
 
   const angleQuantity = parseQuantityExpression(item.x.trim());
   const radius = parseLength(item.y, "cm");
-  if (!angleQuantity || angleQuantity.kind !== "scalar" || radius == null) {
+  if (angleQuantity?.kind !== "scalar" || radius == null) {
     return {
       kind: "invalid",
       world: null,

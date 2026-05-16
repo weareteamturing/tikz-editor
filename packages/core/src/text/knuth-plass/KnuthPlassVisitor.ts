@@ -705,7 +705,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
         const lineX =
           reportLine && Number.isFinite(reportLine.xStart)
             ? reportLine.xStart
-            : lbox.L || 0;
+            : lbox.L ?? 0;
         this.place?.(lineX, y, parents[k]);
         y -=
           Math.max(0.25, lbox.d ?? 0) +

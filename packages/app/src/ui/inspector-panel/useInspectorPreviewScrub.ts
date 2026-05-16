@@ -153,7 +153,7 @@ export function useInspectorPreviewScrub(args: {
 
   const handleNumberLabelScrubPointerMove = useCallback((event: PointerEvent) => {
     const session = numberLabelScrubSessionRef.current;
-    if (!session || event.pointerId !== session.pointerId) {
+    if (event.pointerId !== session?.pointerId) {
       return;
     }
 

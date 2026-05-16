@@ -27,15 +27,13 @@ import {
 makeForeachTemplateTargetId,
 resolvePropertyTargetFromParseResult
 } from "tikz-editor/edit/property-target";
-import {
-type SnapLine
-} from "tikz-editor/edit/snapping";
+import type { SnapLine } from "tikz-editor/edit/snapping";
 import { renderTikzToSvg } from "tikz-editor/render/index";
 import type {
 SceneElement
 } from "tikz-editor/semantic/types";
 import type { SvgRenderModel } from "tikz-editor/svg";
-import { type SvgDiffHints,type SvgViewBox } from "tikz-editor/svg/index";
+import type { SvgDiffHints, SvgViewBox } from "tikz-editor/svg/index";
 import {
 getKnuthPlassCaretFromPoint,
 getKnuthPlassLineRangeFromPoint
@@ -72,7 +70,7 @@ viewportToSvgPoint,
 viewportToWorldPoint,
 worldToSvgPoint
 } from "./canvas-panel/geometry";
-import { type HitRegion } from "./canvas-panel/hit-regions";
+import type { HitRegion } from "./canvas-panel/hit-regions";
 import {
 pickClosestSourceId
 } from "./canvas-panel/interaction-helpers";
@@ -97,9 +95,7 @@ pathToolHasDrawableSegments,
 type PathToolGestureSegment
 } from "./canvas-panel/path-tool";
 import { collectDensePathSourceIds, resolvePathSelectionHint } from "./canvas-panel/path-selection-hint";
-import type {
-resolveResizeFrameForSource
-} from "./canvas-panel/resize-frames";
+import type { resolveResizeFrameForSource } from "./canvas-panel/resize-frames";
 import { isSvgPointWithinScopeBounds } from "./canvas-panel/scope-overlay";
 import {
 clampSnapDebugOverlayRect,
@@ -904,9 +900,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   const editParseOptions = useMemo(
     () => ({
       activeFigureId:
-        activeFigureId == null
-          ? (snapshot.figures.length > 1 ? null : undefined)
-          : activeFigureId,
+        activeFigureId ?? (snapshot.figures.length > 1 ? null : undefined),
       analysisView: getSharedEditAnalysisView({
         documentId: activeDocumentId,
         sourceRevision,
@@ -1659,7 +1653,7 @@ export const CanvasPanel = memo(function CanvasPanel({
 
   const resolveEditableTextTarget = useCallback(
     (targetId: string, region: HitRegion | undefined): EditableTextTarget | null => {
-      if (!region || region.shape !== "rect" || region.interactionMode === "move") {
+      if (region?.shape !== "rect" || region.interactionMode === "move") {
         return null;
       }
       const sceneText = sceneTextByRegionKey.get(region.sceneTextKey ?? region.key);
@@ -2319,7 +2313,7 @@ export const CanvasPanel = memo(function CanvasPanel({
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
       const drag = textSelectionDragRef.current;
-      if (!drag || drag.pointerId !== event.pointerId) {
+      if (drag?.pointerId !== event.pointerId) {
         return;
       }
       if (event.pointerType === "mouse" && event.buttons === 0) {
@@ -2362,7 +2356,7 @@ export const CanvasPanel = memo(function CanvasPanel({
 
     const handlePointerUp = (event: PointerEvent) => {
       const drag = textSelectionDragRef.current;
-      if (!drag || drag.pointerId !== event.pointerId) {
+      if (drag?.pointerId !== event.pointerId) {
         return;
       }
       textSelectionDragRef.current = null;
@@ -2941,9 +2935,7 @@ export const CanvasPanel = memo(function CanvasPanel({
 
     const selectedId = pending.preferredSourceId && newSourceIds.includes(pending.preferredSourceId)
       ? pending.preferredSourceId
-      : inferredMatrixSourceId
-        ? inferredMatrixSourceId
-      : (
+      : inferredMatrixSourceId ?? (
           newSourceIds.length === 1
             ? newSourceIds[0]
             : pickClosestSourceId(sceneElements, newSourceIds, pending.preferredWorld)

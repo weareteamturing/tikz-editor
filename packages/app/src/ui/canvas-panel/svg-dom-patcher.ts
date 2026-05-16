@@ -102,7 +102,7 @@ export class SvgDomPatcher {
 
   private removePart(partId: string): void {
     const element = this.elementByPartId.get(partId);
-    if (element && element.parentNode) {
+    if (element?.parentNode) {
       element.remove();
     }
     this.elementByPartId.delete(partId);
@@ -118,7 +118,7 @@ export class SvgDomPatcher {
     let element = existing;
     if (!element || existingFingerprint !== part.fingerprint) {
       const replacement = this.parsePartElement(part);
-      if (element && element.parentNode === this.contentLayer) {
+      if (element?.parentNode === this.contentLayer) {
         this.contentLayer.replaceChild(replacement, element);
       } else {
         this.contentLayer.appendChild(replacement);
@@ -174,5 +174,5 @@ function fmt(value: number): string {
 }
 
 function isSvgElementNode(node: Element | null): node is SVGElement {
-  return Boolean(node && node.namespaceURI === SVG_NS);
+  return Boolean(node?.namespaceURI === SVG_NS);
 }

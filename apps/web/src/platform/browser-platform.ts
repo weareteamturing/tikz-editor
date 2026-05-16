@@ -352,7 +352,7 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
   }
 
   async function resolvePersistedHandle(fileRef: DocumentFileRef | null | undefined): Promise<unknown> {
-    if (!fileRef || fileRef.kind !== "browser-file" || !fileRef.handleId || !fsHandleStore) {
+    if (fileRef?.kind !== "browser-file" || !fileRef.handleId || !fsHandleStore) {
       return null;
     }
     if (!knownHandleIds.has(fileRef.handleId)) {

@@ -385,7 +385,7 @@ export function validateSvgMarkup(svgMarkup: string): { valid: true } | { valid:
     return { valid: false, message };
   }
   const root = parsed.documentElement;
-  if (root == null || root.nodeName.toLowerCase() !== "svg") {
+  if (root?.nodeName.toLowerCase() !== "svg") {
     return { valid: false, message: "The document must contain a single <svg> root element." };
   }
   return { valid: true };
@@ -420,8 +420,7 @@ type PdfExporter = (
 ) => Promise<Blob>;
 
 function loadPdfExporter(): Promise<PdfExporter> {
-  if (!pdfExporterPromise) {
-    pdfExporterPromise = import("jspdf").then(async ({ jsPDF }) => {
+  pdfExporterPromise ??= import("jspdf").then(async ({ jsPDF }) => {
       await import("svg2pdf.js");
       return async (svgElement: SVGSVGElement, width: number, height: number) => {
         const orientation = width > height ? "landscape" : "portrait";
@@ -439,13 +438,11 @@ function loadPdfExporter(): Promise<PdfExporter> {
         return pdfDocument.output("blob");
       };
     });
-  }
   return pdfExporterPromise;
 }
 
 function loadSvgOptimizer(): Promise<SvgOptimizer> {
-  if (!svgOptimizerPromise) {
-    svgOptimizerPromise = import("svgo/browser").then(
+  svgOptimizerPromise ??= import("svgo/browser").then(
       ({ optimize }) => (svgMarkup: string, preset: SvgTransformPreset) =>
         optimize(svgMarkup, {
           multipass: preset === "compress",
@@ -463,7 +460,6 @@ function loadSvgOptimizer(): Promise<SvgOptimizer> {
           ]
         }).data
     );
-  }
   return svgOptimizerPromise;
 }
 
@@ -473,7 +469,7 @@ function parseSvgDocument(text: string): SVGSVGElement | null {
   }
   const parsed = new DOMParser().parseFromString(text, "image/svg+xml");
   const svgElement = parsed.documentElement;
-  if (svgElement == null || svgElement.nodeName.toLowerCase() !== "svg") {
+  if (svgElement?.nodeName.toLowerCase() !== "svg") {
     return null;
   }
   return svgElement as unknown as SVGSVGElement;

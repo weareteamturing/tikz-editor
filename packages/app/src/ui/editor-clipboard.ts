@@ -93,7 +93,7 @@ function describeError(error: unknown): string {
 export function parseClipboardPayloadJson(raw: string): TikzClipboardPayload | null {
   try {
     const parsed = JSON.parse(raw) as Partial<TikzClipboardPayload> | null;
-    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.snippets)) {
+    if (parsed?.version !== 1 || !Array.isArray(parsed.snippets)) {
       return null;
     }
     const snippets = parsed.snippets

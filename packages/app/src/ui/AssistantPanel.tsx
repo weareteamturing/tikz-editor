@@ -89,7 +89,10 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: A
     const accountResult = asRecord(accountSnapshot?.account);
     const account = asRecord(accountResult?.account);
     const requiresAuth = accountResult?.requiresOpenaiAuth;
-    const hasAccount = account?.email || account?.name || account?.type;
+    const hasAccount =
+      (typeof account?.email === "string" && account.email.trim().length > 0) ||
+      (typeof account?.name === "string" && account.name.trim().length > 0) ||
+      (typeof account?.type === "string" && account.type.trim().length > 0);
     return {
       requiresAuth: requiresAuth === true,
       isLoggedIn: Boolean(hasAccount),
@@ -97,7 +100,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: A
     };
   }, [accountSnapshot]);
   const dropdownMetaLines = useMemo(() => {
-    return [accountMeta, rateMeta, metaError, loginError].filter((line): line is string => Boolean(line && line.trim()));
+    return [accountMeta, rateMeta, metaError, loginError].filter((line): line is string => line !== null && line.trim().length > 0);
   }, [accountMeta, metaError, rateMeta, loginError]);
 
   useEffect(() => {
@@ -265,7 +268,12 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: A
           setCodexStatus(status);
           setInstallOutput("Codex CLI installed successfully.");
         } else {
-          setInstallOutput(output?.trim() || "Install finished, but Codex was not detected. You may need to restart your terminal.");
+          const trimmedOutput = output?.trim();
+          setInstallOutput(
+            trimmedOutput === undefined || trimmedOutput.length === 0
+              ? "Install finished, but Codex was not detected. You may need to restart your terminal."
+              : trimmedOutput
+          );
         }
       } catch (error) {
         setInstallError(error instanceof Error ? error.message : String(error));
@@ -651,7 +659,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: A
 }
 
 function extractImageFilesFromClipboard(clipboardData: DataTransfer | null): File[] {
-  if (!clipboardData || !clipboardData.items) {
+  if (!clipboardData?.items) {
     return [];
   }
   const files: File[] = [];
@@ -1033,7 +1041,7 @@ function displayCommand(command: unknown): string | null {
     return null;
   }
   const shellWrapped = text.match(/^\/bin\/zsh -lc ['"](.*)['"]$/);
-  if (shellWrapped && shellWrapped[1]) {
+  if (shellWrapped?.[1]) {
     return shellWrapped[1];
   }
   return text;
@@ -1055,7 +1063,7 @@ function formatAvailableDecisions(choices: unknown[] | undefined): string | null
       const keys = Object.keys(record);
       return keys.length > 0 ? keys[0] : null;
     })
-    .filter((value): value is string => Boolean(value && value.trim()));
+    .filter((value): value is string => value !== null && value.trim().length > 0);
   return labels.length > 0 ? labels.join(", ") : null;
 }
 
@@ -1144,7 +1152,7 @@ function approvalActions(approval: AssistantPendingApproval): Array<{ value: str
         const keys = Object.keys(record);
         return keys.length > 0 ? keys[0] : null;
       })
-      .filter((value): value is string => Boolean(value && value.trim()))
+      .filter((value): value is string => value !== null && value.trim().length > 0)
     : [];
   if (offered.length === 0) {
     return [

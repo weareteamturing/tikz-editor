@@ -381,7 +381,7 @@ function defaultMetaPatternValues(style: ResolvedStyle): MetaPatternDefaults {
 
 function parseScalar(valueRaw: string): number | null {
   const quantity = parseQuantityExpression(normalizeOptionValue(valueRaw));
-  if (!quantity || quantity.kind !== "scalar" || !Number.isFinite(quantity.value)) {
+  if (quantity?.kind !== "scalar" || !Number.isFinite(quantity.value)) {
     return null;
   }
   return quantity.value;

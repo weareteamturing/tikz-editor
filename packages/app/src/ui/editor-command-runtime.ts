@@ -1023,7 +1023,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     bindings,
     runCommand: (commandId, origin) => {
       const binding = bindings[commandId];
-      if (!binding || !binding.enabled) {
+      if (!binding?.enabled) {
         return false;
       }
       void binding.run(origin);

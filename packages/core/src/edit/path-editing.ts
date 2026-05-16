@@ -289,10 +289,10 @@ function parseCurvePattern(items: readonly PathItem[], startIndex: number): {
 } | null {
   const controls = items[startIndex + 1];
   const control1 = items[startIndex + 2];
-  if (!controls || controls.kind !== "PathKeyword" || controls.keyword !== "controls") {
+  if (controls?.kind !== "PathKeyword" || controls.keyword !== "controls") {
     return null;
   }
-  if (!control1 || control1.kind !== "Coordinate") {
+  if (control1?.kind !== "Coordinate") {
     return null;
   }
   let cursor = startIndex + 3;
@@ -302,7 +302,7 @@ function parseCurvePattern(items: readonly PathItem[], startIndex: number): {
   const maybeAnd = items[cursor];
   if (maybeAnd?.kind === "PathKeyword" && maybeAnd.keyword === "and") {
     const control2 = items[cursor + 1];
-    if (!control2 || control2.kind !== "Coordinate") {
+    if (control2?.kind !== "Coordinate") {
       return null;
     }
     control2Index = cursor + 1;
@@ -312,7 +312,7 @@ function parseCurvePattern(items: readonly PathItem[], startIndex: number): {
 
   const closingDots = items[cursor];
   const target = items[cursor + 1];
-  if (!closingDots || closingDots.kind !== "PathKeyword" || closingDots.keyword !== "..") {
+  if (closingDots?.kind !== "PathKeyword" || closingDots.keyword !== "..") {
     return null;
   }
   if (!target || (target.kind !== "Coordinate" && !(target.kind === "PathKeyword" && target.keyword === "cycle"))) {

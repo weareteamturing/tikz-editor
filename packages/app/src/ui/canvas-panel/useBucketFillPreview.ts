@@ -72,8 +72,7 @@ export function useBucketFillPreview({
 
     const nextPreviewSource = resolution.result.newSource;
     if (
-      current &&
-      current.sourceId === hoveredElementId &&
+      current?.sourceId === hoveredElementId &&
       current.colorToken === bucketFillColor &&
       current.previewSource === nextPreviewSource &&
       source === nextPreviewSource

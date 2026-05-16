@@ -1,19 +1,19 @@
 import { useCallback } from "react";
-import {
-  type ArrowTipPresetId,
-  type ArrowTipSide,
-  type DashStylePresetId,
-  type FillModePresetId,
-  type FillPatternPresetId,
-  type FillPatternMetaOptionKey,
-  type FillShadingPresetId,
-  type LineCapPresetId,
-  type LineJoinPresetId,
-  type NodeFontFamilyId,
-  type NodeFontSizePresetId,
-  type NodeShapePresetId,
-  type PathMorphingDecorationPresetId,
-  type SetPropertyWriteTarget
+import type {
+  ArrowTipPresetId,
+  ArrowTipSide,
+  DashStylePresetId,
+  FillModePresetId,
+  FillPatternMetaOptionKey,
+  FillPatternPresetId,
+  FillShadingPresetId,
+  LineCapPresetId,
+  LineJoinPresetId,
+  NodeFontFamilyId,
+  NodeFontSizePresetId,
+  NodeShapePresetId,
+  PathMorphingDecorationPresetId,
+  SetPropertyWriteTarget
 } from "tikz-editor/edit/inspector";
 import {
   buildArrowTipSetPropertyMutation,

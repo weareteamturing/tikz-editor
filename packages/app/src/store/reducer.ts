@@ -758,9 +758,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
             evaluateOptions: { sourceFingerprint },
             parseOptions: {
               activeFigureId:
-                activeDoc.activeFigureId == null
-                  ? (activeDoc.snapshot.figures.length > 1 ? null : undefined)
-                  : activeDoc.activeFigureId,
+                activeDoc.activeFigureId ?? (activeDoc.snapshot.figures.length > 1 ? null : undefined),
               indentSize: action.parseOptions?.indentSize,
               propertyWriteMode: action.parseOptions?.propertyWriteMode ?? (action.recordInHistory === false ? "preview" : "commit"),
               sourceFingerprint
@@ -800,7 +798,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ? new Set<string>(result.selectedSourceIds)
         : activeDoc.selectedElementIds;
       const nextFocusedScopeId =
-        result.selectedSourceIds && result.selectedSourceIds.length === 0 &&
+        result.selectedSourceIds?.length === 0 &&
         (action.action.kind === "deleteElement" ||
           action.action.kind === "deleteElements" ||
           action.action.kind === "deleteAdornment")
@@ -853,8 +851,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
       if (
         mergeKey &&
-        lastEntry &&
-        lastEntry.mergeKey === mergeKey &&
+        lastEntry?.mergeKey === mergeKey &&
         lastEntry.kind === historyKind
       ) {
         const nextHistory = [...truncated];

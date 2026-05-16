@@ -53,10 +53,10 @@ export function createEditAnalysisSession(): EditAnalysisSession {
   let previous: EditAnalysisCache | null = null;
 
   const lookup = (source: string, activeFigureId: string | null | undefined): EditAnalysisCache | null => {
-    if (cached && cached.source === source && cached.activeFigureId === activeFigureId) {
+    if (cached?.source === source && cached.activeFigureId === activeFigureId) {
       return cached;
     }
-    if (previous && previous.source === source && previous.activeFigureId === activeFigureId) {
+    if (previous?.source === source && previous.activeFigureId === activeFigureId) {
       return previous;
     }
     return null;
@@ -89,7 +89,7 @@ export function createEditAnalysisSession(): EditAnalysisSession {
     primeFromParse(parse, source, options = {}) {
       const activeFigureId = options.activeFigureId ?? parse.activeFigureId;
       const hit = lookup(source, activeFigureId);
-      if (hit && hit.parseResult === parse) {
+      if (hit?.parseResult === parse) {
         return hit.view;
       }
       const entry = createCache(source, parse, activeFigureId);

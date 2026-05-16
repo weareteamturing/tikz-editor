@@ -161,9 +161,7 @@ export async function createMathJaxNodeTextEngine(options?: { font?: MathJaxFont
     browserRuntimePromise = null;
     resetBrowserMathJax();
   }
-  if (!sharedEnginePromise) {
-    sharedEnginePromise = initializeEngine(font);
-  }
+  sharedEnginePromise ??= initializeEngine(font);
   try {
     return await sharedEnginePromise;
   } catch (error) {
@@ -346,9 +344,7 @@ async function initializeNodeRuntime(): Promise<MathJaxRuntime> {
 }
 
 async function initializeWorkerRuntime(): Promise<MathJaxRuntime> {
-  if (!moduleWorkerRuntimePromise) {
-    moduleWorkerRuntimePromise = initializeWorkerRuntimeOnce();
-  }
+  moduleWorkerRuntimePromise ??= initializeWorkerRuntimeOnce();
   try {
     return await moduleWorkerRuntimePromise;
   } catch (error) {
@@ -458,9 +454,7 @@ async function initializeWorkerRuntimeOnce(): Promise<MathJaxRuntime> {
 }
 
 async function initializeBrowserRuntime(font: MathJaxFont): Promise<MathJaxRuntime> {
-  if (!browserRuntimePromise) {
-    browserRuntimePromise = initializeBrowserRuntimeOnce(font);
-  }
+  browserRuntimePromise ??= initializeBrowserRuntimeOnce(font);
   try {
     return await browserRuntimePromise;
   } catch (error) {

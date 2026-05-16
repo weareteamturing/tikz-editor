@@ -35,7 +35,7 @@ import type { ArrowTipKind } from "tikz-editor/semantic/types";
 import { renderArrowTipPreviewPaths } from "tikz-editor/svg/arrows/preview";
 import { renderPathMorphingDecorationPreviewSvg } from "tikz-editor/svg/decorations/preview";
 import { renderFillPatternPreviewSvg } from "tikz-editor/svg/patterns/preview";
-import { type CustomDropdownItem, type CustomDropdownOption } from "../CustomDropdown";
+import type { CustomDropdownItem, CustomDropdownOption } from "../CustomDropdown";
 import css from "../InspectorPanel.module.css";
 
 export type MultiInspectorNumberProperty = {
@@ -1285,7 +1285,7 @@ export function clampNumber(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-export function allValuesEqual<T>(values: readonly T[]): boolean {
+export function allValuesEqual(values: readonly unknown[]): boolean {
   if (values.length <= 1) return true;
   const first = values[0];
   return values.every((value) => value === first);

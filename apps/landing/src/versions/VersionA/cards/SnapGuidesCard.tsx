@@ -5,7 +5,7 @@ import { CURSOR_FOR_DRAG } from "../cursor-conventions";
 import { createCursorScript, type CursorFrame } from "../cursor-script";
 import { createCursorPathScript } from "../animation/cursor-path";
 import { SnapGuidesOverlay, type SnapGuideLine } from "../animation/snap-guides";
-import { mountRenderedScene, queryRenderedElement, wrapRenderedElements } from "../animation/rendered-scene";
+import { mountRenderedScene, wrapRenderedElements } from "../animation/rendered-scene";
 import { snapGuidesCommonViewBox, snapGuidesFinal, snapGuidesInitial } from "../generated/feature-svgs";
 import {
   formatTikzNumber,
@@ -357,11 +357,11 @@ function buildSnapGuidesSourceLines(state: SnapGuidesSourceState): SourceLine[] 
 }
 
 function queryNode(root: ParentNode, node: RectNode): SVGPathElement | null {
-  return queryRenderedElement<SVGPathElement>(root, `path[data-source-id="${node.sourceId}"]:not([fill="none"])`);
+  return root.querySelector<SVGPathElement>(`path[data-source-id="${node.sourceId}"]:not([fill="none"])`);
 }
 
 function queryLabel(root: ParentNode, node: RectNode): SVGImageElement | null {
-  return queryRenderedElement<SVGImageElement>(root, `[data-source-id="${node.sourceId}"][data-text-renderer="mathjax"]`);
+  return root.querySelector<SVGImageElement>(`[data-source-id="${node.sourceId}"][data-text-renderer="mathjax"]`);
 }
 
 function snapLineKey(line: SnapGuideLine): string {

@@ -49,9 +49,7 @@ export function resolveBucketFillEdit(args: {
     editHandles,
     parseOptions: {
       activeFigureId:
-        activeFigureId == null
-          ? (figureCount > 1 ? null : undefined)
-          : activeFigureId
+        activeFigureId ?? (figureCount > 1 ? null : undefined)
     }
   });
   const fillProperty = findFillColorProperty(descriptor.sections.flatMap((section) => section.properties));
@@ -71,9 +69,7 @@ export function resolveBucketFillEdit(args: {
   const result = applyEditAction(source, editHandles ?? [], action, {
     parseOptions: {
       activeFigureId:
-        activeFigureId == null
-          ? (figureCount > 1 ? null : undefined)
-          : activeFigureId,
+        activeFigureId ?? (figureCount > 1 ? null : undefined),
       propertyWriteMode
     }
   });

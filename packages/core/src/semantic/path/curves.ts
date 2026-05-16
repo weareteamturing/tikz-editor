@@ -39,13 +39,13 @@ export function parseBezierFromItems(
 } | null {
   let cursor = startIndex + 1;
   const controlsKeyword = items[cursor];
-  if (!controlsKeyword || controlsKeyword.kind !== "PathKeyword" || controlsKeyword.keyword !== "controls") {
+  if (controlsKeyword?.kind !== "PathKeyword" || controlsKeyword.keyword !== "controls") {
     return null;
   }
   cursor += 1;
 
   const control1Item = items[cursor];
-  if (!control1Item || control1Item.kind !== "Coordinate") {
+  if (control1Item?.kind !== "Coordinate") {
     return null;
   }
   const control1Eval = evaluateCoordinate(control1Item, context);
@@ -60,11 +60,11 @@ export function parseBezierFromItems(
   let control2Eval: EvaluatedCoordinate | null = null;
 
   const maybeAnd = items[cursor];
-  if (maybeAnd && maybeAnd.kind === "PathKeyword" && maybeAnd.keyword === "and") {
+  if (maybeAnd?.kind === "PathKeyword" && maybeAnd.keyword === "and") {
     usedAnd = true;
     cursor += 1;
     const maybeControl2 = items[cursor];
-    if (!maybeControl2 || maybeControl2.kind !== "Coordinate") {
+    if (maybeControl2?.kind !== "Coordinate") {
       return null;
     }
     const evaluatedControl2 = evaluateCoordinate(maybeControl2, context);
@@ -78,7 +78,7 @@ export function parseBezierFromItems(
   }
 
   const closingDots = items[cursor];
-  if (!closingDots || closingDots.kind !== "PathKeyword" || closingDots.keyword !== "..") {
+  if (closingDots?.kind !== "PathKeyword" || closingDots.keyword !== "..") {
     return null;
   }
   cursor += 1;
@@ -86,7 +86,7 @@ export function parseBezierFromItems(
   const nodes: NodeItem[] = [];
   while (cursor < items.length) {
     const maybeNode = items[cursor];
-    if (!maybeNode || maybeNode.kind !== "Node") {
+    if (maybeNode?.kind !== "Node") {
       break;
     }
     nodes.push(maybeNode);

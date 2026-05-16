@@ -41,9 +41,7 @@ function parsePattern(pattern: string): PatternEntry {
 
     letters += char;
     index += 1;
-    if (values[index] === undefined) {
-      values[index] = 0;
-    }
+    values[index] ??= 0;
   }
 
   return { letters, values };
@@ -135,15 +133,13 @@ export function preloadEnglishHyphenator(): Promise<void> {
   if (cachedTrie && cachedExceptions) {
     return Promise.resolve();
   }
-  if (!preloadPromise) {
-    preloadPromise = Promise.all([
+  preloadPromise ??= Promise.all([
       import('../languages/data/hyph-en-us.patterns.js'),
       import('../languages/data/hyph-en-us.exceptions.js'),
     ]).then(([patternsModule, exceptionsModule]) => {
       cachedTrie = buildPatternTrie(patternsModule.EN_US_PATTERNS);
       cachedExceptions = buildExceptionMap(exceptionsModule.EN_US_EXCEPTIONS);
     });
-  }
   return preloadPromise;
 }
 

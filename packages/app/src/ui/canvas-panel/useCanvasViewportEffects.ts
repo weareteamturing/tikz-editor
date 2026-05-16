@@ -76,7 +76,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
       }
 
       const drag = dragRef.current;
-      if (!drag || drag.kind !== "tool-create") {
+      if (drag?.kind !== "tool-create") {
         return;
       }
 

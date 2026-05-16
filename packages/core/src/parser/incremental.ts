@@ -132,8 +132,7 @@ export function createIncrementalParseSession(): IncrementalParseSession {
     }
 
     if (
-      cached &&
-      cached.source === input.source &&
+      cached?.source === input.source &&
       cached.activeFigureId === (activeFigureId ?? cached.activeFigureId) &&
       cached.includeContextDefinitions === includeContextDefinitions &&
       patches.length === 0
@@ -380,7 +379,7 @@ function alignStatements(previous: readonly Statement[], next: Statement[]): voi
   for (let index = 0; index < limit; index += 1) {
     const previousStatement = previous[index];
     const nextStatement = next[index];
-    if (!previousStatement || !nextStatement || previousStatement.kind !== nextStatement.kind) {
+    if (previousStatement?.kind !== nextStatement?.kind) {
       continue;
     }
     alignStatementIds(previousStatement, nextStatement);
@@ -392,7 +391,7 @@ function alignPathItems(previous: readonly PathItem[], next: PathItem[]): void {
   for (let index = 0; index < limit; index += 1) {
     const previousItem = previous[index];
     const nextItem = next[index];
-    if (!previousItem || !nextItem || previousItem.kind !== nextItem.kind) {
+    if (previousItem?.kind !== nextItem?.kind) {
       continue;
     }
 
@@ -451,7 +450,7 @@ function alignClauseIds(
   for (let index = 0; index < limit; index += 1) {
     const previousClause = previous[index];
     const nextClause = next[index];
-    if (!previousClause || !nextClause || previousClause.kind !== nextClause.kind) {
+    if (previousClause?.kind !== nextClause?.kind) {
       continue;
     }
     nextClause.id = previousClause.id;
@@ -813,7 +812,7 @@ function getBodyAtPath(figure: TikzFigure, parentPath: readonly number[]): State
   let body = figure.body;
   for (const scopeIndex of parentPath) {
     const statement = body[scopeIndex];
-    if (!statement || statement.kind !== "Scope") {
+    if (statement?.kind !== "Scope") {
       throw new Error(`Expected scope at path ${parentPath.join("/")}`);
     }
     body = statement.body;

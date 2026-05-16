@@ -868,7 +868,7 @@ export function applyInsertPathPointAction(
   } else if (segment.kind === "cubic") {
     const control1Item = analysis.statement.items[segment.control1Index];
     const control2Item = analysis.statement.items[segment.control2Index];
-    if (!control1Item || control1Item.kind !== "Coordinate" || !control2Item || control2Item.kind !== "Coordinate") {
+    if (control1Item?.kind !== "Coordinate" || control2Item?.kind !== "Coordinate") {
       return { kind: "unsupported", reason: "Could not resolve cubic control points." };
     }
     const control1World = resolveControlWorld(editHandles, action.elementId, control1Item, source);

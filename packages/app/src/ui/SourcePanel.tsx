@@ -1196,7 +1196,7 @@ export function SourcePanel() {
       const parse = snapshot.parseResult;
       const semantic = snapshot.semanticResult;
 
-      if (!parse || parse.source !== docSource) {
+      if (parse?.source !== docSource) {
         view.dispatch({ effects: setDiagnostics.of([]) });
         return;
       }
@@ -1315,8 +1315,7 @@ export function SourcePanel() {
                   // Don't navigate if user is selecting text within this row
                   const selection = window.getSelection();
                   if (
-                    selection &&
-                    selection.toString().trim() &&
+                    selection?.toString().trim() &&
                     e.currentTarget.contains(selection.anchorNode)
                   ) {
                     return;

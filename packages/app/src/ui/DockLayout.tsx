@@ -332,11 +332,11 @@ function syncLayoutStateToStore(model: Model, dispatch: (action: EditorAction) =
   const rightPanelIds = ["inspector", "objects", "styles", "assistant"] as const;
   for (const id of rightPanelIds) {
     const node = model.getNodeById(id);
-    if (node && node.getParent()) {
+    if (node?.getParent()) {
       const parent = node.getParent()!;
       if (isLayoutSelectionParent(parent)) {
         const selected = parent.getSelectedNode();
-        if (selected && selected.getId() === id) {
+        if (selected?.getId() === id) {
           activeRightTab = id;
           break;
         }

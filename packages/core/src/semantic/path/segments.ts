@@ -94,7 +94,7 @@ export function roundClosedPathStartCorner(
   }
 
   const move = commands[0];
-  if (!move || move.kind !== "M") {
+  if (move?.kind !== "M") {
     return;
   }
 

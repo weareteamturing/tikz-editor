@@ -69,8 +69,8 @@ export function installKnuthPlassVisitor(
   outputs: OutputJaxName[] = ['svg']
 ): MathJaxConfigLike {
   for (const output of outputs) {
-    const outputConfig = (config[output] ||= {});
-    const linebreaks = (outputConfig.linebreaks ||= {});
+    const outputConfig = (config[output] ??= {});
+    const linebreaks = (outputConfig.linebreaks ??= {});
     linebreaks.LinebreakVisitor = KnuthPlassVisitor;
   }
 

@@ -56,7 +56,7 @@ export function renderSourcePreview(target: HTMLElement, lines: readonly SourceL
   const signature = sourceStructureSignature(lines);
   const previous = LAST_RENDERED_SOURCE.get(target);
 
-  if (!previous || previous.signature !== signature) {
+  if (previous?.signature !== signature) {
     LAST_RENDERED_SOURCE.set(target, mountSourcePreview(target, lines, signature));
     return;
   }

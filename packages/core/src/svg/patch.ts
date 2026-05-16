@@ -55,8 +55,7 @@ export function diffSvgModels(
   for (const part of nextCandidates) {
     const previousPart = previousById.get(part.partId);
     const changed =
-      !previousPart ||
-      previousPart.fingerprint !== part.fingerprint ||
+      previousPart?.fingerprint !== part.fingerprint ||
       previousPart.order !== part.order;
     if (!changed) {
       continue;

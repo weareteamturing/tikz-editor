@@ -85,8 +85,7 @@ export function buildStatementSnapshotFromStatements(
 
 export function parseStatementSnapshot(source: string, parseOptions: EditParseOptions = {}): StatementSnapshot {
   if (
-    parseOptions.analysisView &&
-    parseOptions.analysisView.source === source &&
+    parseOptions.analysisView?.source === source &&
     parseOptions.analysisView.activeFigureId === parseOptions.activeFigureId
   ) {
     return parseOptions.analysisView.statementSnapshot;

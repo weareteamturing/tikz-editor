@@ -76,7 +76,7 @@ export function parsePathItemsFromFragmentWithSyntheticMapping(pathFragmentRaw: 
     mapOffset: (offset) => mapSyntheticOffsetToOriginal(offset, prepared)
   };
 
-  if (!statement || statement.kind !== "Path") {
+  if (statement?.kind !== "Path") {
     return {
       value: [],
       hasParseError: true,
@@ -96,7 +96,7 @@ export function parseNodeItemsFromTemplate(nodeTemplateRaw: string): ForeachSnip
   const parsed = parseTikz(source, { recover: true });
   const statement = parsed.figure.body.find((entry) => entry.kind === "Path");
   const hasParseError = parsed.diagnostics.some((diagnostic) => diagnostic.severity === "error");
-  if (!statement || statement.kind !== "Path") {
+  if (statement?.kind !== "Path") {
     return {
       value: [],
       hasParseError: true
@@ -249,9 +249,7 @@ function remapSpansDeep(value: unknown, mapOffset: (offset: number) => number | 
   for (const [key, nested] of Object.entries(sourceRecord)) {
     const mapped = remapSpansDeep(nested, mapOffset);
     if (mapped !== nested) {
-      if (!nextRecord) {
-        nextRecord = { ...sourceRecord };
-      }
+      nextRecord ??= { ...sourceRecord };
       nextRecord[key] = mapped;
     }
   }

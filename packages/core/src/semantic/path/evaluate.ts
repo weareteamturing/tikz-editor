@@ -457,7 +457,7 @@ export function evaluatePathStatement(
           const existingNodeCoordinate = withDependencySource(context, graphStatement.id, () => {
             const scoped = applyNameScope(node.name, context);
             const scopedMatch = readNamedCoordinate(context, scoped);
-            return scopedMatch ? scopedMatch : readNamedCoordinate(context, node.name);
+            return scopedMatch ?? readNamedCoordinate(context, node.name);
           });
           if (existingNodeCoordinate) {
             continue;
@@ -726,8 +726,7 @@ export function evaluatePathStatement(
         const isLeadingPathOption = !sawNonLeadingPathItem;
         const mirrorsStatementOptions =
           isLeadingPathOption
-          && statement.options != null
-          && item.span.from === statement.options.span.from
+          && item.span.from === statement.options?.span.from
           && item.span.to === statement.options.span.to;
 
         if (expandedOptions) {
@@ -970,7 +969,7 @@ export function evaluatePathStatement(
               );
               for (let handleIndex = pinEdgeHandlesStart; handleIndex < context.editHandles.length; handleIndex += 1) {
                 const handle = context.editHandles[handleIndex];
-                if (!handle || handle.sourceRef.sourceId !== statement.id) {
+                if (handle?.sourceRef.sourceId !== statement.id) {
                   continue;
                 }
                 context.editHandles[handleIndex] = {
@@ -1143,7 +1142,8 @@ export function evaluatePathStatement(
       "CoordinateOperation",
       (pathItem) => {
         const item = pathItem as Extract<PathItem, { kind: "CoordinateOperation" }>;
-        const parsedName = item.name?.trim() || parseCoordinateOperation(item.raw)?.name;
+        const operationName = item.name?.trim();
+        const parsedName = operationName === undefined || operationName.length === 0 ? parseCoordinateOperation(item.raw)?.name : operationName;
         if (!parsedName) {
           pushDiagnostic("invalid-coordinate-operation", "Could not parse coordinate operation.", item.span.from, item.span.to);
           return;
@@ -1742,9 +1742,7 @@ export function evaluatePathStatement(
           form: item.form,
           x: item.x
         });
-        if (!context.pathStartPoint) {
-          context.pathStartPoint = evaluated.world;
-        }
+        context.pathStartPoint ??= evaluated.world;
         continue;
       }
 
@@ -2197,7 +2195,7 @@ export function evaluatePathStatement(
         }
 
         const targetItem = statement.items[index + 1];
-        if (!targetItem || targetItem.kind !== "Coordinate") {
+        if (targetItem?.kind !== "Coordinate") {
           pushDiagnostic(`invalid-${item.keyword}-target`, `\`${item.keyword}\` requires a following coordinate target.`, item.span.from, item.span.to);
           continue;
         }

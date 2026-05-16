@@ -82,7 +82,7 @@ const tikzEnvironmentFolding = foldService.of((state, lineStart) => {
   const text = line.text;
 
   const beginMatch = text.match(/\\begin\{([^}]+)\}/);
-  if (!beginMatch || beginMatch.index === undefined) return null;
+  if (beginMatch?.index === undefined) return null;
 
   const beginIndex = beginMatch.index;
   const tree = syntaxTree(state);

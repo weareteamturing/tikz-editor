@@ -1342,7 +1342,7 @@ function getLengthParam(decoration: DecorationStyle, key: string, fallback: numb
     return fallback;
   }
   const parsed = parseLength(raw, "pt");
-  return parsed == null ? fallback : parsed;
+  return parsed ?? fallback;
 }
 
 function getNumberParam(decoration: DecorationStyle, key: string, fallback: number): number {

@@ -226,7 +226,7 @@ export function parseRotateAroundValue(
   }
 
   const parsedAngle = parseQuantityExpression(angleRaw);
-  if (!parsedAngle || parsedAngle.kind !== "scalar" || !Number.isFinite(parsedAngle.value)) {
+  if (parsedAngle?.kind !== "scalar" || !Number.isFinite(parsedAngle.value)) {
     return null;
   }
 
@@ -252,7 +252,7 @@ export function parseRotateAroundValue(
 
 function parseScalarQuantity(raw: string): number | null {
   const parsed = parseQuantityExpression(raw);
-  if (!parsed || parsed.kind !== "scalar") {
+  if (parsed?.kind !== "scalar") {
     return null;
   }
   return Number.isFinite(parsed.value) ? parsed.value : null;
@@ -269,7 +269,7 @@ export function stripEnclosingBraces(raw: string): string {
   }
 
   const block = readBalancedBlock(trimmed, 0, "{", "}");
-  if (!block || block.nextIndex !== trimmed.length) {
+  if (block?.nextIndex !== trimmed.length) {
     return trimmed;
   }
   return block.content.trim();

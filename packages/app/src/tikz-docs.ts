@@ -72,9 +72,7 @@ function normalizeCandidates(candidates: readonly string[]): string[] {
 }
 
 async function loadDocIndex(): Promise<DocIndex | null> {
-  if (!indexPromise) {
-    indexPromise = fetchJson<DocIndex>("docs/keys/index.json");
-  }
+  indexPromise ??= fetchJson<DocIndex>("docs/keys/index.json");
   return indexPromise;
 }
 

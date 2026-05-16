@@ -39,7 +39,7 @@ export function resolvePathSelectionHint(input: {
   );
   if (isNodeSource) return null;
   const element = elements?.find((candidate) => candidate.sourceRef.sourceId === sourceId);
-  if (!element || element.kind !== "Path") return null;
+  if (element?.kind !== "Path") return null;
   const resolved = resolveEligibleExplicitPath(source, sourceId, parseOptions);
   if (resolved.kind !== "eligible") return null;
   if (resolved.analysis.segments.length === 0) return null;
@@ -64,7 +64,7 @@ function hasInsertablePathSegment(
   };
   const hasControlHandle = (itemIndex: number | undefined) => {
     const item = itemIndex == null ? null : analysis.statement.items[itemIndex];
-    return Boolean(item && item.kind === "Coordinate" && editHandles.some((handle) =>
+    return Boolean(item?.kind === "Coordinate" && editHandles.some((handle) =>
       handle.sourceRef.sourceId === sourceId &&
       handle.kind === "path-control" &&
       handle.sourceRef.sourceSpan.from === item.span.from &&

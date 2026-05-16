@@ -356,7 +356,7 @@ class Parser {
       }
 
       const token = this.peek();
-      if (token && token.kind === "ident" && token.value.toLowerCase() === "r") {
+      if (token?.kind === "ident" && token.value.toLowerCase() === "r") {
         this.index += 1;
         if (current.quantity.kind !== "scalar") {
           return this.error("invalid-operation", "The postfix 'r' operator requires a scalar value.");
@@ -535,7 +535,7 @@ class Parser {
         }
         best = best == null ? value.value : key === "min" ? Math.min(best, value.value) : Math.max(best, value.value);
       }
-      return this.scalar(best == null ? 0 : best);
+      return this.scalar(best ?? 0);
     }
 
     const unary = (fn: (value: number) => number): PgfMathEvalResult => {
@@ -671,7 +671,7 @@ class Parser {
 
   private peekOp(expected: string[]): string | null {
     const token = this.tokens[this.index];
-    if (token == null || token.kind !== "op") {
+    if (token?.kind !== "op") {
       return null;
     }
     for (const value of expected) {

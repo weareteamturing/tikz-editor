@@ -119,7 +119,7 @@ export function applyUngroupElementsAction(
   const scopeId = statementIds[0];
   const snapshot = parseStatementSnapshot(source, parseOptions);
   const ref = snapshot.byId.get(scopeId);
-  if (!ref || ref.statement.kind !== "Scope") {
+  if (ref?.statement.kind !== "Scope") {
     return { kind: "unsupported", reason: "Ungroup currently supports scope selections only." };
   }
 

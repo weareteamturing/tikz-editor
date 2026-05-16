@@ -251,7 +251,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
   useEffect(() => {
     function onWorldPointerMove(event: PointerEvent) {
       const pending = pendingScopeDrillRef.current;
-      if (!pending || pending.pointerId !== event.pointerId || pending.dragStarted) {
+      if (pending?.pointerId !== event.pointerId || pending.dragStarted) {
         return;
       }
       const clientPoint = clientPointFromEvent(event);
@@ -274,7 +274,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
 
     function onWorldPointerUp(event: PointerEvent) {
       const pending = pendingScopeDrillRef.current;
-      if (!pending || pending.pointerId !== event.pointerId) {
+      if (pending?.pointerId !== event.pointerId) {
         return;
       }
       pendingScopeDrillRef.current = null;
@@ -305,7 +305,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
 
     function onTextWorldPointerMove(event: PointerEvent) {
       const pending = pendingTextInteractionRef.current;
-      if (!pending || pending.pointerId !== event.pointerId || pending.dragStarted) {
+      if (pending?.pointerId !== event.pointerId || pending.dragStarted) {
         return;
       }
       const clientPoint = clientPointFromEvent(event);
@@ -336,7 +336,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
 
     function onTextWorldPointerUp(event: PointerEvent) {
       const pending = pendingTextInteractionRef.current;
-      if (!pending || pending.pointerId !== event.pointerId) {
+      if (pending?.pointerId !== event.pointerId) {
         return;
       }
       pendingTextInteractionRef.current = null;
@@ -574,9 +574,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         sourceId,
         parseOptions ?? {
           activeFigureId:
-            activeFigureId == null
-              ? (snapshot.figures.length > 1 ? null : undefined)
-              : activeFigureId
+            activeFigureId ?? (snapshot.figures.length > 1 ? null : undefined)
         }
       );
       if (resolved.kind !== "eligible") return false;
@@ -719,7 +717,7 @@ function findClosestSegmentWorldPoint(
     } else if (seg.kind === "cubic") {
       const c1Item = seg.control1Index != null ? analysis.statement.items[seg.control1Index] : null;
       const c2Item = seg.control2Index != null ? analysis.statement.items[seg.control2Index] : null;
-      if (!c1Item || c1Item.kind !== "Coordinate" || !c2Item || c2Item.kind !== "Coordinate") continue;
+      if (c1Item?.kind !== "Coordinate" || c2Item?.kind !== "Coordinate") continue;
       const c1W = resolveControlWorld(editHandles, sourceId, c1Item.span);
       const c2W = seg.usedAnd ? resolveControlWorld(editHandles, sourceId, c2Item.span) : c1W;
       if (!c1W || !c2W) continue;

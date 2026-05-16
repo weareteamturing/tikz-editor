@@ -18,8 +18,7 @@ export type PropertyWriteInteractionMode = "commit" | "preview" | "drag-frame" |
 export function parseTikzForEdit(source: string, options: EditParseOptions = {}): ParseTikzResult {
   incrementProfilingCounter("parseTikzForEditCalls");
   if (
-    options.analysisView &&
-    options.analysisView.source === source &&
+    options.analysisView?.source === source &&
     options.analysisView.activeFigureId === options.activeFigureId
   ) {
     return options.analysisView.parseResult;

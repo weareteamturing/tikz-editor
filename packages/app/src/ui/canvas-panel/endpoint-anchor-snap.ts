@@ -136,7 +136,11 @@ export function resolveEndpointAnchorSnap(input: {
 }
 
 function nodeAnchorTargetKey(target: NodeAnchorTarget): string {
-  return target.nodeName.trim() || target.nodeSourceId?.trim() || "";
+  const nodeName = target.nodeName.trim();
+  if (nodeName.length > 0) {
+    return nodeName;
+  }
+  return target.nodeSourceId?.trim() ?? "";
 }
 
 function resolveNearestMatrixCellHint(
@@ -165,7 +169,7 @@ function resolvePreferredMatrixCellAnchors(
   let best: { anchors: NodeAnchorTarget[]; distanceSq: number } | null = null;
   for (const [nodeName, anchors] of anchorsByNode.entries()) {
     const parsed = parseTrailingMatrixCellIndices(nodeName);
-    if (!parsed || parsed.row !== row || parsed.column !== column) {
+    if (parsed?.row !== row || parsed.column !== column) {
       continue;
     }
     const extent = deriveNodeExtent(anchors);

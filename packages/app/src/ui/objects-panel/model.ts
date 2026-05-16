@@ -76,7 +76,8 @@ function buildNode(
   const primaryNode = statement.kind === "Path" ? findPrimaryNodeItem(statement) : null;
   const writeTargetId = primaryNode?.id ?? statement.id;
   const displayOptions = primaryNode?.options ?? options;
-  const explicitName = primaryNode?.name?.trim() || readOptionValue(displayOptions, "name");
+  const explicitNodeName = primaryNode?.name?.trim();
+  const explicitName = explicitNodeName === undefined || explicitNodeName.length === 0 ? readOptionValue(displayOptions, "name") : explicitNodeName;
   const label = deriveStatementLabel(statement, sceneElementsBySourceId.get(statement.id) ?? []);
   const targetResolution = analysisView.resolvePropertyTarget(writeTargetId);
   const siblingCount = analysisView.statementSnapshot.byParentKey.get(ref.parentKey)?.length ?? 0;

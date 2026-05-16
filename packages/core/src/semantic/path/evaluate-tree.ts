@@ -502,7 +502,7 @@ export function handleChildOperationCluster(params: {
       );
       for (let handleIndex = edgeHandlesStart; handleIndex < context.editHandles.length; handleIndex += 1) {
         const handle = context.editHandles[handleIndex];
-        if (!handle || handle.sourceRef.sourceId !== statement.id) {
+        if (handle?.sourceRef.sourceId !== statement.id) {
           continue;
         }
         context.editHandles[handleIndex] = {
@@ -526,7 +526,8 @@ export function handleChildOperationCluster(params: {
       }
       frontNodeElements.push(...edgeElements);
       for (const coordinateOperation of splitBody.trailingCoordinateOperations) {
-        const parsedName = coordinateOperation.name?.trim() || parseCoordinateOperation(coordinateOperation.raw)?.name;
+        const operationName = coordinateOperation.name?.trim();
+        const parsedName = operationName === undefined || operationName.length === 0 ? parseCoordinateOperation(coordinateOperation.raw)?.name : operationName;
         if (!parsedName) {
           pushDiagnostic(
             "invalid-coordinate-operation",

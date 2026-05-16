@@ -563,8 +563,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     for (const element of snapshot.scene.elements) {
       const adornment = element.adornment;
       if (
-        !adornment ||
-        adornment.kind !== "label" ||
+        adornment?.kind !== "label" ||
         !highlightedAdornmentTargetIds.has(adornment.targetId) ||
         !adornment.ownerPoint ||
         seen.has(adornment.targetId)
@@ -655,16 +654,12 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       let end: WorldPoint | null = null;
       for (const command of element.commands) {
         if (command.kind === "M") {
-          if (!start) {
-            start = command.to;
-          }
+          start ??= command.to;
           end = command.to;
           continue;
         }
         if (command.kind === "L" || command.kind === "C" || command.kind === "A") {
-          if (!start) {
-            start = command.to;
-          }
+          start ??= command.to;
           end = command.to;
         }
       }

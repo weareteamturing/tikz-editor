@@ -232,8 +232,7 @@ function sameRegion(left: TextEditingSession["region"], right: TextEditingSessio
     (left.contentHeight ?? null) === (right.contentHeight ?? null) &&
     ((leftTransform == null && rightTransform == null) ||
       (leftTransform != null &&
-        rightTransform != null &&
-        leftTransform.a === rightTransform.a &&
+        leftTransform.a === rightTransform?.a &&
         leftTransform.b === rightTransform.b &&
         leftTransform.c === rightTransform.c &&
         leftTransform.d === rightTransform.d &&
@@ -704,13 +703,12 @@ export function reduceCanvasTextEdit(
         return { state, effects: [] };
       }
       const session = state.session;
-      if (!session || session.sourceId !== action.sourceId || session.sceneTextId !== action.sceneTextId) {
+      if (session?.sourceId !== action.sourceId || session.sceneTextId !== action.sceneTextId) {
         return { state, effects: [] };
       }
       const selection = normalizeSelection(session.text.length, action.selectionStart, action.selectionEnd);
       const shouldUpdateSessionSelection =
-        !state.dragSelection ||
-        state.dragSelection.pointerId !== action.pointerId ||
+        state.dragSelection?.pointerId !== action.pointerId ||
         state.dragSelection.sourceId !== action.sourceId ||
         state.dragSelection.sceneTextId !== action.sceneTextId ||
         (session.selectionStart === state.dragSelection.initialSelectionStart &&
@@ -727,8 +725,7 @@ export function reduceCanvasTextEdit(
             : session,
           compositionRange: null,
           dragSelection:
-            state.dragSelection &&
-            state.dragSelection.pointerId === action.pointerId &&
+            state.dragSelection?.pointerId === action.pointerId &&
             state.dragSelection.sourceId === action.sourceId &&
             state.dragSelection.sceneTextId === action.sceneTextId
               ? {
@@ -747,7 +744,7 @@ export function reduceCanvasTextEdit(
         return { state, effects: [] };
       }
       const session = state.session;
-      if (!session || session.sourceId !== action.sourceId || session.sceneTextId !== action.sceneTextId) {
+      if (session?.sourceId !== action.sourceId || session.sceneTextId !== action.sceneTextId) {
         return { state, effects: [] };
       }
       const selection = normalizeSelection(session.text.length, action.selectionStart, action.selectionEnd);
@@ -937,8 +934,7 @@ export function reduceCanvasTextEdit(
         return { state, effects: [] };
       }
       const preservedCompositionRange =
-        state.compositionRange &&
-        state.compositionRange.start === selection.start &&
+        state.compositionRange?.start === selection.start &&
         state.compositionRange.end === selection.end
           ? state.compositionRange
           : null;
@@ -970,7 +966,7 @@ export function reduceCanvasTextEdit(
           effects: []
         };
       }
-      if (!action.target || action.target.sourceId !== session.sourceId) {
+      if (action.target?.sourceId !== session.sourceId) {
         if (state.sourceRevision === action.sourceRevision && session.workingSource === action.source) {
           return { state, effects: [] };
         }
@@ -1054,7 +1050,7 @@ export function reduceCanvasTextEdit(
         return { state, effects: [] };
       }
       const session = state.session;
-      if (!session || session.sourceId !== action.sourceId) {
+      if (session?.sourceId !== action.sourceId) {
         return { state, effects: [] };
       }
       const nextOverlay = action.overlay

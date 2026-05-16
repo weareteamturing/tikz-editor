@@ -42,7 +42,7 @@ export function useCanvasGuideEffects(args: UseCanvasGuideEffectsArgs) {
 
     function onPointerMove(event: PointerEvent) {
       const drag = guideDragRef.current;
-      if (!drag || event.pointerId !== drag.pointerId) {
+      if (event.pointerId !== drag?.pointerId) {
         return;
       }
 
@@ -85,7 +85,7 @@ export function useCanvasGuideEffects(args: UseCanvasGuideEffectsArgs) {
 
     function onPointerUp(event: PointerEvent) {
       const drag = guideDragRef.current;
-      if (!drag || event.pointerId !== drag.pointerId) {
+      if (event.pointerId !== drag?.pointerId) {
         return;
       }
 

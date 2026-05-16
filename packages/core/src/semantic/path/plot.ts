@@ -333,7 +333,7 @@ function parsePlotScalar(raw: string): number | null {
   }
 
   const parsed = parseQuantityExpression(normalized);
-  if (parsed && parsed.kind === "scalar" && Number.isFinite(parsed.value)) {
+  if (parsed?.kind === "scalar" && Number.isFinite(parsed.value)) {
     return parsed.value;
   }
 

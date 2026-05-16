@@ -150,15 +150,13 @@ export function fingerprintDefs(defs: readonly string[]): string {
 }
 
 async function getXmlFormatter(): Promise<XmlFormatter> {
-  if (!xmlFormatterPromise) {
-    xmlFormatterPromise = import("xml-formatter").then((mod) => {
+  xmlFormatterPromise ??= import("xml-formatter").then((mod) => {
       const formatter = mod.default;
       if (typeof formatter !== "function") {
         throw new Error("xml-formatter default export is not a function.");
       }
       return formatter;
     });
-  }
   return xmlFormatterPromise;
 }
 

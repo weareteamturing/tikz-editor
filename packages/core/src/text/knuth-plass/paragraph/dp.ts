@@ -248,7 +248,7 @@ function collectTextPenalties(model: ParagraphModel): Map<number, TextPenalty[]>
 
     for (const item of list) {
       const prev = deduped[deduped.length - 1];
-      if (!prev || prev.splitOffset !== item.splitOffset) {
+      if (prev?.splitOffset !== item.splitOffset) {
         deduped.push(item);
       } else if (item.penalty < prev.penalty) {
         deduped[deduped.length - 1] = item;

@@ -148,7 +148,7 @@ function withInferredStandaloneNodeName(items: PathItem[]): PathItem[] {
   }
 
   const node = items[nodeIndex];
-  if (!node || node.kind !== "Node" || node.name) {
+  if (node?.kind !== "Node" || node.name) {
     return items;
   }
 
@@ -196,7 +196,7 @@ function normalizeChildOperationItems(items: PathItem[]): PathItem[] {
   const normalized: PathItem[] = [];
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index];
-    if (!item || item.kind !== "ChildOperation") {
+    if (item?.kind !== "ChildOperation") {
       normalized.push(item);
       continue;
     }
@@ -206,8 +206,7 @@ function normalizeChildOperationItems(items: PathItem[]): PathItem[] {
 
     const bodyCandidate = items[nextIndex];
     if (
-      bodyCandidate &&
-      bodyCandidate.kind === "UnknownPathItem" &&
+      bodyCandidate?.kind === "UnknownPathItem" &&
       normalizedChild.body.length === 0 &&
       isLikelyGroupFragment(bodyCandidate.raw)
     ) {
@@ -224,7 +223,7 @@ function normalizeChildOperationItems(items: PathItem[]): PathItem[] {
     }
 
     const foreachCandidate = items[nextIndex];
-    if (foreachCandidate && foreachCandidate.kind === "PathForeach" && normalizedChild.body.length === 0) {
+    if (foreachCandidate?.kind === "PathForeach" && normalizedChild.body.length === 0) {
       const clause: ChildForeachClause = {
         kind: "ChildForeachClause",
         id: `${normalizedChild.id}:foreach:0`,

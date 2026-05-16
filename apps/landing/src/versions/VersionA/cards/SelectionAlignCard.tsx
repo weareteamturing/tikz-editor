@@ -8,7 +8,7 @@ import {
 } from "@remixicon/react";
 import { applyCursorOverlayFrame, CursorOverlay, getCursorOverlayBounds } from "../cursor-overlay";
 import { createCursorScript, type CursorFrame, type CursorScript } from "../cursor-script";
-import { mountRenderedScene, queryRenderedElement, wrapRenderedElements } from "../animation/rendered-scene";
+import { mountRenderedScene, wrapRenderedElements } from "../animation/rendered-scene";
 import { applyLinePathEndpoints, prepareTransformDrivenLinePath, setSvgAttrs } from "../animation/svg-actors";
 import { renderEditHandlesForBounds } from "../edit-handles";
 import {
@@ -745,11 +745,11 @@ function ToolbarButton({
 }
 
 function queryNodePath(root: ParentNode, node: NodeState): SVGPathElement | null {
-  return queryRenderedElement<SVGPathElement>(root, `path[data-source-id="${node.sourceId}"]:not([fill="none"])`);
+  return root.querySelector<SVGPathElement>(`path[data-source-id="${node.sourceId}"]:not([fill="none"])`);
 }
 
 function queryNodeLabel(root: ParentNode, node: NodeState): SVGImageElement | null {
-  return queryRenderedElement<SVGImageElement>(root, `[data-source-id="${node.sourceId}"][data-text-renderer="mathjax"]`);
+  return root.querySelector<SVGImageElement>(`[data-source-id="${node.sourceId}"][data-text-renderer="mathjax"]`);
 }
 
 function cloneNode(node: NodeState): NodeState {

@@ -577,8 +577,7 @@ export function applyBreaks(
       for (let runIndex = line.startRun; runIndex <= line.endRun; runIndex++) {
         const run = runs[runIndex];
         if (
-          !run ||
-          run.kind !== 'space' ||
+          run?.kind !== 'space' ||
           run.breakRef.kind !== 'mspace' ||
           run.breakRef.isForcedLineBreak
         ) {
@@ -605,7 +604,7 @@ export function applyBreaks(
 
     if (breakDecision.kind === 'hyphen') {
       const run = runs[breakDecision.runIndex];
-      if (!run || run.kind !== 'text') {
+      if (run?.kind !== 'text') {
         errors.push(
           `Hyphen break points to non-text run index ${breakDecision.runIndex}.`
         );
@@ -643,7 +642,7 @@ export function applyBreaks(
     }
 
     const run = runs[breakDecision.runIndex];
-    if (!run || run.kind !== 'space') {
+    if (run?.kind !== 'space') {
       appliedBreaks.push({
         lineIndex: line.lineIndex,
         kind: 'forced',

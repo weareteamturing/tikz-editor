@@ -218,7 +218,7 @@ export function TikzJaxModal({
     if (phase === "done" || phase === "rendering" || phase === "loading-lib") return;
     const pre = document.createElement("pre");
     pre.className = css.outputLog;
-    pre.textContent = nativeLog || nativeError || "No diagnostic output.";
+    pre.textContent = nativeLog.length > 0 ? nativeLog : nativeError !== null && nativeError.length > 0 ? nativeError : "No diagnostic output.";
     output.innerHTML = "";
     output.appendChild(pre);
     pre.scrollTop = pre.scrollHeight;

@@ -47,8 +47,7 @@ export function resolveGridInspectorState(
 
 export function findPathStatementInSource(source: string, sourceId: string, parseOptions: EditParseOptions = {}): PathStatement | null {
   if (
-    parseOptions.analysisView &&
-    parseOptions.analysisView.source === source &&
+    parseOptions.analysisView?.source === source &&
     parseOptions.analysisView.activeFigureId === parseOptions.activeFigureId
   ) {
     return parseOptions.analysisView.findPathStatement(sourceId);

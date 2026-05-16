@@ -43,7 +43,7 @@ export function parseParabolaFromItems(
   const maybeBendKeyword = items[cursor];
   if (maybeBendKeyword?.kind === "PathKeyword" && maybeBendKeyword.keyword === "bend") {
     const bendCoordinate = items[cursor + 1];
-    if (!bendCoordinate || bendCoordinate.kind !== "Coordinate") {
+    if (bendCoordinate?.kind !== "Coordinate") {
       return null;
     }
     bendSpec = {

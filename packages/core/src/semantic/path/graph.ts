@@ -785,7 +785,7 @@ class GraphPlanner {
   private parseNodeTerm(rawNode: string, nodeFrom: number, scope: GraphScopeState, layout: GraphLayoutContext): GraphTermResult | null {
     const trimmedNode = rawNode.trim();
     const balancedGroup = readBalancedSegment(trimmedNode, 0, "{", "}");
-    if (balancedGroup && balancedGroup.next === trimmedNode.length) {
+    if (balancedGroup?.next === trimmedNode.length) {
       return this.parseGroup(trimmedNode, nodeFrom, scope, scope.mode, layout);
     }
 
@@ -3010,7 +3010,7 @@ function stripOuterBraces(raw: string): { inner: string; innerOffset: number } |
     return null;
   }
   const segment = readBalancedSegment(raw, 0, "{", "}");
-  if (!segment || segment.next !== raw.length) {
+  if (segment?.next !== raw.length) {
     return null;
   }
   return {

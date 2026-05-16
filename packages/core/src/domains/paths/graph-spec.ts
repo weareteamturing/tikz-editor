@@ -52,7 +52,7 @@ function stripOuterBraces(raw: string, from: number): { raw: string; from: numbe
   }
 
   const segment = readBalancedSegment(trimmed.raw, 0, "{", "}");
-  if (!segment || segment.next !== trimmed.raw.length) {
+  if (segment?.next !== trimmed.raw.length) {
     return null;
   }
 

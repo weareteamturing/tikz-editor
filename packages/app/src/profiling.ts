@@ -56,9 +56,7 @@ function recorder(): TikzEditorProfilingRecorder {
 }
 
 function ensureRecorderInstalled(): void {
-  if (!globalThis.__TIKZ_EDITOR_PROFILING_RECORDER__) {
-    globalThis.__TIKZ_EDITOR_PROFILING_RECORDER__ = recorder();
-  }
+  globalThis.__TIKZ_EDITOR_PROFILING_RECORDER__ ??= recorder();
 }
 
 export function installAppProfilingRecorder(): void {

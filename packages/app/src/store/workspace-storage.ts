@@ -249,7 +249,7 @@ export function loadUserWorkspaces(): UserWorkspace[] {
     const raw = getActiveEditorPlatform().persistence.load(USER_WORKSPACES_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Partial<PersistedUserWorkspacesV1>;
-    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.items)) return [];
+    if (parsed?.version !== 1 || !Array.isArray(parsed.items)) return [];
     return parsed.items
       .filter((item): item is UserWorkspace =>
         Boolean(

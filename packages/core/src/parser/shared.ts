@@ -13,7 +13,7 @@ export function getCachedContextDefinitions(
   collectContextDefinitions: (prefix: string) => Statement[]
 ): Statement[] {
   const cache = contextDefinitionCache;
-  if (cache && cache.prefix === prefix) {
+  if (cache?.prefix === prefix) {
     return cache.definitions;
   }
   const definitions = collectContextDefinitions(prefix);

@@ -3,10 +3,6 @@ export function mountRenderedScene(group: SVGGElement, innerSvg: string): void {
   replaceMathJaxSvgsWithImages(group);
 }
 
-export function queryRenderedElement<T extends Element>(root: ParentNode, selector: string): T | null {
-  return root.querySelector(selector);
-}
-
 export function wrapRenderedElements(elements: Element[], className?: string): SVGGElement | null {
   const [first] = elements;
   if (!first?.parentNode) {

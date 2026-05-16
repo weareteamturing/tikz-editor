@@ -161,7 +161,7 @@ function ModalPanel({
 
     function onPointerMove(event: PointerEvent): void {
       const dragState = dragStateRef.current;
-      if (!dragState || dragState.pointerId !== event.pointerId) {
+      if (dragState?.pointerId !== event.pointerId) {
         return;
       }
       setOffset((current) => ({

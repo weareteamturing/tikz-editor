@@ -7,7 +7,7 @@ import { renderEditHandlesForBounds } from "../edit-handles";
 import { rotateNodeInitial } from "../generated/feature-svgs";
 import { createCursorPathScript } from "../animation/cursor-path";
 import { offsetPoint, point, rotatePointAround } from "../animation/points";
-import { mountRenderedScene, queryRenderedElement } from "../animation/rendered-scene";
+import { mountRenderedScene } from "../animation/rendered-scene";
 import { toSvgRotation } from "../animation/svg-actors";
 import {
   formatTikzNumber,
@@ -81,11 +81,8 @@ export function RotateNodeCard() {
 
     mountRenderedScene(contentGroup, rotateNodeInitial.innerSvg);
 
-    const bodyPath = queryRenderedElement<SVGPathElement>(contentGroup, 'path[data-source-id="path:1"]:not([data-arrow-tip-kind])');
-    const labelSvg = queryRenderedElement<SVGImageElement>(
-      contentGroup,
-      '[data-source-id="path:1"][data-text-renderer="mathjax"]'
-    );
+    const bodyPath = contentGroup.querySelector<SVGPathElement>('path[data-source-id="path:1"]:not([data-arrow-tip-kind])');
+    const labelSvg = contentGroup.querySelector<SVGImageElement>('[data-source-id="path:1"][data-text-renderer="mathjax"]');
     if (!bodyPath || !labelSvg) {
       return;
     }

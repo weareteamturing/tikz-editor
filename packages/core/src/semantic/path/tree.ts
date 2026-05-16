@@ -75,8 +75,9 @@ export function prepareChildBodyWithRoot(child: ChildOperationItem, generatedRoo
   const rootIndex = body.findIndex((item) => item.kind !== "PathComment" && item.kind !== "PathOption");
   if (rootIndex >= 0) {
     const root = body[rootIndex];
-    if (root && root.kind === "Node") {
-      const rootNameRaw = root.name?.trim() || generatedRootName;
+    if (root?.kind === "Node") {
+      const trimmedRootName = root.name?.trim();
+      const rootNameRaw = trimmedRootName === undefined || trimmedRootName.length === 0 ? generatedRootName : trimmedRootName;
       if (!root.name || root.name.trim().length === 0) {
         const patchedRoot: NodeItem = {
           ...root,

@@ -594,7 +594,7 @@ export function canAddMatrixColumnAtEnd(context: SelectionCommandContext): boole
 
 export function canInsertMatrixRowAbove(context: SelectionCommandContext): boolean {
   const selection = resolveUniformMatrixCellSelection(context);
-  if (!selection || selection.rowIndex == null) {
+  if (selection?.rowIndex == null) {
     return false;
   }
   return canApplyMatrixAction(context, {
@@ -606,7 +606,7 @@ export function canInsertMatrixRowAbove(context: SelectionCommandContext): boole
 
 export function canInsertMatrixRowBelow(context: SelectionCommandContext): boolean {
   const selection = resolveUniformMatrixCellSelection(context);
-  if (!selection || selection.rowIndex == null) {
+  if (selection?.rowIndex == null) {
     return false;
   }
   return canApplyMatrixAction(context, {
@@ -618,7 +618,7 @@ export function canInsertMatrixRowBelow(context: SelectionCommandContext): boole
 
 export function canInsertMatrixColumnLeft(context: SelectionCommandContext): boolean {
   const selection = resolveUniformMatrixCellSelection(context);
-  if (!selection || selection.columnIndex == null) {
+  if (selection?.columnIndex == null) {
     return false;
   }
   return canApplyMatrixAction(context, {
@@ -630,7 +630,7 @@ export function canInsertMatrixColumnLeft(context: SelectionCommandContext): boo
 
 export function canInsertMatrixColumnRight(context: SelectionCommandContext): boolean {
   const selection = resolveUniformMatrixCellSelection(context);
-  if (!selection || selection.columnIndex == null) {
+  if (selection?.columnIndex == null) {
     return false;
   }
   return canApplyMatrixAction(context, {
@@ -653,7 +653,7 @@ export function canTransposeMatrix(context: SelectionCommandContext): boolean {
 
 export function canRemoveMatrixRow(context: SelectionCommandContext): boolean {
   const selection = resolveUniformMatrixCellSelection(context);
-  if (!selection || selection.rowIndex == null) {
+  if (selection?.rowIndex == null) {
     return false;
   }
   return canApplyMatrixAction(context, {
@@ -665,7 +665,7 @@ export function canRemoveMatrixRow(context: SelectionCommandContext): boolean {
 
 export function canRemoveMatrixColumn(context: SelectionCommandContext): boolean {
   const selection = resolveUniformMatrixCellSelection(context);
-  if (!selection || selection.columnIndex == null) {
+  if (selection?.columnIndex == null) {
     return false;
   }
   return canApplyMatrixAction(context, {
@@ -702,7 +702,7 @@ export function addTreeChild(context: SelectionCommandContext): boolean {
 
 export function addTreeSibling(context: SelectionCommandContext, position: "before" | "after"): boolean {
   const target = resolveTreeCommandTarget(context);
-  if (!target || target.kind !== "child" || target.foreach) {
+  if (target?.kind !== "child" || target.foreach) {
     return false;
   }
   context.dispatch({
@@ -758,7 +758,7 @@ export function addMatrixColumnAtEnd(context: SelectionCommandContext): boolean 
 
 export function insertMatrixRowAbove(context: SelectionCommandContext): boolean {
   const selection = resolveUniformMatrixCellSelection(context);
-  if (!selection || selection.rowIndex == null) {
+  if (selection?.rowIndex == null) {
     return false;
   }
   const action = {
@@ -775,7 +775,7 @@ export function insertMatrixRowAbove(context: SelectionCommandContext): boolean 
 
 export function insertMatrixRowBelow(context: SelectionCommandContext): boolean {
   const selection = resolveUniformMatrixCellSelection(context);
-  if (!selection || selection.rowIndex == null) {
+  if (selection?.rowIndex == null) {
     return false;
   }
   const action = {
@@ -792,7 +792,7 @@ export function insertMatrixRowBelow(context: SelectionCommandContext): boolean 
 
 export function insertMatrixColumnLeft(context: SelectionCommandContext): boolean {
   const selection = resolveUniformMatrixCellSelection(context);
-  if (!selection || selection.columnIndex == null) {
+  if (selection?.columnIndex == null) {
     return false;
   }
   const action = {
@@ -809,7 +809,7 @@ export function insertMatrixColumnLeft(context: SelectionCommandContext): boolea
 
 export function insertMatrixColumnRight(context: SelectionCommandContext): boolean {
   const selection = resolveUniformMatrixCellSelection(context);
-  if (!selection || selection.columnIndex == null) {
+  if (selection?.columnIndex == null) {
     return false;
   }
   const action = {
@@ -845,7 +845,7 @@ export function transposeMatrix(context: SelectionCommandContext): boolean {
 
 export function removeMatrixRow(context: SelectionCommandContext): boolean {
   const selection = resolveUniformMatrixCellSelection(context);
-  if (!selection || selection.rowIndex == null) {
+  if (selection?.rowIndex == null) {
     return false;
   }
   const action = {
@@ -865,7 +865,7 @@ export function removeMatrixRow(context: SelectionCommandContext): boolean {
 
 export function removeMatrixColumn(context: SelectionCommandContext): boolean {
   const selection = resolveUniformMatrixCellSelection(context);
-  if (!selection || selection.columnIndex == null) {
+  if (selection?.columnIndex == null) {
     return false;
   }
   const action = {
@@ -1275,7 +1275,7 @@ function classifyMatrixCellSelection(
   const seenCellIds = new Set<string>();
   for (const element of context.scene.elements) {
     const matrixCell = element.matrixCell;
-    if (!matrixCell || matrixCell.matrixSourceId !== matrixSourceId) {
+    if (matrixCell?.matrixSourceId !== matrixSourceId) {
       continue;
     }
     if (seenCellIds.has(matrixCell.cellSourceId)) {
@@ -1313,7 +1313,7 @@ function classifyMatrixCellSelection(
 }
 
 function areSetValuesEqual(left: ReadonlySet<string>, right: ReadonlySet<string> | undefined): boolean {
-  if (!right || left.size !== right.size) {
+  if (left.size !== right?.size) {
     return false;
   }
   for (const value of left) {

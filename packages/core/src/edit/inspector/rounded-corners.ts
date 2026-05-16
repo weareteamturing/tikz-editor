@@ -222,7 +222,7 @@ export function estimateSegmentStartRoundedOffset(
   start: { x: number; y: number },
   end: { x: number; y: number }
 ): number {
-  if (!previous || previous.kind !== "C") {
+  if (previous?.kind !== "C") {
     return 0;
   }
   const direction = normalizeVector({ x: end.x - start.x, y: end.y - start.y });
@@ -243,7 +243,7 @@ export function estimateSegmentEndRoundedOffset(
   start: { x: number; y: number },
   end: { x: number; y: number }
 ): number {
-  if (!next || next.kind !== "C") {
+  if (next?.kind !== "C") {
     return 0;
   }
   const direction = normalizeVector({ x: end.x - start.x, y: end.y - start.y });
@@ -266,7 +266,7 @@ export function estimateClosingCornerStartOffset(
   end: { x: number; y: number }
 ): number {
   const previous = closingIndex > 0 ? commands[closingIndex - 1] : undefined;
-  if (!previous || previous.kind !== "C") {
+  if (previous?.kind !== "C") {
     return 0;
   }
   if (pointDistance(previous.to, start) > 1e-6) {

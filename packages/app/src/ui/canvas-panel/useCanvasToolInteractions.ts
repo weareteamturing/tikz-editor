@@ -138,7 +138,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
   const finalizePendingTouchViewportTap = useCallback(
     (pointerId: number) => {
       const pending = pendingTouchViewportRef.current;
-      if (!pending || pending.pointerId !== pointerId) return false;
+      if (pending?.pointerId !== pointerId) return false;
       clearTimeout(pending.timer);
       pendingTouchViewportRef.current = null;
       if (!pending.additiveSelection) {
@@ -152,7 +152,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
   useEffect(() => {
     function onWorldPointerMove(event: PointerEvent) {
       const pending = pendingTouchViewportRef.current;
-      if (!pending || pending.pointerId !== event.pointerId) return;
+      if (pending?.pointerId !== event.pointerId) return;
       const clientPoint = makeClientPoint(px(event.clientX), px(event.clientY));
       const dx = clientPoint.x - pending.startClient.x;
       const dy = clientPoint.y - pending.startClient.y;
@@ -726,7 +726,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       }
       if (toolMode === "magnify") {
         const magnifier = magnifierState;
-        if (!magnifier || magnifier.pointerId !== event.pointerId) {
+        if (magnifier?.pointerId !== event.pointerId) {
           setNodeAnchorOverlay(null);
           setToolCursorWorld(null);
           setSnapLines([]);
@@ -923,7 +923,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
         return;
       }
       if (toolMode === "magnify") {
-        if (!magnifierState || magnifierState.pointerId !== event.pointerId) {
+        if (magnifierState?.pointerId !== event.pointerId) {
           setNodeAnchorOverlay(null);
           setToolCursorWorld(null);
           setSnapLines([]);
@@ -1083,7 +1083,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     (event: ReactPointerEvent<SVGSVGElement>) => {
       if (toolMode === "magnify") {
         const magnifier = magnifierState;
-        if (magnifier && magnifier.pointerId === event.pointerId) {
+        if (magnifier?.pointerId === event.pointerId) {
           setNodeAnchorOverlay(null);
           setToolCursorWorld(null);
           setSnapLines([]);
@@ -1117,7 +1117,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
         return;
       }
       const magnifier = magnifierState;
-      if (!magnifier || magnifier.pointerId !== event.pointerId) {
+      if (magnifier?.pointerId !== event.pointerId) {
         return;
       }
       setNodeAnchorOverlay(null);

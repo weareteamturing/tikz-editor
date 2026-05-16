@@ -177,7 +177,7 @@ export function InspectorPanel() {
     options: NumberChangeOptions = {}
   ): void {
     const write = property.write;
-    if (!write || write.mode !== "setProperty" || !write.writable || write.elementId.length === 0) return;
+    if (write?.mode !== "setProperty" || !write.writable || write.elementId.length === 0) return;
     const parsed = Number(raw);
     const next =
       Number.isFinite(parsed) && property.min != null && property.max != null

@@ -1017,7 +1017,7 @@ export function App() {
       if (event.tool === "get_diagnostics") {
         const { buildDiagnosticsText: buildDiag } = await import("./assistant-tool-handlers");
         const text = buildDiag(sourceForDoc, targetSnapshot);
-        await respond(true, text || "No diagnostics — source parses cleanly.");
+        await respond(true, text === null || text.length === 0 ? "No diagnostics — source parses cleanly." : text);
         return;
       }
 
@@ -1778,7 +1778,7 @@ export function App() {
 
     for (const documentId of closeCtx.dirtyDocumentIds) {
       const doc = documents[documentId];
-      if (!doc || !doc.dirty) {
+      if (!doc?.dirty) {
         continue;
       }
       const saved = await saveDocument(documentId, "save");

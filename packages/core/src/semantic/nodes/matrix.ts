@@ -1755,7 +1755,7 @@ function resolveLeadingMatrixCellOptionSpan(rawCell: string, baseOffset: number)
   }
 
   const optionBlock = readBalancedBlock(trimmedPayload, 0, "[", "]");
-  if (!optionBlock || optionBlock.nextIndex !== trimmedPayload.length) {
+  if (optionBlock?.nextIndex !== trimmedPayload.length) {
     return undefined;
   }
 

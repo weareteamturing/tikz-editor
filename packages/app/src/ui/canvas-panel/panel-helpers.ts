@@ -871,7 +871,7 @@ function spansEqual(left: Span, right: Span): boolean {
 }
 
 export function resolveStatementRotateDegrees(statement: Statement | null | undefined): number {
-  if (!statement || statement.kind !== "Path") {
+  if (statement?.kind !== "Path") {
     return 0;
   }
   return resolveRotateDegreesFromOptions(statement.options);
