@@ -66,11 +66,15 @@ export function renderPathWithArrows(path: ScenePath): RenderedArrowPath {
     return { shaftCommands, tipPaths };
   }
 
-  const startFrameForward = sampleFrameFromStartExtrapolated(shortenedSegments, 0);
-  const endFrameForward = sampleFrameFromEndExtrapolated(shortenedSegments, 0);
-  if (!startFrameForward || !endFrameForward) {
+  const startLineEndFrameForward = sampleFrameFromStartExtrapolated(shortenedSegments, 0);
+  const endLineEndFrameForward = sampleFrameFromEndExtrapolated(shortenedSegments, 0);
+  const startOriginalEndFrameForward = sampleFrameFromStartExtrapolated(originalSegments, styleStartShortening);
+  const endOriginalEndFrameForward = sampleFrameFromEndExtrapolated(originalSegments, styleEndShortening);
+  if (!startLineEndFrameForward || !endLineEndFrameForward || !startOriginalEndFrameForward || !endOriginalEndFrameForward) {
     return { shaftCommands, tipPaths };
   }
+  const startFrameForward = frameWithPointAndTangent(startLineEndFrameForward, startOriginalEndFrameForward);
+  const endFrameForward = frameWithPointAndTangent(endLineEndFrameForward, endOriginalEndFrameForward);
 
   tipPaths.push(
     ...renderSideTips({
@@ -200,6 +204,14 @@ function orientFrameForSide(frameForward: Frame, side: ArrowSide): Frame {
     point: frameForward.point,
     tangent,
     normal: perpendicular(tangent)
+  };
+}
+
+function frameWithPointAndTangent(pointFrame: Frame, tangentFrame: Frame): Frame {
+  return {
+    point: pointFrame.point,
+    tangent: tangentFrame.tangent,
+    normal: perpendicular(tangentFrame.tangent)
   };
 }
 

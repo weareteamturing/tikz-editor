@@ -22,6 +22,21 @@ function extractShaftLineEndpoints(svg: string, sourceId: string): { startX: num
   };
 }
 
+function extractArrowPathPoints(svg: string, sourceId: string, tipKind: string): { x: number; y: number }[] {
+  const escapedSourceId = sourceId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedTipKind = tipKind.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = svg.match(
+    new RegExp(`data-source-id="${escapedSourceId}" data-arrow-tip-kind="${escapedTipKind}"[^>]* d="([^"]+)"`)
+  );
+  const d = match?.[1] ?? "";
+  const numbers = [...d.matchAll(/-?\d+(?:\.\d+)?/g)].map((numberMatch) => Number(numberMatch[0]));
+  const points: { x: number; y: number }[] = [];
+  for (let index = 0; index + 1 < numbers.length; index += 2) {
+    points.push({ x: numbers[index], y: numbers[index + 1] });
+  }
+  return points;
+}
+
 describe("svg arrow geometry", () => {
   it("treats angle 90 as a single end tip instead of splitting it", () => {
     const source = String.raw`\begin{tikzpicture}[->,>=angle 90]
@@ -102,6 +117,18 @@ describe("svg arrow geometry", () => {
 
     expect(svg).toContain('data-source-id="path:0" data-arrow-tip-kind="stealth" data-arrow-side="end" data-arrow-index="0" data-arrow-bend="true"');
     expect(svg).toContain('data-source-id="path:1" data-arrow-tip-kind="stealth" data-arrow-side="end" data-arrow-index="0" data-arrow-bend="false"');
+  });
+
+  it("orients rigid tips from the original transformed arc endpoint tangent", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[cm={30,0,0,30,(0pt,0pt)}, -{Stealth[inset=0pt,length=7pt,width=7pt]}] (0.03,0) arc[start angle=0, end angle=90, radius=1pt];
+\end{tikzpicture}`;
+    const svg = renderSvg(source);
+    const points = extractArrowPathPoints(svg, "path:0", "stealth");
+
+    expect(points).toHaveLength(4);
+    expect(points[1]?.x).toBeCloseTo(points[3]?.x ?? Number.NaN, 3);
+    expect(points[0]?.y).toBeCloseTo(points[2]?.y ?? Number.NaN, 3);
   });
 
   it("emits geometry metadata for additional arrows.meta tip families", () => {
