@@ -12,6 +12,7 @@ type OpenedBinaryFile = {
 
 type ResolveOpenedFileOptions = {
   requireSvg?: boolean;
+  requireIpe?: boolean;
 };
 
 export type ResolveOpenedFileResult =
@@ -26,6 +27,7 @@ export type KeynoteScopeSnippetResult = SvgScopeSnippetResult;
 export type PowerPointScopeSnippetResult = SvgScopeSnippetResult;
 
 const SVG_XML_RE = /<svg[\s>]/i;
+const IPE_XML_RE = /<ipe[\s>]/i;
 
 function stripExtension(name: string): string {
   return name.replace(/\.[^./\\]+$/u, "");
@@ -49,6 +51,15 @@ export function detectSvgText(source: string, name?: string | null): boolean {
   return SVG_XML_RE.test(head);
 }
 
+export function detectIpeText(source: string, name?: string | null): boolean {
+  const trimmedName = name?.trim().toLowerCase() ?? "";
+  if (trimmedName.endsWith(".ipe")) {
+    return true;
+  }
+  const head = source.slice(0, 2048);
+  return IPE_XML_RE.test(head);
+}
+
 export function extractTikzPictureBody(tikzSource: string): string {
   const beginToken = "\\begin{tikzpicture}";
   const endToken = "\\end{tikzpicture}";
@@ -70,6 +81,16 @@ export function extractTikzPictureBody(tikzSource: string): string {
 async function convertSvgToTikzSource(svgSource: string): Promise<string> {
   const { svgToTikz } = await import("svg2tikz");
   return svgToTikz(svgSource, { standalone: false });
+}
+
+async function convertIpeToTikzSource(ipeSource: string): Promise<string> {
+  const { convertIpeToTikz } = await import("ipe2tikz");
+  const converted = convertIpeToTikz(ipeSource);
+  const errorDiagnostics = converted.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+  if (errorDiagnostics.length > 0 && converted.tikz.trim().length === 0) {
+    throw new Error(errorDiagnostics.map((diagnostic) => diagnostic.message).join("; "));
+  }
+  return converted.tikz;
 }
 
 function toImportedFileRef(name: string, fallbackBaseName = "imported-svg"): DocumentFileRef {
@@ -99,16 +120,43 @@ async function resolveOpenedSvgAsDocument(opened: OpenedTextFile): Promise<Resol
   }
 }
 
+async function resolveOpenedIpeAsDocument(opened: OpenedTextFile): Promise<ResolveOpenedFileResult> {
+  const originalName = opened.fileRef?.name ?? "imported.ipe";
+  try {
+    const converted = await convertIpeToTikzSource(opened.source);
+    const suggestedFileRef = toImportedFileRef(originalName, "imported-ipe");
+    return {
+      kind: "success",
+      source: converted,
+      title: suggestedFileRef.name,
+      fileRef: suggestedFileRef,
+      importedFromSvg: false
+    };
+  } catch (error) {
+    return {
+      kind: "failure",
+      message: `Ipe import failed: ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
+}
+
 export async function resolveOpenedFileForDocument(
   opened: OpenedTextFile,
   options: ResolveOpenedFileOptions = {}
 ): Promise<ResolveOpenedFileResult> {
   const isSvg = detectSvgText(opened.source, opened.fileRef?.name);
+  const isIpe = detectIpeText(opened.source, opened.fileRef?.name);
+  if (options.requireSvg && !isSvg) {
+    return { kind: "failure", message: "Selected file is not an SVG document." };
+  }
+  if (options.requireIpe && !isIpe) {
+    return { kind: "failure", message: "Selected file is not an Ipe document." };
+  }
   if (isSvg) {
     return resolveOpenedSvgAsDocument(opened);
   }
-  if (options.requireSvg) {
-    return { kind: "failure", message: "Selected file is not an SVG document." };
+  if (isIpe) {
+    return resolveOpenedIpeAsDocument(opened);
   }
   return {
     kind: "success",

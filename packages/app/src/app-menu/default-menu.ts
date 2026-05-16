@@ -56,6 +56,11 @@ export const APP_MENU_DEFINITION = [
         items: [
           {
             kind: "command",
+            commandId: APP_MENU_COMMAND_IDS.IMPORT_IPE,
+            label: "Ipe (.ipe)..."
+          },
+          {
+            kind: "command",
             commandId: APP_MENU_COMMAND_IDS.IMPORT_POWERPOINT,
             label: "PowerPoint (.pptx)..."
           },

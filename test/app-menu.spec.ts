@@ -5,6 +5,7 @@ describe("app menu definition", () => {
   it("defines file lifecycle command ids", () => {
     expect(APP_MENU_COMMAND_IDS.NEW_DOCUMENT).toBe("file.new-document");
     expect(APP_MENU_COMMAND_IDS.OPEN_DOCUMENT).toBe("file.open-document");
+    expect(APP_MENU_COMMAND_IDS.IMPORT_IPE).toBe("file.import-ipe");
     expect(APP_MENU_COMMAND_IDS.IMPORT_POWERPOINT).toBe("file.import-powerpoint");
     expect(APP_MENU_COMMAND_IDS.IMPORT_SVG).toBe("file.import-svg");
     expect(APP_MENU_COMMAND_IDS.SAVE_DOCUMENT).toBe("file.save-document");
@@ -173,7 +174,7 @@ describe("app menu definition", () => {
     expect(openExampleIndex).toBe(openIndex + 1);
   });
 
-  it("exposes PowerPoint and SVG import commands in the File > Import submenu", () => {
+  it("exposes Ipe, PowerPoint, and SVG import commands in the File > Import submenu", () => {
     const fileSection = APP_MENU_DEFINITION.find((section) => section.id === "file");
     expect(fileSection).toBeDefined();
     const items = fileSection?.items ?? [];
@@ -185,22 +186,29 @@ describe("app menu definition", () => {
       throw new Error("Expected Import submenu in File menu.");
     }
 
+    const ipeItem = importMenu.items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.IMPORT_IPE
+    );
     const powerpointItem = importMenu.items.find(
       (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.IMPORT_POWERPOINT
     );
     const svgItem = importMenu.items.find(
       (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.IMPORT_SVG
     );
+    expect(ipeItem).toBeDefined();
     expect(powerpointItem).toBeDefined();
     expect(svgItem).toBeDefined();
     if (
+      !ipeItem ||
+      ipeItem.kind !== "command" ||
       !powerpointItem ||
       powerpointItem.kind !== "command" ||
       !svgItem ||
       svgItem.kind !== "command"
     ) {
-      throw new Error("Expected file.import-powerpoint and file.import-svg commands in File > Import.");
+      throw new Error("Expected file.import-ipe, file.import-powerpoint, and file.import-svg commands in File > Import.");
     }
+    expect(ipeItem.label).toBe("Ipe (.ipe)...");
     expect(powerpointItem.label).toBe("PowerPoint (.pptx)...");
     expect(svgItem.label).toBe("SVG...");
   });

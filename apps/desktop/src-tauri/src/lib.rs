@@ -1394,7 +1394,7 @@ fn desktop_open_text(
         Some(PathBuf::from(raw_path))
     } else {
         FileDialog::new()
-            .add_filter("TikZ/SVG", &["tex", "tikz", "txt", "svg"])
+            .add_filter("TikZ/SVG/Ipe", &["tex", "tikz", "txt", "svg", "ipe"])
             .pick_file()
     };
     let Some(path_buf) = resolved_path else {

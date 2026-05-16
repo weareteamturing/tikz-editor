@@ -72,9 +72,9 @@ const DOWNLOAD_PROVIDER = "download";
 const HANDLE_INDEX_KEY = "tikz-editor:browser-file-handles";
 const ACCEPT_TYPES = [
   {
-    description: "TikZ and SVG files",
+    description: "TikZ, SVG, and Ipe files",
     accept: {
-      "text/plain": [".tex", ".tikz", ".txt"],
+      "text/plain": [".tex", ".tikz", ".txt", ".ipe"],
       "image/svg+xml": [".svg"]
     }
   }
@@ -222,7 +222,7 @@ function openTextFileWithInput(): Promise<{ source: string; fileRef: DocumentFil
     }
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".tex,.tikz,.txt,.svg,text/plain,image/svg+xml";
+    input.accept = ".tex,.tikz,.txt,.svg,.ipe,text/plain,image/svg+xml";
     input.style.display = "none";
     input.addEventListener("change", () => {
       void (async () => {

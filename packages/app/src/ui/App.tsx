@@ -1847,7 +1847,7 @@ export function App() {
 
   function isDroppableFile(file: File): boolean {
     const name = file.name.toLowerCase();
-    return name.endsWith(".tex") || name.endsWith(".tikz") || name.endsWith(".svg");
+    return name.endsWith(".tex") || name.endsWith(".tikz") || name.endsWith(".svg") || name.endsWith(".ipe");
   }
 
   function onAppDragOver(e: React.DragEvent<HTMLDivElement>) {

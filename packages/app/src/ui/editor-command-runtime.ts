@@ -292,16 +292,19 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     }));
   };
 
-  const runOpenDocument = (requireSvg = false, addToRecent = true) => {
+  const runOpenDocument = (options: { requireSvg?: boolean; requireIpe?: boolean; addToRecent?: boolean } = {}) => {
     const openText = getActiveEditorPlatform().files?.openText;
     if (!openText) {
       return;
     }
-    void openText({ addToRecent }).then(async (opened) => {
+    void openText({ addToRecent: options.addToRecent ?? true }).then(async (opened) => {
       if (!opened) {
         return;
       }
-      const resolved = await resolveOpenedFileForDocument(opened, { requireSvg });
+      const resolved = await resolveOpenedFileForDocument(opened, {
+        requireSvg: options.requireSvg,
+        requireIpe: options.requireIpe
+      });
       if (resolved.kind === "failure") {
         const alertFn = (globalThis as { alert?: (message?: string) => void }).alert;
         if (typeof alertFn === "function") {
@@ -389,7 +392,11 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     },
     [APP_MENU_COMMAND_IDS.OPEN_DOCUMENT]: {
       enabled: canOpen,
-      run: () => { runOpenDocument(false); }
+      run: () => { runOpenDocument(); }
+    },
+    [APP_MENU_COMMAND_IDS.IMPORT_IPE]: {
+      enabled: canOpen,
+      run: () => { runOpenDocument({ requireIpe: true, addToRecent: false }); }
     },
     [APP_MENU_COMMAND_IDS.IMPORT_POWERPOINT]: {
       enabled: canOpenBinary,
@@ -397,7 +404,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     },
     [APP_MENU_COMMAND_IDS.IMPORT_SVG]: {
       enabled: canOpen,
-      run: () => { runOpenDocument(true, false); }
+      run: () => { runOpenDocument({ requireSvg: true, addToRecent: false }); }
     },
     [APP_MENU_COMMAND_IDS.CLEAR_RECENT_FILES]: {
       enabled: typeof getActiveEditorPlatform().files?.clearRecentFiles === "function",

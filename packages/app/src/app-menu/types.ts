@@ -1,6 +1,7 @@
 export const APP_MENU_COMMAND_IDS = {
   NEW_DOCUMENT: "file.new-document",
   OPEN_DOCUMENT: "file.open-document",
+  IMPORT_IPE: "file.import-ipe",
   IMPORT_POWERPOINT: "file.import-powerpoint",
   IMPORT_SVG: "file.import-svg",
   SAVE_DOCUMENT: "file.save-document",

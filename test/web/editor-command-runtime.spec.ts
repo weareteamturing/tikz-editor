@@ -7,9 +7,14 @@ import type { EditorAction } from "../../packages/app/src/store/types.js";
 import { setActiveEditorPlatform } from "../../packages/app/src/platform/current.js";
 
 const svgToTikzMock = vi.hoisted(() => vi.fn<(source: string) => string>());
+const convertIpeToTikzMock = vi.hoisted(() => vi.fn<(source: string) => { tikz: string; diagnostics: Array<{ severity: "warning" | "error"; message: string }> }>());
 
 vi.mock("svg2tikz", () => ({
   svgToTikz: svgToTikzMock
+}));
+
+vi.mock("ipe2tikz", () => ({
+  convertIpeToTikz: convertIpeToTikzMock
 }));
 
 const SOURCE = String.raw`\begin{tikzpicture}
@@ -38,6 +43,7 @@ describe("editor-command-runtime", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     svgToTikzMock.mockReset();
+    convertIpeToTikzMock.mockReset();
     setActiveEditorPlatform({
       id: "test-platform",
       persistence: {
@@ -1127,6 +1133,60 @@ describe("editor-command-runtime", () => {
       type: "NEW_DOCUMENT",
       source: String.raw`\begin{tikzpicture}
   \draw (4,4)--(5,5);
+\end{tikzpicture}`,
+      title: "shape.tex"
+    });
+    expect(dispatch).toHaveBeenNthCalledWith(2, {
+      type: "MARK_DOCUMENT_SAVED",
+      fileRef: { kind: "virtual", name: "shape.tex" }
+    });
+  });
+
+  it("routes import ipe command through ipe conversion and opens a new virtual tex document", async () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+    convertIpeToTikzMock.mockReturnValue({
+      tikz: String.raw`\begin{tikzpicture}
+  \draw (1pt,2pt) -- (3pt,4pt);
+\end{tikzpicture}`,
+      diagnostics: []
+    });
+    setActiveEditorPlatform({
+      id: "test-platform",
+      persistence: {
+        load: () => null,
+        save: () => undefined
+      },
+      files: {
+        openText: async () => ({
+          source: `<ipe version="70200"></ipe>`,
+          fileRef: { kind: "file", name: "shape.ipe" }
+        })
+      }
+    });
+
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        historyIndex: 0,
+        historyLength: 1
+      })
+    );
+
+    const ran = runtime.runCommand(APP_MENU_COMMAND_IDS.IMPORT_IPE, "menu");
+    expect(ran).toBe(true);
+
+    await vi.waitFor(() => {
+      expect(convertIpeToTikzMock).toHaveBeenCalledTimes(1);
+      expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "NEW_DOCUMENT" }));
+    });
+
+    expect(dispatch).toHaveBeenNthCalledWith(1, {
+      type: "NEW_DOCUMENT",
+      source: String.raw`\begin{tikzpicture}
+  \draw (1pt,2pt) -- (3pt,4pt);
 \end{tikzpicture}`,
       title: "shape.tex"
     });
