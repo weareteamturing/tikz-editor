@@ -435,8 +435,8 @@ function mapTikzLibraryStatement(node: SyntaxNode, source: string, state: Statem
 function mapColorletStatement(node: SyntaxNode, source: string, state: StatementMappingState): ColorletStatement {
   const statementIndex = allocateStatementIndex(state);
   const groups = findChildrenByName(node, "Group");
-  const nameGroup = groups[0] ?? null;
-  const valueGroup = groups[1] ?? null;
+  const nameGroup = groups.at(0) ?? null;
+  const valueGroup = groups.at(1) ?? null;
   return {
     kind: "Colorlet",
     id: colorletStatementId(statementIndex),
@@ -453,9 +453,9 @@ function mapColorletStatement(node: SyntaxNode, source: string, state: Statement
 function mapDefineColorStatement(node: SyntaxNode, source: string, state: StatementMappingState): DefineColorStatement {
   const statementIndex = allocateStatementIndex(state);
   const groups = findChildrenByName(node, "Group");
-  const nameGroup = groups[0] ?? null;
-  const modelGroup = groups[1] ?? null;
-  const specificationGroup = groups[2] ?? null;
+  const nameGroup = groups.at(0) ?? null;
+  const modelGroup = groups.at(1) ?? null;
+  const specificationGroup = groups.at(2) ?? null;
 
   return {
     kind: "DefineColor",

@@ -89,8 +89,8 @@ function hasUnscopedPartDrift(
   }
 
   for (let index = 0; index < previousUnscoped.length; index += 1) {
-    const previousPart = previousUnscoped[index];
-    const nextPart = nextUnscoped[index];
+    const previousPart = previousUnscoped.at(index);
+    const nextPart = nextUnscoped.at(index);
     if (!previousPart || !nextPart) {
       return true;
     }
@@ -138,7 +138,7 @@ function findPreviousPartIdInOrder(
   order: number
 ): string | null {
   for (let index = order - 1; index >= 0; index -= 1) {
-    const candidate = model.parts[index];
+    const candidate = model.parts.at(index);
     if (candidate) {
       return candidate.partId;
     }
@@ -161,7 +161,7 @@ function sameViewBox(
 function hasValidModelInvariants(model: SvgRenderModel): boolean {
   const partIds = new Set<string>();
   for (let index = 0; index < model.parts.length; index += 1) {
-    const part = model.parts[index];
+    const part = model.parts.at(index);
     if (!part) {
       return false;
     }

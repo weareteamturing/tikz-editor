@@ -63,6 +63,16 @@ function singleLine(
   ];
 }
 
+function getWrapperPrototype(ctor: unknown): AnyWrapper | null {
+  if (typeof ctor !== 'function') {
+    return null;
+  }
+  const prototype = (ctor as { prototype?: unknown }).prototype;
+  return prototype && typeof prototype === 'object'
+    ? prototype as AnyWrapper
+    : null;
+}
+
 function lineAlignmentOffset(
   alignment: ParagraphAlignment,
   targetWidth: number,
@@ -151,7 +161,7 @@ function mapBreakToGlobal(
     return null;
   }
 
-  const globalRun = localRuns[breakDecision.runIndex];
+  const globalRun = localRuns.at(breakDecision.runIndex);
   if (!globalRun) {
     throw new Error(
       `Wrapped-explicit linebreak mapping failed: local break run ${breakDecision.runIndex} is missing.`
@@ -460,15 +470,15 @@ function applyWrappedTextGapWidths(
       continue;
     }
     const widthEm = gapWidthBySourceStart.get(run.sourceStart) ?? DEFAULT_INTERWORD_SPACE_EM;
-    const attrs = run.breakRef.wrapper?.node?.attributes;
+    const attrs = run.breakRef.wrapper.node?.attributes;
     if (!attrs || typeof attrs.set !== 'function') {
       continue;
     }
     attrs.set('width', formatGapWidthEm(widthEm));
-    if (typeof run.breakRef.wrapper?.setBreakStyle === 'function') {
+    if (typeof run.breakRef.wrapper.setBreakStyle === 'function') {
       run.breakRef.wrapper.setBreakStyle('');
     }
-    if (typeof run.breakRef.wrapper?.invalidateBBox === 'function') {
+    if (typeof run.breakRef.wrapper.invalidateBBox === 'function') {
       run.breakRef.wrapper.invalidateBBox();
     }
   }
@@ -538,7 +548,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
   private static readonly patchedMrowPlaceLinePrototypes = new WeakSet<object>();
   private static configuredOptions: KnuthPlassLinebreakOptions = {};
 
-  public static configure(options: KnuthPlassLinebreakOptions): void {
+  public static configure(options: KnuthPlassLinebreakOptions | null | undefined): void {
     if (!options || typeof options !== 'object') {
       return;
     }
@@ -576,13 +586,9 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
   }
 
   private patchMpaddedWrapperComputeBBox(factory: MathJaxWrapperFactoryLike): void {
-    const nodeMap = factory?.nodeMap;
-    const MpaddedWrapperCtor = nodeMap?.get?.('mpadded');
-    if (typeof MpaddedWrapperCtor !== 'function') {
-      return;
-    }
-
-    const proto = MpaddedWrapperCtor.prototype;
+    const nodeMap = factory.nodeMap;
+    const MpaddedWrapperCtor = nodeMap?.get('mpadded');
+    const proto = getWrapperPrototype(MpaddedWrapperCtor);
     if (!proto || KnuthPlassVisitor.patchedWrapperPrototypes.has(proto)) {
       return;
     }
@@ -591,11 +597,11 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
       return;
     }
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    const originalComputeBBox = proto.computeBBox;
+    const originalComputeBBox: NonNullable<AnyWrapper['computeBBox']> = proto.computeBBox;
 
     const visitorClass = KnuthPlassVisitor;
-    proto.computeBBox = function patchedComputeBBox(this: AnyWrapper, bbox: MathJaxBBox, recompute = false): void {
-      const overflow = this?.node?.attributes?.get?.('data-overflow');
+    proto.computeBBox = function patchedComputeBBox(this: AnyWrapper | null | undefined, bbox: MathJaxBBox, recompute = false): void {
+      const overflow = this?.node?.attributes?.get('data-overflow');
       if (overflow !== 'linebreak') {
         originalComputeBBox.call(this, bbox, recompute);
         return;
@@ -607,7 +613,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
         return;
       }
 
-      const linebreaks = this?.jax?.linebreaks;
+      const linebreaks = this.jax?.linebreaks;
       if (!(linebreaks instanceof visitorClass)) {
         originalComputeBBox.call(this, bbox, recompute);
         return;
@@ -621,12 +627,12 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
         return;
       }
 
-      const rawWidthAttr = this?.node?.attributes?.get?.('width');
+      const rawWidthAttr = this.node?.attributes?.get('width');
       const configuredWidth =
         typeof rawWidthAttr === 'string'
           ? Number.parseFloat(rawWidthAttr)
           : Number.NaN;
-      const initialWidth = Number(this?.containerWidth);
+      const initialWidth = Number(this.containerWidth);
       const targetWidth =
         initialWidth > 0
           ? initialWidth
@@ -635,7 +641,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
             : Number.NaN;
       if (!(targetWidth > 0)) {
         originalComputeBBox.call(this, bbox, recompute);
-        const width = Number(bbox?.w ?? this?.containerWidth);
+        const width = Number(bbox.w ?? this.containerWidth);
         if (!(width > 0)) {
           return;
         }
@@ -657,13 +663,9 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
   }
 
   private patchMrowWrapperPlaceLines(factory: MathJaxWrapperFactoryLike): void {
-    const nodeMap = factory?.nodeMap;
-    const MrowWrapperCtor = nodeMap?.get?.('mrow');
-    if (typeof MrowWrapperCtor !== 'function') {
-      return;
-    }
-
-    const proto = MrowWrapperCtor.prototype;
+    const nodeMap = factory.nodeMap;
+    const MrowWrapperCtor = nodeMap?.get('mrow');
+    const proto = getWrapperPrototype(MrowWrapperCtor);
     if (!proto || KnuthPlassVisitor.patchedMrowPlaceLinePrototypes.has(proto)) {
       return;
     }
@@ -672,22 +674,27 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
       return;
     }
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    const originalPlaceLines = proto.placeLines;
+    const originalPlaceLines: NonNullable<AnyWrapper['placeLines']> = proto.placeLines;
     const visitorClass = KnuthPlassVisitor;
 
-    proto.placeLines = function patchedPlaceLines(this: AnyWrapper, parents: unknown[]): void {
-      const paragraphId = this?.parent?.node?.attributes?.get?.('data-paragraph-id');
+    proto.placeLines = function patchedPlaceLines(this: AnyWrapper | null | undefined, parents: unknown[]): void {
+      if (!this) {
+        originalPlaceLines.call(this, parents);
+        return;
+      }
+
+      const paragraphId = this.parent?.node?.attributes?.get('data-paragraph-id');
       if (!paragraphId) {
         originalPlaceLines.call(this, parents);
         return;
       }
 
-      const lines = this?.lineBBox;
+      const lines = this.lineBBox;
       if (!Array.isArray(lines) || !Array.isArray(parents)) {
         originalPlaceLines.call(this, parents);
         return;
       }
-      const linebreaks = this?.jax?.linebreaks;
+      const linebreaks = this.jax?.linebreaks;
       const report =
         linebreaks instanceof visitorClass &&
         typeof linebreaks.getReportFor === 'function'
@@ -697,7 +704,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
 
       let y = Number(this.dh) || 0;
       for (const k of parents.keys()) {
-        const lbox = lines[k];
+        const lbox = lines.at(k);
         if (!lbox) {
           continue;
         }
@@ -721,7 +728,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     return this.reports.length ? this.reports[this.reports.length - 1] : null;
   }
 
-  public getReportFor(wrapper: AnyWrapper): ParagraphLayoutReport | null {
+  public getReportFor(wrapper: AnyWrapper | null | undefined): ParagraphLayoutReport | null {
     if (!wrapper || typeof wrapper !== 'object') {
       return null;
     }
@@ -1048,7 +1055,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     );
   }
 
-  private getKnuthPlassOptions(wrapper: AnyWrapper): KnuthPlassLinebreakOptions {
+  private getKnuthPlassOptions(wrapper: AnyWrapper | null | undefined): KnuthPlassLinebreakOptions {
     const jax = wrapper?.jax;
     const raw = jax?.knuthPlassOptions;
     const configured = KnuthPlassVisitor.getConfiguredOptions();
@@ -1141,7 +1148,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
       ) {
         continue;
       }
-      const width = run.breakRef.wrapper?.node?.attributes?.get?.('width');
+      const width = run.breakRef.wrapper.node?.attributes?.get('width');
       this.originalMspaceWidthByWrapper.set(
         run.breakRef.wrapper,
         typeof width === 'string' ? width : undefined
@@ -1149,14 +1156,14 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     }
   }
 
-  private captureOriginalMtextState(wrapper: AnyWrapper): void {
+  private captureOriginalMtextState(wrapper: AnyWrapper | null | undefined): void {
     if (!wrapper || typeof wrapper !== 'object') return;
     if (!wrapper.node?.isKind?.('mtext')) return;
     if (this.originalMtextTextByWrapper.has(wrapper)) return;
 
     const childNodes = Array.isArray(wrapper.childNodes) ? wrapper.childNodes : [];
     const snapshot = childNodes.map((child) => {
-      if (!child?.node?.isKind?.('text')) return '';
+      if (!child.node?.isKind?.('text')) return '';
       return String(child.node.getText?.() ?? '');
     });
     this.originalMtextTextByWrapper.set(wrapper, snapshot);
@@ -1191,11 +1198,12 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
 
     const children = Array.isArray(wrapper.childNodes) ? wrapper.childNodes : [];
     for (let i = 0; i < children.length; i++) {
-      const child = children[i];
+      const child = children.at(i);
       if (!child?.node?.isKind?.('text')) continue;
-      if (typeof child.node?.setText !== 'function') continue;
-      if (snapshot[i] === undefined) continue;
-      child.node.setText(snapshot[i]);
+      if (typeof child.node.setText !== 'function') continue;
+      const text = snapshot.at(i);
+      if (text === undefined) continue;
+      child.node.setText(text);
       if (typeof child.invalidateBBox === 'function') {
         child.invalidateBBox();
       }
@@ -1209,9 +1217,12 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     }
   }
 
-  private restoreMspaceWrapper(wrapper: AnyWrapper): void {
+  private restoreMspaceWrapper(wrapper: AnyWrapper | null | undefined): void {
+    if (!wrapper) {
+      return;
+    }
     const originalWidth = this.originalMspaceWidthByWrapper.get(wrapper);
-    if (!wrapper?.node?.attributes || typeof wrapper.node.attributes.set !== 'function') {
+    if (!wrapper.node?.attributes || typeof wrapper.node.attributes.set !== 'function') {
       return;
     }
     wrapper.node.attributes.set('width', originalWidth ?? '');
@@ -1260,13 +1271,11 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     });
 
     this.reports.push(report);
-    if (wrapper && typeof wrapper === 'object') {
-      this.reportByWrapper.set(wrapper, report);
-    }
+    this.reportByWrapper.set(wrapper, report);
 
   }
 
-  private getParagraphId(wrapper: AnyWrapper): string {
+  private getParagraphId(wrapper: AnyWrapper | null | undefined): string {
     if (!wrapper || typeof wrapper !== 'object') {
       return `paragraph-${this.nextParagraphNumber++}`;
     }
@@ -1286,7 +1295,7 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
     lineCount: number
   ): Array<{ ascent: number; descent: number }> {
     const metrics: Array<{ ascent: number; descent: number }> = [];
-    const lineWrapper = Array.isArray(wrapper?.childNodes)
+    const lineWrapper = Array.isArray(wrapper.childNodes)
       ? wrapper.childNodes[0]
       : null;
 
@@ -1305,12 +1314,12 @@ export class KnuthPlassVisitor extends LinebreakVisitor<
   }
 
   private isEligibleParboxParagraph(wrapper: AnyWrapper): boolean {
-    let current = wrapper?.parent;
+    let current = wrapper.parent;
     while (current && typeof current === 'object') {
       const currentNode = current.node;
       if (currentNode?.isKind?.('mpadded')) {
-        const overflow = currentNode.attributes?.get?.('data-overflow');
-        const width = currentNode.attributes?.get?.('width');
+        const overflow = currentNode.attributes?.get('data-overflow');
+        const width = currentNode.attributes?.get('width');
         return overflow === 'linebreak' && typeof width === 'string' && width.trim().length > 0;
       }
       current = current.parent;

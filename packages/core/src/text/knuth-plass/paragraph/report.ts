@@ -186,7 +186,7 @@ export function buildParagraphLayoutReport({
     let x = xStart;
 
     for (let i = line.startRun; i <= line.endRun && i < runReports.length; i++) {
-      const run = runs[i];
+      const run = runs.at(i);
       if (!run) continue;
 
       if (run.kind === 'text') {
@@ -249,7 +249,7 @@ export function buildParagraphLayoutReport({
     }
 
     if (resolvedBreak?.kind === 'hyphen' && resolvedBreak.visibleHyphen) {
-      const hyphenRun = runs[resolvedBreak.runIndex];
+      const hyphenRun = runs.at(resolvedBreak.runIndex);
       const hyphenWidth =
         hyphenRun?.kind === 'text' && measurement
           ? measurement.measureText('-', hyphenRun.wrapper)

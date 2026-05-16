@@ -178,12 +178,23 @@ function applyEditWarningToDocument(doc: DocumentSession, message: string | null
   };
 }
 
+function readDocument(
+  documents: Record<string, DocumentSession>,
+  documentId: string
+): DocumentSession | undefined {
+  return (documents as Partial<Record<string, DocumentSession>>)[documentId];
+}
+
+function hasDocument(documents: Record<string, DocumentSession>, documentId: string): boolean {
+  return readDocument(documents, documentId) !== undefined;
+}
+
 function updateDocument(
   workspace: WorkspacePersistedState,
   documentId: string,
   updater: (doc: DocumentSession) => DocumentSession
 ): WorkspacePersistedState {
-  const current = workspace.documents[documentId];
+  const current = readDocument(workspace.documents, documentId);
   if (!current) {
     return workspace;
   }
@@ -201,12 +212,12 @@ function updateDocument(
 }
 
 function rememberRecentDocument(workspace: WorkspacePersistedState, documentId: string): WorkspacePersistedState {
-  if (!workspace.documents[documentId]) {
+  if (!hasDocument(workspace.documents, documentId)) {
     return workspace;
   }
   const nextRecents = [
     documentId,
-    ...workspace.recentDocumentIds.filter((id) => id !== documentId && workspace.documents[id])
+    ...workspace.recentDocumentIds.filter((id) => id !== documentId && hasDocument(workspace.documents, id))
   ].slice(0, 24);
   return {
     ...workspace,
@@ -265,7 +276,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
   let ui = previousUi;
   const activeId = state.activeDocumentId;
 
-  const projectedActive = workspace.documents[activeId];
+  const projectedActive = readDocument(workspace.documents, activeId);
   if (
     projectedActive &&
     (
@@ -326,7 +337,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     case "SWITCH_DOCUMENT": {
-      if (!workspace.documents[action.documentId]) {
+      if (!hasDocument(workspace.documents, action.documentId)) {
         return state;
       }
       workspace = {
@@ -364,7 +375,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case "CLOSE_DOCUMENT": {
       const closeId = action.documentId ?? workspace.activeDocumentId;
-      if (!workspace.documents[closeId]) {
+      if (!hasDocument(workspace.documents, closeId)) {
         return state;
       }
       const nextOrder = workspace.tabOrder.filter((id) => id !== closeId);
@@ -390,7 +401,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         documents: nextDocs,
         tabOrder: nextOrder,
         activeDocumentId: nextActiveId,
-        recentDocumentIds: workspace.recentDocumentIds.filter((id) => id !== closeId && nextDocs[id])
+        recentDocumentIds: workspace.recentDocumentIds.filter((id) => id !== closeId && hasDocument(nextDocs, id))
       };
       workspace = rememberRecentDocument(workspace, nextActiveId);
       break;
@@ -681,7 +692,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         const truncated = doc.history.slice(0, doc.historyIndex + 1);
         const mergeKey = action.historyMergeKey ?? "assistant-turn";
         const lastIndex = truncated.length - 1;
-        const lastEntry = truncated[lastIndex];
+        const lastEntry = truncated.at(lastIndex);
         const nextEntry: HistoryEntry = {
           kind: "set-property",
           label: "AI assistant edit",
@@ -730,7 +741,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case "APPLY_EDIT_ACTION": {
       const documentId = activeId;
-      const activeDoc = workspace.documents[documentId];
+      const activeDoc = readDocument(workspace.documents, documentId);
       if (!activeDoc) {
         return state;
       }
@@ -814,7 +825,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangedSourceIds: incrementalChangedSourceIds,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: incrementalPatches,
-          lastEditPatchBaseRevision: incrementalPatches ? doc.sourceRevision : null,
+          lastEditPatchBaseRevision: incrementalPatches.length > 0 ? doc.sourceRevision : null,
           lastEditWarningMessage: actionWarning,
           lastEditWarningToken:
             actionWarning != null || doc.lastEditWarningMessage != null
@@ -847,7 +858,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const truncated = activeDoc.history.slice(0, activeDoc.historyIndex + 1);
       const mergeKey = action.historyMergeKey;
       const lastIndex = truncated.length - 1;
-      const lastEntry = truncated[lastIndex];
+      const lastEntry = truncated.at(lastIndex);
 
       if (
         mergeKey &&
@@ -869,7 +880,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangedSourceIds: incrementalChangedSourceIds,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: incrementalPatches,
-          lastEditPatchBaseRevision: incrementalPatches ? doc.sourceRevision : null,
+          lastEditPatchBaseRevision: incrementalPatches.length > 0 ? doc.sourceRevision : null,
           lastEditWarningMessage: actionWarning,
           lastEditWarningToken:
             actionWarning != null || doc.lastEditWarningMessage != null
@@ -904,7 +915,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         lastEditChangedSourceIds: incrementalChangedSourceIds,
         lastEditChangeToken: doc.lastEditChangeToken + 1,
         lastEditPatches: incrementalPatches,
-        lastEditPatchBaseRevision: incrementalPatches ? doc.sourceRevision : null,
+        lastEditPatchBaseRevision: incrementalPatches.length > 0 ? doc.sourceRevision : null,
         lastEditWarningMessage: actionWarning,
         lastEditWarningToken:
           actionWarning != null || doc.lastEditWarningMessage != null
@@ -949,11 +960,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     case "UNDO": {
-      const doc = workspace.documents[activeId];
+      const doc = readDocument(workspace.documents, activeId);
       if (!doc || doc.historyIndex < 0) {
         return state;
       }
-      const entry = doc.history[doc.historyIndex];
+      const entry = doc.history.at(doc.historyIndex);
       if (!entry) {
         return state;
       }
@@ -981,11 +992,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     case "REDO": {
-      const doc = workspace.documents[activeId];
+      const doc = readDocument(workspace.documents, activeId);
       if (!doc || doc.historyIndex >= doc.history.length - 1) {
         return state;
       }
-      const entry = doc.history[doc.historyIndex + 1];
+      const entry = doc.history.at(doc.historyIndex + 1);
       if (!entry) {
         return state;
       }
@@ -1074,7 +1085,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     case "SET_TOOL_MODE":
-      if (workspace.documents[activeId]?.assistantLockReason) return state;
+      if (readDocument(workspace.documents, activeId)?.assistantLockReason) return state;
       if (ui.toolMode === action.mode) return state;
       ui = { ...ui, toolMode: action.mode };
       break;

@@ -27,7 +27,9 @@ export type StealthShapeParameters = {
   innerHalfWidth: number;
 };
 
-export function normalizeArrowTip(tip: ArrowTip, contextLineWidth: number, fallbackColor: string): NormalizedArrowTip {
+type ArrowTipInput = Omit<ArrowTip, "afterLineEnd"> & { afterLineEnd?: boolean };
+
+export function normalizeArrowTip(tip: ArrowTipInput, contextLineWidth: number, fallbackColor: string): NormalizedArrowTip {
   const lineWidth = normalizeLineWidth(tip.lineWidth, contextLineWidth);
   return {
     ...tip,

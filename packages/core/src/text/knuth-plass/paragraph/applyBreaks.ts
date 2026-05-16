@@ -75,11 +75,13 @@ function safeInvalidate(wrapper: AnyWrapper | undefined) {
   }
 }
 
-function isTextChild(child: AnyWrapper | undefined): boolean {
+type TextChildWrapper = AnyWrapper & { node: NonNullable<AnyWrapper['node']> };
+
+function isTextChild(child: AnyWrapper | null | undefined): child is TextChildWrapper {
   return !!child?.node?.isKind?.('text');
 }
 
-function getTextChildren(wrapper: AnyWrapper): AnyWrapper[] {
+function getTextChildren(wrapper: AnyWrapper | null | undefined): AnyWrapper[] {
   return Array.isArray(wrapper?.childNodes) ? wrapper.childNodes : [];
 }
 
@@ -100,7 +102,7 @@ function normalizeSplitMutations(values: SplitMutation[]): SplitMutation[] {
 }
 
 function restoreMtextWrapper(
-  wrapper: AnyWrapper,
+  wrapper: AnyWrapper | null | undefined,
   originalMap?: WeakMap<object, string[]>
 ): void {
   if (!wrapper || typeof wrapper !== 'object') return;
@@ -110,11 +112,11 @@ function restoreMtextWrapper(
 
   const children = getTextChildren(wrapper);
   for (let i = 0; i < children.length; i++) {
-    const child = children[i];
+    const child = children.at(i);
     if (!isTextChild(child)) continue;
-    const text = snapshot[i];
+    const text = snapshot.at(i);
     if (text === undefined) continue;
-    if (typeof child.node?.setText === 'function') {
+    if (typeof child.node.setText === 'function') {
       child.node.setText(text);
       safeInvalidate(child);
     }
@@ -132,12 +134,12 @@ function formatEmLength(value: number): string {
 }
 
 function restoreMspaceWrapper(
-  wrapper: AnyWrapper,
+  wrapper: AnyWrapper | null | undefined,
   originalMap?: WeakMap<object, string | undefined>
 ): void {
   if (!wrapper || typeof wrapper !== 'object') return;
   if (!originalMap) return;
-  const attrs = wrapper?.node?.attributes;
+  const attrs = wrapper.node?.attributes;
   if (!attrs || typeof attrs.set !== 'function') return;
   const originalWidth = originalMap.get(wrapper);
   attrs.set('width', originalWidth ?? '');
@@ -147,23 +149,25 @@ function restoreMspaceWrapper(
   safeInvalidate(wrapper);
 }
 
-function readMspaceWidth(wrapper: AnyWrapper): number {
+function readMspaceWidth(wrapper: AnyWrapper | null | undefined): number {
   if (!wrapper || typeof wrapper !== 'object') {
     return 0;
   }
   const bbox =
-    (typeof wrapper.getBBox === 'function' && wrapper.getBBox()) ||
-    (typeof wrapper.getOuterBBox === 'function' && wrapper.getOuterBBox()) ||
-    null;
+    typeof wrapper.getBBox === 'function'
+      ? wrapper.getBBox()
+      : typeof wrapper.getOuterBBox === 'function'
+        ? wrapper.getOuterBBox()
+        : null;
   const width = Number(bbox?.w);
   return Number.isFinite(width) ? width : 0;
 }
 
-function setMspaceWidth(wrapper: AnyWrapper, width: number): void {
+function setMspaceWidth(wrapper: AnyWrapper | null | undefined, width: number): void {
   if (!wrapper || typeof wrapper !== 'object') {
     return;
   }
-  const attrs = wrapper?.node?.attributes;
+  const attrs = wrapper.node?.attributes;
   if (!attrs || typeof attrs.set !== 'function') {
     return;
   }
@@ -191,15 +195,19 @@ function applyWrappedTextGapWidths(
       continue;
     }
     const widthEm = gapWidthBySourceStart.get(run.sourceStart) ?? DEFAULT_INTERWORD_SPACE_EM;
-    const attrs = run.breakRef.wrapper?.node?.attributes;
+    const wrapper = (run.breakRef as { wrapper?: AnyWrapper | null }).wrapper;
+    if (!wrapper) {
+      continue;
+    }
+    const attrs = wrapper.node?.attributes;
     if (!attrs || typeof attrs.set !== 'function') {
       continue;
     }
     attrs.set('width', formatGapWidthEm(widthEm));
-    if (typeof run.breakRef.wrapper?.setBreakStyle === 'function') {
-      run.breakRef.wrapper.setBreakStyle('');
+    if (typeof wrapper.setBreakStyle === 'function') {
+      wrapper.setBreakStyle('');
     }
-    safeInvalidate(run.breakRef.wrapper);
+    safeInvalidate(wrapper);
   }
 }
 
@@ -281,7 +289,7 @@ function normalizePlans(plans: Map<AnyWrapper, WrapperMutationPlan>): void {
   }
 }
 
-function patchMtextIndentBehavior(wrapper: AnyWrapper): void {
+function patchMtextIndentBehavior(wrapper: AnyWrapper | null | undefined): void {
   if (!wrapper || typeof wrapper !== 'object') {
     return;
   }
@@ -301,7 +309,7 @@ function patchMtextIndentBehavior(wrapper: AnyWrapper): void {
     if (
       bbox &&
       typeof bbox.getIndentData === 'function' &&
-      this?.node?.attributes
+      this.node?.attributes
     ) {
       bbox.getIndentData(this.node);
     }
@@ -310,7 +318,7 @@ function patchMtextIndentBehavior(wrapper: AnyWrapper): void {
 }
 
 function applyMtextAlignment(wrapper: AnyWrapper, alignment: ParagraphAlignment): void {
-  if (!wrapper?.node?.attributes || typeof wrapper.node.attributes.set !== 'function') {
+  if (!wrapper.node?.attributes || typeof wrapper.node.attributes.set !== 'function') {
     return;
   }
 
@@ -372,7 +380,7 @@ function mutateWrapperText(
   for (const childIndex of allChildIndices) {
     const wordSplits = plan.childWordSplits.get(childIndex) ?? new Map<number, SplitMutation[]>();
     const wordPrefixTrim = plan.wordPrefixTrim.get(childIndex) ?? new Map<number, number>();
-    const child = children[childIndex];
+    const child = children.at(childIndex);
     if (!child || !isTextChild(child)) {
       errors.push(
         `Mutation failed: mtext child ${childIndex} is missing or not text.`
@@ -380,17 +388,17 @@ function mutateWrapperText(
       return false;
     }
 
-    if (typeof child.node?.getText !== 'function') {
+    if (typeof child.node.getText !== 'function') {
       errors.push(`Mutation failed: child ${childIndex} does not expose getText().`);
       return false;
     }
 
-    if (typeof child.node?.setText !== 'function') {
+    if (typeof child.node.setText !== 'function') {
       errors.push(`Mutation failed: child ${childIndex} does not expose setText().`);
       return false;
     }
 
-    const originalText = String(child.node.getText() ?? '');
+    const originalText = String(child.node.getText());
     const tokens = tokenizeForMutation(originalText);
     const wordIndices = wordTokenIndices(tokens);
 
@@ -481,8 +489,8 @@ function mappedIndexForHyphen(
 
 function clearExistingBreakStyles(
   runs: ParagraphRun[],
-  touchedMtextWrappers: Set<AnyWrapper>,
-  touchedMspaceWrappers: Set<AnyWrapper>,
+  touchedMtextWrappers: Set<AnyWrapper | null | undefined>,
+  touchedMspaceWrappers: Set<AnyWrapper | null | undefined>,
   originalMspaceWidthByWrapper?: WeakMap<object, string | undefined>
 ): void {
   for (const run of runs) {
@@ -494,14 +502,17 @@ function clearExistingBreakStyles(
     if (run.kind === 'space') {
       if (run.breakRef.kind === 'mtext-space') {
         touchedMtextWrappers.add(run.breakRef.wrapper);
-      } else if (run.breakRef.kind === 'mspace') {
+      } else {
         touchedMspaceWrappers.add(run.breakRef.wrapper);
       }
     }
   }
 
   for (const wrapper of touchedMtextWrappers) {
-    if (wrapper && typeof wrapper.clearBreakPoints === 'function') {
+    if (!wrapper) {
+      continue;
+    }
+    if (typeof wrapper.clearBreakPoints === 'function') {
       wrapper.clearBreakPoints();
       safeInvalidate(wrapper);
     }
@@ -517,7 +528,7 @@ function applyParagraphAlignment(
   alignment: ParagraphAlignment,
   paragraphId?: string
 ): void {
-  const parentNode = paragraphWrapper?.parent?.node;
+  const parentNode = paragraphWrapper.parent?.node;
   const attrs = parentNode?.attributes;
   if (!attrs || typeof attrs.set !== 'function') {
     return;
@@ -548,8 +559,8 @@ export function applyBreaks(
 
   applyParagraphAlignment(paragraphWrapper, alignment, options.paragraphId);
 
-  const touchedMtextWrappers = new Set<AnyWrapper>();
-  const touchedMspaceWrappers = new Set<AnyWrapper>();
+  const touchedMtextWrappers = new Set<AnyWrapper | null | undefined>();
+  const touchedMspaceWrappers = new Set<AnyWrapper | null | undefined>();
   clearExistingBreakStyles(
     runs,
     touchedMtextWrappers,
@@ -559,6 +570,9 @@ export function applyBreaks(
   applyWrappedTextGapWidths(runs, options.wrappedTextGaps);
 
   for (const wrapper of touchedMtextWrappers) {
+    if (!wrapper) {
+      continue;
+    }
     patchMtextIndentBehavior(wrapper);
     applyMtextAlignment(wrapper, alignment);
   }
@@ -575,7 +589,7 @@ export function applyBreaks(
       }
 
       for (let runIndex = line.startRun; runIndex <= line.endRun; runIndex++) {
-        const run = runs[runIndex];
+        const run = runs.at(runIndex);
         if (
           run?.kind !== 'space' ||
           run.breakRef.kind !== 'mspace' ||
@@ -592,7 +606,7 @@ export function applyBreaks(
   }
 
   for (const [runIndex, width] of justifiedSpaceWidths.entries()) {
-    const run = runs[runIndex];
+    const run = runs.at(runIndex);
     if (run?.kind === 'space' && run.breakRef.kind === 'mspace') {
       setMspaceWidth(run.breakRef.wrapper, width);
     }
@@ -603,7 +617,7 @@ export function applyBreaks(
     const breakDecision = line.break;
 
     if (breakDecision.kind === 'hyphen') {
-      const run = runs[breakDecision.runIndex];
+      const run = runs.at(breakDecision.runIndex);
       if (run?.kind !== 'text') {
         errors.push(
           `Hyphen break points to non-text run index ${breakDecision.runIndex}.`
@@ -641,7 +655,7 @@ export function applyBreaks(
       continue;
     }
 
-    const run = runs[breakDecision.runIndex];
+    const run = runs.at(breakDecision.runIndex);
     if (run?.kind !== 'space') {
       appliedBreaks.push({
         lineIndex: line.lineIndex,
@@ -668,54 +682,42 @@ export function applyBreaks(
       continue;
     }
 
-    if (run.breakRef.kind === 'mspace') {
-      if (!run.breakRef.isForcedLineBreak && !run.breakRef.lineLeading) {
-        setMspaceWidth(run.breakRef.wrapper, 0);
-      }
-
-      if (run.breakRef.lineLeading) {
-        if (typeof run.breakRef.wrapper?.node?.attributes?.set === 'function') {
-          run.breakRef.wrapper.node.attributes.set(
-            'data-lineleading',
-            run.breakRef.lineLeading
-          );
-        }
-      }
-
-      if (run.breakRef.lineLeadingTrim) {
-        pushWordPrefixTrim(
-          plans,
-          run.breakRef.lineLeadingTrim.wrapper,
-          run.breakRef.lineLeadingTrim.childIndex,
-          run.breakRef.lineLeadingTrim.wordIndex,
-          run.breakRef.lineLeadingTrim.consumed
-        );
-      }
-
-      if (typeof run.breakRef.wrapper?.setBreakStyle === 'function') {
-        run.breakRef.wrapper.setBreakStyle('before');
-        safeInvalidate(run.breakRef.wrapper);
-      }
-
-      const appliedKind = breakDecision.kind === 'forced' ? 'forced' : 'space';
-      appliedBreaks.push({
-        lineIndex: line.lineIndex,
-        kind: appliedKind,
-        runIndex: run.runIndex,
-        sourceOffset: run.sourceEnd,
-        visibleHyphen: false,
-        lineLeading: run.breakRef.lineLeading,
-      });
-      continue;
+    if (!run.breakRef.isForcedLineBreak && !run.breakRef.lineLeading) {
+      setMspaceWidth(run.breakRef.wrapper, 0);
     }
 
+    if (run.breakRef.lineLeading) {
+      if (typeof run.breakRef.wrapper.node?.attributes?.set === 'function') {
+        run.breakRef.wrapper.node.attributes.set(
+          'data-lineleading',
+          run.breakRef.lineLeading
+        );
+      }
+    }
+
+    if (run.breakRef.lineLeadingTrim) {
+      pushWordPrefixTrim(
+        plans,
+        run.breakRef.lineLeadingTrim.wrapper,
+        run.breakRef.lineLeadingTrim.childIndex,
+        run.breakRef.lineLeadingTrim.wordIndex,
+        run.breakRef.lineLeadingTrim.consumed
+      );
+    }
+
+    if (typeof run.breakRef.wrapper.setBreakStyle === 'function') {
+      run.breakRef.wrapper.setBreakStyle('before');
+      safeInvalidate(run.breakRef.wrapper);
+    }
+
+    const appliedKind = breakDecision.kind === 'forced' ? 'forced' : 'space';
     appliedBreaks.push({
       lineIndex: line.lineIndex,
-      kind: 'forced',
-      runIndex: breakDecision.runIndex,
-      sourceOffset: breakDecision.sourceOffset,
+      kind: appliedKind,
+      runIndex: run.runIndex,
+      sourceOffset: run.sourceEnd,
       visibleHyphen: false,
-      lineLeading: breakDecision.lineLeading,
+      lineLeading: run.breakRef.lineLeading,
     });
   }
 
@@ -758,7 +760,7 @@ export function applyBreaks(
         break;
       }
 
-      if (typeof action.wrapper?.setBreakAt !== 'function') {
+      if (typeof action.wrapper.setBreakAt !== 'function') {
         errors.push('Target mtext wrapper does not expose setBreakAt().');
         canProceed = false;
         break;

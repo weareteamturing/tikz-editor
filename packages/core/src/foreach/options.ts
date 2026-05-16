@@ -197,7 +197,7 @@ export function buildForeachIterations(params: {
     const splitValues = splitAllAtTopLevel(normalizedEntry, "/").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
     const fallbackValue = splitValues.length > 0 ? splitValues[splitValues.length - 1] : "";
 
-    const bindingScope: ForeachIterationBinding = { ...params.baseBindings };
+    const bindingScope: Partial<ForeachIterationBinding> = { ...params.baseBindings };
     for (let variableIndex = 0; variableIndex < variables.length; variableIndex += 1) {
       const variable = variables[variableIndex];
       const assigned = splitValues[variableIndex] ?? fallbackValue;
@@ -269,9 +269,12 @@ function parseEvaluateRule(raw: string, span: Span): EvaluateRule | null {
   if (!match) {
     return null;
   }
-  const variable = match[1];
-  const target = match[2] ?? variable;
-  const expression = (match[3] ?? variable).trim();
+  const variable = match.at(1);
+  if (!variable) {
+    return null;
+  }
+  const target = match.at(2) ?? variable;
+  const expression = (match.at(3) ?? variable).trim();
   if (expression.length === 0) {
     return null;
   }
@@ -285,9 +288,12 @@ function parseRememberRule(raw: string, span: Span): RememberRule | null {
     return null;
   }
 
-  const variable = match[1];
-  const target = match[2] ?? variable;
-  const initial = (match[3] ?? "0").trim();
+  const variable = match.at(1);
+  if (!variable) {
+    return null;
+  }
+  const target = match.at(2) ?? variable;
+  const initial = (match.at(3) ?? "0").trim();
   return { variable, target, initial, span };
 }
 
@@ -298,8 +304,11 @@ function parseCountRule(raw: string, span: Span): CountRule | null {
     return null;
   }
 
-  const target = match[1];
-  const fromRaw = match[2]?.trim() ?? "1";
+  const target = match.at(1);
+  if (!target) {
+    return null;
+  }
+  const fromRaw = match.at(2)?.trim() ?? "1";
   const parsed = Number(fromRaw);
   const current = Number.isFinite(parsed) ? parsed : 1;
   return { target, current, span };
@@ -328,7 +337,7 @@ function parseBoolean(raw: string, fallback: boolean): boolean {
 
 function normalizeListEntryForSplit(raw: string): string {
   let current = raw.trim();
-  while (true) {
+  for (;;) {
     const stripped = stripOuterBraces(current);
     if (stripped === current) {
       return current;

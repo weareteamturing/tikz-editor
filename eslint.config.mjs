@@ -1,5 +1,6 @@
 import js from "@eslint/js";
 import globals from "globals";
+import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import unicorn from "eslint-plugin-unicorn";
@@ -51,10 +52,16 @@ export default tseslint.config(
       }
     },
     plugins: {
+      react,
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
       tikz,
       unicorn
+    },
+    settings: {
+      react: {
+        version: "19.0"
+      }
     },
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
@@ -89,6 +96,16 @@ export default tseslint.config(
       "no-useless-assignment": "warn",
       "no-useless-escape": "warn",
       "prefer-const": "warn",
+      "react/button-has-type": "warn",
+      "react/jsx-key": "warn",
+      "react/jsx-no-duplicate-props": "warn",
+      "react/no-children-prop": "warn",
+      "react/no-danger-with-children": "warn",
+      "react/no-deprecated": "warn",
+      "react/no-find-dom-node": "warn",
+      "react/no-string-refs": "warn",
+      "react/no-unknown-property": "warn",
+      "react/require-render-return": "warn",
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
       "react-refresh/only-export-components": "off"
@@ -144,6 +161,16 @@ export default tseslint.config(
         }
       ],
       "@typescript-eslint/unbound-method": "error",
+      "react/button-has-type": "error",
+      "react/jsx-key": "error",
+      "react/jsx-no-duplicate-props": "error",
+      "react/no-children-prop": "error",
+      "react/no-danger-with-children": "error",
+      "react/no-deprecated": "error",
+      "react/no-find-dom-node": "error",
+      "react/no-string-refs": "error",
+      "react/no-unknown-property": "error",
+      "react/require-render-return": "error",
       "tikz/no-coordinate-type-cast": "error",
       "tikz/no-raw-coordinate-object": "error",
       "unicorn/catch-error-name": "error",
@@ -155,6 +182,57 @@ export default tseslint.config(
       "unicorn/prefer-dom-node-remove": "error",
       "unicorn/prefer-includes": "error",
       "unicorn/prefer-number-properties": "error"
+    }
+  },
+  {
+    files: [
+      "apps/desktop/src/main.tsx",
+      "apps/desktop/src/vite-env.d.ts",
+      "apps/landing/src/App.tsx",
+      "apps/landing/src/main.tsx",
+      "apps/landing/src/vite-env.d.ts",
+      "apps/web/src/main.tsx",
+      "apps/web/src/vite-env.d.ts",
+      "packages/app/src/TreeView.tsx",
+      "packages/app/src/app-menu/**/*.{ts,tsx}",
+      "packages/app/src/color-palette.ts",
+      "packages/app/src/context-menu/**/*.{ts,tsx}",
+      "packages/app/src/edit-analysis-manager.ts",
+      "packages/app/src/index.ts",
+      "packages/app/src/landing-assets.ts",
+      "packages/app/src/linked-file-sync.ts",
+      "packages/app/src/number-scrubber.ts",
+      "packages/app/src/platform/**/*.{ts,tsx}",
+      "packages/app/src/profiling.ts",
+      "packages/app/src/scrub-utils.ts",
+      "packages/app/src/settings/**/*.{ts,tsx}",
+      "packages/app/src/source-color-detection.ts",
+      "packages/app/src/source-identity.ts",
+      "packages/app/src/store/**/*.{ts,tsx}",
+      "packages/app/src/tikz-autocomplete.ts",
+      "packages/app/src/types/**/*.{ts,tsx}",
+      "packages/app/src/ui/coords/**/*.{ts,tsx}",
+      "packages/core/src/ast/**/*.{ts,tsx}",
+      "packages/core/src/capabilities/**/*.{ts,tsx}",
+      "packages/core/src/coords/**/*.{ts,tsx}",
+      "packages/core/src/corpus/**/*.{ts,tsx}",
+      "packages/core/src/domains/**/*.{ts,tsx}",
+      "packages/core/src/export/**/*.{ts,tsx}",
+      "packages/core/src/foreach/**/*.{ts,tsx}",
+      "packages/core/src/geometry/**/*.{ts,tsx}",
+      "packages/core/src/index.ts",
+      "packages/core/src/macros/**/*.{ts,tsx}",
+      "packages/core/src/options/**/*.{ts,tsx}",
+      "packages/core/src/parser/incremental.ts",
+      "packages/core/src/profiling.ts",
+      "packages/core/src/svg/**/*.{ts,tsx}",
+      "packages/core/src/syntax/**/*.{ts,tsx}",
+      "packages/core/src/text/knuth-plass/**/*.{ts,tsx}",
+      "packages/core/src/types/**/*.{ts,tsx}",
+      "packages/core/src/utils/**/*.{ts,tsx}"
+    ],
+    rules: {
+      "@typescript-eslint/no-unnecessary-condition": "error"
     }
   },
   {

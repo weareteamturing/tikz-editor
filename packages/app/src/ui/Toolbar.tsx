@@ -195,6 +195,7 @@ export function Toolbar({ updateChip = null }: ToolbarProps) {
         <div className={css.splitButton}>
           <RenderedTooltip content={buttonTitle}>
             <button
+              type="button"
               className={[css.btn, css.splitButtonMain, isActive ? css.btnActive : ""].filter(Boolean).join(" ")}
               aria-label={toolDef.label}
               disabled={unsupported}
@@ -212,6 +213,7 @@ export function Toolbar({ updateChip = null }: ToolbarProps) {
           </RenderedTooltip>
           <RenderedTooltip content="Choose bucket color">
             <button
+              type="button"
               className={[css.btn, css.splitButtonCaret, isActive ? css.btnActive : ""].filter(Boolean).join(" ")}
               aria-label="Choose bucket color"
               aria-haspopup="dialog"
@@ -252,6 +254,7 @@ export function Toolbar({ updateChip = null }: ToolbarProps) {
       >
         <RenderedTooltip content={buttonTitle}>
           <button
+            type="button"
             className={[css.btn, isActive ? css.btnActive : ""].filter(Boolean).join(" ")}
             aria-label={toolDef.label}
             aria-haspopup="dialog"
@@ -293,6 +296,7 @@ export function Toolbar({ updateChip = null }: ToolbarProps) {
       >
         <RenderedTooltip content={buttonTitle}>
           <button
+            type="button"
             className={[css.btn, isActive ? css.btnActive : ""].filter(Boolean).join(" ")}
             aria-label={toolDef.label}
             aria-haspopup="dialog"
@@ -323,6 +327,7 @@ export function Toolbar({ updateChip = null }: ToolbarProps) {
     return (
       <RenderedTooltip key={mode} content={buttonTitle}>
         <button
+          type="button"
           className={[css.btn, isActive ? css.btnActive : ""].filter(Boolean).join(" ")}
           aria-label={label}
           disabled={unsupported}

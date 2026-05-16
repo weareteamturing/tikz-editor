@@ -357,35 +357,35 @@ type ModalButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const PrimaryButton = forwardRef<HTMLButtonElement, ModalButtonProps>(function PrimaryButton(
-  { className, type = "button", ...rest },
+  { className, ...rest },
   ref
 ) {
   const classes = [css.btn, css.btnPrimary, className].filter(Boolean).join(" ");
-  return <button ref={ref} type={type} className={classes} {...rest} />;
+  return <button ref={ref} className={classes} {...rest} type="button" />;
 });
 
 const SecondaryButton = forwardRef<HTMLButtonElement, ModalButtonProps>(function SecondaryButton(
-  { className, type = "button", ...rest },
+  { className, ...rest },
   ref
 ) {
   const classes = [css.btn, css.btnSecondary, className].filter(Boolean).join(" ");
-  return <button ref={ref} type={type} className={classes} {...rest} />;
+  return <button ref={ref} className={classes} {...rest} type="button" />;
 });
 
 const DangerButton = forwardRef<HTMLButtonElement, ModalButtonProps>(function DangerButton(
-  { className, type = "button", ...rest },
+  { className, ...rest },
   ref
 ) {
   const classes = [css.btn, css.btnDanger, className].filter(Boolean).join(" ");
-  return <button ref={ref} type={type} className={classes} {...rest} />;
+  return <button ref={ref} className={classes} {...rest} type="button" />;
 });
 
 const GhostButton = forwardRef<HTMLButtonElement, ModalButtonProps>(function GhostButton(
-  { className, type = "button", ...rest },
+  { className, ...rest },
   ref
 ) {
   const classes = [css.btn, css.btnGhost, className].filter(Boolean).join(" ");
-  return <button ref={ref} type={type} className={classes} {...rest} />;
+  return <button ref={ref} className={classes} {...rest} type="button" />;
 });
 
 // ── Attach ──────────────────────────────────────────────────────────────────

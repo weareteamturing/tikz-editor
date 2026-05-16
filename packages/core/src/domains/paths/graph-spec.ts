@@ -83,7 +83,7 @@ function parseGraphChain(raw: string, from: number): GraphSpecChain {
   nodes.push(firstNode.node);
   cursor = firstNode.next;
 
-  while (true) {
+  for (;;) {
     const connectorStart = skipWhitespace(raw, cursor);
     const connector = readConnector(raw, connectorStart);
     if (!connector) {

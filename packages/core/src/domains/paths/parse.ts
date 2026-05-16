@@ -148,7 +148,7 @@ function withInferredStandaloneNodeName(items: PathItem[]): PathItem[] {
   }
 
   const node = items[nodeIndex];
-  if (node?.kind !== "Node" || node.name) {
+  if (node.kind !== "Node" || node.name) {
     return items;
   }
 
@@ -167,9 +167,6 @@ function inferStandaloneNodeName(items: PathItem[], limit: number): string | und
 
   for (let index = 0; index < limit; index += 1) {
     const item = items[index];
-    if (!item) {
-      continue;
-    }
 
     if (item.kind === "PathKeyword" && item.keyword === "at") {
       awaitingAtCoordinate = true;
@@ -196,7 +193,7 @@ function normalizeChildOperationItems(items: PathItem[]): PathItem[] {
   const normalized: PathItem[] = [];
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index];
-    if (item?.kind !== "ChildOperation") {
+    if (item.kind !== "ChildOperation") {
       normalized.push(item);
       continue;
     }
@@ -204,7 +201,7 @@ function normalizeChildOperationItems(items: PathItem[]): PathItem[] {
     let nextIndex = index + 1;
     let normalizedChild = item;
 
-    const bodyCandidate = items[nextIndex];
+    const bodyCandidate = items.at(nextIndex);
     if (
       bodyCandidate?.kind === "UnknownPathItem" &&
       normalizedChild.body.length === 0 &&
@@ -222,7 +219,7 @@ function normalizeChildOperationItems(items: PathItem[]): PathItem[] {
       nextIndex += 1;
     }
 
-    const foreachCandidate = items[nextIndex];
+    const foreachCandidate = items.at(nextIndex);
     if (foreachCandidate?.kind === "PathForeach" && normalizedChild.body.length === 0) {
       const clause: ChildForeachClause = {
         kind: "ChildForeachClause",
@@ -521,7 +518,7 @@ function tryMapGraphOperation(
 
   let consumeCount = 1;
   let optionsNode: SyntaxNode | null = null;
-  const maybeOptionsNode = nodes[startIndex + consumeCount];
+  const maybeOptionsNode = nodes.at(startIndex + consumeCount);
   if (maybeOptionsNode) {
     const unwrapped = unwrapPathItemNode(maybeOptionsNode);
     if (unwrapped.type.name === "OptionList") {
@@ -530,7 +527,8 @@ function tryMapGraphOperation(
     }
   }
 
-  const specNode = nodes[startIndex + consumeCount] ? unwrapPathItemNode(nodes[startIndex + consumeCount]) : null;
+  const specNodeCandidate = nodes.at(startIndex + consumeCount);
+  const specNode = specNodeCandidate ? unwrapPathItemNode(specNodeCandidate) : null;
   if (!specNode || !isGraphSpecNode(specNode, source)) {
     return null;
   }
@@ -568,7 +566,7 @@ function tryMapDecorateOperation(
 
   let consumeCount = 1;
   let optionsNode: SyntaxNode | null = null;
-  const nextNode = nodes[startIndex + consumeCount];
+  const nextNode = nodes.at(startIndex + consumeCount);
   if (nextNode) {
     const unwrapped = unwrapPathItemNode(nextNode);
     if (unwrapped.type.name === "OptionList") {
@@ -577,7 +575,7 @@ function tryMapDecorateOperation(
     }
   }
 
-  const subpathCandidate = nodes[startIndex + consumeCount];
+  const subpathCandidate = nodes.at(startIndex + consumeCount);
   if (!subpathCandidate) {
     return null;
   }
@@ -606,7 +604,7 @@ function tryMapPlotOperation(
 
   let consumeCount = 1;
   let optionsNode: SyntaxNode | null = null;
-  const maybeOptionsNode = nodes[startIndex + consumeCount];
+  const maybeOptionsNode = nodes.at(startIndex + consumeCount);
   if (maybeOptionsNode) {
     const unwrapped = unwrapPathItemNode(maybeOptionsNode);
     if (unwrapped.type.name === "OptionList") {
@@ -617,13 +615,15 @@ function tryMapPlotOperation(
 
   let mode: "coordinates" | "expression" | "function" | "file" | "unknown" = "unknown";
   let dataNode: SyntaxNode | null = null;
-  const payloadNode = nodes[startIndex + consumeCount] ? unwrapPathItemNode(nodes[startIndex + consumeCount]) : null;
+  const payloadCandidate = nodes.at(startIndex + consumeCount);
+  const payloadNode = payloadCandidate ? unwrapPathItemNode(payloadCandidate) : null;
 
   if (payloadNode) {
     const payloadRaw = source.slice(payloadNode.from, payloadNode.to).trim().toLowerCase();
 
     if (payloadRaw === "coordinates") {
-      const maybeDataNode = nodes[startIndex + consumeCount + 1] ? unwrapPathItemNode(nodes[startIndex + consumeCount + 1]) : null;
+      const maybeDataCandidate = nodes.at(startIndex + consumeCount + 1);
+      const maybeDataNode = maybeDataCandidate ? unwrapPathItemNode(maybeDataCandidate) : null;
       if (maybeDataNode && isPlotDataGroupNode(maybeDataNode, source)) {
         mode = "coordinates";
         dataNode = maybeDataNode;
@@ -638,7 +638,8 @@ function tryMapPlotOperation(
       consumeCount += 1;
     } else if (payloadRaw === "function" || payloadRaw === "file") {
       mode = payloadRaw;
-      const maybeDataNode = nodes[startIndex + consumeCount + 1] ? unwrapPathItemNode(nodes[startIndex + consumeCount + 1]) : null;
+      const maybeDataCandidate = nodes.at(startIndex + consumeCount + 1);
+      const maybeDataNode = maybeDataCandidate ? unwrapPathItemNode(maybeDataCandidate) : null;
       if (maybeDataNode && isPlotDataGroupNode(maybeDataNode, source)) {
         dataNode = maybeDataNode;
         consumeCount += 2;

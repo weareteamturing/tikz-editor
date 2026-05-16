@@ -247,19 +247,19 @@ export function runsToItems(
       continue;
     }
 
-    if (run.kind === 'math') {
-      items.push({
-        kind: 'box',
-        width,
-        payload: {
-          runIndex: run.runIndex,
-          runKind: 'math',
-        },
-      });
+    if ((run as { kind?: unknown }).kind !== 'math') {
+      errors.push('Unsupported run kind.');
       continue;
     }
 
-    errors.push('Unsupported run kind.');
+    items.push({
+      kind: 'box',
+      width,
+      payload: {
+        runIndex: run.runIndex,
+        runKind: 'math',
+      },
+    });
   }
 
   return {

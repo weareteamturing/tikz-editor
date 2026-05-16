@@ -50,9 +50,9 @@ export function shortenOpenSubpath(
   const keepTo = Math.max(keepFrom, originalLength - appliedEnd);
 
   if (keepTo - keepFrom <= EPSILON) {
-    const anchor = samplePointFromStartExtrapolated(segments, keepFrom) ?? segments[0]?.from;
+    const anchor = samplePointFromStartExtrapolated(segments, keepFrom) ?? segments[0].from;
     return {
-      commands: anchor ? [{ kind: "M", to: anchor }] : [],
+      commands: [{ kind: "M", to: anchor }],
       appliedStartShortening: appliedStart,
       appliedEndShortening: appliedEnd,
       originalLength
@@ -79,9 +79,9 @@ export function shortenOpenSubpath(
   }
 
   if (keptSegments.length === 0) {
-    const anchor = samplePointFromStartExtrapolated(segments, keepFrom) ?? segments[0]?.from;
+    const anchor = samplePointFromStartExtrapolated(segments, keepFrom) ?? segments[0].from;
     return {
-      commands: anchor ? [{ kind: "M", to: anchor }] : [],
+      commands: [{ kind: "M", to: anchor }],
       appliedStartShortening: appliedStart,
       appliedEndShortening: appliedEnd,
       originalLength
@@ -90,9 +90,7 @@ export function shortenOpenSubpath(
 
   const head = keptSegments[0];
   const resultCommands: ScenePathCommand[] = [];
-  if (head) {
-    resultCommands.push({ kind: "M", to: { ...head.from } });
-  }
+  resultCommands.push({ kind: "M", to: { ...head.from } });
   for (const segment of keptSegments) {
     resultCommands.push(commandFromSegment(segment));
   }

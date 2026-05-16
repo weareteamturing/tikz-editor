@@ -79,7 +79,7 @@ export function installKnuthPlassVisitor(
 
 export function setKnuthPlassOptionsOnOutputJax(
   outputJax: unknown,
-  options: KnuthPlassConfig
+  options: KnuthPlassConfig | null | undefined
 ): void {
   if (!outputJax || typeof outputJax !== 'object') {
     return;

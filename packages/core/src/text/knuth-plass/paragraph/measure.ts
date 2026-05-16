@@ -7,11 +7,11 @@ export interface MeasurementStats {
 }
 
 export interface MeasurementService {
-  measureText(text: string, mtextWrapper: AnyWrapper): number;
-  measureWord(word: string, mtextWrapper: AnyWrapper): number;
-  measurePrefix(word: string, n: number, mtextWrapper: AnyWrapper): number;
-  measureMath(wrapper: AnyWrapper): number;
-  precomputeWord(word: string, mtextWrapper: AnyWrapper): void;
+  measureText(text: string, mtextWrapper: AnyWrapper | null | undefined): number;
+  measureWord(word: string, mtextWrapper: AnyWrapper | null | undefined): number;
+  measurePrefix(word: string, n: number, mtextWrapper: AnyWrapper | null | undefined): number;
+  measureMath(wrapper: AnyWrapper | null | undefined): number;
+  precomputeWord(word: string, mtextWrapper: AnyWrapper | null | undefined): void;
   primeRuns(runs: ParagraphRun[]): void;
   getStats(): MeasurementStats;
 }
@@ -30,7 +30,7 @@ export function createMeasurementService(): MeasurementService {
     mathEntries: 0,
   };
 
-  const getWrapperId = (wrapper: AnyWrapper): number => {
+  const getWrapperId = (wrapper: AnyWrapper | null | undefined): number => {
     if (!wrapper || typeof wrapper !== 'object') return 0;
     if (!wrapperIds.has(wrapper)) {
       wrapperIds.set(wrapper, nextWrapperId++);
@@ -38,11 +38,11 @@ export function createMeasurementService(): MeasurementService {
     return wrapperIds.get(wrapper) as number;
   };
 
-  const textKey = (text: string, wrapper: AnyWrapper): string => {
+  const textKey = (text: string, wrapper: AnyWrapper | null | undefined): string => {
     return `${getWrapperId(wrapper)}::${text}`;
   };
 
-  const measureText = (text: string, mtextWrapper: AnyWrapper): number => {
+  const measureText = (text: string, mtextWrapper: AnyWrapper | null | undefined): number => {
     const key = textKey(text, mtextWrapper);
     const cached = textWidthCache.get(key);
     if (cached !== undefined) {
@@ -60,7 +60,7 @@ export function createMeasurementService(): MeasurementService {
 
   const buildPrefixWidths = (
     word: string,
-    mtextWrapper: AnyWrapper
+    mtextWrapper: AnyWrapper | null | undefined
   ): number[] => {
     const key = textKey(word, mtextWrapper);
     const existing = wordPrefixWidthCache.get(key);
@@ -78,25 +78,25 @@ export function createMeasurementService(): MeasurementService {
     return widths;
   };
 
-  const precomputeWord = (word: string, mtextWrapper: AnyWrapper): void => {
+  const precomputeWord = (word: string, mtextWrapper: AnyWrapper | null | undefined): void => {
     void measureText(word, mtextWrapper);
   };
 
-  const measureWord = (word: string, mtextWrapper: AnyWrapper): number => {
+  const measureWord = (word: string, mtextWrapper: AnyWrapper | null | undefined): number => {
     return measureText(word, mtextWrapper);
   };
 
   const measurePrefix = (
     word: string,
     n: number,
-    mtextWrapper: AnyWrapper
+    mtextWrapper: AnyWrapper | null | undefined
   ): number => {
     const widths = buildPrefixWidths(word, mtextWrapper);
     const clamped = Math.max(0, Math.min(n, word.length));
     return widths[clamped] || 0;
   };
 
-  const measureMath = (wrapper: AnyWrapper): number => {
+  const measureMath = (wrapper: AnyWrapper | null | undefined): number => {
     if (!wrapper || typeof wrapper !== 'object') return 0;
 
     const cached = mathWidthCache.get(wrapper);
@@ -105,9 +105,11 @@ export function createMeasurementService(): MeasurementService {
     }
 
     const bbox =
-      (typeof wrapper.getOuterBBox === 'function' && wrapper.getOuterBBox()) ||
-      (typeof wrapper.getBBox === 'function' && wrapper.getBBox()) ||
-      null;
+      typeof wrapper.getOuterBBox === 'function'
+        ? wrapper.getOuterBBox()
+        : typeof wrapper.getBBox === 'function'
+          ? wrapper.getBBox()
+          : null;
     const width = bbox
       ? (Number(bbox.L) || 0) + (Number(bbox.w) || 0) + (Number(bbox.R) || 0)
       : 0;

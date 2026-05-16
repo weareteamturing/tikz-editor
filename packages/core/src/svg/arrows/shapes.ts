@@ -148,12 +148,8 @@ function buildRawTipPaths(tip: NormalizedArrowTip): ArrowLocalPathCommand[][] {
     return rays;
   }
 
-  if (tip.kind === "to") {
-    const notchX = tip.length * 0.24;
-    return [[moveTo(0, halfWidth), lineTo(tip.length, 0), lineTo(0, -halfWidth), lineTo(notchX, 0), close()]];
-  }
-
-  return [[moveTo(0, halfWidth), lineTo(tip.length, 0), lineTo(0, -halfWidth), lineTo(tip.length * 0.24, 0), close()]];
+  const notchX = tip.length * 0.24;
+  return [[moveTo(0, halfWidth), lineTo(tip.length, 0), lineTo(0, -halfWidth), lineTo(notchX, 0), close()]];
 }
 
 function transformPath(path: ArrowLocalPathCommand[], map: (x: number, y: number) => ArrowLocalPoint): ArrowLocalPathCommand[] {

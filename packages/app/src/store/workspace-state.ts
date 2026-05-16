@@ -52,6 +52,17 @@ function createDocumentId(): string {
   return `doc-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
 }
 
+function readDocument(
+  documents: Record<string, DocumentSession>,
+  documentId: string
+): DocumentSession | undefined {
+  return (documents as Partial<Record<string, DocumentSession>>)[documentId];
+}
+
+function hasDocument(documents: Record<string, DocumentSession>, documentId: string): boolean {
+  return readDocument(documents, documentId) !== undefined;
+}
+
 export function createDocumentSession(params: {
   source: string;
   title?: string;
@@ -144,13 +155,13 @@ export function hydrateWorkspaceStateFromSeed(seed: WorkspaceSeed): WorkspacePer
     docs[doc.id] = doc;
   }
 
-  const tabOrder = seed.tabOrder.filter((id) => docs[id]);
+  const tabOrder = seed.tabOrder.filter((id) => hasDocument(docs, id));
   const fallbackOrder = tabOrder.length > 0 ? tabOrder : Object.keys(docs);
   if (fallbackOrder.length === 0) {
     return createInitialWorkspaceState();
   }
-  const activeDocumentId = docs[seed.activeDocumentId] ? seed.activeDocumentId : fallbackOrder[0];
-  const seededRecents = seed.recentDocumentIds.filter((id) => docs[id]);
+  const activeDocumentId = hasDocument(docs, seed.activeDocumentId) ? seed.activeDocumentId : fallbackOrder[0];
+  const seededRecents = seed.recentDocumentIds.filter((id) => hasDocument(docs, id));
   const normalizedRecents = seededRecents.length > 0 ? seededRecents : [activeDocumentId];
   return {
     workspaceVersion: WORKSPACE_VERSION,
@@ -162,15 +173,15 @@ export function hydrateWorkspaceStateFromSeed(seed: WorkspaceSeed): WorkspacePer
 }
 
 function normalizeWorkspaceActiveDocument(workspace: WorkspacePersistedState): WorkspacePersistedState {
-  if (workspace.documents[workspace.activeDocumentId]) {
+  if (hasDocument(workspace.documents, workspace.activeDocumentId)) {
     return workspace;
   }
-  const fallbackId = workspace.tabOrder.find((id) => workspace.documents[id]);
+  const fallbackId = workspace.tabOrder.find((id) => hasDocument(workspace.documents, id));
   if (fallbackId) {
     return {
       ...workspace,
       activeDocumentId: fallbackId,
-      tabOrder: workspace.tabOrder.filter((id) => workspace.documents[id])
+      tabOrder: workspace.tabOrder.filter((id) => hasDocument(workspace.documents, id))
     };
   }
   const replacement = createUntitledDocumentSession();

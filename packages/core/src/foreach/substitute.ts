@@ -4,7 +4,7 @@ const CONTROL_SEQUENCE_REGEX = /\\[A-Za-z@]+/g;
 const LETTER_HEAD_REGEX = /^[A-Za-z@]/;
 const CONTROL_WORD_TAIL_REGEX = /\\[A-Za-z@]+$/;
 
-export function substituteForeachBindings(input: string, bindings: ForeachIterationBinding): string {
+export function substituteForeachBindings(input: string, bindings: Partial<ForeachIterationBinding>): string {
   return substituteForeachBindingsWithMap(input, bindings).output;
 }
 
@@ -13,7 +13,7 @@ export type ForeachSubstitutionResult = {
   mapSpan: (span: { from: number; to: number }) => { from: number; to: number } | null;
 };
 
-export function substituteForeachBindingsWithMap(input: string, bindings: ForeachIterationBinding): ForeachSubstitutionResult {
+export function substituteForeachBindingsWithMap(input: string, bindings: Partial<ForeachIterationBinding>): ForeachSubstitutionResult {
   if (input.length === 0 || Object.keys(bindings).length === 0) {
     return {
       output: input,
@@ -81,21 +81,21 @@ function mapOutputSpanToInput(
     return null;
   }
   if (span.from === span.to) {
-    const mapped = outputToInput[Math.min(span.from, outputToInput.length - 1)];
+    const mapped = outputToInput.at(Math.min(span.from, outputToInput.length - 1));
     return mapped == null ? null : { from: mapped, to: mapped };
   }
 
   let from = inputLength;
   let to = 0;
   for (let index = span.from; index < span.to; index += 1) {
-    const mapped = outputToInput[index];
+    const mapped = outputToInput.at(index);
     if (mapped == null) {
       return null;
     }
     from = Math.min(from, mapped);
     to = Math.max(to, mapped + 1);
   }
-  return from <= to ? { from, to } : null;
+  return { from, to };
 }
 
 function requiresLeadingBoundary(outputSoFar: string, replacement: string): boolean {

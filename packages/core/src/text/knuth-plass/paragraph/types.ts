@@ -23,12 +23,12 @@ export interface MathJaxBBox {
 
 export type MathJaxWrapperConstructor = {
   new (...args: never[]): AnyWrapper;
-  prototype: AnyWrapper;
+  prototype?: AnyWrapper;
 };
 
 export interface MathJaxWrapperFactoryLike {
   nodeMap?: {
-    get(name: string): MathJaxWrapperConstructor | undefined;
+    get(name: string): unknown;
   };
 }
 

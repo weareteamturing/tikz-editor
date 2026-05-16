@@ -256,18 +256,14 @@ export function createIncrementalParseSession(): IncrementalParseSession {
           return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "statement-parse-error", patchApplication, input.sourceRevision ?? null);
         }
 
-        const replacement = parsedSnippet.parse.figure.body[0];
+        const replacement = parsedSnippet.parse.figure.body.at(0);
         const previousStatement = getStatementAtPath(nextFigure, previousRef.parentPath, previousRef.index);
         if (!replacement || replacement.kind !== previousStatement?.kind) {
           return fallbackToFull(input.source, activeFigureId, includeContextDefinitions, "statement-structure-changed", patchApplication, input.sourceRevision ?? null);
         }
 
         const rebasedStatement = shiftSpansDeep(replacement, nextSpan.from - SNIPPET_PREFIX.length);
-        if (previousStatement) {
-          alignStatementIds(previousStatement, rebasedStatement);
-        } else {
-          rebasedStatement.id = sourceId;
-        }
+        alignStatementIds(previousStatement, rebasedStatement);
         setStatementAtPath(nextFigure, previousRef.parentPath, previousRef.index, rebasedStatement);
 
         const partition = partitionDiagnostics(parsedSnippet.parse.diagnostics, parsedSnippet.parse.figure.body);
@@ -377,9 +373,12 @@ function alignStatementIds(previous: Statement, next: Statement): void {
 function alignStatements(previous: readonly Statement[], next: Statement[]): void {
   const limit = Math.min(previous.length, next.length);
   for (let index = 0; index < limit; index += 1) {
-    const previousStatement = previous[index];
-    const nextStatement = next[index];
-    if (previousStatement?.kind !== nextStatement?.kind) {
+    const previousStatement = previous.at(index);
+    const nextStatement = next.at(index);
+    if (!previousStatement || !nextStatement) {
+      continue;
+    }
+    if (previousStatement.kind !== nextStatement.kind) {
       continue;
     }
     alignStatementIds(previousStatement, nextStatement);
@@ -389,9 +388,12 @@ function alignStatements(previous: readonly Statement[], next: Statement[]): voi
 function alignPathItems(previous: readonly PathItem[], next: PathItem[]): void {
   const limit = Math.min(previous.length, next.length);
   for (let index = 0; index < limit; index += 1) {
-    const previousItem = previous[index];
-    const nextItem = next[index];
-    if (previousItem?.kind !== nextItem?.kind) {
+    const previousItem = previous.at(index);
+    const nextItem = next.at(index);
+    if (!previousItem || !nextItem) {
+      continue;
+    }
+    if (previousItem.kind !== nextItem.kind) {
       continue;
     }
 
@@ -421,9 +423,9 @@ function alignNodeItems(previous: readonly NodeItem[] | undefined, next: NodeIte
   }
   const limit = Math.min(previous.length, next.length);
   for (let index = 0; index < limit; index += 1) {
-    const previousNode = previous[index];
-    const nextNode = next[index];
-    if (!previousNode || !nextNode || previousNode.kind !== "Node" || nextNode.kind !== "Node") {
+    const previousNode = previous.at(index);
+    const nextNode = next.at(index);
+    if (!previousNode || !nextNode) {
       continue;
     }
     nextNode.id = previousNode.id;
@@ -448,9 +450,12 @@ function alignClauseIds(
   }
   const limit = Math.min(previous.length, next.length);
   for (let index = 0; index < limit; index += 1) {
-    const previousClause = previous[index];
-    const nextClause = next[index];
-    if (previousClause?.kind !== nextClause?.kind) {
+    const previousClause = previous.at(index);
+    const nextClause = next.at(index);
+    if (!previousClause || !nextClause) {
+      continue;
+    }
+    if (previousClause.kind !== nextClause.kind) {
       continue;
     }
     nextClause.id = previousClause.id;
@@ -576,7 +581,7 @@ function buildCache(
 function buildStatementIndex(statements: readonly Statement[], parentPath: number[] = []): Map<string, StatementRef> {
   const refs = new Map<string, StatementRef>();
   for (let index = 0; index < statements.length; index += 1) {
-    const statement = statements[index];
+    const statement = statements.at(index);
     if (!statement) {
       continue;
     }
@@ -784,8 +789,8 @@ function resolveFigureDelimiterSpans(source: string, figureSpan: Span): {
   const figureSource = source.slice(figureSpan.from, figureSpan.to);
   const beginMatch = BEGIN_TIKZ_PATTERN.exec(figureSource);
   const endMatch = END_TIKZ_PATTERN.exec(figureSource);
-  const beginLength = beginMatch?.[0]?.length ?? 0;
-  const endLength = endMatch?.[0]?.length ?? 0;
+  const beginLength = beginMatch?.at(0)?.length ?? 0;
+  const endLength = endMatch?.at(0)?.length ?? 0;
   return {
     begin: {
       from: figureSpan.from,
@@ -800,7 +805,7 @@ function resolveFigureDelimiterSpans(source: string, figureSpan: Span): {
 
 function getStatementAtPath(figure: TikzFigure, parentPath: readonly number[], index: number): Statement | null {
   const body = getBodyAtPath(figure, parentPath);
-  return body[index] ?? null;
+  return body.at(index) ?? null;
 }
 
 function setStatementAtPath(figure: TikzFigure, parentPath: readonly number[], index: number, statement: Statement): void {
@@ -811,7 +816,7 @@ function setStatementAtPath(figure: TikzFigure, parentPath: readonly number[], i
 function getBodyAtPath(figure: TikzFigure, parentPath: readonly number[]): Statement[] {
   let body = figure.body;
   for (const scopeIndex of parentPath) {
-    const statement = body[scopeIndex];
+    const statement = body.at(scopeIndex);
     if (statement?.kind !== "Scope") {
       throw new Error(`Expected scope at path ${parentPath.join("/")}`);
     }

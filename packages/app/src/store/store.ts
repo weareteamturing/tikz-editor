@@ -63,8 +63,8 @@ function persistedDocumentsChanged(
     return true;
   }
   for (const id of nextIds) {
-    const previousDoc = previous[id];
-    const nextDoc = next[id];
+    const previousDoc = (previous as Partial<Record<string, DocumentSession>>)[id];
+    const nextDoc = (next as Partial<Record<string, DocumentSession>>)[id];
     if (!previousDoc || !nextDoc || persistedDocumentChanged(previousDoc, nextDoc)) {
       return true;
     }

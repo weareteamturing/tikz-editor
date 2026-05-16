@@ -8,6 +8,7 @@ import {
   parseSourceSpans,
   type SourceSpan,
   type MathSourceSpan,
+  type TextSourceSpan,
 } from './sourceParser.js';
 import {
   createMathPrefixCache,
@@ -210,12 +211,12 @@ const EPSILON = 1e-6;
 const mathPrefixCache = createMathPrefixCache();
 let paragraphCacheByOutput = new WeakMap<object, Map<string, CachedParagraphEntry>>();
 
-function readContainerGeometrySnapshot(containerElement: Element): ContainerGeometrySnapshot | null {
+function readContainerGeometrySnapshot(containerElement: Element | null | undefined): ContainerGeometrySnapshot | null {
   if (!containerElement || typeof containerElement !== 'object') {
     return null;
   }
-  const rect = containerElement?.getBoundingClientRect?.();
-  const matrix = containerElement?.getScreenCTM?.();
+  const rect = containerElement.getBoundingClientRect?.();
+  const matrix = containerElement.getScreenCTM?.();
   if (!rect || !matrix) {
     return null;
   }
@@ -343,7 +344,7 @@ function findReportByParagraphId(
 }
 
 function collectLineGeometryElements(
-  containerElement: Element,
+  containerElement: Element | null | undefined,
   expectedCount: number
 ): Element[] | null {
   if (!containerElement || typeof containerElement !== 'object') {
@@ -385,12 +386,15 @@ function readLineGeometry(
   }
 
   return sortedLines.map((line, index) => {
-    const element = geometryElements[index];
-    const rect = element?.getBoundingClientRect?.();
+    const element = geometryElements.at(index);
+    if (!element) {
+      throw new Error(`Unable to read rendered element for line ${line.lineIndex}.`);
+    }
+    const rect = element.getBoundingClientRect?.();
     if (!rect) {
       throw new Error(`Unable to read client rect for line ${line.lineIndex}.`);
     }
-    const screenMatrix = element?.getScreenCTM?.();
+    const screenMatrix = element.getScreenCTM?.();
     if (
       !screenMatrix ||
       !Number.isFinite(Number(screenMatrix.a)) ||
@@ -406,7 +410,7 @@ function readLineGeometry(
     if (!Number.isFinite(determinant) || Math.abs(determinant) <= EPSILON) {
       throw new Error(`Non-invertible screen transform for line ${line.lineIndex}.`);
     }
-    const ownerSvg = element?.ownerSVGElement;
+    const ownerSvg = element.ownerSVGElement;
     const viewBoxWidth = Number(ownerSvg?.viewBox?.baseVal?.width);
     if (!Number.isFinite(viewBoxWidth) || viewBoxWidth <= EPSILON) {
       throw new Error(`Missing viewBox width for line ${line.lineIndex}.`);
@@ -594,8 +598,8 @@ function buildRunRawRanges(
   const nextTextStart = (): number | null => {
     let probeIndex = spanIndex;
     let probeOffset = spanOffset;
-    while (true) {
-      const span = spans[probeIndex] ?? null;
+    for (;;) {
+      const span = spans.at(probeIndex) ?? null;
       if (!span) return null;
       if (span.kind === 'math') {
         probeIndex += 1;
@@ -612,8 +616,8 @@ function buildRunRawRanges(
     }
   };
 
-  const advanceToNextText = () => {
-    while (true) {
+  const advanceToNextText = (): TextSourceSpan | null => {
+    for (;;) {
       const span = currentSpan();
       if (!span) return null;
       if (span.kind === 'math') {
@@ -702,7 +706,7 @@ function buildRunRawRanges(
 
   const consumeSpaceLike = (): { rawStart: number; rawEnd: number } | null => {
     const span = advanceToNextText();
-    if (span?.kind !== 'text') return null;
+    if (!span) return null;
     const start = Math.max(spanOffset, span.rawStart);
     if (start >= span.rawEnd) {
       return null;
@@ -723,7 +727,7 @@ function buildRunRawRanges(
     }
 
     spanOffset = cursor;
-    while (true) {
+    for (;;) {
       const current = currentSpan();
       if (current?.kind !== 'text') break;
       if (spanOffset < current.rawEnd) break;
@@ -734,7 +738,7 @@ function buildRunRawRanges(
   };
 
   const consumeNextMath = (): MathSourceSpan | null => {
-    while (true) {
+    for (;;) {
       const span = currentSpan();
       if (!span) return null;
       if (span.kind === 'math') {
@@ -1219,9 +1223,9 @@ async function getParagraphHitMap(
   }
 
   const mapPromise = buildParagraphHitMap(outputJax, report, sourceText, containerElement).catch((error) => {
-    const current = map?.get(report.paragraphId);
+    const current = map.get(report.paragraphId);
     if (current?.mapPromise === mapPromise) {
-      map?.delete(report.paragraphId);
+      map.delete(report.paragraphId);
     }
     throw error;
   });
@@ -1460,10 +1464,10 @@ function mapBuildFailureCode(message: string): CaretMappingErrorCode {
 
 export async function getKnuthPlassCaretFromPoint(
   outputJax: unknown,
-  params: CaretFromPointParams
+  params: Partial<CaretFromPointParams> | null | undefined
 ): Promise<CaretHitResult> {
   const paragraphId = String(params?.paragraphId ?? '');
-  if (!paragraphId || typeof params?.sourceText !== 'string' || !params?.containerElement) {
+  if (!params || !paragraphId || typeof params.sourceText !== 'string' || !params.containerElement || !params.clientPoint) {
     return invalidParamsResult<CaretHitResult>(
       paragraphId,
       { offset: null, lineIndex: null, kind: null, snappedToMathPrefix: false },
@@ -1530,10 +1534,10 @@ export async function getKnuthPlassCaretFromPoint(
 
 export async function getKnuthPlassPointFromOffset(
   outputJax: unknown,
-  params: PointFromOffsetParams
+  params: Partial<PointFromOffsetParams> | null | undefined
 ): Promise<CaretPointResult> {
   const paragraphId = String(params?.paragraphId ?? '');
-  if (!paragraphId || typeof params?.sourceText !== 'string' || !params?.containerElement) {
+  if (!params || !paragraphId || typeof params.sourceText !== 'string' || !params.containerElement) {
     return invalidParamsResult<CaretPointResult>(
       paragraphId,
       {
@@ -1653,10 +1657,10 @@ export async function getKnuthPlassPointFromOffset(
 
 export async function getKnuthPlassSelectionRects(
   outputJax: unknown,
-  params: SelectionRectsParams
+  params: Partial<SelectionRectsParams> | null | undefined
 ): Promise<SelectionRectsResult> {
   const paragraphId = String(params?.paragraphId ?? '');
-  if (!paragraphId || typeof params?.sourceText !== 'string' || !params?.containerElement) {
+  if (!params || !paragraphId || typeof params.sourceText !== 'string' || !params.containerElement) {
     return invalidParamsResult<SelectionRectsResult>(
       paragraphId,
       {
@@ -1787,10 +1791,10 @@ export async function getKnuthPlassSelectionRects(
 
 export async function getKnuthPlassLineRangeFromPoint(
   outputJax: unknown,
-  params: CaretFromPointParams
+  params: Partial<CaretFromPointParams> | null | undefined
 ): Promise<LineRangeFromPointResult> {
   const paragraphId = String(params?.paragraphId ?? '');
-  if (!paragraphId || typeof params?.sourceText !== 'string' || !params?.containerElement) {
+  if (!params || !paragraphId || typeof params.sourceText !== 'string' || !params.containerElement || !params.clientPoint) {
     return invalidParamsResult<LineRangeFromPointResult>(
       paragraphId,
       {

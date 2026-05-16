@@ -34,25 +34,25 @@ const UNSUPPORTED_KINDS = new Set([
   'mlongdiv',
 ]);
 
-function isKind(wrapper: AnyWrapper, kind: string): boolean {
+function isKind(wrapper: AnyWrapper | null | undefined, kind: string): boolean {
   return !!wrapper?.node?.isKind?.(kind);
 }
 
-function wrapperKind(wrapper: AnyWrapper): string {
+function wrapperKind(wrapper: AnyWrapper | null | undefined): string {
   return String(wrapper?.node?.kind ?? 'unknown');
 }
 
-function getChildren(wrapper: AnyWrapper): AnyWrapper[] {
+function getChildren(wrapper: AnyWrapper | null | undefined): AnyWrapper[] {
   return Array.isArray(wrapper?.childNodes) ? wrapper.childNodes : [];
 }
 
-function getMspaceLinebreak(wrapper: AnyWrapper): string {
-  const raw = wrapper?.node?.attributes?.get?.('linebreak');
+function getMspaceLinebreak(wrapper: AnyWrapper | null | undefined): string {
+  const raw = wrapper?.node?.attributes?.get('linebreak');
   return typeof raw === 'string' ? raw : '';
 }
 
-function getMspaceLineLeading(wrapper: AnyWrapper): string | undefined {
-  const raw = wrapper?.node?.attributes?.get?.('data-lineleading');
+function getMspaceLineLeading(wrapper: AnyWrapper | null | undefined): string | undefined {
+  const raw = wrapper?.node?.attributes?.get('data-lineleading');
   if (typeof raw !== 'string') {
     return undefined;
   }
@@ -60,11 +60,11 @@ function getMspaceLineLeading(wrapper: AnyWrapper): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function isForcedMspaceBreak(wrapper: AnyWrapper, linebreak: string): boolean {
+function isForcedMspaceBreak(wrapper: AnyWrapper | null | undefined, linebreak: string): boolean {
   if (isForcedMspaceLinebreak(linebreak)) {
     return true;
   }
-  const rawLatex = wrapper?.node?.attributes?.get?.('data-latex');
+  const rawLatex = wrapper?.node?.attributes?.get('data-latex');
   return rawLatex === '\\\\';
 }
 
@@ -113,7 +113,7 @@ function normalizeForcedLineLeadingRuns(runs: ParagraphRun[]): ParagraphRun[] {
     targetRunIndex: number;
   } | null => {
     for (let j = forcedRunIndex + 1; j < runs.length; j++) {
-      const candidate = runs[j];
+      const candidate = runs.at(j);
       if (!candidate) {
         break;
       }
@@ -169,7 +169,7 @@ function normalizeForcedLineLeadingRuns(runs: ParagraphRun[]): ParagraphRun[] {
   const trimmedByTextRun = new Map<number, number>();
   for (const [forcedRunIndex, parsed] of lineLeadingByForcedRun.entries()) {
     for (let j = forcedRunIndex + 1; j < runs.length; j++) {
-      const candidate = runs[j];
+      const candidate = runs.at(j);
       if (
         candidate?.kind === 'text' &&
         candidate.wrapper === parsed.targetWrapper &&
@@ -275,7 +275,7 @@ interface FlattenContext {
 
 function warnUnsupported(
   context: FlattenContext,
-  wrapper: AnyWrapper,
+  wrapper: AnyWrapper | null | undefined,
   message: string
 ): void {
   const kind = wrapperKind(wrapper);
@@ -302,7 +302,7 @@ function isUnsupportedKind(wrapper: AnyWrapper): boolean {
 function emitTextPieces(wrapper: AnyWrapper, context: FlattenContext) {
   const children = getChildren(wrapper);
   for (let childIndex = 0; childIndex < children.length; childIndex++) {
-    const child = children[childIndex];
+    const child = children.at(childIndex);
     if (!child) {
       warnUnsupported(
         context,
@@ -370,7 +370,7 @@ function emitTextPieces(wrapper: AnyWrapper, context: FlattenContext) {
   }
 }
 
-function flattenWrapper(wrapper: AnyWrapper, context: FlattenContext) {
+function flattenWrapper(wrapper: AnyWrapper | null | undefined, context: FlattenContext) {
   if (!wrapper) {
     warnUnsupported(context, wrapper, 'Encountered null wrapper while flattening paragraph.');
     return;

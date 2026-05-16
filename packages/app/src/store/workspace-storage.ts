@@ -40,6 +40,8 @@ type PersistedWorkspace = {
   recentDocumentIds: string[];
 };
 
+type PersistedWorkspaceDocument = PersistedWorkspace["documents"][number];
+
 export function loadWorkspaceSeed(): WorkspaceSeed | null {
   try {
     const raw = getActiveEditorPlatform().persistence.load(WORKSPACE_STORAGE_KEY);
@@ -110,10 +112,10 @@ function migrateWorkspace(parsed: Partial<PersistedWorkspace>): WorkspaceSeed | 
   if (version !== 1 && version !== WORKSPACE_VERSION) {
     return null;
   }
-  const docs = Array.isArray(parsed.documents)
-    ? parsed.documents
-        .filter((doc): doc is NonNullable<PersistedWorkspace["documents"]>[number] =>
-          Boolean(doc && typeof doc.id === "string" && typeof doc.source === "string"))
+  const rawDocuments = Array.isArray(parsed.documents) ? parsed.documents as unknown[] : [];
+  const docs = rawDocuments
+        .filter((doc): doc is PersistedWorkspaceDocument =>
+          Boolean(doc && typeof doc === "object" && typeof (doc as Partial<PersistedWorkspaceDocument>).id === "string" && typeof (doc as Partial<PersistedWorkspaceDocument>).source === "string"))
         .map((doc) => ({
           id: doc.id,
           title: typeof doc.title === "string" && doc.title.trim().length > 0 ? doc.title : "Untitled",
@@ -128,8 +130,7 @@ function migrateWorkspace(parsed: Partial<PersistedWorkspace>): WorkspaceSeed | 
           assistantWorkspacePath: typeof doc.assistantWorkspacePath === "string" ? doc.assistantWorkspacePath : null,
           assistantFigurePath: typeof doc.assistantFigurePath === "string" ? doc.assistantFigurePath : null,
           assistantPreviewPath: typeof doc.assistantPreviewPath === "string" ? doc.assistantPreviewPath : null
-        }))
-    : [];
+        }));
   if (docs.length === 0) {
     return null;
   }
@@ -139,7 +140,7 @@ function migrateWorkspace(parsed: Partial<PersistedWorkspace>): WorkspaceSeed | 
   const activeDocumentId =
     typeof parsed.activeDocumentId === "string" && docIds.has(parsed.activeDocumentId)
       ? parsed.activeDocumentId
-      : tabOrder[0] ?? docs[0].id;
+      : tabOrder.at(0) ?? docs[0].id;
   if (!Array.isArray(parsed.recentDocumentIds)) {
     return null;
   }
@@ -212,10 +213,10 @@ export function loadDockLayout(): IJsonModel | null {
   try {
     const raw = getActiveEditorPlatform().persistence.load(DOCK_LAYOUT_STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as IJsonModel;
+    const parsed = JSON.parse(raw) as unknown;
     // Basic sanity check
-    if (!parsed || typeof parsed !== "object" || !parsed.layout) return null;
-    return parsed;
+    if (!parsed || typeof parsed !== "object" || !("layout" in parsed)) return null;
+    return parsed as IJsonModel;
   } catch (error) {
     logStorageDebug("Failed to load persisted dock layout.", error);
     return null;
@@ -248,17 +249,21 @@ export function loadUserWorkspaces(): UserWorkspace[] {
   try {
     const raw = getActiveEditorPlatform().persistence.load(USER_WORKSPACES_STORAGE_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as Partial<PersistedUserWorkspacesV1>;
-    if (parsed?.version !== 1 || !Array.isArray(parsed.items)) return [];
-    return parsed.items
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return [];
+    const candidate = parsed as Partial<PersistedUserWorkspacesV1>;
+    if (candidate.version !== 1 || !Array.isArray(candidate.items)) return [];
+    const rawItems = candidate.items as unknown[];
+    return rawItems
       .filter((item): item is UserWorkspace =>
         Boolean(
           item &&
-            typeof item.id === "string" &&
-            typeof item.name === "string" &&
-            item.json &&
-            typeof item.json === "object" &&
-            typeof item.createdAt === "number"
+            typeof item === "object" &&
+            typeof (item as Partial<UserWorkspace>).id === "string" &&
+            typeof (item as Partial<UserWorkspace>).name === "string" &&
+            (item as Partial<UserWorkspace>).json &&
+            typeof (item as Partial<UserWorkspace>).json === "object" &&
+            typeof (item as Partial<UserWorkspace>).createdAt === "number"
         )
       );
   } catch (error) {

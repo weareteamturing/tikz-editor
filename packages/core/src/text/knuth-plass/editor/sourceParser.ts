@@ -70,7 +70,7 @@ export function parseSourceSpans(sourceText: string): SourceParseResult {
     }
 
     if (cursor > 0) {
-      const previous = spans[spans.length - 1];
+      const previous = spans.at(-1);
       const previousEnd = previous ? previous.rawEnd : 0;
       if (cursor > previousEnd) {
         spans.push({

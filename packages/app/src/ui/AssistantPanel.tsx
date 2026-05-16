@@ -289,6 +289,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: A
           <div className={css.installButtons}>
             {methods.length === 1 ? (
               <button
+                type="button"
                 className={css.installButton}
                 disabled={installingMethod !== null}
                 onClick={() => void handleInstall(methods[0].method)}
@@ -303,6 +304,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn, onNewChat }: A
               methods.map(({ method, label }) => (
                 <button
                   key={method}
+                  type="button"
                   className={css.installButton}
                   disabled={installingMethod !== null}
                   onClick={() => void handleInstall(method)}

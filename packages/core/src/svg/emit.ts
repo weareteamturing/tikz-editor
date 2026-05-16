@@ -279,7 +279,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     for (const clipPath of element.clipChain ?? []) {
       ensureClipPathDefinition(clipPath);
     }
-    let elementBounds: SvgBounds | null = null;
+    let elementBounds: SvgBounds | null;
     const svgElementTransform = element.transform ? worldTransformToSvgTransform(element.transform, viewBox) : null;
     if (element.kind === "Path") {
       if (!hasDrawablePathCommands(element.commands)) {
@@ -305,7 +305,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         pt(center.x + element.radius),
         pt(center.y + element.radius)
       );
-      if (elementBounds && svgElementTransform) {
+      if (svgElementTransform) {
         elementBounds = transformSvgBounds(elementBounds, svgElementTransform);
       }
     } else if (element.kind === "Ellipse") {
@@ -314,7 +314,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
       if (svgElementTransform) {
         elementBounds = transformSvgBounds(elementBounds, svgElementTransform);
       }
-    } else if (element.kind === "Text") {
+    } else {
       return;
     }
 
@@ -598,7 +598,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         });
       } else {
         const textColor = element.style.textColor ?? "#000000";
-        const textOpacity = element.style.textOpacity ?? element.style.strokeOpacity;
+        const textOpacity = element.style.textOpacity;
         const x = position.x - textBlockWidth / 2;
         const y = position.y - textBlockHeight / 2;
         const renderedViewBox = `${fmt(rendered.viewBox.x)} ${fmt(rendered.viewBox.y)} ${fmt(rendered.viewBox.width)} ${fmt(rendered.viewBox.height)}`;
@@ -950,8 +950,8 @@ function resolveShadowLayerStyle(layerStyle: ShadowRenderableStyle, baseStyle: R
     ...layerStyle,
     stroke: layerStyle.stroke === SHADOW_INHERIT_STROKE ? baseStyle.stroke : layerStyle.stroke,
     fill: inheritsFill ? baseStyle.fill : layerStyle.fill,
-    fillPattern: inheritsFill ? baseStyle.fillPattern : (layerStyle.fillPattern ?? null),
-    patternColor: inheritsFill ? baseStyle.patternColor : (layerStyle.patternColor ?? baseStyle.patternColor)
+    fillPattern: inheritsFill ? baseStyle.fillPattern : layerStyle.fillPattern,
+    patternColor: inheritsFill ? baseStyle.patternColor : layerStyle.patternColor
   };
 }
 
@@ -1235,15 +1235,11 @@ function renderLegacyPatternDefinition(
     const dark = mixColors("#000000", "#ffffff", 0.7) ?? "#4d4d4d";
     return renderCrosshatchDotsPattern(id, background, light, dark);
   }
-  if (pattern.name === "crosshatch dots light steel blue") {
-    const steelBlue = "#afc3dd";
-    const darkSteelBlue = mixColors("#000000", steelBlue, 0.5) ?? "#58626f";
-    const light = mixColors(darkSteelBlue, "#ffffff", 0.1) ?? "#efeff2";
-    const dark = mixColors(darkSteelBlue, "#ffffff", 0.7) ?? "#8a8f9b";
-    return renderCrosshatchDotsPattern(id, steelBlue, light, dark);
-  }
-
-  return renderPatternElement(id, 0, 0, 3, 3, `<circle cx="1.5" cy="1.5" r="0.5" fill="${escapeAttr(strokeColor)}" />`);
+  const steelBlue = "#afc3dd";
+  const darkSteelBlue = mixColors("#000000", steelBlue, 0.5) ?? "#58626f";
+  const light = mixColors(darkSteelBlue, "#ffffff", 0.1) ?? "#efeff2";
+  const dark = mixColors(darkSteelBlue, "#ffffff", 0.7) ?? "#8a8f9b";
+  return renderCrosshatchDotsPattern(id, steelBlue, light, dark);
 }
 
 function renderMetaPatternDefinition(
@@ -1401,9 +1397,6 @@ function polygonPathFromPolarAngles(centerX: number, centerY: number, radius: nu
     };
   });
   const [first, ...rest] = points;
-  if (!first) {
-    return "";
-  }
   return `M ${fmt(first.x)} ${fmt(first.y)} ${rest.map((point) => `L ${fmt(point.x)} ${fmt(point.y)}`).join(" ")} Z`;
 }
 
@@ -1451,7 +1444,7 @@ function styleAttributes(
     const textStyle = style as ResolvedStyle;
     const textColor = textStyle.textColor ?? "#000000";
     attrs.push(`fill="${escapeAttr(textColor)}"`);
-    attrs.push(`fill-opacity="${fmt(textStyle.textOpacity ?? textStyle.strokeOpacity)}"`);
+    attrs.push(`fill-opacity="${fmt(textStyle.textOpacity)}"`);
     if (textStyle.fontFamily === "sans") {
       attrs.push(`font-family="${PLAIN_TEXT_SANS_FONT_STACK}"`);
     } else if (textStyle.fontFamily === "monospace") {
@@ -1694,7 +1687,7 @@ function tryReuseElementParts(
 function hasReusableModelInvariants(model: SvgRenderModel): boolean {
   const partIds = new Set<string>();
   for (let index = 0; index < model.parts.length; index += 1) {
-    const part = model.parts[index];
+    const part = model.parts.at(index);
     if (!part) {
       return false;
     }
