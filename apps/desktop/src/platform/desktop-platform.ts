@@ -217,9 +217,6 @@ type NativeCommandRef = {
 
 type NativeMenuNode = CheckMenuItem | MenuItem | PredefinedMenuItem | Submenu;
 
-const TAURI_HELP_SUBMENU_ID = "__tauri_help_menu__";
-const TAURI_WINDOW_SUBMENU_ID = "__tauri_window_menu__";
-
 function readInjectedTestEnvironment(): DesktopPlatformEnvironment {
   return ((globalThis as BrowserLikeGlobal).__TIKZ_EDITOR_DESKTOP_PLATFORM_ENV__) ?? {};
 }
@@ -628,7 +625,7 @@ function createNativeDesktopMenuManager(options: {
     const bringAllToFrontItem = await menuApi.PredefinedMenuItem.new({ item: "BringAllToFront" });
 
     return await menuApi.Submenu.new({
-      id: TAURI_WINDOW_SUBMENU_ID,
+      id: "window",
       text: "Window",
       items: [minimizeItem, zoomItem, separator, bringAllToFrontItem]
     });
@@ -644,10 +641,13 @@ function createNativeDesktopMenuManager(options: {
     commandRefs.clear();
     const topLevelItems: Submenu[] = [];
     let windowSubmenu: Submenu | null = null;
+    let nativeWindowSubmenu: Submenu | null = null;
+    let helpSubmenu: Submenu | null = null;
 
     if (isMacPlatform()) {
       topLevelItems.push(await buildMacApplicationSubmenu(payload.commandStates));
       windowSubmenu = await buildMacWindowSubmenu();
+      nativeWindowSubmenu = windowSubmenu;
     }
 
     for (const section of payload.definition) {
@@ -663,10 +663,13 @@ function createNativeDesktopMenuManager(options: {
       }
 
       const submenu = await menuApi.Submenu.new({
-        id: isMacPlatform() && section.id === "help" ? TAURI_HELP_SUBMENU_ID : `section.${section.id}`,
+        id: `section.${section.id}`,
         text: section.label,
         items: sectionItems
       });
+      if (isMacPlatform() && section.id === "help") {
+        helpSubmenu = submenu;
+      }
       topLevelItems.push(submenu);
     }
     if (windowSubmenu) {
@@ -675,6 +678,8 @@ function createNativeDesktopMenuManager(options: {
 
     const menu = await menuApi.Menu.new({ items: topLevelItems });
     await menu.setAsAppMenu();
+    await nativeWindowSubmenu?.setAsWindowsMenuForNSApp();
+    await helpSubmenu?.setAsHelpMenuForNSApp();
     currentMenu = menu;
     await applyCommandStates(payload.commandStates);
   }
