@@ -7,7 +7,20 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode
 } from "react";
-import { RiAppleFill, RiExternalLinkLine, RiGithubFill, RiWindowsFill } from "@remixicon/react";
+import {
+  RiAppleFill,
+  RiCheckLine,
+  RiCodeLine,
+  RiEdit2Line,
+  RiExternalLinkLine,
+  RiFileListLine,
+  RiGithubFill,
+  RiNodeTree,
+  RiRobot2Line,
+  RiSideBarLine,
+  RiSlideshowLine,
+  RiWindowsFill
+} from "@remixicon/react";
 import { TOOL_BUTTONS } from "@tikz-editor/app/landing-assets";
 import appScreenshotUrl from "../../../background-materials/app-screenshot.png";
 import codexScreenshotUrl from "../../../background-materials/codex.png";
@@ -120,6 +133,65 @@ const TOOL_CATALOG = TOOL_BUTTONS.map((button) => {
     preview: VERSION_B_TOOL_SVGS[mode]
   };
 });
+
+const FEATURE_GROUPS = [
+  {
+    title: "Files and export",
+    icon: RiFileListLine,
+    items: [
+      <>Open and edit <code>.tex</code>, <code>.tikz</code>, and <code>.txt</code> files.</>,
+      <>Import figures from SVG, Ipe <code>.ipe</code>, and PowerPoint <code>.pptx</code>.</>,
+      <>Export to SVG, PNG, PDF, or standalone LaTeX.</>,
+      "Work across multiple open documents with tabs."
+    ]
+  },
+  {
+    title: "Papers and figures",
+    icon: RiSlideshowLine,
+    items: [
+      "Switch between figures in a full paper using thumbnail previews.",
+      "Draw nodes, shapes, matrices, arrows, paths, curves, grids, rectangles, ellipses, and circles.",
+      "Edit equations directly in the figure."
+    ]
+  },
+  {
+    title: "Direct editing",
+    icon: RiEdit2Line,
+    items: [
+      "Move, resize, rotate, duplicate, group, align, distribute, flip, and reorder objects.",
+      "Edit paths with point handles, split/join, reverse, open/close, corner, and smooth point commands.",
+      "Use snapping to grids, guides, object points, and object gaps."
+    ]
+  },
+  {
+    title: "Loops and structures",
+    icon: RiNodeTree,
+    items: [
+      <>Repeat selections into rows and columns as compact <code>\foreach</code> loops.</>,
+      <>Open and edit figures that already use <code>\foreach</code>, including nested loops and generated nodes.</>,
+      "Add labels and pins to nodes from context menus.",
+      "Edit tree diagrams with child/sibling actions, and matrices with row/column and transpose commands."
+    ]
+  },
+  {
+    title: "Panels",
+    icon: RiSideBarLine,
+    items: [
+      "Inspect and edit stroke, fill, arrows, text, transforms, shapes, and styling in the Inspector.",
+      "Manage object visibility, grouping, renaming, and layer order in the Objects panel.",
+      "Edit TikZ styles in the Styles panel."
+    ]
+  },
+  {
+    title: "Source and assistant",
+    icon: RiCodeLine,
+    items: [
+      "Use the source editor with syntax highlighting, autocomplete, folding, search, diagnostics, inline color swatches, and TikZ formatting.",
+      "On desktop, ask the Codex assistant to help edit figures, including with image attachments."
+    ],
+    secondaryIcon: RiRobot2Line
+  }
+] as const;
 
 const VERSION_B_DEMO_VIEW_BOXES = {
   nodeMove: "-51.215 -34.1433 130.8827 56",
@@ -273,6 +345,7 @@ function EditorStory() {
       <PaperFileSection />
       <AiAssistSection />
       <ToolCatalogSection />
+      <FeatureChecklistSection />
     </>
   );
 }
@@ -347,6 +420,44 @@ function ToolCatalogSection() {
                     <div className="vBToolPreviewSvg" dangerouslySetInnerHTML={{ __html: tool.preview.svg }} />
                   </div>
                 )}
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FeatureChecklistSection() {
+  return (
+    <section className="vBFeatureChecklist" aria-labelledby="feature-checklist-title">
+      <div className="vBFeatureChecklistInner">
+        <div className="vBFeatureChecklistIntro">
+          <h2 id="feature-checklist-title">More editor features.</h2>
+          <p>Compact tools for full papers, precise diagrams, and the TikZ source behind them.</p>
+        </div>
+        <div className="vBFeatureGroups">
+          {FEATURE_GROUPS.map((group) => {
+            const GroupIcon = group.icon;
+            const SecondaryIcon = "secondaryIcon" in group ? group.secondaryIcon : null;
+            return (
+              <article className="vBFeatureGroup" key={group.title}>
+                <h3>
+                  <span className="vBFeatureGroupIcon" aria-hidden="true">
+                    <GroupIcon size={17} />
+                    {SecondaryIcon ? <SecondaryIcon className="vBFeatureGroupSecondaryIcon" size={13} /> : null}
+                  </span>
+                  <span>{group.title}</span>
+                </h3>
+                <ul>
+                  {group.items.map((item, index) => (
+                    <li key={index}>
+                      <RiCheckLine aria-hidden="true" size={14} />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </article>
             );
           })}

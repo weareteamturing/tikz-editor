@@ -158,3 +158,4 @@ MATRIX_PLAN.md
 /apps/web/artifacts
 /apps/landing/artifacts
 /apps/landing/background-materials
+/.playwright-mcp
