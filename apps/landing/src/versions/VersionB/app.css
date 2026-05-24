@@ -173,12 +173,12 @@ body {
   width: min(1180px, calc(100vw - 32px));
   min-height: calc(82svh - var(--vB-header-height));
   margin: 0 auto;
-  padding: clamp(30px, 4.8vw, 54px) 0 clamp(28px, 4vw, 46px);
+  padding: clamp(30px, 4.8vw, 54px) 0 0 0;
 }
 
 .vBHeroCopy {
   max-width: 680px;
-  margin-bottom: clamp(22px, 3vw, 34px);
+  margin-bottom: clamp(16px, 2vw, 24px);
 }
 
 .vBHero h1 {
@@ -715,7 +715,7 @@ body {
 .vBToolCatalogIntro h2 {
   margin: 0;
   color: var(--vB-ink);
-  font-size: clamp(1.65rem, 3.7vw, 3rem);
+  font-size: clamp(1.28rem, 2.45vw, 2.05rem);
   line-height: 1.02;
   font-weight: 760;
 }
