@@ -113,7 +113,11 @@ function tweenNodeFrame(
   }
 }
 
-export function NodeMoveCard() {
+type NodeMoveCardProps = {
+  sceneViewBox?: string;
+};
+
+export function NodeMoveCard({ sceneViewBox = nodeMoveCommonViewBox }: NodeMoveCardProps = {}) {
   const rootRef = useRef<HTMLElement | null>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   useDemoTimelinePlayback(rootRef, timelineRef);
@@ -268,9 +272,9 @@ export function NodeMoveCard() {
 
       tl.add("dragBackEnd", "dragBackStart+=0.75");
       cursor.setPressed(false, "dragBackEnd-=0.14");
-      cursor.setStyle("pointer", "dragBackEnd");
       tl.to({}, { duration: 0.26, ease: "none" }, "dragBackEnd");
       cursorPath.glideTo("deselectOutside", 0.4, "dragBackEnd");
+      cursor.setStyle("pointer", "dragBackEnd+=0.18");
 
       // Rest briefly at the outside point before clicking to deselect.
       tl.add("deselectClick", "dragBackEnd+=0.84");
@@ -306,7 +310,7 @@ export function NodeMoveCard() {
 
   return (
     <figure className="featureDemo" ref={rootRef}>
-      <svg className="featureScene" viewBox={nodeMoveCommonViewBox} role="img" aria-labelledby="node-move-demo-title" data-layout-item="canvas.move.demo">
+      <svg className="featureScene" viewBox={sceneViewBox} role="img" aria-labelledby="node-move-demo-title" data-layout-item="canvas.move.demo">
         <title id="node-move-demo-title">Node drag keeps edge attached</title>
         <g
           ref={(el) => {

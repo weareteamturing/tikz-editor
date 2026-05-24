@@ -219,10 +219,10 @@ body {
   gap: 0.4em;
   height: 34px;
   padding: 0 14px;
-  border: 1px solid #14366f;
+  border: 1px solid color-mix(in srgb, var(--vB-blue) 42%, var(--vB-line-strong));
   border-radius: 2px;
-  background: var(--vB-blue);
-  color: #fff;
+  background: color-mix(in srgb, var(--vB-panel) 82%, var(--bg-header));
+  color: var(--vB-blue);
   font-size: 0.92rem;
   font-weight: 700;
   line-height: 1.15;
@@ -230,12 +230,13 @@ body {
 }
 
 .vBPrimaryLink:visited {
-  color: #fff;
+  color: var(--vB-blue);
 }
 
 .vBPrimaryLink:hover {
-  background: var(--accent-dark);
-  color: #fff;
+  border-color: var(--vB-blue);
+  background: #fff;
+  color: var(--accent-dark);
   text-decoration: none;
 }
 
@@ -245,10 +246,10 @@ body {
   gap: 0.42em;
   height: 34px;
   padding: 0 12px;
-  border: 1px solid var(--vB-line-strong);
+  border: 1px solid color-mix(in srgb, var(--vB-blue) 54%, var(--vB-line-strong));
   border-radius: 2px;
-  background: color-mix(in srgb, var(--vB-panel) 72%, var(--bg-header));
-  color: var(--vB-ink);
+  background: color-mix(in srgb, var(--vB-blue) 7%, var(--vB-panel));
+  color: var(--vB-blue);
   font-size: 0.92rem;
   font-weight: 700;
   line-height: 1.15;
@@ -256,13 +257,13 @@ body {
 }
 
 .vBDownloadLink:visited {
-  color: var(--vB-ink);
+  color: var(--vB-blue);
 }
 
 .vBDownloadLink:hover {
   border-color: var(--vB-blue);
-  background: #fff;
-  color: var(--vB-blue);
+  background: color-mix(in srgb, var(--vB-blue) 11%, var(--vB-panel));
+  color: var(--accent-dark);
   text-decoration: none;
 }
 
@@ -283,7 +284,7 @@ body {
 }
 
 .vBDownloadSize {
-  color: var(--vB-muted);
+  color: color-mix(in srgb, var(--vB-blue) 48%, var(--vB-muted));
   font-size: 0.78em;
   font-weight: 650;
   line-height: 1.15;
@@ -292,7 +293,7 @@ body {
 }
 
 .vBDownloadLink:hover .vBDownloadSize {
-  color: var(--vB-blue);
+  color: var(--accent-dark);
 }
 
 .vBTextLink {
@@ -324,15 +325,15 @@ body {
 .vBEditorStory {
   width: min(1080px, calc(100vw - 32px));
   margin: 0 auto;
-  padding: 0 0 72px;
+  padding: 0 0 42px;
 }
 
 .vBEditorRow {
   display: grid;
   grid-template-columns: minmax(290px, 0.42fr) minmax(0, 0.58fr);
-  gap: clamp(22px, 3.2vw, 40px);
+  gap: clamp(18px, 2.4vw, 30px);
   align-items: start;
-  padding: clamp(36px, 5vw, 58px) 0;
+  padding: clamp(20px, 3vw, 34px) 0;
   border-top: 1px solid rgba(126, 150, 142, 0.34);
 }
 
@@ -348,7 +349,7 @@ body {
 .vBFeatureColumn {
   min-width: 0;
   display: grid;
-  gap: 18px;
+  gap: 12px;
 }
 
 .vBFeatureCopy {
@@ -358,17 +359,17 @@ body {
 .vBFeatureCopy h2 {
   margin: 0;
   color: var(--vB-ink);
-  font-size: clamp(1.35rem, 2.9vw, 2.7rem);
-  line-height: 0.98;
+  font-size: clamp(1.05rem, 1.65vw, 1.55rem);
+  line-height: 1.12;
   font-weight: 760;
 }
 
 .vBFeatureCopy p:last-child {
   max-width: 680px;
-  margin: 12px 0 0;
+  margin: 7px 0 0;
   color: var(--vB-muted);
-  font-size: clamp(0.94rem, 1.1vw, 1.05rem);
-  line-height: 1.55;
+  font-size: clamp(0.86rem, 0.98vw, 0.95rem);
+  line-height: 1.42;
 }
 
 .vBCodePanel,
@@ -501,6 +502,11 @@ body {
 
 .vBSyncedRow {
   grid-template-rows: auto auto;
+  row-gap: 12px;
+}
+
+.vBSyncedRow .vBCodeRailEmpty {
+  min-height: 0;
 }
 
 .vBDemoCopy {
@@ -515,7 +521,7 @@ body {
 .vBSyncedDemo .featureDemo {
   display: grid;
   grid-template-columns: minmax(290px, 0.42fr) minmax(0, 0.58fr);
-  gap: clamp(22px, 3.2vw, 40px);
+  gap: clamp(18px, 2.4vw, 30px);
   align-items: center;
   border: 0;
   background: transparent;
@@ -627,10 +633,17 @@ body {
 
 .vBPaperSection {
   margin: 18px 0 0;
-  padding: clamp(46px, 6vw, 76px) 0 clamp(54px, 7vw, 86px);
+  padding: clamp(34px, 4.6vw, 58px) 0 clamp(38px, 5.2vw, 66px);
   background: #e8f0ea;
   border-top: 1px solid #c6d5ca;
   border-bottom: 1px solid #c6d5ca;
+}
+
+.vBAiSection {
+  margin: 0;
+  background: #f1ece6;
+  border-top: 0;
+  border-bottom-color: #d6c9bc;
 }
 
 .vBPaperSectionInner {
@@ -647,8 +660,8 @@ body {
 .vBPaperCopy h2 {
   margin: 0;
   color: var(--vB-ink);
-  font-size: clamp(1.65rem, 3.7vw, 3rem);
-  line-height: 1.02;
+  font-size: clamp(1.28rem, 2.45vw, 2.05rem);
+  line-height: 1.08;
   font-weight: 760;
 }
 
@@ -668,11 +681,12 @@ body {
 }
 
 .vBPaperScreenshot {
-  width: min(1180px, 100%);
+  width: min(1000px, 100%);
   margin: 0 auto;
-  border: 1px solid #b7c9bd;
-  background: #fff;
-  box-shadow: 0 24px 58px rgba(34, 47, 48, 0.16);
+  border-radius: 7px;
+  box-shadow:
+    0 26px 70px rgba(34, 47, 48, 0.22),
+    0 10px 28px rgba(34, 47, 48, 0.14);
 }
 
 .vBPaperScreenshot img {
@@ -681,9 +695,203 @@ body {
   height: auto;
 }
 
+.vBToolCatalog {
+  padding: clamp(34px, 4.5vw, 58px) 0 clamp(38px, 5vw, 64px);
+  background: #f6efe8;
+  border-bottom: 1px solid var(--vB-line);
+}
+
+.vBToolCatalogInner {
+  width: min(780px, calc(100vw - 32px));
+  margin: 0 auto;
+}
+
+.vBToolCatalogIntro {
+  max-width: 700px;
+  margin: 0 auto clamp(18px, 2.5vw, 28px);
+  text-align: center;
+}
+
+.vBToolCatalogIntro h2 {
+  margin: 0;
+  color: var(--vB-ink);
+  font-size: clamp(1.65rem, 3.7vw, 3rem);
+  line-height: 1.02;
+  font-weight: 760;
+}
+
+.vBToolCatalogIntro p:last-child {
+  margin: 10px auto 0;
+  color: var(--vB-muted);
+  font-size: clamp(0.92rem, 1vw, 1rem);
+  line-height: 1.5;
+}
+
+.vBToolRows {
+  display: grid;
+  gap: 0;
+}
+
+.vBToolRow {
+  display: grid;
+  grid-template-columns: 36px minmax(190px, 1fr) minmax(250px, 280px);
+  gap: clamp(10px, 1.5vw, 16px);
+  align-items: center;
+  padding: 10px 0;
+}
+
+.vBToolRow + .vBToolRow {
+  border-top: 1px solid rgba(170, 161, 151, 0.38);
+}
+
+.vBToolIcon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #bdb3a8;
+  border-radius: 4px;
+  background: #fffdf9;
+  color: var(--vB-ink);
+  box-shadow: 0 4px 12px rgba(34, 47, 48, 0.06);
+}
+
+.vBToolIcon svg {
+  display: block;
+}
+
+.vBToolDescription {
+  min-width: 0;
+}
+
+.vBToolDescription h3 {
+  margin: 0;
+  color: var(--vB-ink);
+  font-size: 0.94rem;
+  line-height: 1.25;
+  font-weight: 760;
+}
+
+.vBToolDescription p {
+  max-width: 290px;
+  margin: 2px 0 0;
+  color: var(--vB-muted);
+  font-size: 0.84rem;
+  line-height: 1.34;
+}
+
+.vBToolExample {
+  position: relative;
+  justify-self: end;
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 16 / 5.3;
+  overflow: hidden;
+  border: 1px solid #cfc4b8;
+  border-radius: 3px;
+  background:
+    linear-gradient(rgba(126, 150, 142, 0.13) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(126, 150, 142, 0.13) 1px, transparent 1px),
+    #fffdf9;
+  background-size: 28px 28px;
+  box-shadow: 0 10px 26px rgba(34, 47, 48, 0.07);
+}
+
+.vBToolPreviewSvg {
+  position: absolute;
+  inset: 8px 11px;
+}
+
+.vBToolPreviewSvg > svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.vBMagnifyToolExample {
+  --vBMagnifyX: 0px;
+  --vBMagnifyY: 0px;
+  --vBMagnifyFrameWidth: 0px;
+  --vBMagnifyFrameHeight: 0px;
+  --vBMagnifyContentX: 0px;
+  --vBMagnifyContentY: 0px;
+  --vBMagnifyScale: 2.25;
+  --vBMagnifyLensSize: 92px;
+  cursor: none;
+  overflow: visible;
+}
+
+.vBMagnifyOverlayFrame {
+  position: absolute;
+  inset: 8px 11px;
+  pointer-events: none;
+}
+
+.vBMagnifyLensLayer {
+  position: absolute;
+  left: var(--vBMagnifyX);
+  top: var(--vBMagnifyY);
+  width: var(--vBMagnifyLensSize);
+  height: var(--vBMagnifyLensSize);
+  border-radius: 999px;
+  overflow: hidden;
+  background: #fff;
+  transform: translate(-50%, -50%);
+}
+
+.vBMagnifyLensSvg {
+  position: absolute;
+  left: var(--vBMagnifyContentX);
+  top: var(--vBMagnifyContentY);
+  width: var(--vBMagnifyFrameWidth);
+  height: var(--vBMagnifyFrameHeight);
+  transform: scale(var(--vBMagnifyScale));
+  transform-origin: 0 0;
+}
+
+.vBMagnifyLensSvg > svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.vBMagnifyLensRing {
+  position: absolute;
+  left: var(--vBMagnifyX);
+  top: var(--vBMagnifyY);
+  width: var(--vBMagnifyLensSize);
+  height: var(--vBMagnifyLensSize);
+  border: 1px solid rgba(30, 30, 30, 0.32);
+  border-radius: 999px;
+  background: transparent;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.22),
+    0 1px 4px rgba(0, 0, 0, 0.14);
+  transform: translate(-50%, -50%);
+}
+
+.vBToolExample[data-tool-mode="addFreehand"] .vBExactCurveControlOverlay,
+.vBToolExample[data-tool-mode="addFreehand"] .vBExactHandleOverlay {
+  opacity: 0;
+}
+
+.vBToolExample[data-tool-mode="addFreehand"]:hover .vBExactCurveControlOverlay,
+.vBToolExample[data-tool-mode="addFreehand"]:hover .vBExactHandleOverlay,
+.vBToolExample[data-tool-mode="addFreehand"]:focus-within .vBExactCurveControlOverlay,
+.vBToolExample[data-tool-mode="addFreehand"]:focus-within .vBExactHandleOverlay {
+  opacity: 1;
+}
+
 @media (max-width: 960px) {
   .vBHero,
-  .vBEditorStory {
+  .vBEditorStory,
+  .vBToolCatalogInner {
     width: min(100% - 24px, 1240px);
   }
 
@@ -728,6 +936,17 @@ body {
   .vBSyncedDemo .featureScene {
     grid-row: 2;
   }
+
+  .vBToolRow {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 10px 14px;
+  }
+
+  .vBToolExample {
+    grid-column: 1 / -1;
+    width: min(440px, 100%);
+    aspect-ratio: 16 / 5.8;
+  }
 }
 
 @media (max-width: 640px) {
@@ -764,7 +983,8 @@ body {
 
   .vBHero,
   .vBEditorStory,
-  .vBPaperSectionInner {
+  .vBPaperSectionInner,
+  .vBToolCatalogInner {
     width: min(100% - 18px, 1240px);
   }
 
@@ -777,11 +997,11 @@ body {
   }
 
   .vBFeatureCopy h2 {
-    font-size: clamp(1.28rem, 6.7vw, 2rem);
+    font-size: clamp(1.08rem, 5.2vw, 1.45rem);
   }
 
   .vBEditorRow {
-    padding: 34px 0;
+    padding: 24px 0;
   }
 
   .vBDocsTooltipMock {
@@ -791,10 +1011,26 @@ body {
   }
 
   .vBPaperSection {
-    padding: 38px 0 46px;
+    padding: 30px 0 36px;
   }
 
   .vBPaperCopy {
     margin-bottom: 24px;
+  }
+
+  .vBToolCatalog {
+    padding: 32px 0 38px;
+  }
+
+  .vBToolCatalogIntro {
+    margin-bottom: 18px;
+  }
+
+  .vBToolRow {
+    padding: 12px 0;
+  }
+
+  .vBToolExample {
+    aspect-ratio: 16 / 6.4;
   }
 }

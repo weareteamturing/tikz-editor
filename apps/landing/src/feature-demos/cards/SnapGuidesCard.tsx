@@ -43,7 +43,11 @@ const SNAP_IDLE_START = {
   y: snapGuidesInitial.movingNode.center.y - 0.2
 };
 
-export function SnapGuidesCard() {
+type SnapGuidesCardProps = {
+  sceneViewBox?: string;
+};
+
+export function SnapGuidesCard({ sceneViewBox = snapGuidesCommonViewBox }: SnapGuidesCardProps = {}) {
   const rootRef = useRef<HTMLElement | null>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   useDemoTimelinePlayback(rootRef, timelineRef);
@@ -283,7 +287,7 @@ export function SnapGuidesCard() {
 
   return (
     <figure className="featureDemo" ref={rootRef}>
-      <svg className="featureScene" viewBox={snapGuidesCommonViewBox} role="img" aria-labelledby="snap-guides-demo-title" data-layout-item="layout.snap.demo">
+      <svg className="featureScene" viewBox={sceneViewBox} role="img" aria-labelledby="snap-guides-demo-title" data-layout-item="layout.snap.demo">
         <title id="snap-guides-demo-title">Snap guides appear while moving a node</title>
         <g ref={sceneRef} />
         <SnapGuidesOverlay lines={snapLines} strokeWidth={SNAP_STROKE_WIDTH} crossSize={SNAP_CROSS_SIZE} />

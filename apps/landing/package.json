@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "generate:feature-svgs": "node --import tsx scripts/generate-feature-svgs.mts",
+    "generate:tool-svgs": "node --import tsx scripts/generate-tool-svgs.mts",
     "capture:screenshots": "node --import tsx scripts/capture-screenshots.mts",
     "dev": "npm run generate:feature-svgs && vite",
     "build": "npm run generate:feature-svgs && tsc --noEmit && vite build",

@@ -55,7 +55,11 @@ const HANDLE_STROKE_WIDTH = 0.26;
 const SELECTION_STROKE_WIDTH = 0.24;
 const ROTATE_HANDLE_GAP = 5.2;
 
-export function AddRectCard() {
+type AddRectCardProps = {
+  sceneViewBox?: string;
+};
+
+export function AddRectCard({ sceneViewBox = addRectCommonViewBox }: AddRectCardProps = {}) {
   const rootRef = useRef<HTMLElement | null>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   useDemoTimelinePlayback(rootRef, timelineRef);
@@ -110,7 +114,7 @@ export function AddRectCard() {
       renderSourcePreview(sourcePreviewRef.current, buildAddRectSourceLines(state));
     }
   };
-  const idleAbove = point(addRectInitial.bounds.x - 6, addRectInitial.bounds.y - 18);
+  const idleAbove = point(addRectInitial.bounds.x - 6, addRectInitial.bounds.y - 10);
   const createStart = point(addRectInitial.bounds.x, addRectInitial.bounds.y);
   const createEnd = point(addRectInitial.bounds.x + addRectInitial.bounds.width, addRectInitial.bounds.y + addRectInitial.bounds.height);
   const resizeHover = point(addRectInitial.bounds.x + addRectInitial.bounds.width, addRectInitial.bounds.y + addRectInitial.bounds.height / 2);
@@ -249,7 +253,7 @@ export function AddRectCard() {
 
       tl.add("resizeHoverMove", "createRelease+=0.2");
       cursorPath.glideTo("resizeHover", 0.5, "resizeHoverMove");
-      cursor.setStyle(CURSOR_FOR_HANDLE_ROLE.right, "resizeHoverMove+=0.5");
+      cursor.setStyle(CURSOR_FOR_HANDLE_ROLE.right, "resizeHoverMove+=0.42");
 
       tl.add("resizePress", "resizeHoverMove+=0.54");
       cursor.setPressed(true, "resizePress");
@@ -289,7 +293,7 @@ export function AddRectCard() {
 
   return (
     <figure className="featureDemo" ref={rootRef}>
-      <svg className="featureScene" viewBox={addRectCommonViewBox} role="img" aria-labelledby="add-rectangle-demo-title" data-layout-item="canvas.rectangle.demo">
+      <svg className="featureScene" viewBox={sceneViewBox} role="img" aria-labelledby="add-rectangle-demo-title" data-layout-item="canvas.rectangle.demo">
         <title id="add-rectangle-demo-title">Rectangle draw and resize follows the handle</title>
         <g
           ref={(el) => {

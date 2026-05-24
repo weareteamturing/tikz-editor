@@ -1042,7 +1042,7 @@ function worldMidpoint(a: WorldPoint, b: WorldPoint): WorldPoint {
   return worldPoint(pt((a.x + b.x) / 2), pt((a.y + b.y) / 2));
 }
 
-function buildResizeHandleDisplaysForFrame({
+export function buildResizeHandleDisplaysForFrame({
   sourceId,
   resizeFrame,
   canvasScale,
@@ -1141,7 +1141,7 @@ function buildResizeHandleDisplaysForFrame({
   return displays;
 }
 
-function buildResizeHandleDisplaysForBounds({
+export function buildResizeHandleDisplaysForBounds({
   sourceId,
   bounds,
   canvasScale,

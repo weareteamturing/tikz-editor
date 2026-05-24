@@ -140,7 +140,7 @@ type ForeachRepeatShowcaseSvg = ShowcaseSvg & {
 };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUT_FILE = path.resolve(__dirname, "../src/versions/VersionA/generated/feature-svgs.ts");
+const OUT_FILE = path.resolve(__dirname, "../src/feature-demos/generated/feature-svgs.ts");
 const DEMO_SVG_OPTIONS = { svg: { padding: 0 } } as const;
 
 async function renderNodeMoveStates(): Promise<NodeMoveStates> {

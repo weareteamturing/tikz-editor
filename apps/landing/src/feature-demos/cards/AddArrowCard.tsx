@@ -34,8 +34,13 @@ type AddArrowSourceState = {
 
 const NODE_REVEAL_RADIUS = 10.5;
 const ANCHOR_SNAP_RADIUS = 4.2;
+const ANIMATED_ARROW_STROKE_WIDTH = 1.2;
 
-export function AddArrowCard() {
+type AddArrowCardProps = {
+  sceneViewBox?: string;
+};
+
+export function AddArrowCard({ sceneViewBox = addArrowCommonViewBox }: AddArrowCardProps = {}) {
   const rootRef = useRef<HTMLElement | null>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   useDemoTimelinePlayback(rootRef, timelineRef);
@@ -200,7 +205,7 @@ export function AddArrowCard() {
 
   return (
     <figure className="featureDemo" ref={rootRef}>
-      <svg className="featureScene" viewBox={addArrowCommonViewBox} role="img" aria-labelledby="add-arrow-demo-title" data-layout-item="layout.anchors.demo">
+      <svg className="featureScene" viewBox={sceneViewBox} role="img" aria-labelledby="add-arrow-demo-title" data-layout-item="layout.anchors.demo">
         <title id="add-arrow-demo-title">Add arrow snaps to node anchors</title>
         <g
           ref={(el) => {
@@ -231,7 +236,7 @@ export function AddArrowCard() {
             x2={1}
             y2={0}
             stroke="black"
-            strokeWidth={0.4}
+            strokeWidth={ANIMATED_ARROW_STROKE_WIDTH}
             strokeLinecap="butt"
             vectorEffect="non-scaling-stroke"
           />
@@ -243,7 +248,7 @@ export function AddArrowCard() {
           }}
           fill="none"
           stroke="black"
-          strokeWidth={0.4}
+          strokeWidth={ANIMATED_ARROW_STROKE_WIDTH}
           strokeLinecap="round"
           strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"

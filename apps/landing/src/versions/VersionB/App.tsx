@@ -1,12 +1,23 @@
-import type { ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode
+} from "react";
 import { RiAppleFill, RiExternalLinkLine, RiGithubFill, RiWindowsFill } from "@remixicon/react";
+import { TOOL_BUTTONS } from "@tikz-editor/app/landing-assets";
 import appScreenshotUrl from "../../../background-materials/app-screenshot.png";
+import codexScreenshotUrl from "../../../background-materials/codex.png";
 import multiFigureUrl from "../../../background-materials/multi-figure.png";
-import { AddArrowCard } from "../VersionA/cards/AddArrowCard";
-import { AddRectCard } from "../VersionA/cards/AddRectCard";
-import { NodeMoveCard } from "../VersionA/cards/NodeMoveCard";
-import { SelectionAlignCard } from "../VersionA/cards/SelectionAlignCard";
-import { SnapGuidesCard } from "../VersionA/cards/SnapGuidesCard";
+import { AddArrowCard } from "../../feature-demos/cards/AddArrowCard";
+import { AddRectCard } from "../../feature-demos/cards/AddRectCard";
+import { NodeMoveCard } from "../../feature-demos/cards/NodeMoveCard";
+import { SelectionAlignCard } from "../../feature-demos/cards/SelectionAlignCard";
+import { SnapGuidesCard } from "../../feature-demos/cards/SnapGuidesCard";
+import { VERSION_B_TOOL_SVGS } from "./generated/tool-svgs";
 
 type CodeLine = {
   id: string;
@@ -17,24 +28,25 @@ type CodeLine = {
   foldControl?: "open" | "closed";
 };
 
-const foldingLines: CodeLine[] = [
-  line("1", "1", <>
-    <Tok kind="keyword">\begin</Tok><Tok kind="punctuation">{"{tikzpicture}"}</Tok>
-  </>),
-  line("2", "2", <>
-    {"  "}<Tok kind="comment">% styles</Tok>
-  </>),
-  line("3", "3", <>
-    {"  "}<Tok kind="keyword">\tikzset</Tok><Tok kind="punctuation">{"{"}</Tok><Tok kind="type">workflow/.style</Tok>{"={draw, rounded corners, fill=green!15}"}
-  </>, false, false, "closed"),
-  line("4", "4", <Tok kind="meta">{"  ..."}</Tok>, false, true),
-  line("12", "12", <>
-    {"  "}<Tok kind="keyword">\draw</Tok>{"[->] (draft) -- (review);"}
-  </>),
-  line("13", "13", <>
-    <Tok kind="keyword">\end</Tok><Tok kind="punctuation">{"{tikzpicture}"}</Tok>
-  </>)
-];
+type ToolPreviewMode = keyof typeof VERSION_B_TOOL_SVGS;
+type MagnifyCenter = {
+  x: number;
+  y: number;
+  frameWidth: number;
+  frameHeight: number;
+};
+
+const MAGNIFY_REST_VIEW_BOX = {
+  minX: -62.345,
+  minY: -22.3934,
+  width: 130.9992,
+  height: 43.3935
+};
+
+const MAGNIFY_REST_POINT = {
+  x: -31.8671,
+  y: -6.2596
+};
 
 const tooltipLines: CodeLine[] = [
   line("1", "7", <>
@@ -49,6 +61,72 @@ const tooltipLines: CodeLine[] = [
     <Tok kind="string">{"{Draft}"}</Tok><Tok kind="punctuation">;</Tok>
   </>)
 ];
+
+const TOOL_COPY: Record<ToolPreviewMode, { name?: string; description: string }> = {
+  select: {
+    description: "Move objects, resize bounds, rotate selections, and edit path handles."
+  },
+  magnify: {
+    description: "Drag over the canvas to zoom into the part of a diagram you are working on."
+  },
+  addNode: {
+    description: "Click to place text as a TikZ node at a precise point."
+  },
+  addShape: {
+    description: "Drag preset node shapes, including TikZ shape-library forms."
+  },
+  addMatrix: {
+    description: "Insert a matrix of nodes with the chosen row and column count."
+  },
+  addLine: {
+    description: "Drag a straight TikZ draw segment between two points."
+  },
+  addArrow: {
+    description: "Drag a directed path with the same arrow syntax the source uses."
+  },
+  addBezier: {
+    description: "Place endpoints first, then bend the curve with control handles."
+  },
+  addPath: {
+    description: "Build multi-segment paths with straight and curved parts."
+  },
+  addFreehand: {
+    description: "Draw a smoothed freehand path from pointer movement."
+  },
+  addGrid: {
+    description: "Drag out TikZ grid lines with the selected x and y step."
+  },
+  addRect: {
+    name: "Rectangle",
+    description: "Create a rectangular path by dragging corner to corner."
+  },
+  addEllipse: {
+    description: "Create an ellipse with independent horizontal and vertical radii."
+  },
+  addCircle: {
+    description: "Drag from the center to set a circle radius."
+  },
+  addBucket: {
+    description: "Apply a fill color to an existing closed region."
+  }
+};
+
+const TOOL_CATALOG = TOOL_BUTTONS.map((button) => {
+  const mode = button.mode as ToolPreviewMode;
+  return {
+    ...button,
+    name: TOOL_COPY[mode].name ?? button.label,
+    description: TOOL_COPY[mode].description,
+    preview: VERSION_B_TOOL_SVGS[mode]
+  };
+});
+
+const VERSION_B_DEMO_VIEW_BOXES = {
+  nodeMove: "-51.215 -34.1433 130.8827 56",
+  addRect: "-62.5961 -34 147.9543 53",
+  snapGuides: "-82 -39 164 78",
+  addArrow: "-68.2866 -27 156.4902 53"
+} as const;
 
 export function App() {
   return (
@@ -153,23 +231,17 @@ function EditorStory() {
       <section className="vBEditorStory" aria-label="TikZ Editor feature walkthrough">
         <SyncedDemo
           title="Drag a node and the TikZ changes."
-          body="These are the Version A animation components reused directly. Their source previews are still synchronized with the fake cursor timeline, but Version B lays that code in the left rail and the drawing on the right."
+          body="The source preview stays synchronized with the cursor timeline, so the code changes exactly where the visual edit happens."
         >
-          <NodeMoveCard />
+          <NodeMoveCard sceneViewBox={VERSION_B_DEMO_VIEW_BOXES.nodeMove} />
         </SyncedDemo>
 
         <SyncedDemo
           title="Shape tools write the corresponding TikZ."
           body="The rectangle tool demonstrates the main rhythm for the page: code appears on the left exactly when it matters, while the right side stays focused on the direct manipulation."
         >
-          <AddRectCard />
+          <AddRectCard sceneViewBox={VERSION_B_DEMO_VIEW_BOXES.addRect} />
         </SyncedDemo>
-
-        <EditorRow
-          code={<CodePanel title="workflow.tex" lines={foldingLines} variant="editor" />}
-          title="Large diagrams stay navigable."
-          body="Folding can collapse styles, repeated graph sections, or local helper scopes, so the source pane stays useful even when the diagram grows."
-        />
 
         <EditorRow
           code={<CodePanel title="tooltip-hover.tex" lines={tooltipLines} overlay={<DocsTooltipMock />} variant="editor" />}
@@ -179,16 +251,16 @@ function EditorStory() {
 
         <SyncedDemo
           title="Layout tools understand the drawing."
-          body="The cursor motion, guides, and source update are still driven by the Version A GSAP timeline. Version B only changes where the source and scene sit on the page."
+          body="The cursor motion, guides, and source update stay connected while the layout tool snaps one object to another."
         >
-          <SnapGuidesCard />
+          <SnapGuidesCard sceneViewBox={VERSION_B_DEMO_VIEW_BOXES.snapGuides} />
         </SyncedDemo>
 
         <SyncedDemo
           title="Paths attach to semantic points."
           body="The same split can introduce arrows, anchors, alignment, and multi-selection tools without switching away from the code-and-canvas metaphor."
         >
-          <AddArrowCard />
+          <AddArrowCard sceneViewBox={VERSION_B_DEMO_VIEW_BOXES.addArrow} />
         </SyncedDemo>
 
         <SyncedDemo
@@ -199,6 +271,8 @@ function EditorStory() {
         </SyncedDemo>
       </section>
       <PaperFileSection />
+      <AiAssistSection />
+      <ToolCatalogSection />
     </>
   );
 }
@@ -220,6 +294,171 @@ function PaperFileSection() {
         </figure>
       </div>
     </section>
+  );
+}
+
+function AiAssistSection() {
+  return (
+    <section className="vBPaperSection vBAiSection" aria-labelledby="ai-workflow-title">
+      <div className="vBPaperSectionInner">
+        <div className="vBPaperCopy">
+          <h2 id="ai-workflow-title">Ask AI for help editing your figures.</h2>
+          <p>
+            On the desktop version, if OpenAI Codex is installed, you can ask GPT to edit your figure directly
+            in the app. The assistant has access to several TikZ-specific tools. Usage draws from your ChatGPT
+            account.
+          </p>
+        </div>
+        <figure className="vBPaperScreenshot">
+          <img src={codexScreenshotUrl} alt="TikZ Editor desktop assistant editing a figure with Codex" />
+        </figure>
+      </div>
+    </section>
+  );
+}
+
+function ToolCatalogSection() {
+  return (
+    <section className="vBToolCatalog" aria-labelledby="tool-catalog-title">
+      <div className="vBToolCatalogInner">
+        <div className="vBToolCatalogIntro">
+          <h2 id="tool-catalog-title">Available tools.</h2>
+          <p>
+            The toolbar covers direct manipulation and drawing tools, with previews generated from the same TikZ
+            renderer used by the editor canvas.
+          </p>
+        </div>
+        <div className="vBToolRows">
+          {TOOL_CATALOG.map((tool) => {
+            const ToolIcon = tool.icon;
+            return (
+              <article className="vBToolRow" key={tool.mode}>
+                <div className="vBToolIcon" aria-hidden="true">
+                  <ToolIcon size={22} />
+                </div>
+                <div className="vBToolDescription">
+                  <h3>{tool.name}</h3>
+                  <p>{tool.description}</p>
+                </div>
+                {tool.mode === "magnify" ? (
+                  <MagnifyToolPreview svg={tool.preview.svg} label={`${tool.name} example`} />
+                ) : (
+                  <div className="vBToolExample" data-tool-mode={tool.mode} aria-label={`${tool.name} example`}>
+                    <div className="vBToolPreviewSvg" dangerouslySetInnerHTML={{ __html: tool.preview.svg }} />
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function MagnifyToolPreview({ svg, label }: { svg: string; label: string }) {
+  const lensRadiusPx = 46;
+  const magnifyScale = 2.25;
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const [isActive, setIsActive] = useState(false);
+  const [center, setCenter] = useState<MagnifyCenter>({
+    x: 0,
+    y: 0,
+    frameWidth: 0,
+    frameHeight: 0
+  });
+  const style = {
+    "--vBMagnifyX": `${center.x}px`,
+    "--vBMagnifyY": `${center.y}px`,
+    "--vBMagnifyFrameWidth": `${center.frameWidth}px`,
+    "--vBMagnifyFrameHeight": `${center.frameHeight}px`,
+    "--vBMagnifyContentX": `${lensRadiusPx - center.x * magnifyScale}px`,
+    "--vBMagnifyContentY": `${lensRadiusPx - center.y * magnifyScale}px`,
+    "--vBMagnifyScale": magnifyScale
+  } as CSSProperties;
+
+  const setCenterFromFrame = useCallback((xPx: number, yPx: number, frameWidth: number, frameHeight: number): void => {
+    setCenter({
+      x: xPx,
+      y: yPx,
+      frameWidth,
+      frameHeight
+    });
+  }, []);
+
+  const resetCenter = useCallback((): void => {
+    const rect = previewRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      return;
+    }
+    const viewBoxAspect = MAGNIFY_REST_VIEW_BOX.width / MAGNIFY_REST_VIEW_BOX.height;
+    const frameAspect = rect.width / rect.height;
+    const fittedWidth = frameAspect > viewBoxAspect ? rect.height * viewBoxAspect : rect.width;
+    const fittedHeight = frameAspect > viewBoxAspect ? rect.height : rect.width / viewBoxAspect;
+    const fittedLeft = (rect.width - fittedWidth) / 2;
+    const fittedTop = (rect.height - fittedHeight) / 2;
+    const xRatio = (MAGNIFY_REST_POINT.x - MAGNIFY_REST_VIEW_BOX.minX) / MAGNIFY_REST_VIEW_BOX.width;
+    const yRatio = (MAGNIFY_REST_POINT.y - MAGNIFY_REST_VIEW_BOX.minY) / MAGNIFY_REST_VIEW_BOX.height;
+    setCenterFromFrame(fittedLeft + xRatio * fittedWidth, fittedTop + yRatio * fittedHeight, rect.width, rect.height);
+  }, [setCenterFromFrame]);
+
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview) {
+      return;
+    }
+    resetCenter();
+
+    const observer = new ResizeObserver(resetCenter);
+    observer.observe(preview);
+    return () => {
+      observer.disconnect();
+    };
+  }, [resetCenter]);
+
+  const updateCenter = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const rect = previewRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      return;
+    }
+    const xPx = event.clientX - rect.left;
+    const yPx = event.clientY - rect.top;
+    if (xPx < 0 || xPx > rect.width || yPx < 0 || yPx > rect.height) {
+      setIsActive(false);
+      resetCenter();
+      return;
+    }
+    setIsActive(true);
+    setCenterFromFrame(xPx, yPx, rect.width, rect.height);
+  };
+
+  return (
+    <div
+      className="vBToolExample vBMagnifyToolExample"
+      data-tool-mode="magnify"
+      data-magnify-active={isActive ? "true" : "false"}
+      aria-label={label}
+      style={style}
+      onPointerMove={updateCenter}
+    >
+      <div
+        ref={previewRef}
+        className="vBToolPreviewSvg"
+        dangerouslySetInnerHTML={{ __html: svg }}
+        onPointerEnter={updateCenter}
+        onPointerMove={updateCenter}
+        onPointerLeave={() => {
+          setIsActive(false);
+          resetCenter();
+        }}
+      />
+      <div className="vBMagnifyOverlayFrame" aria-hidden="true">
+        <div className="vBMagnifyLensLayer">
+          <div className="vBMagnifyLensSvg" dangerouslySetInnerHTML={{ __html: svg }} />
+        </div>
+        <div className="vBMagnifyLensRing" />
+      </div>
+    </div>
   );
 }
 

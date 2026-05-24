@@ -7,18 +7,18 @@ import {
   OPEN_EXAMPLE_CATALOG,
   cssColorForToken
 } from "@tikz-editor/app/landing-assets";
-import { NodeMoveCard } from "./cards/NodeMoveCard";
-import { AddArrowCard } from "./cards/AddArrowCard";
-import { AddRectCard } from "./cards/AddRectCard";
-import { SnapGuidesCard } from "./cards/SnapGuidesCard";
-import { SelectionAlignCard } from "./cards/SelectionAlignCard";
-import { RotateNodeCard } from "./cards/RotateNodeCard";
+import { NodeMoveCard } from "../../feature-demos/cards/NodeMoveCard";
+import { AddArrowCard } from "../../feature-demos/cards/AddArrowCard";
+import { AddRectCard } from "../../feature-demos/cards/AddRectCard";
+import { SnapGuidesCard } from "../../feature-demos/cards/SnapGuidesCard";
+import { SelectionAlignCard } from "../../feature-demos/cards/SelectionAlignCard";
+import { RotateNodeCard } from "../../feature-demos/cards/RotateNodeCard";
 import { LandingLayoutEditor } from "./LandingLayoutEditor";
-import { applyCursorOverlayFrame, CursorOverlay } from "./cursor-overlay";
-import { createCursorScript, type CursorFrame } from "./cursor-script";
-import { renderEditHandlesForBounds, type RectBounds } from "./edit-handles";
-import { mountRenderedScene, wrapRenderedElements } from "./animation/rendered-scene";
-import { applyLinePathEndpoints, prepareTransformDrivenLinePath, setSvgAttrs } from "./animation/svg-actors";
+import { applyCursorOverlayFrame, CursorOverlay } from "../../feature-demos/cursor-overlay";
+import { createCursorScript, type CursorFrame } from "../../feature-demos/cursor-script";
+import { renderEditHandlesForBounds, type RectBounds } from "../../feature-demos/edit-handles";
+import { mountRenderedScene, wrapRenderedElements } from "../../feature-demos/animation/rendered-scene";
+import { applyLinePathEndpoints, prepareTransformDrivenLinePath, setSvgAttrs } from "../../feature-demos/animation/svg-actors";
 import {
   formatTikzNumber,
   renderSourcePreview,
@@ -30,9 +30,9 @@ import {
   sourceString,
   sourceText,
   type SourceLine
-} from "./source-preview";
-import { useDemoTimelinePlayback } from "./use-demo-playback";
-import { landingShowcaseSvgs, sourceEditStates, type ForeachRepeatShowcaseSvg, type SourceEditState } from "./generated/feature-svgs";
+} from "../../feature-demos/source-preview";
+import { useDemoTimelinePlayback } from "../../feature-demos/use-demo-playback";
+import { landingShowcaseSvgs, sourceEditStates, type ForeachRepeatShowcaseSvg, type SourceEditState } from "../../feature-demos/generated/feature-svgs";
 
 const EXAMPLE_IDS = [
   "axes",
