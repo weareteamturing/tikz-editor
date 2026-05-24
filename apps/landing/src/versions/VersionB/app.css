@@ -1,31 +1,32 @@
 @import "../VersionA/app.css";
 
 :root {
-  --vB-bg: #f5f7f4;
+  --vB-bg: #faf7f4;
   --vB-ink: #171b1d;
   --vB-muted: #4d5658;
   --vB-faint: #737d7c;
-  --vB-line: #cbd7d2;
-  --vB-line-strong: #9fb4ad;
+  --vB-line: #d0c8be;
+  --vB-line-strong: #aaa197;
   --vB-panel: #ffffff;
-  --vB-code: #fbfcfb;
-  --vB-blue: #2460a7;
-  --vB-teal: #1d756f;
+  --vB-code: #fffdf9;
+  --vB-blue: #1a458f;
+  --vB-teal: #246057;
   --vB-green: #4f8f58;
   --vB-amber: #a55c1c;
   --vB-red: #a63e39;
+  --vB-header-height: 60px;
   --bg-app: var(--vB-bg);
   --bg-pane: var(--vB-panel);
-  --bg-header: #eef3f0;
+  --bg-header: #f4f1eb;
   --border: var(--vB-line);
-  --border-light: #d8e1dd;
-  --border-lighter: #e5ece8;
+  --border-light: #d8d0c6;
+  --border-lighter: #e6ded4;
   --text: var(--vB-ink);
   --text-muted: var(--vB-muted);
   --text-faint: var(--vB-faint);
   --accent: var(--vB-blue);
-  --accent-dark: #1c4d87;
-  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --accent-dark: #163a78;
+  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, Roboto, "Segoe UI", "Source Sans Pro", Arial, sans-serif;
 }
 
 body {
@@ -33,12 +34,131 @@ body {
   color: var(--vB-ink);
 }
 
+.vBTikzDevPage {
+  min-height: 100vh;
+  background: var(--vB-bg);
+  font-family: var(--font-ui);
+}
+
+.vBTikzDevHeader {
+  display: flex;
+  align-items: center;
+  height: var(--vB-header-height);
+  margin: 0;
+  padding: 0;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #1a458f;
+  color: #fff;
+  border-bottom: 1px solid #14366f;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.vBTikzDevTitle {
+  display: block;
+  margin: 0 0 0 0.5em;
+  font-family: var(--font-ui);
+  font-size: 1.5em;
+  line-height: 1.2;
+}
+
+.vBTikzDevHeader a,
+.vBTikzDevHeader a:visited,
+.vBTikzDevHeader a:hover {
+  color: #fff;
+  text-decoration: none;
+}
+
+.vBTikzDevParentLink {
+  font-weight: 400;
+}
+
+.vBTikzDevHamburger {
+  display: none;
+  padding-left: 0.5em;
+  padding-right: 0.2em;
+  font-family: "Linux Libertine O", "Hoefler Text", "Garamond", "Bembo", "Janson", "TeX Gyre Pagella", "Palatino", "Liberation Serif", "Nimbus Roman No 9 L", "FreeSerif", Times, "Times New Roman", serif;
+  font-size: 1.3em;
+  line-height: 1;
+}
+
+.vBTikzDevLinks {
+  display: flex;
+  align-items: center;
+  gap: 0.85em;
+  margin-left: auto;
+  margin-right: 1em;
+  font-size: 0.92em;
+  font-weight: 600;
+}
+
+.vBTikzDevGithubLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36em;
+  padding: 0.28em 0;
+}
+
+.vBTikzDevGithubLink svg {
+  flex: 0 0 auto;
+}
+
+.vBTikzName {
+  font-style: italic;
+}
+
+.vBTikzDevFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0;
+  padding: 2ex 1em;
+  border-top: 1px solid silver;
+  background: var(--vB-bg);
+  color: var(--vB-ink);
+  font-size: 1em;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.vBFooterLinks,
+.vBFooterMeta {
+  min-width: 0;
+}
+
+.vBFooterLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em;
+  align-items: baseline;
+}
+
+.vBTikzDevFooter a {
+  color: #000080;
+  text-decoration: none;
+}
+
+.vBTikzDevFooter a:visited {
+  color: #800000;
+}
+
+.vBTikzDevFooter a:hover {
+  color: #4545df;
+  text-decoration: underline;
+}
+
+.vBFooterMeta {
+  color: var(--vB-muted);
+  text-align: right;
+}
+
 .landingPageVersionB {
   min-height: 100vh;
   overflow: clip;
   background:
-    linear-gradient(180deg, rgba(36, 96, 167, 0.08), transparent 420px),
-    linear-gradient(135deg, rgba(29, 117, 111, 0.12), transparent 34vw),
+    linear-gradient(180deg, rgba(26, 69, 143, 0.06), transparent 420px),
     var(--vB-bg);
 }
 
@@ -51,7 +171,7 @@ body {
 
 .vBHero {
   width: min(1180px, calc(100vw - 32px));
-  min-height: 82svh;
+  min-height: calc(82svh - var(--vB-header-height));
   margin: 0 auto;
   padding: clamp(30px, 4.8vw, 54px) 0 clamp(28px, 4vw, 46px);
 }
@@ -59,15 +179,6 @@ body {
 .vBHeroCopy {
   max-width: 680px;
   margin-bottom: clamp(22px, 3vw, 34px);
-}
-
-.vBEyebrow {
-  margin: 0 0 12px;
-  color: var(--vB-teal);
-  font-size: 0.75rem;
-  line-height: 1.2;
-  font-weight: 760;
-  text-transform: uppercase;
 }
 
 .vBHero h1 {
@@ -97,8 +208,91 @@ body {
 .vBHeroActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 18px;
+  align-items: center;
+  gap: 12px;
   margin-top: 24px;
+}
+
+.vBPrimaryLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid #14366f;
+  border-radius: 2px;
+  background: var(--vB-blue);
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.15;
+  text-decoration: none;
+}
+
+.vBPrimaryLink:visited {
+  color: #fff;
+}
+
+.vBPrimaryLink:hover {
+  background: var(--accent-dark);
+  color: #fff;
+  text-decoration: none;
+}
+
+.vBDownloadLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42em;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--vB-line-strong);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--vB-panel) 72%, var(--bg-header));
+  color: var(--vB-ink);
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.15;
+  text-decoration: none;
+}
+
+.vBDownloadLink:visited {
+  color: var(--vB-ink);
+}
+
+.vBDownloadLink:hover {
+  border-color: var(--vB-blue);
+  background: #fff;
+  color: var(--vB-blue);
+  text-decoration: none;
+}
+
+.vBDownloadIcons {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1em;
+}
+
+.vBCtaIcon {
+  flex: 0 0 auto;
+  position: relative;
+  top: 0;
+}
+
+.vBCtaLabel {
+  line-height: 1.15;
+}
+
+.vBDownloadSize {
+  color: var(--vB-muted);
+  font-size: 0.78em;
+  font-weight: 650;
+  line-height: 1.15;
+  position: relative;
+  top: 0.14em;
+}
+
+.vBDownloadLink:hover .vBDownloadSize {
+  color: var(--vB-blue);
 }
 
 .vBTextLink {
@@ -175,37 +369,6 @@ body {
   color: var(--vB-muted);
   font-size: clamp(0.94rem, 1.1vw, 1.05rem);
   line-height: 1.55;
-}
-
-.vBMirrorDiagram {
-  display: grid;
-  grid-template-columns: 0.38fr 0.42fr 0.2fr;
-  min-height: 150px;
-  border: 1px solid var(--vB-line);
-  background: var(--vB-panel);
-  box-shadow: 0 16px 36px rgba(34, 47, 48, 0.08);
-}
-
-.vBMirrorDiagram span {
-  display: grid;
-  place-items: center;
-  border-right: 1px solid var(--vB-line);
-  color: var(--vB-muted);
-  font-size: 0.92rem;
-  font-weight: 720;
-}
-
-.vBMirrorDiagram span:nth-child(2) {
-  background:
-    linear-gradient(var(--vB-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--vB-line) 1px, transparent 1px),
-    #f8faf8;
-  background-size: 34px 34px;
-}
-
-.vBMirrorDiagram span:last-child {
-  border-right: 0;
-  background: #f4f7f5;
 }
 
 .vBCodePanel,
@@ -336,61 +499,6 @@ body {
   box-shadow: inset 0 -1px 0 var(--vB-blue);
 }
 
-.vBResultPane,
-.vBClosingGrid {
-  border: 1px solid var(--vB-line);
-  background: var(--vB-panel);
-  box-shadow: 0 16px 42px rgba(34, 47, 48, 0.08);
-}
-
-.vBResultPane {
-  display: grid;
-  place-items: center;
-  padding: clamp(14px, 2.2vw, 24px);
-  background: #f8faf8;
-}
-
-.vBResultPane svg {
-  width: min(100%, 500px);
-  height: auto;
-}
-
-.vBGridLines path {
-  stroke: rgba(116, 130, 126, 0.22);
-  stroke-width: 1;
-}
-
-.vBDecisionTree path {
-  fill: none;
-  stroke: #29302f;
-  stroke-width: 2.2;
-  marker-end: url("#vBArrow");
-}
-
-.vBDecisionTree marker path {
-  fill: #29302f;
-}
-
-.vBDecisionTree polygon {
-  fill: #fff8bf;
-  stroke: #29302f;
-  stroke-width: 2;
-}
-
-.vBDecisionTree rect {
-  fill: #d9f6d6;
-  stroke: #29302f;
-  stroke-width: 2;
-}
-
-.vBDecisionTree text {
-  fill: #1d2323;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 22px;
-  text-anchor: middle;
-  dominant-baseline: middle;
-}
-
 .vBSyncedRow {
   grid-template-rows: auto auto;
 }
@@ -517,23 +625,60 @@ body {
   text-decoration: underline;
 }
 
-.vBClosingGrid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  min-height: 150px;
+.vBPaperSection {
+  margin: 18px 0 0;
+  padding: clamp(46px, 6vw, 76px) 0 clamp(54px, 7vw, 86px);
+  background: #e8f0ea;
+  border-top: 1px solid #c6d5ca;
+  border-bottom: 1px solid #c6d5ca;
 }
 
-.vBClosingGrid span {
-  display: grid;
-  place-items: center;
-  border-right: 1px solid var(--vB-line);
+.vBPaperSectionInner {
+  width: min(1240px, calc(100vw - 32px));
+  margin: 0 auto;
+}
+
+.vBPaperCopy {
+  max-width: 790px;
+  margin: 0 auto clamp(26px, 4vw, 42px);
+  text-align: center;
+}
+
+.vBPaperCopy h2 {
+  margin: 0;
+  color: var(--vB-ink);
+  font-size: clamp(1.65rem, 3.7vw, 3rem);
+  line-height: 1.02;
+  font-weight: 760;
+}
+
+.vBPaperCopy p:last-child {
+  margin: 14px auto 0;
   color: var(--vB-muted);
-  font-size: clamp(1rem, 1.6vw, 1.35rem);
-  font-weight: 720;
+  font-size: clamp(0.98rem, 1.2vw, 1.12rem);
+  line-height: 1.58;
 }
 
-.vBClosingGrid span:last-child {
-  border-right: 0;
+.vBPaperCopy code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: color-mix(in srgb, #2d6652 10%, transparent);
+  border: 1px solid color-mix(in srgb, #2d6652 18%, transparent);
+  padding: 0.03em 0.18em;
+}
+
+.vBPaperScreenshot {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  border: 1px solid #b7c9bd;
+  background: #fff;
+  box-shadow: 0 24px 58px rgba(34, 47, 48, 0.16);
+}
+
+.vBPaperScreenshot img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 @media (max-width: 960px) {
@@ -586,8 +731,40 @@ body {
 }
 
 @media (max-width: 640px) {
+  :root {
+    --vB-header-height: 40px;
+  }
+
+  .vBTikzDevHamburger {
+    display: block;
+  }
+
+  .vBTikzDevTitle {
+    margin-left: 0.4em;
+    font-size: 1.1em;
+  }
+
+  .vBTikzDevParentLink {
+    display: none;
+  }
+
+  .vBTikzDevLinks {
+    margin-right: 0.7em;
+    font-size: 0.82em;
+  }
+
+  .vBTikzDevFooter {
+    flex-direction: column;
+    gap: 0.75ex;
+  }
+
+  .vBFooterMeta {
+    text-align: left;
+  }
+
   .vBHero,
-  .vBEditorStory {
+  .vBEditorStory,
+  .vBPaperSectionInner {
     width: min(100% - 18px, 1240px);
   }
 
@@ -607,26 +784,17 @@ body {
     padding: 34px 0;
   }
 
-  .vBMirrorDiagram,
-  .vBClosingGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .vBMirrorDiagram span,
-  .vBClosingGrid span {
-    min-height: 82px;
-    border-right: 0;
-    border-bottom: 1px solid var(--vB-line);
-  }
-
-  .vBMirrorDiagram span:last-child,
-  .vBClosingGrid span:last-child {
-    border-bottom: 0;
-  }
-
   .vBDocsTooltipMock {
     left: 18px;
     top: 82px;
     width: min(300px, calc(100vw - 56px));
+  }
+
+  .vBPaperSection {
+    padding: 38px 0 46px;
+  }
+
+  .vBPaperCopy {
+    margin-bottom: 24px;
   }
 }

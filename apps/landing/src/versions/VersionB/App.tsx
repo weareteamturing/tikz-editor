@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import { RiAppleFill, RiExternalLinkLine, RiGithubFill, RiWindowsFill } from "@remixicon/react";
 import appScreenshotUrl from "../../../background-materials/app-screenshot.png";
+import multiFigureUrl from "../../../background-materials/multi-figure.png";
 import { AddArrowCard } from "../VersionA/cards/AddArrowCard";
 import { AddRectCard } from "../VersionA/cards/AddRectCard";
 import { NodeMoveCard } from "../VersionA/cards/NodeMoveCard";
@@ -14,27 +16,6 @@ type CodeLine = {
   folded?: boolean;
   foldControl?: "open" | "closed";
 };
-
-const heroCodeLines: CodeLine[] = [
-  line("1", "1", <>
-    <Tok kind="keyword">\begin</Tok><Tok kind="punctuation">{"{tikzpicture}"}</Tok>
-  </>, false, false, "open"),
-  line("2", "2", <>
-    {"  "}<Tok kind="keyword">\node</Tok><Tok kind="punctuation">[</Tok><Tok kind="type">decision</Tok><Tok kind="punctuation">]</Tok>{" (q1) at (0,.85) "}
-    <Tok kind="string">{"{$x > 0$}"}</Tok><Tok kind="punctuation">;</Tok>
-  </>),
-  line("3", "3", <>
-    {"  "}<Tok kind="keyword">\node</Tok><Tok kind="punctuation">[</Tok><Tok kind="type">decision</Tok><Tok kind="punctuation">]</Tok>{" (q2) at (-2.2,-2) "}
-    <Tok kind="string">{"{$y > 0$}"}</Tok><Tok kind="punctuation">;</Tok>
-  </>, true),
-  line("4", "4", <>
-    {"  "}<Tok kind="keyword">\draw</Tok>{"[->] (q1) -- node[above left] "}
-    <Tok kind="string">{"{yes}"}</Tok>{" (q2);"}
-  </>),
-  line("5", "5", <>
-    <Tok kind="keyword">\end</Tok><Tok kind="punctuation">{"{tikzpicture}"}</Tok>
-  </>)
-];
 
 const foldingLines: CodeLine[] = [
   line("1", "1", <>
@@ -69,42 +50,79 @@ const tooltipLines: CodeLine[] = [
   </>)
 ];
 
-const exportLines: CodeLine[] = [
-  line("1", "1", <>
-    <Tok kind="keyword">\foreach</Tok>{" \\i/\\label in "}
-    <Tok kind="punctuation">{"{1/A,2/B,3/C}"}</Tok>{" {"}
-  </>),
-  line("2", "2", <>
-    {"  "}<Tok kind="keyword">\node</Tok>{"[circle, draw] (n\\i) at (\\i,0) "}
-    <Tok kind="string">{"{\\label}"}</Tok><Tok kind="punctuation">;</Tok>
-  </>),
-  line("3", "3", <>
-    <Tok kind="punctuation">{"}"}</Tok>
-  </>)
-];
-
 export function App() {
   return (
-    <main className="landingPage landingPageVersionB">
-      <Hero />
-      <EditorStory />
-    </main>
+    <div className="vBTikzDevPage">
+      <TikzDevHeader />
+      <main className="landingPage landingPageVersionB">
+        <Hero />
+        <EditorStory />
+      </main>
+      <TikzDevFooter />
+    </div>
+  );
+}
+
+function TikzDevHeader() {
+  return (
+    <header className="vBTikzDevHeader">
+      <div className="vBTikzDevHamburger" aria-hidden="true">☰</div>
+      <strong className="vBTikzDevTitle">
+        <a href="https://tikz.dev" className="vBTikzDevParentLink">tikz.dev / </a>
+        <a href="/editor">TikZ Editor</a>
+      </strong>
+      <nav className="vBTikzDevLinks" aria-label="TikZ Editor links">
+        <a className="vBTikzDevGithubLink" href="https://github.com/DominikPeters/tikz-editor">
+          <RiGithubFill aria-hidden="true" size={18} />
+          <span>GitHub</span>
+        </a>
+      </nav>
+    </header>
+  );
+}
+
+function TikzDevFooter() {
+  return (
+    <footer className="vBTikzDevFooter">
+      <div className="vBFooterLinks">
+        <a href="https://tikz.dev/license">License</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/DominikPeters/tikz-editor">GitHub</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/DominikPeters/tikz-editor/issues">Feedback and issues</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://tikz.dev">PGF/<span className="vBTikzName">TikZ</span> Manual</a>
+      </div>
+      <div className="vBFooterMeta"><em>TikZ Editor for tikz.dev/editor</em></div>
+    </footer>
   );
 }
 
 function Hero() {
+  const desktopPlatform = getDesktopPlatform();
+  const DesktopDownloadIcon = desktopPlatform === "windows" ? RiWindowsFill : RiAppleFill;
+  const desktopDownloadLabel = desktopPlatform === "windows" ? "Download for Windows" : "Download for Mac";
+
   return (
     <section className="vBHero" aria-labelledby="landing-title">
       <div className="vBHeroCopy">
-        <p className="vBEyebrow">TikZ Editor</p>
         <h1 id="landing-title">TikZ Editor</h1>
         <p className="vBHeroLead">A visual workspace for precise TikZ diagrams.</p>
         <p className="vBHeroText">
           Edit the source, shape the drawing directly, and keep both views in sync.
         </p>
         <div className="vBHeroActions" aria-label="Landing page links">
-          <a href="/" className="vBTextLink">Open app</a>
-          <a href="https://github.com/DominikPeters/tikz-editor" className="vBTextLink">GitHub</a>
+          <a href="https://tikz.dev/editor/web" className="vBPrimaryLink">
+            <RiExternalLinkLine className="vBCtaIcon" aria-hidden="true" size={17} />
+            <span className="vBCtaLabel">Open TikZ Editor Web</span>
+          </a>
+          <a href="https://github.com/DominikPeters/tikz-editor/releases" className="vBDownloadLink">
+            <span className="vBDownloadIcons" aria-hidden="true">
+              <DesktopDownloadIcon className="vBCtaIcon" size={17} />
+            </span>
+            <span className="vBCtaLabel">{desktopDownloadLabel}</span>
+            <span className="vBDownloadSize">8.8 MB</span>
+          </a>
         </div>
       </div>
       <figure className="vBHeroScreenshot" aria-label="TikZ Editor interface screenshot">
@@ -114,113 +132,104 @@ function Hero() {
   );
 }
 
+function getDesktopPlatform(): "mac" | "windows" {
+  if (typeof navigator === "undefined") {
+    return "mac";
+  }
+
+  const platform =
+    (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ??
+    navigator.platform ??
+    "";
+  const userAgent = navigator.userAgent ?? "";
+  const platformText = `${platform} ${userAgent}`;
+
+  return /win/i.test(platformText) ? "windows" : "mac";
+}
+
 function EditorStory() {
   return (
-    <section className="vBEditorStory" aria-label="TikZ Editor feature walkthrough">
-      <EditorRow
-        code={<EmptyRail />}
-        eyebrow="Editor-shaped story"
-        title="The page follows the app."
-        body="The left side behaves like a source pane. The right side has the explanation, rendered graphics, and the editor interactions. When a feature has no meaningful code sample, the source pane simply stays quiet."
-      >
-        <div className="vBMirrorDiagram" aria-hidden="true">
-          <span>Source</span>
-          <span>Canvas</span>
-          <span>Inspector</span>
+    <>
+      <section className="vBEditorStory" aria-label="TikZ Editor feature walkthrough">
+        <SyncedDemo
+          title="Drag a node and the TikZ changes."
+          body="These are the Version A animation components reused directly. Their source previews are still synchronized with the fake cursor timeline, but Version B lays that code in the left rail and the drawing on the right."
+        >
+          <NodeMoveCard />
+        </SyncedDemo>
+
+        <SyncedDemo
+          title="Shape tools write the corresponding TikZ."
+          body="The rectangle tool demonstrates the main rhythm for the page: code appears on the left exactly when it matters, while the right side stays focused on the direct manipulation."
+        >
+          <AddRectCard />
+        </SyncedDemo>
+
+        <EditorRow
+          code={<CodePanel title="workflow.tex" lines={foldingLines} variant="editor" />}
+          title="Large diagrams stay navigable."
+          body="Folding can collapse styles, repeated graph sections, or local helper scopes, so the source pane stays useful even when the diagram grows."
+        />
+
+        <EditorRow
+          code={<CodePanel title="tooltip-hover.tex" lines={tooltipLines} overlay={<DocsTooltipMock />} variant="editor" />}
+          title="Documentation can live next to the code."
+          body="The hover target stays in the source editor, and the documentation popover uses the same structure and styling as the real CodeMirror docs tooltip."
+        />
+
+        <SyncedDemo
+          title="Layout tools understand the drawing."
+          body="The cursor motion, guides, and source update are still driven by the Version A GSAP timeline. Version B only changes where the source and scene sit on the page."
+        >
+          <SnapGuidesCard />
+        </SyncedDemo>
+
+        <SyncedDemo
+          title="Paths attach to semantic points."
+          body="The same split can introduce arrows, anchors, alignment, and multi-selection tools without switching away from the code-and-canvas metaphor."
+        >
+          <AddArrowCard />
+        </SyncedDemo>
+
+        <SyncedDemo
+          title="Repeated edits stay visual."
+          body="Alignment and distribution make sense visually, while the source rail keeps the generated TikZ patch legible."
+        >
+          <SelectionAlignCard />
+        </SyncedDemo>
+      </section>
+      <PaperFileSection />
+    </>
+  );
+}
+
+function PaperFileSection() {
+  return (
+    <section className="vBPaperSection" aria-labelledby="paper-workflow-title">
+      <div className="vBPaperSectionInner">
+        <div className="vBPaperCopy">
+          <h2 id="paper-workflow-title">Edit every figure in a paper.</h2>
+          <p>
+            Open a full <code>.tex</code> paper file and directly edit each figure in context. Figure previews
+            at the bottom of the app make it easy to switch between the different <code>tikzpicture</code>
+            environments in your paper.
+          </p>
         </div>
-      </EditorRow>
-
-      <EditorRow
-        code={<CodePanel title="decision-tree.tex" lines={heroCodeLines} />}
-        eyebrow="Source and canvas"
-        title="Code remains a first-class view."
-        body="The left rail can show the exact TikZ fragment being discussed while the right side explains what the editor makes visible: selected nodes, paths, anchors, and the rendered result."
-      >
-        <div className="vBResultPane">
-          <DecisionTreeGraphic />
-        </div>
-      </EditorRow>
-
-      <SyncedDemo
-        eyebrow="Canvas edit -> source patch"
-        title="Drag a node and the TikZ changes."
-        body="These are the Version A animation components reused directly. Their source previews are still synchronized with the fake cursor timeline, but Version B lays that code in the left rail and the drawing on the right."
-      >
-        <NodeMoveCard />
-      </SyncedDemo>
-
-      <SyncedDemo
-        eyebrow="Draw and resize"
-        title="Shape tools write the corresponding TikZ."
-        body="The rectangle tool demonstrates the main rhythm for the page: code appears on the left exactly when it matters, while the right side stays focused on the direct manipulation."
-      >
-        <AddRectCard />
-      </SyncedDemo>
-
-      <EditorRow
-        code={<CodePanel title="workflow.tex" lines={foldingLines} variant="editor" />}
-        eyebrow="Code folding"
-        title="Large diagrams stay navigable."
-        body="Folding can collapse styles, repeated graph sections, or local helper scopes, so the source pane stays useful even when the diagram grows."
-      />
-
-      <EditorRow
-        code={<CodePanel title="tooltip-hover.tex" lines={tooltipLines} overlay={<DocsTooltipMock />} variant="editor" />}
-        eyebrow="Inline help"
-        title="Documentation can live next to the code."
-        body="The hover target stays in the source editor, and the documentation popover uses the same structure and styling as the real CodeMirror docs tooltip."
-      />
-
-      <SyncedDemo
-        eyebrow="Snap guides"
-        title="Layout tools understand the drawing."
-        body="The cursor motion, guides, and source update are still driven by the Version A GSAP timeline. Version B only changes where the source and scene sit on the page."
-      >
-        <SnapGuidesCard />
-      </SyncedDemo>
-
-      <SyncedDemo
-        eyebrow="Anchors and arrows"
-        title="Paths attach to semantic points."
-        body="The same split can introduce arrows, anchors, alignment, and multi-selection tools without switching away from the code-and-canvas metaphor."
-      >
-        <AddArrowCard />
-      </SyncedDemo>
-
-      <SyncedDemo
-        eyebrow="Selection tools"
-        title="Repeated edits stay visual."
-        body="Alignment and distribution make sense visually, while the source rail keeps the generated TikZ patch legible."
-      >
-        <SelectionAlignCard />
-      </SyncedDemo>
-
-      <EditorRow
-        code={<CodePanel title="repeat.tex" lines={exportLines} />}
-        eyebrow="TikZ vocabulary"
-        title="The landing page can keep widening from here."
-        body="Further sections can cover foreach loops, matrices, styles, exports, and examples using the same rule: code when it clarifies the feature, empty rail when the story is visual."
-      >
-        <div className="vBClosingGrid" aria-hidden="true">
-          <span>Nodes</span>
-          <span>Paths</span>
-          <span>Styles</span>
-          <span>Exports</span>
-        </div>
-      </EditorRow>
+        <figure className="vBPaperScreenshot">
+          <img src={multiFigureUrl} alt="TikZ Editor showing a multi-figure TeX paper with figure previews" />
+        </figure>
+      </div>
     </section>
   );
 }
 
 function EditorRow({
   code,
-  eyebrow,
   title,
   body,
   children
 }: {
   code: ReactNode;
-  eyebrow: string;
   title: string;
   body: string;
   children?: ReactNode;
@@ -230,7 +239,6 @@ function EditorRow({
       <div className="vBCodeRail">{code}</div>
       <div className="vBFeatureColumn">
         <div className="vBFeatureCopy">
-          <p className="vBEyebrow">{eyebrow}</p>
           <h2>{title}</h2>
           <p>{body}</p>
         </div>
@@ -241,12 +249,10 @@ function EditorRow({
 }
 
 function SyncedDemo({
-  eyebrow,
   title,
   body,
   children
 }: {
-  eyebrow: string;
   title: string;
   body: string;
   children: ReactNode;
@@ -256,7 +262,6 @@ function SyncedDemo({
       <div className="vBCodeRail vBCodeRailEmpty" aria-hidden="true" />
       <div className="vBFeatureColumn vBDemoCopy">
         <div className="vBFeatureCopy">
-          <p className="vBEyebrow">{eyebrow}</p>
           <h2>{title}</h2>
           <p>{body}</p>
         </div>
@@ -328,46 +333,6 @@ function DocsTooltipMock() {
         <a className="cm-editor-docs-tooltip-link" href="https://tikz.dev/tikz-actions" target="_blank" rel="noreferrer">Open docs</a>
       </div>
     </div>
-  );
-}
-
-function EmptyRail() {
-  return <div className="vBEmptyRail" aria-hidden="true" />;
-}
-
-function DecisionTreeGraphic() {
-  return (
-    <svg viewBox="0 0 520 340" role="img" aria-label="Rendered decision tree diagram">
-      <defs>
-        <marker id="vBArrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-          <path d="M0 0 8 4 0 8z" />
-        </marker>
-      </defs>
-      <g className="vBGridLines">
-        {Array.from({ length: 11 }, (_, index) => (
-          <path d={`M${index * 52} 0V340`} key={`v-${index}`} />
-        ))}
-        {Array.from({ length: 8 }, (_, index) => (
-          <path d={`M0 ${index * 48}H520`} key={`h-${index}`} />
-        ))}
-      </g>
-      <g className="vBDecisionTree">
-        <path d="M260 82 166 182" />
-        <path d="M260 82 382 182" />
-        <path d="M166 222 108 298" />
-        <path d="M166 222 236 298" />
-        <polygon points="260,28 345,76 260,124 175,76" />
-        <polygon points="166,152 250,200 166,248 82,200" />
-        <rect x="344" y="172" width="104" height="48" rx="6" />
-        <rect x="62" y="276" width="104" height="48" rx="6" />
-        <rect x="204" y="276" width="104" height="48" rx="6" />
-        <text x="260" y="85">x &gt; 0?</text>
-        <text x="166" y="209">y &gt; 0?</text>
-        <text x="396" y="203">No action</text>
-        <text x="114" y="307">Accept</text>
-        <text x="256" y="307">Review</text>
-      </g>
-    </svg>
   );
 }
 
