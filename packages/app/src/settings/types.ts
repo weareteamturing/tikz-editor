@@ -59,6 +59,13 @@ export const GRID_SIZE_MINOR_TARGET_PX: Record<GridSize, number> = {
   coarse: 44
 };
 
+export const EDITOR_FONT_SIZE_MIN_PX = 8;
+export const EDITOR_FONT_SIZE_MAX_PX = 20;
+export const EDITOR_FONT_SIZE_OPTIONS = Array.from(
+  { length: EDITOR_FONT_SIZE_MAX_PX - EDITOR_FONT_SIZE_MIN_PX + 1 },
+  (_, index) => EDITOR_FONT_SIZE_MIN_PX + index
+);
+
 export const DEFAULT_SETTINGS: AppSettings = {
   general: {
     uiFontSizePx: 11,

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useSettingsStore } from "../settings/useSettingsStore";
+import { EDITOR_FONT_SIZE_MAX_PX, EDITOR_FONT_SIZE_MIN_PX } from "../settings/types";
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from "@codemirror/autocomplete";
 import {
   Compartment,
@@ -689,6 +690,9 @@ const editorKeymap = Prec.highest(
     { key: "Mod-d", run: deleteLine, preventDefault: true },
     { key: "Mod-[", run: indentLess, preventDefault: true },
     { key: "Mod-]", run: indentMore, preventDefault: true },
+    { key: "Mod-+", run: increaseEditorFontSize, preventDefault: true },
+    { key: "Mod-=", run: increaseEditorFontSize, preventDefault: true },
+    { key: "Mod--", run: decreaseEditorFontSize, preventDefault: true },
     { key: "Tab", run: insertSoftIndent, preventDefault: true },
     { key: "Shift-Tab", run: indentLess, preventDefault: true }
   ])
@@ -1436,6 +1440,31 @@ function insertSoftIndent(view: EditorView): boolean {
     })
   );
   return true;
+}
+
+function increaseEditorFontSize(): boolean {
+  return adjustEditorFontSize(1);
+}
+
+function decreaseEditorFontSize(): boolean {
+  return adjustEditorFontSize(-1);
+}
+
+function adjustEditorFontSize(delta: number): boolean {
+  const { settings, updateEditorSettings } = useSettingsStore.getState();
+  const nextFontSize = clampEditorFontSize(settings.editor.fontSize + delta);
+  if (nextFontSize !== settings.editor.fontSize) {
+    updateEditorSettings({ fontSize: nextFontSize });
+  }
+  return true;
+}
+
+function clampEditorFontSize(value: number): number {
+  if (!Number.isFinite(value)) {
+    return EDITOR_FONT_SIZE_MIN_PX;
+  }
+  const rounded = Math.round(value);
+  return Math.max(EDITOR_FONT_SIZE_MIN_PX, Math.min(EDITOR_FONT_SIZE_MAX_PX, rounded));
 }
 
 function clampFormatterMaxLineLength(value: number): number {

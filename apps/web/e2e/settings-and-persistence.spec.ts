@@ -58,6 +58,35 @@ test("settings persist across reload and formatter line length is clamped", asyn
   await expect(page.locator("#setting-handle-size")).toHaveValue("11");
 });
 
+test("codemirror mod plus and minus adjust editor font size", async ({ page }) => {
+  await gotoApp(page);
+
+  const scroller = page.locator(".cm-scroller").first();
+  await expect(scroller).toHaveCSS("font-size", "12px");
+
+  await page.locator(".cm-content").first().click();
+  const modifier = process.platform === "darwin" ? "Meta" : "Control";
+  await page.keyboard.press(`${modifier}+Shift+=`);
+  await expect(scroller).toHaveCSS("font-size", "13px");
+
+  await page.keyboard.press(`${modifier}+-`);
+  await expect(scroller).toHaveCSS("font-size", "12px");
+
+  await openMenuCommand(page, "file", "file.open-settings");
+  await page.getByTestId("settings-category-editor").click();
+  await page.selectOption("#setting-font-size", "16");
+  await page.getByTestId("settings-modal").getByRole("button", { name: "Close settings" }).click();
+  await expect(scroller).toHaveCSS("font-size", "16px");
+
+  await page.locator(".cm-content").first().click();
+  await page.keyboard.press(`${modifier}+Shift+=`);
+  await expect(scroller).toHaveCSS("font-size", "17px");
+
+  await openMenuCommand(page, "file", "file.open-settings");
+  await page.getByTestId("settings-category-editor").click();
+  await expect(page.locator("#setting-font-size")).toHaveValue("17");
+});
+
 test("settings reset buttons restore defaults for the active page only", async ({ page }) => {
   await gotoApp(page);
   await openMenuCommand(page, "file", "file.open-settings");

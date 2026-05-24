@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSettingsStore } from "../settings/useSettingsStore";
-import type { ColorPickerAccuracy, ColorScheme, GridSize, MathJaxFont } from "../settings/types";
+import { EDITOR_FONT_SIZE_OPTIONS, type ColorPickerAccuracy, type ColorScheme, type GridSize, type MathJaxFont } from "../settings/types";
 import { Modal } from "./Modal";
 import css from "./SettingsModal.module.css";
 
@@ -237,7 +237,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       value={settings.editor.fontSize}
                       onChange={(e) => { updateEditorSettings({ fontSize: Number(e.target.value) }); }}
                     >
-                      {[8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20].map((size) => (
+                      {EDITOR_FONT_SIZE_OPTIONS.map((size) => (
                         <option key={size} value={size}>{size}px</option>
                       ))}
                     </select>
