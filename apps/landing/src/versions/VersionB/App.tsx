@@ -77,47 +77,47 @@ const tooltipLines: CodeLine[] = [
 
 const TOOL_COPY: Record<ToolPreviewMode, { name?: string; description: string }> = {
   select: {
-    description: "Move objects, resize bounds, rotate selections, and edit path handles."
+    description: "Move, resize, and rotate objects, edit paths, and multi-select to edit multiple elements at once."
   },
   magnify: {
-    description: "Drag over the canvas to zoom into the part of a diagram you are working on."
+    description: <>A virtual magnifying glass to look at details in the figure, similar to <a href='https://www.texstudio.org/'>TeXstudio</a>.</>
   },
   addNode: {
-    description: "Click to place text as a TikZ node at a precise point."
+    description: <>Add text to the figure using a TikZ <code>\node</code>.</>
   },
   addShape: {
-    description: "Drag preset node shapes, including TikZ shape-library forms."
+    description: "Add a node using the shape library. Can add text. Examples: diamonds, polygons, stars, clouds, arrows."
   },
   addMatrix: {
-    description: "Insert a matrix of nodes with the chosen row and column count."
+    description: "Insert a matrix of nodes with a chosen number of rows and columns."
   },
   addLine: {
-    description: "Drag a straight TikZ draw segment between two points."
+    description: <>Draw a straight TikZ <code>\draw</code> path.</>
   },
   addArrow: {
-    description: "Drag a directed path with the same arrow syntax the source uses."
+    description: <>Draw a straight TikZ <code>\draw[-&gt;]</code> arrow.</>
   },
   addBezier: {
-    description: "Place endpoints first, then bend the curve with control handles."
+    description: "Draw a curved path between two points."
   },
   addPath: {
     description: "Build multi-segment paths with straight and curved parts."
   },
   addFreehand: {
-    description: "Draw a smoothed freehand path from pointer movement."
+    description: "Draw a freehand path with smoothing."
   },
   addGrid: {
-    description: "Drag out TikZ grid lines with the selected x and y step."
+    description: "Draw a grid path."
   },
   addRect: {
     name: "Rectangle",
-    description: "Create a rectangular path by dragging corner to corner."
+    description: "Draw a rectangle path."
   },
   addEllipse: {
-    description: "Create an ellipse with independent horizontal and vertical radii."
+    description: "Draw an ellipse path."
   },
   addCircle: {
-    description: "Drag from the center to set a circle radius."
+    description: "Draw a circle path."
   },
   addBucket: {
     description: "Apply a fill color to an existing closed region."
@@ -139,7 +139,7 @@ const FEATURE_GROUPS = [
     title: "Files and export",
     icon: RiFileListLine,
     items: [
-      <>Open and edit <code>.tex</code>, <code>.tikz</code>, and <code>.txt</code> files.</>,
+      <>Open and edit <code>.tex</code> and <code>.tikz</code> files.</>,
       <>Import figures from SVG, Ipe <code>.ipe</code>, and PowerPoint <code>.pptx</code>.</>,
       <>Export to SVG, PNG, PDF, or standalone LaTeX.</>,
       "Work across multiple open documents with tabs."
@@ -149,9 +149,9 @@ const FEATURE_GROUPS = [
     title: "Papers and figures",
     icon: RiSlideshowLine,
     items: [
-      "Switch between figures in a full paper using thumbnail previews.",
+      "Open a full paper with multiple figures, and navigate between figures using thumbnail previews.",
       "Draw nodes, shapes, matrices, arrows, paths, curves, grids, rectangles, ellipses, and circles.",
-      "Edit equations directly in the figure."
+      "Edit text and equations directly in the figure."
     ]
   },
   {
@@ -167,10 +167,10 @@ const FEATURE_GROUPS = [
     title: "Loops and structures",
     icon: RiNodeTree,
     items: [
-      <>Repeat selections into rows and columns as compact <code>\foreach</code> loops.</>,
-      <>Open and edit figures that already use <code>\foreach</code>, including nested loops and generated nodes.</>,
-      "Add labels and pins to nodes from context menus.",
-      "Edit tree diagrams with child/sibling actions, and matrices with row/column and transpose commands."
+      <>Use the Repeat dialog to add a <code>\foreach</code> loop, copying the selection into multiple rows and columns.</>,
+      <>Open and edit figures that already use <code>\foreach</code>, including nested loops.</>,
+      "Add labels and pins to nodes.",
+      "Edit tree diagrams by adding children and edit matrices with row/column and transpose commands."
     ]
   },
   {
@@ -179,14 +179,15 @@ const FEATURE_GROUPS = [
     items: [
       "Inspect and edit stroke, fill, arrows, text, transforms, shapes, and styling in the Inspector.",
       "Manage object visibility, grouping, renaming, and layer order in the Objects panel.",
-      "Edit TikZ styles in the Styles panel."
+      "Edit TikZ styles in the Styles panel, similar to CSS editing in browser devtools."
     ]
   },
   {
     title: "Source and assistant",
     icon: RiCodeLine,
     items: [
-      "Use the source editor with syntax highlighting, autocomplete, folding, search, diagnostics, inline color swatches, and TikZ formatting.",
+      "Use the source editor with syntax highlighting, autocomplete, folding, search, diagnostics, inline color swatches.",
+      "Auto-format your code (fixing indentation).",
       "On desktop, ask the Codex assistant to help edit figures, including with image attachments."
     ],
     secondaryIcon: RiRobot2Line
@@ -257,9 +258,15 @@ function Hero() {
     <section className="vBHero" aria-labelledby="landing-title">
       <div className="vBHeroCopy">
         <h1 id="landing-title">TikZ Editor</h1>
-        <p className="vBHeroLead">A visual workspace for precise TikZ diagrams.</p>
+        <p className="vBHeroLead">WYSIWYG editor for TikZ diagrams in LaTeX</p>
         <p className="vBHeroText">
-          Edit the source, shape the drawing directly, and keep both views in sync.
+          You can start from scratch or edit an existing TikZ figure, or even directly open your paper tex file to edit its images. The TikZ code gets instantly updated as you move around elements, without disturbing existing formatting such as line breaks and spaces.
+        </p>
+        <p className="vBHeroText">
+          The app makes fine-tuning the positions of elements easy and instant, without needing to recompile. It supports all common TikZ features including \foreach loops.
+        </p>
+        <p className="vBHeroText">
+          The app is free and open source (MIT licensed, code on <a href="https://github.com/DominikPeters/tikz-editor">GitHub</a>). It works on the web or as a lightweight desktop app (&lt; 10MB) with some extra features.
         </p>
         <div className="vBHeroActions" aria-label="Landing page links">
           <a href="https://tikz.dev/editor/web" className="vBPrimaryLink">
@@ -302,42 +309,46 @@ function EditorStory() {
     <>
       <section className="vBEditorStory" aria-label="TikZ Editor feature walkthrough">
         <SyncedDemo
-          title="Drag a node and the TikZ changes."
-          body="The source preview stays synchronized with the cursor timeline, so the code changes exactly where the visual edit happens."
+          title="Drag elements to update or finetune locations"
+          body="Instead of manually changing code coordinates, you can now just drag paths or nodes to where you want them, and the code updates instantly."
         >
           <NodeMoveCard sceneViewBox={VERSION_B_DEMO_VIEW_BOXES.nodeMove} />
         </SyncedDemo>
 
         <SyncedDemo
-          title="Shape tools write the corresponding TikZ."
-          body="The rectangle tool demonstrates the main rhythm for the page: code appears on the left exactly when it matters, while the right side stays focused on the direct manipulation."
+          title="Add new elements to figures"
+          body="Tools are provided to add new paths (lines, arrows, multi-segment paths) as well as nodes, rectangles, and circles. New elements get inserted at the end of your code. And of course you can immediately move or resize those elements."
         >
           <AddRectCard sceneViewBox={VERSION_B_DEMO_VIEW_BOXES.addRect} />
         </SyncedDemo>
 
         <EditorRow
           code={<CodePanel title="tooltip-hover.tex" lines={tooltipLines} overlay={<DocsTooltipMock />} variant="editor" />}
-          title="Documentation can live next to the code."
-          body="The hover target stays in the source editor, and the documentation popover uses the same structure and styling as the real CodeMirror docs tooltip."
+          title="Full-features source editor tailored to TikZ"
+          body=<>The source panel always shows the current source. It has syntax highlighting for TikZ, allows code folding to hide the details of a scope, and shows snippets from the TikZ manual on hover. 
+          <br/><br/> 
+          It highlights errors with clear explanations of what's wrong (which is possible because the app does not use a tex compiler to understand your code). 
+          <br/><br/>
+          You can also edit colors and numbers directly in the source view without typing, using a color picker and number scrubbing.</>
         />
 
         <SyncedDemo
-          title="Layout tools understand the drawing."
-          body="The cursor motion, guides, and source update stay connected while the layout tool snaps one object to another."
+          title="Many convenience features are provided"
+          body="The app supports snapping which easily allows you to align elements vertically or horizontally, and make sure they are spaced at equal distances. It also features rulers and customizable guide lines, as well as zoom and a magnifying glass tool."
         >
           <SnapGuidesCard sceneViewBox={VERSION_B_DEMO_VIEW_BOXES.snapGuides} />
         </SyncedDemo>
 
         <SyncedDemo
-          title="Paths attach to semantic points."
-          body="The same split can introduce arrows, anchors, alignment, and multi-selection tools without switching away from the code-and-canvas metaphor."
+          title="Native support for common TikZ features"
+          body="The app allows you to produce idiomatic TikZ figures. For example, paths can easily be drawn so they attach to node anchors. The app also has support for editing node labels and pins, as well as edge labels."
         >
           <AddArrowCard sceneViewBox={VERSION_B_DEMO_VIEW_BOXES.addArrow} />
         </SyncedDemo>
 
         <SyncedDemo
-          title="Repeated edits stay visual."
-          body="Alignment and distribution make sense visually, while the source rail keeps the generated TikZ patch legible."
+          title="Multi-selection for grouping and aligning"
+          body="You can select multiple objects and group them (implement using TikZ scopes) as well as use layout features including align and distribute."
         >
           <SelectionAlignCard />
         </SyncedDemo>
@@ -355,11 +366,11 @@ function PaperFileSection() {
     <section className="vBPaperSection" aria-labelledby="paper-workflow-title">
       <div className="vBPaperSectionInner">
         <div className="vBPaperCopy">
-          <h2 id="paper-workflow-title">Edit every figure in a paper.</h2>
+          <h2 id="paper-workflow-title">Multi-figure support so you can open the full paper</h2>
           <p>
-            Open a full <code>.tex</code> paper file and directly edit each figure in context. Figure previews
+            Open a full <code>.tex</code> paper file and directly edit its figures. Figure previews
             at the bottom of the app make it easy to switch between the different <code>tikzpicture</code>
-            environments in your paper.
+            environments in your paper. The app understands many of your custom macros.
           </p>
         </div>
         <figure className="vBPaperScreenshot">
@@ -375,7 +386,7 @@ function AiAssistSection() {
     <section className="vBPaperSection vBAiSection" aria-labelledby="ai-workflow-title">
       <div className="vBPaperSectionInner">
         <div className="vBPaperCopy">
-          <h2 id="ai-workflow-title">Ask AI for help editing your figures.</h2>
+          <h2 id="ai-workflow-title">Ask AI for help editing your figures</h2>
           <p>
             On the desktop version, if OpenAI Codex is installed, you can ask GPT to edit your figure directly
             in the app. The assistant has access to several TikZ-specific tools. Usage draws from your ChatGPT
@@ -395,11 +406,7 @@ function ToolCatalogSection() {
     <section className="vBToolCatalog" aria-labelledby="tool-catalog-title">
       <div className="vBToolCatalogInner">
         <div className="vBToolCatalogIntro">
-          <h2 id="tool-catalog-title">Available tools.</h2>
-          <p>
-            The toolbar covers direct manipulation and drawing tools, with previews generated from the same TikZ
-            renderer used by the editor canvas.
-          </p>
+          <h2 id="tool-catalog-title">Available tools</h2>
         </div>
         <div className="vBToolRows">
           {TOOL_CATALOG.map((tool) => {
@@ -434,8 +441,7 @@ function FeatureChecklistSection() {
     <section className="vBFeatureChecklist" aria-labelledby="feature-checklist-title">
       <div className="vBFeatureChecklistInner">
         <div className="vBFeatureChecklistIntro">
-          <h2 id="feature-checklist-title">More editor features.</h2>
-          <p>Compact tools for full papers, precise diagrams, and the TikZ source behind them.</p>
+          <h2 id="feature-checklist-title">List of editor features</h2>
         </div>
         <div className="vBFeatureGroups">
           {FEATURE_GROUPS.map((group) => {

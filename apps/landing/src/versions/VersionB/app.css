@@ -198,10 +198,10 @@ body {
 }
 
 .vBHeroText {
-  max-width: 620px;
+  max-width: 700px;
   margin: 12px 0 0;
   color: var(--vB-muted);
-  font-size: clamp(0.86rem, 0.98vw, 0.9rem);
+  font-size: clamp(1rem, 1.1vw, 1.2rem);
   line-height: 1.55;
 }
 
@@ -248,7 +248,7 @@ body {
   padding: 0 12px;
   border: 1px solid color-mix(in srgb, var(--vB-blue) 54%, var(--vB-line-strong));
   border-radius: 2px;
-  background: color-mix(in srgb, var(--vB-blue) 7%, var(--vB-panel));
+  background: color-mix(in srgb, var(--vB-panel) 82%, var(--bg-header));
   color: var(--vB-blue);
   font-size: 0.92rem;
   font-weight: 700;
@@ -359,7 +359,7 @@ body {
 .vBFeatureCopy h2 {
   margin: 0;
   color: var(--vB-ink);
-  font-size: clamp(1.05rem, 1.65vw, 1.55rem);
+  font-size: clamp(0.95rem, 1.25vw, 1.55rem);
   line-height: 1.12;
   font-weight: 760;
 }
@@ -702,7 +702,7 @@ body {
 }
 
 .vBToolCatalogInner {
-  width: min(780px, calc(100vw - 32px));
+  width: min(1260px, calc(100vw - 40px));
   margin: 0 auto;
 }
 
@@ -729,19 +729,27 @@ body {
 
 .vBToolRows {
   display: grid;
-  gap: 0;
+  grid-template-columns: repeat(2, max-content);
+  grid-template-rows: repeat(8, auto);
+  grid-auto-flow: column;
+  justify-content: center;
+  column-gap: clamp(46px, 5vw, 82px);
+  row-gap: 0;
 }
 
 .vBToolRow {
   display: grid;
-  grid-template-columns: 36px minmax(190px, 1fr) minmax(250px, 280px);
-  gap: clamp(10px, 1.5vw, 16px);
+  grid-template-columns: 34px minmax(0, 236px) minmax(190px, 222px);
+  justify-content: start;
+  gap: 9px;
   align-items: center;
-  padding: 10px 0;
+  padding: 9px 0;
+  border-top: 1px solid rgba(170, 161, 151, 0.38);
 }
 
-.vBToolRow + .vBToolRow {
-  border-top: 1px solid rgba(170, 161, 151, 0.38);
+.vBToolRow:nth-child(1),
+.vBToolRow:nth-child(9) {
+  border-top: 0;
 }
 
 .vBToolIcon {
@@ -773,7 +781,7 @@ body {
 }
 
 .vBToolDescription p {
-  max-width: 290px;
+  max-width: 236px;
   margin: 2px 0 0;
   color: var(--vB-muted);
   font-size: 0.84rem;
@@ -785,7 +793,7 @@ body {
   justify-self: end;
   width: 100%;
   min-width: 0;
-  aspect-ratio: 16 / 5.3;
+  aspect-ratio: 16 / 5.7;
   overflow: hidden;
   border: 1px solid #cfc4b8;
   border-radius: 3px;
@@ -1009,6 +1017,37 @@ body {
   background: rgba(26, 69, 143, 0.08);
   border: 1px solid rgba(26, 69, 143, 0.12);
   padding: 0.02em 0.16em;
+}
+
+@media (max-width: 1180px) {
+  .vBToolCatalogInner {
+    width: min(780px, calc(100vw - 32px));
+  }
+
+  .vBToolRows {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-auto-flow: row;
+  }
+
+  .vBToolRow {
+    grid-template-columns: 36px minmax(190px, 1fr) minmax(250px, 280px);
+    gap: clamp(10px, 1.5vw, 16px);
+    padding: 10px 0;
+    border-top: 0;
+  }
+
+  .vBToolRow + .vBToolRow {
+    border-top: 1px solid rgba(170, 161, 151, 0.38);
+  }
+
+  .vBToolDescription p {
+    max-width: 290px;
+  }
+
+  .vBToolExample {
+    aspect-ratio: 16 / 5.3;
+  }
 }
 
 @media (max-width: 960px) {
