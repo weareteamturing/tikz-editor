@@ -1,7 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  base: command === "build" ? "/editor/" : "/",
   plugins: [react()],
   resolve: {
     alias: {
@@ -10,4 +11,4 @@ export default defineConfig({
       "tikz-editor": new URL("../../packages/core/src", import.meta.url).pathname
     }
   }
-});
+}));
