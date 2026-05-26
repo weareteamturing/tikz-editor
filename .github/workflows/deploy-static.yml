@@ -16,6 +16,8 @@ jobs:
 
       - run: npm ci
       - run: npm run -w @tikz-editor/landing build
+        env:
+          GH_TOKEN: ${{ github.token }}
       - run: npm run -w @tikz-editor/web build
 
       - name: Deploy landing page

@@ -17,6 +17,7 @@ export default tseslint.config(
   {
     ignores: [
       "node_modules/**",
+      ".local-notes/**",
       "**/dist/**",
       "dist/**",
       "packages/core/dist/**",

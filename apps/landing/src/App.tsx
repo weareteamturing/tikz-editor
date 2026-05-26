@@ -20,6 +20,7 @@ import {
   RiRobot2Line,
   RiSideBarLine,
   RiSlideshowLine,
+  RiUbuntuFill,
   RiWindowsFill
 } from "@remixicon/react";
 import { TOOL_BUTTONS } from "@tikz-editor/app/landing-assets";
@@ -46,6 +47,8 @@ import { AddRectCard } from "./feature-demos/cards/AddRectCard";
 import { NodeMoveCard } from "./feature-demos/cards/NodeMoveCard";
 import { SelectionAlignCard } from "./feature-demos/cards/SelectionAlignCard";
 import { SnapGuidesCard } from "./feature-demos/cards/SnapGuidesCard";
+import { landingBuildDate } from "./generated/build-info";
+import { releaseDownloadMetadata } from "./generated/release-downloads";
 import { LANDING_TOOL_SVGS } from "./generated/tool-svgs";
 
 type CodeLine = {
@@ -58,6 +61,13 @@ type CodeLine = {
 };
 
 type ToolPreviewMode = keyof typeof LANDING_TOOL_SVGS;
+type ReleaseDownload = typeof releaseDownloadMetadata.downloads[number];
+type DownloadPlatform = ReleaseDownload["platform"];
+type MacArch = Extract<ReleaseDownload, { platform: "mac" }>["arch"];
+type DesktopDownloadSelection = {
+  platform: DownloadPlatform;
+  macArch: MacArch;
+};
 type MagnifyCenter = {
   x: number;
   y: number;
@@ -292,20 +302,23 @@ function TikzDevFooter() {
         <span aria-hidden="true">·</span>
         <a href="https://tikz.dev">PGF/<span className="landingTikzName">TikZ</span> Manual</a>
       </div>
-      <div className="landingFooterMeta"><em>TikZ Editor for tikz.dev/editor</em></div>
+      <div className="landingFooterMeta"><em>Last updated: {landingBuildDate}</em></div>
     </footer>
   );
 }
 
 function Hero() {
-  const desktopPlatform = getDesktopPlatform();
-  const DesktopDownloadIcon = desktopPlatform === "windows" ? RiWindowsFill : RiAppleFill;
-  const desktopDownloadLabel = desktopPlatform === "windows" ? "Download for Windows" : "Download for Mac";
+  const desktopDownloadSelection = useDesktopDownloadSelection();
+  const desktopDownload = getDesktopDownload(desktopDownloadSelection);
+  const DesktopDownloadIcon = desktopDownload.icon;
 
   return (
     <section className="landingHero" aria-labelledby="landing-title">
       <div className="landingHeroCopy">
-        <h1 id="landing-title">TikZ Editor</h1>
+        <h1 id="landing-title" className="landingTitle">
+          <span>TikZ Editor</span>
+          <span className="landingTitleVersion">v{releaseDownloadMetadata.version}</span>
+        </h1>
         <p className="landingHeroLead">WYSIWYG editor for TikZ diagrams in LaTeX</p>
         <p className="landingHeroText">
           You can start from scratch or edit an existing TikZ figure, or even directly open your paper tex file to edit its images. The TikZ code gets instantly updated as you move around elements, without disturbing existing formatting such as line breaks and spaces.
@@ -314,20 +327,31 @@ function Hero() {
           The app makes fine-tuning the positions of elements easy and instant, without needing to recompile. It supports all common TikZ features including \foreach loops.
         </p>
         <p className="landingHeroText">
-          The app is free and open source (MIT licensed, code on <a href="https://github.com/DominikPeters/tikz-editor">GitHub</a>). It works on the web or as a lightweight desktop app (&lt; 10MB) with some extra features.
+          The app is free and open source (MIT licensed, code on <a href="https://github.com/DominikPeters/tikz-editor">GitHub</a>). It works on the web or as a lightweight desktop app with some extra features.
         </p>
         <div className="landingHeroActions" aria-label="Landing page links">
           <a href="https://tikz.dev/editor/web" className="landingPrimaryLink">
             <RiExternalLinkLine className="landingCtaIcon" aria-hidden="true" size={17} />
             <span className="landingCtaLabel">Open TikZ Editor Web</span>
           </a>
-          <a href="https://github.com/DominikPeters/tikz-editor/releases" className="landingDownloadLink">
-            <span className="landingDownloadIcons" aria-hidden="true">
-              <DesktopDownloadIcon className="landingCtaIcon" size={17} />
-            </span>
-            <span className="landingCtaLabel">{desktopDownloadLabel}</span>
-            <span className="landingDownloadSize">8.8 MB</span>
-          </a>
+          <div className="landingDownloadBlock">
+            <a href={desktopDownload.primary.url} className="landingDownloadLink">
+              <span className="landingDownloadIcons" aria-hidden="true">
+                <DesktopDownloadIcon className="landingCtaIcon" size={17} />
+              </span>
+              <span className="landingCtaLabel">{desktopDownload.primary.label}</span>
+              <span className="landingDownloadSize">{formatDownloadSize(desktopDownload.primary.sizeBytes)}</span>
+            </a>
+            <div className="landingDownloadAlternates">
+              {desktopDownload.alternatePrefix}
+              {desktopDownload.alternates.map((alternate, index) => (
+                <Fragment key={alternate.label}>
+                  {index > 0 ? <span aria-hidden="true"> · </span> : null}
+                  <a href={alternate.url}>{alternate.label}</a>
+                </Fragment>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
       <figure className="landingHeroScreenshot" aria-label="TikZ Editor interface screenshot">
@@ -341,16 +365,148 @@ function Hero() {
   );
 }
 
-function getDesktopPlatform(): "mac" | "windows" {
+function useDesktopDownloadSelection(): DesktopDownloadSelection {
+  const [selection, setSelection] = useState<DesktopDownloadSelection>(() => getDesktopDownloadSelection());
+
+  useEffect(() => {
+    const userAgentData = getUserAgentData();
+    if (!userAgentData?.getHighEntropyValues) {
+      return;
+    }
+
+    void userAgentData.getHighEntropyValues(["architecture", "platform"]).then((values) => {
+      setSelection((current) => {
+        const next = selectionFromPlatformText(`${values.platform ?? ""} ${navigator.platform} ${navigator.userAgent}`);
+
+        if (next.platform === "mac") {
+          const detectedMacArch = macArchFromChromiumArchitecture(values.architecture);
+          next.macArch = detectedMacArch ?? current.macArch;
+        }
+
+        return next.platform === current.platform && next.macArch === current.macArch ? current : next;
+      });
+    }).catch(() => {
+      // User-agent high entropy values are only a hint; the default macOS choice is still valid.
+    });
+  }, []);
+
+  return selection;
+}
+
+type BrowserUserAgentData = {
+  getHighEntropyValues?: (hints: string[]) => Promise<{
+    architecture?: string;
+    platform?: string;
+  }>;
+};
+
+function getUserAgentData(): BrowserUserAgentData | undefined {
   if (typeof navigator === "undefined") {
-    return "mac";
+    return undefined;
   }
 
-  const platform = navigator.platform;
-  const userAgent = navigator.userAgent;
-  const platformText = `${platform} ${userAgent}`;
+  return (navigator as Navigator & { userAgentData?: BrowserUserAgentData }).userAgentData;
+}
 
-  return /win/i.test(platformText) ? "windows" : "mac";
+function getDesktopDownloadSelection(): DesktopDownloadSelection {
+  if (typeof navigator === "undefined") {
+    return { platform: "mac", macArch: "arm64" };
+  }
+
+  return selectionFromPlatformText(`${navigator.platform} ${navigator.userAgent}`);
+}
+
+function selectionFromPlatformText(platformText: string): DesktopDownloadSelection {
+  if (/win/i.test(platformText)) {
+    return { platform: "windows", macArch: "arm64" };
+  }
+  if (/linux|x11|ubuntu|fedora|debian/i.test(platformText)) {
+    return { platform: "linux", macArch: "arm64" };
+  }
+  return { platform: "mac", macArch: "arm64" };
+}
+
+function macArchFromChromiumArchitecture(architecture: string | undefined): MacArch | null {
+  if (!architecture) {
+    return null;
+  }
+
+  if (/arm|aarch64/i.test(architecture)) {
+    return "arm64";
+  }
+  if (/x86|x64|amd64|ia32/i.test(architecture)) {
+    return "x64";
+  }
+  return null;
+}
+
+function getDesktopDownload(selection: DesktopDownloadSelection) {
+  if (selection.platform === "windows") {
+    return {
+      icon: RiWindowsFill,
+      primary: downloadLink("Download for Windows", mustFindDownload((download) => download.platform === "windows" && download.format === "exe")),
+      alternatePrefix: "",
+      alternates: [releaseLink("Other platforms")]
+    };
+  }
+
+  if (selection.platform === "linux") {
+    return {
+      icon: RiUbuntuFill,
+      primary: downloadLink("Download AppImage for Linux", mustFindDownload((download) => download.platform === "linux" && download.format === "appimage")),
+      alternatePrefix: "or choose ",
+      alternates: [
+        downloadLink("deb", mustFindDownload((download) => download.platform === "linux" && download.format === "deb")),
+        downloadLink("rpm", mustFindDownload((download) => download.platform === "linux" && download.format === "rpm")),
+        releaseLink("other platforms")
+      ]
+    };
+  }
+
+  const primaryArch = selection.macArch;
+  const alternateArch: MacArch = primaryArch === "arm64" ? "x64" : "arm64";
+
+  return {
+    icon: RiAppleFill,
+    primary: downloadLink(`Download for Mac (${macArchLabel(primaryArch)})`, mustFindDownload((download) => download.platform === "mac" && download.arch === primaryArch)),
+    alternatePrefix: "or choose ",
+    alternates: [
+      downloadLink(`Mac (${macArchLabel(alternateArch)})`, mustFindDownload((download) => download.platform === "mac" && download.arch === alternateArch)),
+      releaseLink("other platforms")
+    ]
+  };
+}
+
+function downloadLink(label: string, download: ReleaseDownload) {
+  return {
+    label,
+    url: download.url,
+    sizeBytes: download.sizeBytes
+  };
+}
+
+function releaseLink(label: string) {
+  return {
+    label,
+    url: releaseDownloadMetadata.url,
+    sizeBytes: 0
+  };
+}
+
+function mustFindDownload(predicate: (download: ReleaseDownload) => boolean): ReleaseDownload {
+  const download = releaseDownloadMetadata.downloads.find(predicate);
+  if (!download) {
+    return releaseDownloadMetadata.downloads[0];
+  }
+  return download;
+}
+
+function macArchLabel(arch: MacArch): string {
+  return arch === "arm64" ? "Apple Silicon" : "Intel";
+}
+
+function formatDownloadSize(sizeBytes: number): string {
+  return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function EditorStory() {

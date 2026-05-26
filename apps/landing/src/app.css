@@ -188,8 +188,7 @@ select {
 
 .landingPage h1,
 .landingPage h2,
-.landingPage h3,
-.landingPage p {
+.landingPage h3 {
   margin-top: 0;
   letter-spacing: 0;
 }
@@ -383,7 +382,7 @@ select {
 .landingHeroCopy {
   max-width: 680px;
   margin-bottom: clamp(16px, 2vw, 24px);
-  /* text-align: center; */
+  text-align: center;
   margin: 0 auto;
 }
 
@@ -395,8 +394,24 @@ select {
   font-weight: 760;
 }
 
+.landingTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.18em;
+}
+
+.landingTitleVersion {
+  color: var(--landing-faint);
+  font-size: 0.4em;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .landingHeroLead {
-  margin: 0;
+  margin: 0 auto;
   color: var(--landing-ink);
   font-size: clamp(1.05rem, 1.75vw, 1.55rem);
   line-height: 1.08;
@@ -405,7 +420,7 @@ select {
 
 .landingHeroText {
   max-width: 700px;
-  margin: 12px 0 0;
+  margin: 16px auto 0;
   color: var(--landing-muted);
   font-size: clamp(1rem, 1.1vw, 1.2rem);
   line-height: 1.55;
@@ -414,10 +429,16 @@ select {
 .landingHeroActions {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   gap: 12px;
   margin-top: 24px;
+}
+
+.landingDownloadBlock {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .landingPrimaryLink {
@@ -493,7 +514,7 @@ select {
 .landingDownloadSize {
   color: color-mix(in srgb, var(--landing-blue) 48%, var(--landing-muted));
   font-size: 0.78em;
-  font-weight: 650;
+  font-weight: 400;
   line-height: 1.15;
   position: relative;
   top: 0.14em;
@@ -501,6 +522,30 @@ select {
 
 .landingDownloadLink:hover .landingDownloadSize {
   color: var(--accent-dark);
+}
+
+.landingDownloadAlternates {
+  width: 100%;
+  margin-top: 6px;
+  color: var(--landing-faint);
+  font-size: 0.76rem;
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.landingDownloadAlternates a {
+  color: color-mix(in srgb, var(--landing-blue) 66%, var(--landing-faint));
+  text-decoration: none;
+}
+
+.landingDownloadAlternates a:visited {
+  color: color-mix(in srgb, var(--landing-blue) 66%, var(--landing-faint));
+}
+
+.landingDownloadAlternates a:hover {
+  color: var(--landing-blue);
+  text-decoration: underline;
 }
 
 .landingTextLink {
@@ -1336,6 +1381,10 @@ select {
     position: relative;
   }
 
+  .landingCodePanelWithOverlay {
+    min-height: 310px;
+  }
+
   .landingEmptyRail {
     position: static;
   }
@@ -1345,12 +1394,13 @@ select {
   }
 
   .landingSyncedDemo .sourcePreview {
+    grid-row: 2;
     min-height: 160px;
     max-height: 260px;
   }
 
   .landingSyncedDemo .featureScene {
-    grid-row: 2;
+    grid-row: 1;
   }
 
   .landingToolRow {

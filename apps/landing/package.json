@@ -4,11 +4,13 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "generate:build-info": "node --import tsx scripts/generate-build-info.mts",
+    "generate:release-downloads": "node --import tsx scripts/generate-release-downloads.mts",
     "generate:feature-svgs": "node --import tsx scripts/generate-feature-svgs.mts",
     "generate:tool-svgs": "node --import tsx scripts/generate-tool-svgs.mts",
     "capture:screenshots": "node --import tsx scripts/capture-screenshots.mts",
-    "dev": "npm run generate:feature-svgs && vite",
-    "build": "npm run generate:feature-svgs && tsc --noEmit && vite build",
+    "dev": "npm run generate:build-info && npm run generate:release-downloads && npm run generate:feature-svgs && vite",
+    "build": "npm run generate:build-info && npm run generate:release-downloads && npm run generate:feature-svgs && tsc --noEmit && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
