@@ -1022,6 +1022,51 @@ body {
   padding: 0.02em 0.16em;
 }
 
+.vBHowItWorks {
+  padding: clamp(34px, 4.8vw, 62px) 0 clamp(40px, 5.4vw, 70px);
+  background: #f1f6f1;
+  border-top: 1px solid #cddbd0;
+}
+
+.vBHowItWorksInner {
+  width: min(900px, calc(100vw - 32px));
+  margin: 0 auto;
+}
+
+.vBHowItWorks h2 {
+  margin: 0 0 18px;
+  color: var(--vB-ink);
+  font-size: clamp(1.35rem, 2.5vw, 2.1rem);
+  line-height: 1.04;
+  font-weight: 760;
+}
+
+.vBHowItWorks p {
+  margin: 0;
+  color: var(--vB-muted);
+  font-size: clamp(0.95rem, 1.08vw, 1.05rem);
+  line-height: 1.68;
+}
+
+.vBHowItWorks p + p {
+  margin-top: 15px;
+}
+
+.vBHowItWorks a {
+  color: var(--vB-blue);
+  font-weight: 650;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.14em;
+}
+
+.vBHowItWorks a:visited {
+  color: #800000;
+}
+
+.vBHowItWorks a:hover {
+  color: var(--vB-teal);
+}
+
 @media (max-width: 1180px) {
   .vBToolCatalogInner {
     width: min(780px, calc(100vw - 32px));
@@ -1057,7 +1102,8 @@ body {
   .vBHero,
   .vBEditorStory,
   .vBToolCatalogInner,
-  .vBFeatureChecklistInner {
+  .vBFeatureChecklistInner,
+  .vBHowItWorksInner {
     width: min(100% - 24px, 1240px);
   }
 
@@ -1160,7 +1206,8 @@ body {
   .vBEditorStory,
   .vBPaperSectionInner,
   .vBToolCatalogInner,
-  .vBFeatureChecklistInner {
+  .vBFeatureChecklistInner,
+  .vBHowItWorksInner {
     width: min(100% - 18px, 1240px);
   }
 
@@ -1212,6 +1259,10 @@ body {
 
   .vBFeatureChecklist {
     padding: 30px 0 36px;
+  }
+
+  .vBHowItWorks {
+    padding: 30px 0 40px;
   }
 
   .vBFeatureGroup {

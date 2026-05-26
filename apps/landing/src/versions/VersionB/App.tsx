@@ -75,7 +75,7 @@ const tooltipLines: CodeLine[] = [
   </>)
 ];
 
-const TOOL_COPY: Record<ToolPreviewMode, { name?: string; description: string }> = {
+const TOOL_COPY: Record<ToolPreviewMode, { name?: string; description: ReactNode }> = {
   select: {
     description: "Move, resize, and rotate objects, edit paths, and multi-select to edit multiple elements at once."
   },
@@ -324,7 +324,7 @@ function EditorStory() {
 
         <EditorRow
           code={<CodePanel title="tooltip-hover.tex" lines={tooltipLines} overlay={<DocsTooltipMock />} variant="editor" />}
-          title="Full-features source editor tailored to TikZ"
+          title="Full-featured source editor tailored to TikZ"
           body=<>The source panel always shows the current source. It has syntax highlighting for TikZ, allows code folding to hide the details of a scope, and shows snippets from the TikZ manual on hover. 
           <br/><br/> 
           It highlights errors with clear explanations of what's wrong (which is possible because the app does not use a tex compiler to understand your code). 
@@ -357,6 +357,7 @@ function EditorStory() {
       <AiAssistSection />
       <ToolCatalogSection />
       <FeatureChecklistSection />
+      <HowItWorksSection />
     </>
   );
 }
@@ -467,6 +468,34 @@ function FeatureChecklistSection() {
             );
           })}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function HowItWorksSection() {
+  return (
+    <section className="vBHowItWorks" aria-labelledby="how-it-works-title">
+      <div className="vBHowItWorksInner">
+        <h2 id="how-it-works-title">How the app works</h2>
+        <p>
+          The app is written in TypeScript and the desktop version is using <a href="https://tauri.app/">Tauri</a> with a light Rust backend. The initial code base was written by Codex using gpt-5-3-codex, gpt-5-4, gpt-5-4-mini, and gpt-5-5 over a three-month period, with some contributions from Claude. It was built by <a href="https://dominik-peters.de/">Dominik Peters</a>.
+        </p>
+        <p>
+          Parsing TeX code is famously near impossible, which probably explains why prior to this project, no WYSIWYG editor for TikZ existed (with some exceptions like <a href="https://tikzit.github.io/">TikZiT</a> but which doesn't allow you to bring your pre-existing TikZ code). With the arrival of competent LLM coding agents, this parsing task has now become kind of feasible thanks to their inhuman patience to attack this problem by brute force.
+        </p>
+        <p>
+          Now, the app does not parse arbitrary TeX code; it only parses commands that are frequently used in the process of making TikZ figures. Thus, code that is very "hacky" will likely not be interpreted correctly. Still, coverage is pretty good and increasing over time. The app parses the given TikZ code and builds an internal representation of it which becomes a semantic layer that resolves coordinates, styles, transforms, loops, nodes, paths, and text into editable scene elements. This representation is closely linked to the syntactic input, by tagging it with line and character ranges. This allows the app to change parts of the code using small patches, without having to re-write the TikZ code in some canonical format. This way, the user's indentation and line breaks are preserved faithfully. The scene is then rendered using SVG.
+        </p>
+        <p>
+          Text and math rendering are done via <a href="https://www.mathjax.org/">MathJax</a>. To support multi-line text, the app re-implements the TeX algorithm for hyphenation and the <a href="https://en.wikipedia.org/wiki/Knuth%E2%80%93Plass_line-breaking_algorithm">Knuth-Plass line-breaking algorithm</a>. This was a major effort, but it means that the way that multi-line text is displayed in the app usually exactly mirrors the way that TeX renders the same text.
+        </p>
+        <p>
+          The app includes a custom color picker that internally converts RGB colors to the closest color representable by short xcolor strings, so that #409a40 becomes violet!88!white!45!green. The code for this is available as the npm package <a href="https://www.npmjs.com/package/xcolor-rgb-convert">xcolor-rgb-convert</a>.
+        </p>
+        <p>
+          The app supports importing a variety of file formats based on converters that I developed for this purpose; these converters are available as standalone npm packages: <a href="https://www.npmjs.com/package/svg2tikz">svg2tikz</a>, <a href="https://www.npmjs.com/package/pptx2tikz">pptx2tikz</a> built on top of <a href="https://github.com/pipipi-pikachu/pptxtojson">pptxtojson</a>, and <a href="https://www.npmjs.com/package/ipe2tikz">ipe2tikz</a>. The desktop app also supports directly pasting objects from PowerPoint and Keynote; for the latter feature I built an interpreter for the keynote clipboard format, available as npm package <a href="https://www.npmjs.com/package/keynote-clipboard">keynote-clipboard</a>. The desktop app also includes support for AI assistance via the <a href="https://developers.openai.com/codex/app-server">Codex App Server</a>.
+        </p>
       </div>
     </section>
   );
@@ -586,7 +615,7 @@ function EditorRow({
 }: {
   code: ReactNode;
   title: string;
-  body: string;
+  body: ReactNode;
   children?: ReactNode;
 }) {
   return (
