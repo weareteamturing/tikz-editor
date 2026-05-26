@@ -171,9 +171,56 @@ const noRawCoordinateObject = {
   }
 };
 
+function jsxAttributeName(node) {
+  if (node.type === "JSXIdentifier") return node.name;
+  if (node.type === "JSXNamespacedName") {
+    return `${node.namespace.name}:${node.name.name}`;
+  }
+  return null;
+}
+
+const jsxNoDuplicateProps = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "disallow duplicate JSX props on the same element"
+    },
+    messages: {
+      duplicateProp: "Prop '{{name}}' is specified more than once on this JSX element."
+    },
+    schema: []
+  },
+  create(context) {
+    return {
+      JSXOpeningElement(node) {
+        const seen = new Set();
+
+        for (const attribute of node.attributes) {
+          if (attribute.type !== "JSXAttribute") continue;
+
+          const name = jsxAttributeName(attribute.name);
+          if (!name) continue;
+
+          if (seen.has(name)) {
+            context.report({
+              node: attribute.name,
+              messageId: "duplicateProp",
+              data: { name }
+            });
+            continue;
+          }
+
+          seen.add(name);
+        }
+      }
+    };
+  }
+};
+
 export default {
   rules: {
     "no-coordinate-type-cast": noCoordinateTypeCast,
-    "no-raw-coordinate-object": noRawCoordinateObject
+    "no-raw-coordinate-object": noRawCoordinateObject,
+    "jsx-no-duplicate-props": jsxNoDuplicateProps
   }
 };

@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useRef,
@@ -186,9 +187,9 @@ const FEATURE_GROUPS = [
     title: "Files and export",
     icon: RiFileListLine,
     items: [
-      <>Open and edit <code>.tex</code> and <code>.tikz</code> files.</>,
-      <>Import figures from SVG, Ipe <code>.ipe</code>, and PowerPoint <code>.pptx</code>.</>,
-      <>Export to SVG, PNG, PDF, or standalone LaTeX.</>,
+      <Fragment key="open-source-files">Open and edit <code>.tex</code> and <code>.tikz</code> files.</Fragment>,
+      <Fragment key="import-figures">Import figures from SVG, Ipe <code>.ipe</code>, and PowerPoint <code>.pptx</code>.</Fragment>,
+      <Fragment key="export-formats">Export to SVG, PNG, PDF, or standalone LaTeX.</Fragment>,
       "Work across multiple open documents with tabs."
     ]
   },
@@ -214,8 +215,8 @@ const FEATURE_GROUPS = [
     title: "Loops and structures",
     icon: RiNodeTree,
     items: [
-      <>Use the Repeat dialog to add a <code>\foreach</code> loop, copying the selection into multiple rows and columns.</>,
-      <>Open and edit figures that already use <code>\foreach</code>, including nested loops.</>,
+      <Fragment key="repeat-dialog">Use the Repeat dialog to add a <code>\foreach</code> loop, copying the selection into multiple rows and columns.</Fragment>,
+      <Fragment key="edit-foreach">Open and edit figures that already use <code>\foreach</code>, including nested loops.</Fragment>,
       "Add labels and pins to nodes.",
       "Edit tree diagrams by adding children and edit matrices with row/column and transpose commands."
     ]

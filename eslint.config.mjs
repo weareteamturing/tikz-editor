@@ -1,6 +1,6 @@
 import js from "@eslint/js";
 import globals from "globals";
-import react from "eslint-plugin-react";
+import eslintReact from "@eslint-react/eslint-plugin";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import unicorn from "eslint-plugin-unicorn";
@@ -52,16 +52,11 @@ export default tseslint.config(
       }
     },
     plugins: {
-      react,
+      "@eslint-react": eslintReact,
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
       tikz,
       unicorn
-    },
-    settings: {
-      react: {
-        version: "19.0"
-      }
     },
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
@@ -96,19 +91,22 @@ export default tseslint.config(
       "no-useless-assignment": "warn",
       "no-useless-escape": "warn",
       "prefer-const": "warn",
-      "react/button-has-type": "warn",
-      "react/jsx-key": "warn",
-      "react/jsx-no-duplicate-props": "warn",
-      "react/no-children-prop": "warn",
-      "react/no-danger-with-children": "warn",
-      "react/no-deprecated": "warn",
-      "react/no-find-dom-node": "warn",
-      "react/no-string-refs": "warn",
-      "react/no-unknown-property": "warn",
-      "react/require-render-return": "warn",
+      "@eslint-react/dom-no-dangerously-set-innerhtml-with-children": "warn",
+      "@eslint-react/dom-no-find-dom-node": "warn",
+      "@eslint-react/dom-no-missing-button-type": "warn",
+      "@eslint-react/dom-no-unknown-property": "warn",
+      "@eslint-react/jsx-no-children-prop": "warn",
+      "@eslint-react/no-missing-key": "warn",
+      "@eslint-react/no-component-will-mount": "warn",
+      "@eslint-react/no-component-will-receive-props": "warn",
+      "@eslint-react/no-component-will-update": "warn",
+      "@eslint-react/no-unsafe-component-will-mount": "warn",
+      "@eslint-react/no-unsafe-component-will-receive-props": "warn",
+      "@eslint-react/no-unsafe-component-will-update": "warn",
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
-      "react-refresh/only-export-components": "off"
+      "react-refresh/only-export-components": "off",
+      "tikz/jsx-no-duplicate-props": "warn"
     }
   },
   {
@@ -161,16 +159,19 @@ export default tseslint.config(
         }
       ],
       "@typescript-eslint/unbound-method": "error",
-      "react/button-has-type": "error",
-      "react/jsx-key": "error",
-      "react/jsx-no-duplicate-props": "error",
-      "react/no-children-prop": "error",
-      "react/no-danger-with-children": "error",
-      "react/no-deprecated": "error",
-      "react/no-find-dom-node": "error",
-      "react/no-string-refs": "error",
-      "react/no-unknown-property": "error",
-      "react/require-render-return": "error",
+      "@eslint-react/dom-no-dangerously-set-innerhtml-with-children": "error",
+      "@eslint-react/dom-no-find-dom-node": "error",
+      "@eslint-react/dom-no-missing-button-type": "error",
+      "@eslint-react/dom-no-unknown-property": "error",
+      "@eslint-react/jsx-no-children-prop": "error",
+      "@eslint-react/no-missing-key": "error",
+      "@eslint-react/no-component-will-mount": "error",
+      "@eslint-react/no-component-will-receive-props": "error",
+      "@eslint-react/no-component-will-update": "error",
+      "@eslint-react/no-unsafe-component-will-mount": "error",
+      "@eslint-react/no-unsafe-component-will-receive-props": "error",
+      "@eslint-react/no-unsafe-component-will-update": "error",
+      "tikz/jsx-no-duplicate-props": "error",
       "tikz/no-coordinate-type-cast": "error",
       "tikz/no-raw-coordinate-object": "error",
       "unicorn/catch-error-name": "error",
