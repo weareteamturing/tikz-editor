@@ -20,7 +20,7 @@ jobs:
           - platform: ubuntu-22.04
             args: ""
             rust_targets: ""
-          - platform: windows-latest
+          - platform: windows-2022
             args: ""
             rust_targets: ""
     runs-on: ${{ matrix.platform }}
@@ -39,6 +39,10 @@ jobs:
         if: matrix.rust_targets != ''
         with:
           targets: ${{ matrix.rust_targets }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
 
       - name: Install Linux Tauri dependencies
         if: runner.os == 'Linux'
@@ -78,7 +82,7 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/private_keys"
           printf "%s" "$APPLE_API_PRIVATE_KEY" > "$GITHUB_WORKSPACE/private_keys/AuthKey_${APPLE_API_KEY}.p8"
 
-      - uses: tauri-apps/tauri-action@v1
+      - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
