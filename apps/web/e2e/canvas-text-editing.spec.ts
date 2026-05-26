@@ -617,11 +617,17 @@ test("fallback-rendered invalid MathJax text still enters canvas edit mode", asy
   await expect(textRegion).toBeVisible();
   await expect.poll(async () => textRegion.evaluate((element) => getComputedStyle(element).cursor)).toBe("text");
 
-  await clickTextHitRegionByTargetId(page, "path:0");
+  const box = await textRegion.boundingBox();
+  if (!box) {
+    throw new Error("Missing fallback text hit-region bounds.");
+  }
+
+  await page.mouse.click(box.x + box.width - 1, box.y + box.height / 2);
   const textarea = page.getByTestId("canvas-text-edit-textarea");
   await expect(textarea).toBeVisible();
   await expect(textarea).toBeFocused();
   await expect(textarea).toHaveValue("$");
+  await expect.poll(async () => await readTextareaSelection(page)).toEqual({ start: 1, end: 1 });
 
   await page.keyboard.type("x$");
   await expect(textarea).toHaveValue("$x$");
