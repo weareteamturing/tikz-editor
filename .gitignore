@@ -143,8 +143,11 @@ dist
 /pgf-src
 /examples
 /.claude
+/.agents
 /prototypes/rgb-to-xcolor
+/prototypes
 /tauri-docs
+/docs
 /apps/web/test-results
 /prototypes/clipboard
 /apps/web/e2e/traces
@@ -159,3 +162,5 @@ MATRIX_PLAN.md
 /apps/landing/artifacts
 /apps/landing/background-materials
 /.playwright-mcp
+/.local-notes
+/skills-lock.json

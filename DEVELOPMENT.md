@@ -11,8 +11,6 @@ The core library uses a layered pipeline:
 3. **SVG Backend** (`packages/core/src/svg`) — Emits pure SVG from scene elements
 4. **Render API** (`packages/core/src/render`) — End-to-end source → SVG orchestration
 
-See `docs/architecture.md` for detailed documentation.
-
 ## Apps
 
 - **Web app** (`apps/web`) — Vite + React

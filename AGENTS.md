@@ -7,8 +7,6 @@ A WYSIWYG editor foundation for TikZ with a layered parser -> semantic IR -> SVG
 3. SVG backend (`/Users/dominik/GitHub/tikz-editor/packages/core/src/svg`) emits pure SVG from scene elements.
 4. Render convenience API (`/Users/dominik/GitHub/tikz-editor/packages/core/src/render`) provides end-to-end source -> SVG orchestration.
 
-More detail is in `/Users/dominik/GitHub/tikz-editor/docs/architecture.md`.
-
 ## Apps
 
 1. Web app (`/Users/dominik/GitHub/tikz-editor/apps/web`)
