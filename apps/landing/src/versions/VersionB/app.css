@@ -173,12 +173,14 @@ body {
   width: min(1180px, calc(100vw - 32px));
   min-height: calc(82svh - var(--vB-header-height));
   margin: 0 auto;
-  padding: clamp(30px, 4.8vw, 54px) 0 0 0;
+  padding: clamp(20px, 3vw, 40px) 0 0 0;
 }
 
 .vBHeroCopy {
   max-width: 680px;
   margin-bottom: clamp(16px, 2vw, 24px);
+  /* text-align: center; */
+  margin: 0 auto;
 }
 
 .vBHero h1 {
@@ -209,6 +211,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   margin-top: 24px;
 }

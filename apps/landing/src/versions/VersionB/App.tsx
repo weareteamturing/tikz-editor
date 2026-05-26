@@ -369,8 +369,7 @@ function PaperFileSection() {
           <h2 id="paper-workflow-title">Multi-figure support so you can open the full paper</h2>
           <p>
             Open a full <code>.tex</code> paper file and directly edit its figures. Figure previews
-            at the bottom of the app make it easy to switch between the different <code>tikzpicture</code>
-            environments in your paper. The app understands many of your custom macros.
+            at the bottom of the app make it easy to switch between the different <code>tikzpicture</code> environments in your paper. The app understands many of your custom macros.
           </p>
         </div>
         <figure className="vBPaperScreenshot">
