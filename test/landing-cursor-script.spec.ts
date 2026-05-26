@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import gsap from "gsap";
-import { createCursorScript, type CursorFrame } from "../apps/landing/src/versions/VersionA/cursor-script";
+import { createCursorScript, type CursorFrame } from "../apps/landing/src/feature-demos/cursor-script";
 
 describe("landing cursor script", () => {
   it("commits imperative position changes during direct cursor movement", () => {
