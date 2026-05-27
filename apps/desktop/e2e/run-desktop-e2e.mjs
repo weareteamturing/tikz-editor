@@ -192,6 +192,17 @@ async function installDeterministicBridge(browserInstance) {
     const unsavedPrompts = [];
     const warnings = [];
     const errors = [];
+    const linkedFiles = new Map();
+    const linkedRevisionForText = (text) => ({
+      hash: `e2e-${text.length}-${Array.from(text).reduce((hash, char) => ((hash * 31) + char.charCodeAt(0)) >>> 0, 0).toString(16)}`,
+      size: text.length
+    });
+    const linkedFileRefForPath = (filePath) => ({
+      kind: "file",
+      provider: "desktop-fs",
+      path: filePath,
+      name: filePath.split("/").pop() ?? "tikz-document.tex"
+    });
     if (!window.__DESKTOP_E2E_CONSOLE_CAPTURE_INSTALLED__) {
       const originalWarn = console.warn.bind(console);
       const originalError = console.error.bind(console);
@@ -208,8 +219,13 @@ async function installDeterministicBridge(browserInstance) {
     const bridge = {
       openText: async (path) => {
         const resolvedPath = path ?? "/tmp/opened-from-e2e.tex";
+        const source = "\\\\draw (9,9)--(10,10); % desktop-opened";
+        linkedFiles.set(resolvedPath, {
+          source,
+          revision: linkedRevisionForText(source)
+        });
         return {
-          source: "\\\\draw (9,9)--(10,10); % desktop-opened",
+          source,
           path: resolvedPath,
           name: resolvedPath.split("/").pop() ?? "opened-from-e2e.tex"
         };
@@ -224,6 +240,28 @@ async function installDeterministicBridge(browserInstance) {
           ok: true,
           path: computedPath,
           name: computedPath.split("/").pop() ?? "tikz-document.tex"
+        };
+      },
+      readLinkedText: async (filePath) => {
+        const entry = linkedFiles.get(filePath);
+        if (!entry) {
+          return { status: "missing" };
+        }
+        return {
+          status: "ok",
+          source: entry.source,
+          revision: entry.revision,
+          fileRef: linkedFileRefForPath(filePath)
+        };
+      },
+      writeLinkedText: async ({ path: filePath, text }) => {
+        const revision = linkedRevisionForText(text);
+        linkedFiles.set(filePath, { source: text, revision });
+        writes.push({ text, path: filePath, forceSaveAs: false });
+        return {
+          status: "saved",
+          revision,
+          fileRef: linkedFileRefForPath(filePath)
         };
       },
       exportFile: async ({ fileName, mimeType, bytesBase64 }) => {
@@ -484,13 +522,20 @@ async function scenarioUnsavedGuard(browserInstance) {
 }
 
 async function dispatchCommand(browserInstance, commandId) {
+  let lastState = null;
   await browserInstance.waitUntil(async () => {
+    lastState = await browserInstance.execute((id) => {
+      return window.__TIKZ_EDITOR_APP_TEST_API__.getCommandState(id);
+    }, commandId);
+    if (!lastState.enabled) {
+      return false;
+    }
     return await browserInstance.execute((id) => {
       return window.__TIKZ_EDITOR_APP_TEST_API__.runCommand(id);
     }, commandId);
   }, {
     timeout: 10_000,
-    timeoutMsg: `Command did not become enabled for ${commandId}`
+    timeoutMsg: `Command did not become enabled for ${commandId}; lastState=${JSON.stringify(lastState)}`
   });
 }
 

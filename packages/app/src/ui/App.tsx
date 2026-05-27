@@ -1338,6 +1338,7 @@ export function App() {
         getSourceRevision: () => number;
         getSnapshotSource: () => string;
         getPendingRequestId: () => string | null;
+        getCommandState: (commandId: string) => { enabled: boolean; known: boolean };
         runCommand: (commandId: string) => boolean;
         selectFirstFigure: () => void;
         selectAllElements: () => void;
@@ -1377,6 +1378,13 @@ export function App() {
       },
       getPendingRequestId: () => {
         return useEditorStore.getState().pendingRequestId;
+      },
+      getCommandState: (commandId) => {
+        const binding = commandRuntime.bindings[commandId as keyof typeof commandRuntime.bindings];
+        return {
+          enabled: binding?.enabled ?? false,
+          known: binding != null
+        };
       },
       runCommand: (commandId) => {
         return commandRuntime.runCommand(commandId as keyof typeof commandRuntime.bindings, "platform");

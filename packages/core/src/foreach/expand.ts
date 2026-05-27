@@ -250,10 +250,18 @@ function expandForeachStatement(
     const nextStack = [...stack, frame];
 
     const substituted = substituteForeachBindingsWithMap(statement.bodyRaw, combinedBindings);
-    const macroExpandedBodyRaw = expandMacroBindings(substituted.output, context.macroBindings);
-    const substitutedBodyRaw = expandTexConditionals(macroExpandedBodyRaw);
-    const canMapSubstitutedBody = substitutedBodyRaw === substituted.output;
-    const parsedBody = parseStatementsFromBodyWithMapping(substitutedBodyRaw, { from: 0, to: substitutedBodyRaw.length });
+    const macroExpandedBodyRaw = expandTexConditionals(expandMacroBindings(substituted.output, context.macroBindings));
+    const parsedMacroExpandedBody = parseStatementsFromBodyWithMapping(macroExpandedBodyRaw, { from: 0, to: macroExpandedBodyRaw.length });
+    const substitutedBodyRaw = expandTexConditionals(substituted.output);
+    const parsedSubstitutedBody = parsedMacroExpandedBody.hasParseError
+      ? parseStatementsFromBodyWithMapping(substitutedBodyRaw, { from: 0, to: substitutedBodyRaw.length })
+      : null;
+    const parsedBody = parsedSubstitutedBody && !parsedSubstitutedBody.hasParseError
+      ? parsedSubstitutedBody
+      : parsedMacroExpandedBody;
+    const canMapSubstitutedBody = parsedBody === parsedSubstitutedBody
+      ? substitutedBodyRaw === substituted.output
+      : macroExpandedBodyRaw === substituted.output;
     if (parsedBody.hasParseError) {
       context.diagnostics.push({
         severity: "warning",
@@ -908,7 +916,10 @@ function tryExpandMacroStatement(
   }
 
   const raw = statement.raw;
-  const expanded = expandTexConditionals(expandMacroBindings(raw, context.macroBindings));
+  const expanded = normalizeExpandedMacroStatement(
+    expandTexConditionals(expandMacroBindings(raw, context.macroBindings)),
+    raw
+  );
   if (expanded === raw) {
     return null;
   }
@@ -970,6 +981,16 @@ function tryExpandMacroStatement(
   }
 
   return result;
+}
+
+function normalizeExpandedMacroStatement(expanded: string, raw: string): string {
+  const rawTrimmed = raw.trimEnd();
+  const expandedTrimmed = expanded.trimEnd();
+  if (!rawTrimmed.endsWith(";") || !expandedTrimmed.endsWith(";;")) {
+    return expanded;
+  }
+
+  return `${expandedTrimmed.slice(0, -1)}${expanded.slice(expandedTrimmed.length)}`;
 }
 
 function reindexStatements(

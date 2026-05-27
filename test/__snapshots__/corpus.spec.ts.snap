@@ -13,9 +13,9 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
   },
   "parse": {
     "failedHard": 0,
-    "parsedClean": 1450,
-    "parsedWithRecovery": 737,
-    "recoverableRate": 0.337,
+    "parsedClean": 1425,
+    "parsedWithRecovery": 762,
+    "recoverableRate": 0.3484,
   },
   "sampleHardFailures": [],
   "semantic": {
@@ -89,6 +89,10 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "count": 671,
     },
     {
+      "code": "stray-token",
+      "count": 461,
+    },
+    {
       "code": "missing-option-close",
       "count": 32,
     },
@@ -107,24 +111,24 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "filePath": "pgfmanual-en-dv-stylesheets.tex",
     },
     {
-      "count": 65,
-      "filePath": "pgfmanual-en-dv-axes.tex",
-    },
-    {
-      "count": 63,
+      "count": 69,
       "filePath": "pgfmanual-en-tikz-animations.tex",
     },
     {
-      "count": 31,
+      "count": 66,
+      "filePath": "pgfmanual-en-dv-axes.tex",
+    },
+    {
+      "count": 32,
       "filePath": "pgfmanual-en-tikz-shapes.tex",
+    },
+    {
+      "count": 24,
+      "filePath": "pgfmanual-en-base-transformations.tex",
     },
     {
       "count": 23,
       "filePath": "pgfmanual-en-library-plot-handlers.tex",
-    },
-    {
-      "count": 22,
-      "filePath": "pgfmanual-en-base-transformations.tex",
     },
     {
       "count": 19,
@@ -146,11 +150,11 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
   "topSemanticDiagnosticCodes": [
     {
       "code": "unsupported-statement",
-      "count": 1311,
+      "count": 1312,
     },
     {
       "code": "foreach-body-parse-error",
-      "count": 397,
+      "count": 399,
     },
     {
       "code": "unsupported-option-key:sibling angle",
@@ -196,7 +200,7 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
   "topSemanticUnsupportedCodes": [
     {
       "code": "unsupported-statement",
-      "count": 1311,
+      "count": 1312,
     },
     {
       "code": "unsupported-option-key:sibling angle",
