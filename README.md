@@ -1,8 +1,16 @@
 # TikZ Editor
 
-A visual, WYSIWYG editor for TikZ. Edit diagrams with a graphical interface while keeping full control of the source code.
+**WYSIWYG editor for TikZ diagrams in LaTeX**
+
+You can start from scratch or edit an existing TikZ figure, or even directly open your paper tex file to edit its images. The TikZ code gets instantly updated as you move around elements, without disturbing existing formatting such as line breaks and spaces.
+
+The app makes fine-tuning the positions of elements easy and instant, without needing to recompile. It supports all common TikZ features including \foreach loops.
+
+The app is free and open source (MIT licensed, code on GitHub). It works on the web or as a lightweight desktop app with some extra features.
 
 **Try it:** [tikz.dev/editor](https://tikz.dev/editor)
+
+<img src="https://tikz.dev/editor/assets/app-screenshot-2400-CwojZiE5.webp">
 
 ## Features
 
@@ -10,7 +18,7 @@ A visual, WYSIWYG editor for TikZ. Edit diagrams with a graphical interface whil
 - **Live source editor** with TikZ syntax highlighting, autocompletion, and number scrubbing
 - **Two-way sync**: edit visually or in code — changes reflect instantly in both views
 - **Export** to SVG, PDF, or PNG
-- **Import SVG** and convert to editable TikZ
+- **Import** from SVG, IPE, or PPTX
 - **Multi-figure support** for documents with multiple TikZ pictures
 
 ## Desktop App
