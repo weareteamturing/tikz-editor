@@ -24,6 +24,7 @@ export type PlatformClipboard = {
     plainText: string;
     tikzJson?: string | null;
     svgText?: string | null;
+    pngBase64?: string | null;
   }) => Promise<void>;
 };
 

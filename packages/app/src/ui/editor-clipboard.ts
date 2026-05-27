@@ -252,6 +252,117 @@ export function buildSelectionSvgSync(snippets: readonly string[]): string | nul
   }
 }
 
+export async function buildSelectionPngBase64(svgText: string | null): Promise<string | null> {
+  if (
+    typeof svgText !== "string" ||
+    svgText.trim().length === 0 ||
+    typeof document === "undefined" ||
+    typeof Blob === "undefined" ||
+    typeof Image === "undefined" ||
+    typeof URL === "undefined" ||
+    typeof URL.createObjectURL !== "function" ||
+    typeof URL.revokeObjectURL !== "function" ||
+    typeof btoa !== "function"
+  ) {
+    return null;
+  }
+
+  const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+  const svgUrl = URL.createObjectURL(svgBlob);
+
+  try {
+    const image = await loadSvgImage(svgUrl);
+    const dimensions = parseSvgDimensions(svgText);
+    const width = Math.max(1, Math.ceil((dimensions?.width ?? image.naturalWidth ?? image.width) * 4));
+    const height = Math.max(1, Math.ceil((dimensions?.height ?? image.naturalHeight ?? image.height) * 4));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return null;
+    }
+    context.clearRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+    const pngBlob = await canvasToPngBlob(canvas);
+    return await blobToBase64(pngBlob);
+  } catch (error) {
+    logClipboardDebug("Failed to render selection PNG for clipboard payload.", { error: describeError(error) });
+    return null;
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
+}
+
+function parseSvgDimensions(svgText: string): { width: number; height: number } | null {
+  if (typeof DOMParser === "undefined") {
+    return null;
+  }
+  const parsed = new DOMParser().parseFromString(svgText, "image/svg+xml");
+  const root = parsed.documentElement;
+  if (root?.nodeName.toLowerCase() !== "svg") {
+    return null;
+  }
+
+  const viewBox = root.getAttribute("viewBox")?.trim();
+  if (viewBox) {
+    const values = viewBox.split(/[\s,]+/).map((value) => Number(value));
+    const width = values[2];
+    const height = values[3];
+    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      return { width, height };
+    }
+  }
+
+  const width = parseSvgLength(root.getAttribute("width"));
+  const height = parseSvgLength(root.getAttribute("height"));
+  if (width != null && height != null) {
+    return { width, height };
+  }
+  return null;
+}
+
+function parseSvgLength(raw: string | null): number | null {
+  if (!raw) {
+    return null;
+  }
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function loadSvgImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => { resolve(image); };
+    image.onerror = () => { reject(new Error("Failed to decode SVG for clipboard PNG.")); };
+    image.src = url;
+  });
+}
+
+function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Canvas PNG export returned no blob."));
+        return;
+      }
+      resolve(blob);
+    }, "image/png");
+  });
+}
+
+async function blobToBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, offset + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
 export function writePayloadToDataTransfer(
   payload: TikzClipboardPayload,
   dataTransfer: DataTransfer | null,

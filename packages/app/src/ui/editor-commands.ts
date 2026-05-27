@@ -25,6 +25,7 @@ import type { EditHandle, SceneElement, SceneFigure } from "tikz-editor/semantic
 import type { PathStatement, Statement } from "tikz-editor/ast/types";
 import type { EditorAction } from "../store/types";
 import {
+  buildSelectionPngBase64,
   buildSelectionSvgSync,
   buildSelectionSvg,
   createClipboardPayload,
@@ -311,7 +312,8 @@ async function writeDesktopClipboardBundle(
     await writeBundle({
       plainText: payload.plainText,
       tikzJson: JSON.stringify(payload),
-      svgText
+      svgText,
+      pngBase64: await buildSelectionPngBase64(svgText)
     });
     return true;
   } catch {

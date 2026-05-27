@@ -5,7 +5,7 @@ use assistant::{
     AssistantThreadSummary,
 };
 use base64::Engine;
-use clipboard_rs::{Clipboard, ClipboardContent, ClipboardContext};
+use clipboard_rs::{common::RustImage, Clipboard, ClipboardContent, ClipboardContext, RustImageData};
 use notify::{Config as NotifyConfig, RecommendedWatcher, RecursiveMode, Watcher};
 use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
@@ -188,6 +188,12 @@ const DESKTOP_SVG_CLIPBOARD_FORMATS: [&str; 3] = [
     "com.microsoft.image-svg-xml",
 ];
 #[cfg(target_os = "macos")]
+const DESKTOP_PNG_CLIPBOARD_FORMATS: [&str; 2] = ["public.png", "image/png"];
+#[cfg(target_os = "windows")]
+const DESKTOP_PNG_CLIPBOARD_FORMATS: [&str; 2] = ["image/png", "PNG"];
+#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+const DESKTOP_PNG_CLIPBOARD_FORMATS: [&str; 1] = ["image/png"];
+#[cfg(target_os = "macos")]
 const TIKZ_CUSTOM_CLIPBOARD_FORMATS: [&str; 1] = ["com.tikzeditor.tikz-json"];
 #[cfg(not(target_os = "macos"))]
 const TIKZ_CUSTOM_CLIPBOARD_FORMATS: [&str; 2] = [
@@ -327,6 +333,7 @@ struct DesktopClipboardWriteBundlePayload {
     plain_text: String,
     tikz_json: Option<String>,
     svg_text: Option<String>,
+    png_base64: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1842,7 +1849,20 @@ fn desktop_write_clipboard_bundle(
     payload: DesktopClipboardWriteBundlePayload,
 ) -> Result<(), String> {
     catch_unwind(AssertUnwindSafe(|| {
-        let mut contents: Vec<ClipboardContent> = vec![ClipboardContent::Text(payload.plain_text)];
+        let png_bytes = payload
+            .png_base64
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .and_then(|value| base64::engine::general_purpose::STANDARD.decode(value).ok())
+            .filter(|bytes| !bytes.is_empty());
+        let mut contents: Vec<ClipboardContent> = Vec::new();
+        if let Some(bytes) = png_bytes.as_ref() {
+            if let Ok(image) = RustImageData::from_bytes(bytes) {
+                contents.push(ClipboardContent::Image(image));
+            }
+        }
+        contents.push(ClipboardContent::Text(payload.plain_text));
         if let Some(tikz_json) = payload.tikz_json {
             if !tikz_json.trim().is_empty() {
                 for format in TIKZ_CUSTOM_CLIPBOARD_FORMATS {
@@ -1859,6 +1879,11 @@ fn desktop_write_clipboard_bundle(
                 for format in DESKTOP_SVG_CLIPBOARD_FORMATS {
                     contents.push(ClipboardContent::Other(format.to_string(), bytes.clone()));
                 }
+            }
+        }
+        if let Some(bytes) = png_bytes {
+            for format in DESKTOP_PNG_CLIPBOARD_FORMATS {
+                contents.push(ClipboardContent::Other(format.to_string(), bytes.clone()));
             }
         }
         let ctx = ClipboardContext::new().map_err(|error| error.to_string())?;

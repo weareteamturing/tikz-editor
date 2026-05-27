@@ -106,6 +106,7 @@ type DesktopBridge = {
     plainText: string;
     tikzJson?: string | null;
     svgText?: string | null;
+    pngBase64?: string | null;
   }) => Promise<void>;
   setWindowTitle: (title: string) => Promise<void>;
   closeWindow: () => Promise<void>;
