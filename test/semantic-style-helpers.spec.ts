@@ -284,7 +284,7 @@ describe("semantic style helper parsers", () => {
     });
 
     const cloned = cloneArrowMarker(start!);
-    cloned.tips[0]!.length += 10;
+    cloned.tips[0].length += 10;
     expect(cloned.tips[0]?.length).not.toBe(start?.tips[0]?.length);
     expect(parseArrowSpecification("to", style)).toBeNull();
     expect(parseArrowSideSpecification("{", "end", style)).toBeNull();

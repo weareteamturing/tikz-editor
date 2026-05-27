@@ -184,5 +184,5 @@ function makeEditHandle(id: string, sourceFingerprint: string): EditHandle {
     sourceText: "",
     coordinateForm: "cartesian",
     rewriteMode: "direct"
-  } as EditHandle;
+  };
 }

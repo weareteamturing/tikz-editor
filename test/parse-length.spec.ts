@@ -157,8 +157,8 @@ describe("parseLength units", () => {
     expect(evaluateRawCoordinate("(intersection cs:first line={(0,0)}, second line={(1,1)--(2,2)})", context).diagnostics).toContain("unsupported-coordinate-form:explicit");
     expect(evaluateRawCoordinate("(intersection cs:first line={(0,0)--(1,1)})", context).diagnostics).toContain("unsupported-coordinate-form:explicit");
 
-    context.stack[0]!.namePrefix = "pre-";
-    context.stack[0]!.nameSuffix = "-suf";
+    context.stack[0].namePrefix = "pre-";
+    context.stack[0].nameSuffix = "-suf";
     writeNamedNodeGeometry(context, "pre-A-suf", {
       shape: "rectangle",
       center: worldPoint(pt(100), pt(200)),

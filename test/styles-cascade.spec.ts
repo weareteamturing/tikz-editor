@@ -75,7 +75,7 @@ function colorProperty(id: string, label: string, key: string): InspectorPropert
     syntaxValue: null,
     options: [],
     write: testWriteTarget({ key })
-  } as InspectorProperty;
+  };
 }
 
 function directStylesModel(
@@ -309,7 +309,7 @@ describe("styles cascade model", () => {
           step: 0.1,
           unit: "pt",
           write: testWriteTarget({ key: "xshift" })
-        } as InspectorProperty,
+        },
         {
           kind: "lineWidth",
           id: "line-width",
@@ -320,7 +320,7 @@ describe("styles cascade model", () => {
           step: 0.1,
           presetLabel: null,
           write: testWriteTarget({ key: "line width" })
-        } as InspectorProperty,
+        },
         {
           kind: "dashStyle",
           id: "dash-style",
@@ -329,7 +329,7 @@ describe("styles cascade model", () => {
           options: [],
           previewLineWidth: 0.4,
           write: testWriteTarget({ key: "solid" })
-        } as InspectorProperty,
+        },
         {
           kind: "lineCap",
           id: "line-cap",
@@ -338,7 +338,7 @@ describe("styles cascade model", () => {
           options: [],
           previewLineWidth: 0.4,
           write: testWriteTarget({ key: "line cap" })
-        } as InspectorProperty,
+        },
         {
           kind: "lineJoin",
           id: "line-join",
@@ -347,7 +347,7 @@ describe("styles cascade model", () => {
           options: [],
           previewLineWidth: 0.4,
           write: testWriteTarget({ key: "line join" })
-        } as InspectorProperty,
+        },
         colorProperty("fill-color", "Fill color", "fill"),
         {
           kind: "fillShading",
@@ -356,7 +356,7 @@ describe("styles cascade model", () => {
           value: "axis",
           options: [],
           write: testWriteTarget({ key: "shading" })
-        } as InspectorProperty,
+        },
         {
           kind: "fillPattern",
           id: "fill-pattern",
@@ -364,7 +364,7 @@ describe("styles cascade model", () => {
           value: "dots",
           options: [],
           write: testWriteTarget({ key: "pattern" })
-        } as InspectorProperty,
+        },
         {
           kind: "roundedCorners",
           id: "rounded-corners",
@@ -377,7 +377,7 @@ describe("styles cascade model", () => {
           max: 24,
           step: 0.1,
           write: testWriteTarget({ key: "rounded corners" })
-        } as InspectorProperty,
+        },
         {
           kind: "nodeShape",
           id: "node-shape",
@@ -385,7 +385,7 @@ describe("styles cascade model", () => {
           value: "rectangle",
           options: [],
           write: testWriteTarget({ key: "shape" })
-        } as InspectorProperty
+        }
       ]
     );
 
@@ -425,7 +425,7 @@ describe("styles cascade model", () => {
           value: 4,
           step: 0.1,
           unit: "pt"
-        } as InspectorProperty,
+        },
         {
           kind: "length",
           id: "node-inner-sep",
@@ -434,7 +434,7 @@ describe("styles cascade model", () => {
           step: 0.1,
           unit: "pt",
           write: testWriteTarget({ key: "inner sep" })
-        } as InspectorProperty,
+        },
         {
           kind: "lineWidth",
           id: "line-width",
@@ -445,7 +445,7 @@ describe("styles cascade model", () => {
           step: 0.1,
           presetLabel: null,
           write: testWriteTarget({ key: "line width" })
-        } as InspectorProperty,
+        },
         {
           kind: "dashStyle",
           id: "dash-style",
@@ -454,7 +454,7 @@ describe("styles cascade model", () => {
           options: [],
           previewLineWidth: 0.4,
           write: testWriteTarget({ key: "solid" })
-        } as InspectorProperty,
+        },
         {
           kind: "roundedCorners",
           id: "rounded-corners",
@@ -467,7 +467,7 @@ describe("styles cascade model", () => {
           max: 24,
           step: 0.1,
           write: testWriteTarget({ key: "rounded corners" })
-        } as InspectorProperty
+        }
       ]
     );
 
@@ -505,7 +505,7 @@ describe("styles cascade model", () => {
           options: [],
           context: { fillColor: null, patternColor: null, shading: "axis", pattern: "dots" },
           write: testWriteTarget({ key: "fill" })
-        } as InspectorProperty
+        }
       ]
     );
 
@@ -533,7 +533,7 @@ describe("styles cascade model", () => {
           label: "Stroke label fallback",
           value: "unchanged",
           write: testWriteTarget({ key: "draw" })
-        } as InspectorProperty
+        }
       ]
     );
 
@@ -602,7 +602,7 @@ describe("styles cascade model", () => {
           step: 0.1,
           presetLabel: null,
           write: testWriteTarget({ key: "line width" })
-        } as InspectorProperty,
+        },
         {
           kind: "roundedCorners",
           id: "rounded-corners",
@@ -615,7 +615,7 @@ describe("styles cascade model", () => {
           max: 24,
           step: 0.1,
           write: testWriteTarget({ key: "rounded corners" })
-        } as InspectorProperty
+        }
       ]
     );
 
@@ -658,7 +658,7 @@ describe("styles cascade model", () => {
           options: [],
           previewLineWidth: 0.4,
           write: testWriteTarget({ key: "line cap" })
-        } as InspectorProperty,
+        },
         expected: "rect"
       },
       {
@@ -671,7 +671,7 @@ describe("styles cascade model", () => {
           options: [],
           previewLineWidth: 0.4,
           write: testWriteTarget({ key: "line join" })
-        } as InspectorProperty,
+        },
         expected: "round"
       },
       {
@@ -684,7 +684,7 @@ describe("styles cascade model", () => {
           options: [],
           context: { fillColor: null, patternColor: null, shading: "axis", pattern: "dots" },
           write: testWriteTarget({ key: "fill" })
-        } as InspectorProperty,
+        },
         expected: "pattern"
       },
       {
@@ -697,7 +697,7 @@ describe("styles cascade model", () => {
           options: [],
           context: { fillColor: null, patternColor: null, shading: "axis", pattern: "dots" },
           write: testWriteTarget({ key: "fill" })
-        } as InspectorProperty,
+        },
         expected: "gradient"
       },
       {
@@ -709,7 +709,7 @@ describe("styles cascade model", () => {
           value: "axis",
           options: [],
           write: testWriteTarget({ key: "shading" })
-        } as InspectorProperty,
+        },
         expected: "axis"
       },
       {

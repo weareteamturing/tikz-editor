@@ -398,8 +398,10 @@ describe("svg render model", () => {
       parts
     });
 
-    const sparseParts = previousModel.parts.slice();
-    delete sparseParts[0];
+    const sparseParts = new Array<SvgRenderModel["parts"][number]>(previousModel.parts.length);
+    for (let index = 1; index < previousModel.parts.length; index += 1) {
+      sparseParts[index] = previousModel.parts[index];
+    }
 
     const fallbackCases: Array<{
       previousModel?: SvgRenderModel | null;

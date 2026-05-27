@@ -497,7 +497,7 @@ describe("knuth-plass paragraph helpers", () => {
     expect(measurement.measurePrefix("abcdef", 3, textWrapper)).toBe(6);
     expect(measurement.measurePrefix("abcdef", -1, textWrapper)).toBe(0);
     expect(measurement.measurePrefix("abcdef", 99, textWrapper)).toBe(12);
-    expect(measurement.measureMath(null as never)).toBe(0);
+    expect(measurement.measureMath(null)).toBe(0);
     expect(measurement.measureMath(mathWrapper)).toBe(8);
     expect(measurement.measureMath(mathWrapper)).toBe(8);
     expect(measurement.measureMath(fallbackMathWrapper)).toBe(3);

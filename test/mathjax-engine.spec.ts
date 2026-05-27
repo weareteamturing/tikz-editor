@@ -535,8 +535,6 @@ describe("mathjax node text engine", () => {
     const existingScript = {
       __tikzMathJaxLoaded: true
     };
-    let configuredMathJax: Record<string, unknown> | null = null;
-
     target.window = {};
     target.document = {
       getElementById: vi.fn(() => null),
@@ -584,7 +582,7 @@ describe("mathjax node text engine", () => {
         break;
       }
     }
-    configuredMathJax = target.MathJax as Record<string, unknown>;
+    const configuredMathJax = target.MathJax as Record<string, unknown>;
     target.MathJax = {
       tex2svg: () => ({
         tagName: "svg",
@@ -994,6 +992,7 @@ describe("mathjax node text engine", () => {
     target.document = {};
     target.MathJax = {
       tex2svg: () => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- MathJax can throw object diagnostics.
         throw { msg: "object diagnostic" };
       },
       startup: {}

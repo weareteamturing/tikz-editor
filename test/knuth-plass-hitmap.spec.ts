@@ -301,7 +301,7 @@ function makeTex2Svg(width: number): () => { querySelector: () => { getAttribute
 }
 
 function makeVisitor(): any {
-  const visitor = Object.create(KnuthPlassVisitor.prototype) as any;
+  const visitor = Object.create(KnuthPlassVisitor.prototype);
   visitor.reportByWrapper = new WeakMap();
   visitor.paragraphIdByWrapper = new WeakMap();
   visitor.originalMtextTextByWrapper = new WeakMap();
@@ -659,7 +659,7 @@ describe("knuth-plass install helpers", () => {
       alignment: "center"
     });
     setKnuthPlassOptionsOnOutputJax(null, { tolerance: 5 });
-    setKnuthPlassOptionsOnOutputJax(outputJax, null as never);
+    setKnuthPlassOptionsOnOutputJax(outputJax, null);
 
     expect(outputJax.knuthPlassOptions).toMatchObject({
       tolerance: 100,
@@ -671,7 +671,7 @@ describe("knuth-plass install helpers", () => {
   });
 
   it("merges visitor options and restores captured wrapper state defensively", () => {
-    KnuthPlassVisitor.configure(null as never);
+    KnuthPlassVisitor.configure(null);
     KnuthPlassVisitor.configure({ alignment: "center", tolerance: 7 });
     const visitor = makeVisitor();
 
@@ -2267,19 +2267,19 @@ describe("knuth-plass hitmap line ranges", () => {
       }
     };
 
-    await expect(getKnuthPlassCaretFromPoint(outputJax, null as never)).resolves.toMatchObject({
+    await expect(getKnuthPlassCaretFromPoint(outputJax, null)).resolves.toMatchObject({
       ok: false,
       error: { code: "invalid-params" }
     });
-    await expect(getKnuthPlassPointFromOffset(outputJax, null as never)).resolves.toMatchObject({
+    await expect(getKnuthPlassPointFromOffset(outputJax, null)).resolves.toMatchObject({
       ok: false,
       error: { code: "invalid-params" }
     });
-    await expect(getKnuthPlassSelectionRects(outputJax, null as never)).resolves.toMatchObject({
+    await expect(getKnuthPlassSelectionRects(outputJax, null)).resolves.toMatchObject({
       ok: false,
       error: { code: "invalid-params" }
     });
-    await expect(getKnuthPlassLineRangeFromPoint(outputJax, null as never)).resolves.toMatchObject({
+    await expect(getKnuthPlassLineRangeFromPoint(outputJax, null)).resolves.toMatchObject({
       ok: false,
       error: { code: "invalid-params" }
     });

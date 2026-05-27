@@ -1182,7 +1182,7 @@ describe("editorReducer – branch edge cases", () => {
       documents: {
         ...requested.documents,
         [requested.activeDocumentId]: {
-          ...requested.documents[requested.activeDocumentId]!,
+          ...requested.documents[requested.activeDocumentId],
           activeHandleId
         }
       }
@@ -1254,7 +1254,7 @@ describe("editorReducer – branch edge cases", () => {
             replacement: `\n% ${kind}`
           }]
         }
-      } as EditorAction);
+      });
       expect(state.history[state.historyIndex]?.kind).toBe(expectedHistoryKind);
     }
 
@@ -1379,7 +1379,7 @@ describe("editorReducer – assistant integration", () => {
 
   it("updates assistant thread metadata, items, deltas, approvals, and error state", () => {
     let state = makeInitialState();
-    const activeDoc = () => state.documents[state.activeDocumentId]!;
+    const activeDoc = () => state.documents[state.activeDocumentId];
     state = editorReducer(state, {
       type: "ASSISTANT_THREAD_READY",
       threadId: "thread-1",
@@ -1407,7 +1407,7 @@ describe("editorReducer – assistant integration", () => {
       documents: {
         ...state.documents,
         [state.activeDocumentId]: {
-          ...state.documents[state.activeDocumentId]!,
+          ...state.documents[state.activeDocumentId],
           assistantItems: [
             { type: "userMessage", id: "optimistic-user-message:1", content: [] },
             ...activeDoc().assistantItems
@@ -1505,7 +1505,7 @@ describe("editorReducer – assistant integration", () => {
       documents: {
         ...unchangedSource.documents,
         [unchangedSource.activeDocumentId]: {
-          ...unchangedSource.documents[unchangedSource.activeDocumentId]!,
+          ...unchangedSource.documents[unchangedSource.activeDocumentId],
           lastEditWarningMessage: "old warning",
           lastEditWarningToken: 3
         }

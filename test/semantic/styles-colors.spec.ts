@@ -383,7 +383,7 @@ describe("semantic evaluator / styles and colors", () => {
         ["x", "bad"],
         ["y", "bad"]
       ].flatMap(([key, valueRaw]) =>
-        applyKvEntry(key!, valueRaw!, defaultStyle(), identity, applyOptionEntry).diagnostics
+        applyKvEntry(key, valueRaw, defaultStyle(), identity, applyOptionEntry).diagnostics
       );
 
       expect(codes).toEqual(expect.arrayContaining([

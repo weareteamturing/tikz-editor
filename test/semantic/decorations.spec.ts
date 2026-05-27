@@ -334,9 +334,9 @@ describe("semantic evaluator / decorations", () => {
       if (clonedPath?.kind === "Path") {
         expect(clonedPath).not.toBe(nonePath);
         clonedPath.style.decoration.params.changed = "yes";
-        clonedPath.style.decorationPreActions[0]!.params.changed = "yes";
+        clonedPath.style.decorationPreActions[0].params.changed = "yes";
         expect(nonePath.style.decoration.params.changed).toBeUndefined();
-        expect(nonePath.style.decorationPreActions[0]!.params.changed).toBeUndefined();
+        expect(nonePath.style.decorationPreActions[0].params.changed).toBeUndefined();
       }
 
       const deferred = makeDecoration("markings");

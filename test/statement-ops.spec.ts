@@ -34,7 +34,7 @@ describe("statement ops", () => {
     expect(groups[0]?.depth).toBeGreaterThanOrEqual(groups[1]?.depth ?? 0);
     expect(groups.flatMap((group) => group.refs).map((ref) => ref.id)).toContain("path:0");
 
-    expect(statementSnippet(source, refs[0]!)).toContain("\\draw");
+    expect(statementSnippet(source, refs[0])).toContain("\\draw");
     expect(lineIndentAtOffset(source, Number.NaN)).toBe("");
 
     const analysisView = {
@@ -58,8 +58,7 @@ describe("statement ops", () => {
       options: [],
       items: []
     } as unknown as Statement;
-    const sparse = [statement] as Statement[];
-    delete sparse[0];
+    const sparse = new Array<Statement>(1);
 
     const emptySnapshot = buildStatementSnapshotFromStatements(source, sparse);
     expect(emptySnapshot.all).toEqual([]);
@@ -69,12 +68,12 @@ describe("statement ops", () => {
       ...statement,
       id: "a",
       span: { from: 0, to: 1 }
-    } as Statement;
+    };
     const second = {
       ...statement,
       id: "b",
       span: { from: 2, to: 3 }
-    } as Statement;
+    };
     const tieGroups = groupStatementRefsByParent(
       [
         {

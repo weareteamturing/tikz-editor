@@ -195,7 +195,7 @@ describe("editor store persistence decisions", () => {
     const state = useEditorStore.getState();
     const documentId = state.activeDocumentId;
     const source = state.source;
-    const baseDoc = state.documents[documentId]!;
+    const baseDoc = state.documents[documentId];
 
     useEditorStore.setState({
       ...state,
@@ -239,7 +239,7 @@ describe("editor store persistence decisions", () => {
     });
 
     const rebound = useEditorStore.getState();
-    const reboundDoc = rebound.documents[documentId]!;
+    const reboundDoc = rebound.documents[documentId];
     useEditorStore.setState({
       ...rebound,
       documents: {

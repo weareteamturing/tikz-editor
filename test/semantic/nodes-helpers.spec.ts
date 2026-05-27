@@ -82,8 +82,8 @@ const box = (naturalWidth = 40, naturalHeight = 24, minimumWidth = 20, minimumHe
 describe("semantic node helper coverage", () => {
   it("resolves scoped names and standalone trailing coordinate candidates", () => {
     const context = createSemanticContext(defaultStyle(), worldTransform(1, 0, 0, 1, 0, 0));
-    context.stack[0]!.namePrefix = "pre-";
-    context.stack[0]!.nameSuffix = "-suf";
+    context.stack[0].namePrefix = "pre-";
+    context.stack[0].nameSuffix = "-suf";
 
     expect(collectScopedNodeNames(" main ", ["", "alias", "alias"], context)).toEqual(["pre-main-suf", "pre-alias-suf"]);
     expect(applyNameScope("node.east", context)).toBe("pre-node-suf.east");
@@ -366,7 +366,7 @@ describe("semantic node helper coverage", () => {
     const body = String.raw` |[draw]| A \amp [2pt] {B \amp C} \\[4pt] \node (n) at (1,2) {D}; \amp |(named)| E `;
     const rows = parseMatrixRowsForEdit(body, mode.cellSeparator, 50);
     expect(rows.rows.map((row) => row.cells.length)).toEqual([2, 2]);
-    expect(rows.rows[0]!.cells[1]!.raw).toContain(String.raw`B \amp C`);
+    expect(rows.rows[0].cells[1].raw).toContain(String.raw`B \amp C`);
 
     const first = resolveMatrixCellEditTarget(body, { from: 50, to: 50 + body.length }, mode, 1, 1);
     const explicit = resolveMatrixCellEditTarget(body, { from: 50, to: 50 + body.length }, mode, 2, 1);
@@ -468,13 +468,13 @@ describe("semantic node helper coverage", () => {
     expect(makeRoundedRectanglePolygon(40, 20, 180, "concave", "concave").length).toBeGreaterThan(20);
 
     const chamfered = makeChamferedRectanglePolygon(40, 24, 4, 8, 30, "north west,south east");
-    expect(chamfered[0]!.x).toBeGreaterThan(-20);
-    expect(chamfered[2]!.y).toBeCloseTo(12);
+    expect(chamfered[0].x).toBeGreaterThan(-20);
+    expect(chamfered[2].y).toBeCloseTo(12);
 
     const triangle = makeIsoscelesTrianglePolygon(box(100, 4, 10, 4), 30, 15, false);
-    expect(triangle[0]!.x).not.toBeCloseTo(0);
-    expect(makeKitePolygon(box(8, 120, 8, 120), 0, 0, 45)[0]!.x).not.toBeCloseTo(0);
-    expect(makeTrapeziumPolygon({ naturalHalfWidth: 10, naturalHalfHeight: 6, minimumWidth: 60, minimumHeight: 30 }, 75, 105, 30, true, true)[0]!.x).toBeLessThan(0);
+    expect(triangle[0].x).not.toBeCloseTo(0);
+    expect(makeKitePolygon(box(8, 120, 8, 120), 0, 0, 45)[0].x).not.toBeCloseTo(0);
+    expect(makeTrapeziumPolygon({ naturalHalfWidth: 10, naturalHalfHeight: 6, minimumWidth: 60, minimumHeight: 30 }, 75, 105, 30, true, true)[0].x).toBeLessThan(0);
 
     expect(regularPolygonStartAngle(4, 10)).toBe(55);
     expect(makeRegularPolygon(box(10, 30, 12, 12), 4, 0)).toHaveLength(4);
@@ -482,20 +482,20 @@ describe("semantic node helper coverage", () => {
     const ratioStar = makeStar(box(4, 4, 40, 40), 5, 2, 0, true, 10);
     const heightStar = makeStar(box(4, 4, 40, 40), 5, 2, 3, false, 0);
     expect(ratioStar.polygon).toHaveLength(10);
-    expect(heightStar.inner[0]!.y).toBeLessThan(heightStar.outer[0]!.y);
+    expect(heightStar.inner[0].y).toBeLessThan(heightStar.outer[0].y);
 
     const staticBurst = makeStarburst(sizing, 5, 6, 0, 0);
     const randomBurst = makeStarburst(sizing, 5, 6, 42, 0);
-    expect(staticBurst.outer[0]!.y).toBeGreaterThan(randomBurst.outer[0]!.y);
+    expect(staticBurst.outer[0].y).toBeGreaterThan(randomBurst.outer[0].y);
 
     const signal = makeSignal(sizing, 0, ["north", "east", "south", "west"], ["north", "west"]);
-    expect(signal.polygon[0]!.y).toBeGreaterThan(12);
-    expect(signal.polygon[7]!.x).toBeLessThan(-20);
+    expect(signal.polygon[0].y).toBeGreaterThan(12);
+    expect(signal.polygon[7].x).toBeLessThan(-20);
 
     const flatTape = makeTape(sizing, "none", "none", 10);
     const wavyTape = makeTape(sizing, "out and in", "in and out", 10);
-    expect(flatTape.polygon[9]!.y).toBeCloseTo(12);
-    expect(wavyTape.polygon[5]!.y).not.toBeCloseTo(12);
+    expect(flatTape.polygon[9].y).toBeCloseTo(12);
+    expect(wavyTape.polygon[5].y).not.toBeCloseTo(12);
 
     const singleArrow = makeSingleArrow(box(10, 6, 8, 60), 0, 3, 999, 90);
     const doubleArrow = makeDoubleArrow(box(10, 6, 8, 60), 0, 3, 999, 45);
@@ -551,7 +551,7 @@ describe("semantic node helper coverage", () => {
     const ignored = makeCloud(box(10, 40, 10, 40), 5, 360, 2, true, 45);
     expect(stretched.polygon.length).toBeGreaterThan(10);
     expect(stretched.puffs).toHaveLength(5);
-    expect(ignored.puffs[0]!.x).not.toBeCloseTo(stretched.puffs[0]!.x);
+    expect(ignored.puffs[0].x).not.toBeCloseTo(stretched.puffs[0].x);
 
     const square = [wp(-10, -10), wp(10, -10), wp(10, 10), wp(-10, 10)];
     expect(intersectRayWithPolygon(wp(0, 0), wv(0, 0), square)).toBeNull();

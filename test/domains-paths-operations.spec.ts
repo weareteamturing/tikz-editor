@@ -26,7 +26,7 @@ function fakeNode(name: string, from: number, to: number, children: FakeNode[] =
     nextSibling: null
   };
   for (let index = 0; index < children.length; index += 1) {
-    const child = children[index] as FakeNode;
+    const child = children[index];
     child.nextSibling = children[index + 1] ?? null;
     if (index === 0) {
       node.firstChild = child;
