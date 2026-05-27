@@ -18,6 +18,8 @@ const COMMAND_DISPLAY: Record<string, string> = {
   MatrixCmd: "\\matrix", NodeCmd: "\\node", CoordinateCmd: "\\coordinate"
 };
 
+const MAX_SOURCE_PREVIEW_LENGTH = 40;
+
 function describeParseError(errorNode: SyntaxNode, source: string): string {
   const parent = errorNode.parent;
   const parentName = parent?.type.name ?? "";
@@ -39,7 +41,7 @@ function describeParseError(errorNode: SyntaxNode, source: string): string {
 
   // Error inside a scope
   if (parentName === "ScopeStatement") {
-    return "Syntax error inside scope. Check for unclosed groups or missing semicolons.";
+    return "Syntax error inside scope. Check for a missing \\end{scope}, unclosed groups, or missing semicolons.";
   }
 
   // Error inside a foreach
@@ -57,6 +59,10 @@ function describeParseError(errorNode: SyntaxNode, source: string): string {
     return "Syntax error inside braces. Check for unmatched { } or invalid content.";
   }
 
+  if (parentName === "NodeTextGroup" || parentName === "NodeTextPart") {
+    return "Unclosed node text; add a closing `}` before the end of the node statement.";
+  }
+
   // Error inside a coordinate
   if (parentName === "Coordinate" || parentName === "CoordPart") {
     return "Syntax error in coordinate. Check parentheses and coordinate format.";
@@ -66,8 +72,8 @@ function describeParseError(errorNode: SyntaxNode, source: string): string {
   if (parentName === "MacroDefinitionStatement") {
     return "Syntax error in \\def. Expected \\def\\commandname{body}.";
   }
-  if (parentName === "MacroCommandDefinitionStatement") {
-    return "Syntax error in \\newcommand definition.";
+  if (parentName === "MacroCommandDefinitionStatement" || hasAncestor(errorNode, "MacroCommandDefinitionStatement")) {
+    return "Syntax error in \\newcommand definition. Expected \\newcommand{\\name}[argCount]{body}.";
   }
   if (parentName === "MacroAliasStatement") {
     return "Syntax error in \\let statement.";
@@ -119,28 +125,41 @@ export function collectParseErrorDiagnostics(node: SyntaxNode, source: string, d
       diagnostics.push({
         severity: "error",
         message: describeParseError(current, source),
-        span: { from: current.from, to: current.to },
+        span: spanForParseError(current),
         code: "parse-error"
       });
     }
   });
 }
 
+function spanForParseError(errorNode: SyntaxNode): Diagnostic["span"] {
+  const nodeTextGroup = findAncestor(errorNode, "NodeTextGroup");
+  if (nodeTextGroup) {
+    return { from: nodeTextGroup.from, to: nodeTextGroup.to };
+  }
+  return { from: errorNode.from, to: errorNode.to };
+}
+
 export function collectStructuralDiagnostics(envNode: SyntaxNode, source: string, diagnostics: Diagnostic[]): void {
+  let previousStrayTokenEnd: number | null = null;
+
   walk(envNode, (node) => {
     if (node.type.name === "OptionList" && source[node.to - 1] !== "]") {
       diagnostics.push({
         severity: "warning",
-        message: "Unclosed option list.",
+        message: "Unclosed option list; add a closing `]` before the statement continues.",
         span: { from: node.from, to: node.to },
         code: "missing-option-close"
       });
     }
 
     if ((node.type.name === "Group" || node.type.name === "NodeTextGroup") && source[node.to - 1] !== "}") {
+      const isNodeTextGroup = node.type.name === "NodeTextGroup";
       diagnostics.push({
         severity: "warning",
-        message: "Unclosed group.",
+        message: isNodeTextGroup
+          ? "Unclosed node text; add a closing `}` before the end of the node statement."
+          : "Unclosed group; add a closing `}`.",
         span: { from: node.from, to: node.to },
         code: "missing-group-close"
       });
@@ -153,7 +172,7 @@ export function collectStructuralDiagnostics(envNode: SyntaxNode, source: string
     if ((node.type.name === "PathStatement" || node.type.name === "UnknownStatement") && source[node.to - 1] !== ";") {
       diagnostics.push({
         severity: "warning",
-        message: "Statement is missing a trailing semicolon.",
+        message: "Statement is missing a trailing semicolon; add `;` at the end of this TikZ command.",
         span: { from: node.to - 1, to: node.to },
         code: "missing-semicolon"
       });
@@ -171,11 +190,31 @@ export function collectStructuralDiagnostics(envNode: SyntaxNode, source: string
         const cmdDisplay = COMMAND_DISPLAY[actualCmd.type.name] ?? actualCmd.type.name;
         diagnostics.push({
           severity: "warning",
-          message: `${cmdDisplay} found inside another statement — likely a missing semicolon before this point.`,
+          message: `${cmdDisplay} starts before the previous statement ended; add a semicolon before ${cmdDisplay}.`,
           span: { from: actualCmd.from, to: actualCmd.to },
           code: "missing-semicolon"
         });
       }
+    }
+
+    if (node.type.name === "StrayToken") {
+      if (
+        previousStrayTokenEnd != null &&
+        source.slice(previousStrayTokenEnd, node.from).trim().length === 0
+      ) {
+        previousStrayTokenEnd = node.to;
+        return;
+      }
+      previousStrayTokenEnd = node.to;
+      const preview = formatSourcePreview(source.slice(node.from, node.to));
+      diagnostics.push({
+        severity: "error",
+        message: preview === ";"
+          ? "Unexpected semicolon; remove it or put it after a TikZ command."
+          : `Unexpected text \`${preview}\` in tikzpicture; start statements with a TikZ command such as \\draw, \\node, or \\path.`,
+        span: { from: node.from, to: node.to },
+        code: "stray-token"
+      });
     }
   });
 
@@ -183,14 +222,26 @@ export function collectStructuralDiagnostics(envNode: SyntaxNode, source: string
 }
 
 function hasAncestor(node: SyntaxNode, name: string): boolean {
+  return findAncestor(node, name) != null;
+}
+
+function findAncestor(node: SyntaxNode, name: string): SyntaxNode | null {
   let current: SyntaxNode | null = node.parent;
   while (current) {
     if (current.type.name === name) {
-      return true;
+      return current;
     }
     current = current.parent;
   }
-  return false;
+  return null;
+}
+
+function formatSourcePreview(raw: string): string {
+  const normalized = raw.trim().replace(/\s+/g, " ");
+  if (normalized.length <= MAX_SOURCE_PREVIEW_LENGTH) {
+    return normalized;
+  }
+  return `${normalized.slice(0, MAX_SOURCE_PREVIEW_LENGTH - 1)}...`;
 }
 
 function collectForeachRangeEllipsisDiagnostics(node: SyntaxNode, source: string, diagnostics: Diagnostic[]): void {

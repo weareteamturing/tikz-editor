@@ -72,7 +72,7 @@ describe("diagnostic collection", () => {
     expect(diagnostics.filter((diagnostic) => diagnostic.code === "parse-error")).toHaveLength(1);
     expect(diagnostics).toContainEqual(expect.objectContaining({
       code: "missing-semicolon",
-      message: "\\draw found inside another statement — likely a missing semicolon before this point."
+      message: "\\draw starts before the previous statement ended; add a semicolon before \\draw."
     }));
   });
 });

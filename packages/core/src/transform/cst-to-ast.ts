@@ -79,7 +79,7 @@ export function fromCst(tree: Tree, source: string, opts: CstToAstOptions = {}):
     if (figureEntries.length === 0 && source.trim().length > 0) {
       diagnostics.push({
         severity: "warning",
-        message: "No TikZ figure command found.",
+        message: "No tikzpicture environment found; wrap the code in `\\begin{tikzpicture}` ... `\\end{tikzpicture}`.",
         span: { from: 0, to: source.length },
         code: "missing-tikzpicture"
       });

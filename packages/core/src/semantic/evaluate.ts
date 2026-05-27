@@ -1111,10 +1111,18 @@ function evaluateStatement(
   diagnostics.push({
     severity: "warning",
     code: "unsupported-statement",
-    message: "Unknown statements are ignored by the semantic evaluator.",
+    message: describeUnsupportedStatement(statement.raw),
     span: statement.span
   });
   return [];
+}
+
+function describeUnsupportedStatement(raw: string): string {
+  const command = parseStandaloneCommandInvocations(raw)[0]?.command ?? parseStandaloneCommandName(raw);
+  if (command) {
+    return `Unknown or unsupported command \`${command}\`; this editor will ignore the statement. Check for a typo or unsupported TikZ command.`;
+  }
+  return "Unsupported statement; this editor will ignore it. Check for a typo or unsupported TikZ syntax.";
 }
 
 function applyStandaloneCommandStatement(

@@ -132,7 +132,7 @@ type SourceSyncPatchStep = {
 
 type DiagnosticSeverity = "error" | "warning";
 
-type DiagnosticInput = {
+export type DiagnosticInput = {
   from: number;
   to: number;
   severity: DiagnosticSeverity;
@@ -193,6 +193,7 @@ const EMPTY_SYMBOLS: DocumentSymbols = {
 
 const MAX_DIAGNOSTICS = 300;
 const MAX_DECORATED_SPAN = 160;
+const MAX_RECOVERY_NOISE_DISTANCE = 80;
 const DIAGNOSTIC_DEBOUNCE_MS = 120;
 const DOCS_TOOLTIP_HOVER_TIME_MS = 650;
 const MIN_FORMATTER_MAX_LINE_LENGTH = 40;
@@ -592,6 +593,55 @@ const diagnosticTooltip = hoverTooltip((view, pos) => {
     }
   };
 });
+
+export function prioritizeDiagnosticsForDisplay(diagnostics: readonly DiagnosticInput[]): DiagnosticInput[] {
+  const result: DiagnosticInput[] = [];
+  for (const diagnostic of diagnostics) {
+    if (isRecoveryNoiseDiagnostic(diagnostic, diagnostics)) {
+      continue;
+    }
+    if (result.some((accepted) => isNearbyDuplicateDiagnostic(accepted, diagnostic))) {
+      continue;
+    }
+    result.push(diagnostic);
+  }
+  return result;
+}
+
+function isRecoveryNoiseDiagnostic(
+  diagnostic: DiagnosticInput,
+  diagnostics: readonly DiagnosticInput[]
+): boolean {
+  if (diagnostic.code === "stray-token") {
+    return diagnostics.some((candidate) =>
+      candidate.source === diagnostic.source &&
+      candidate.code === "parse-error" &&
+      diagnostic.from >= candidate.from &&
+      diagnostic.from - candidate.from <= MAX_RECOVERY_NOISE_DISTANCE
+    );
+  }
+
+  if (diagnostic.code === "missing-semicolon") {
+    return diagnostics.some((candidate) =>
+      candidate.source === diagnostic.source &&
+      candidate.code === "parse-error" &&
+      (
+        Math.abs(diagnostic.to - candidate.from) <= 1 ||
+        (diagnostic.from >= candidate.from && diagnostic.from <= candidate.to)
+      )
+    );
+  }
+
+  return false;
+}
+
+function isNearbyDuplicateDiagnostic(left: DiagnosticInput, right: DiagnosticInput): boolean {
+  return (
+    left.source === right.source &&
+    left.message === right.message &&
+    Math.abs(left.from - right.from) <= MAX_RECOVERY_NOISE_DISTANCE
+  );
+}
 
 const docsTooltip = hoverTooltip(async (view, pos, side) => {
   const diagnostics = view.state.field(diagnosticsField, false);
@@ -1205,7 +1255,7 @@ export function SourcePanel() {
         return;
       }
 
-      const list: DiagnosticInput[] = [
+      const list = prioritizeDiagnosticsForDisplay([
         ...parse.diagnostics.map((d) => ({ ...d, from: d.span.from, to: d.span.to, source: "parse" as const })),
         ...(semantic?.diagnostics ?? []).map((d) => ({
           ...d,
@@ -1213,7 +1263,7 @@ export function SourcePanel() {
           to: d.span.to,
           source: "semantic" as const
         }))
-      ];
+      ]);
       view.dispatch({ effects: setDiagnostics.of(list) });
     }, DIAGNOSTIC_DEBOUNCE_MS);
 
@@ -1297,7 +1347,7 @@ export function SourcePanel() {
         result.push({ ...d, from: d.span.from, to: d.span.to, source: "semantic" });
       }
     }
-    return result;
+    return prioritizeDiagnosticsForDisplay(result);
   }, [snapshot.parseResult, snapshot.semanticResult]);
 
   return (
