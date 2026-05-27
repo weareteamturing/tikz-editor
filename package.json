@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "codespaces:startup": "bash scripts/codespaces/startup.sh",
+    "version:bump": "node scripts/bump-version.mjs",
     "generate:grammar": "npm run -w @tikz-editor/core generate:grammar",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/full/ --cache-strategy content",
     "lint:prod": "eslint . --cache --cache-location node_modules/.cache/eslint/prod/ --cache-strategy content --max-warnings=0 --ignore-pattern 'coverage/**' --ignore-pattern 'test/**' --ignore-pattern 'apps/desktop/e2e/**' --ignore-pattern 'apps/web/e2e/**' --ignore-pattern 'apps/web/profiling/**' --ignore-pattern 'scripts/**' --ignore-pattern 'apps/*/scripts/**' --ignore-pattern '**/*.config.*' --ignore-pattern '**/tmp-*'",

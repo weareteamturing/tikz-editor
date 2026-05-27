@@ -35,6 +35,7 @@ Capability drift is CI-gated by `/Users/dominik/GitHub/tikz-editor/test/capabili
 12. `cd /Users/dominik/GitHub/tikz-editor/apps/web && npm run build` builds the web app.
 13. `npm run compare:renderers -- --input path/to/snippet.tex` runs our renderer and a TeX reference render, then writes a comparison manifest.
 14. `npm run compare:pgf-docs -- --source-file pgfmanual-en-tikz-paths.tex` renders snippets from one PGF doc source file and writes an `index.html` side-by-side gallery. It generates side-by-side.png files that can be visually inspected for render accuracy.
+15. `npm run version:bump -- v0.2.0` updates first-party npm/Tauri/Cargo version metadata to `0.2.0`, updates internal workspace pins, regenerates the npm lockfile, verifies consistency, stages the expected release files, and commits with message `v0.2.0`. It does not create a git tag; tagging is handled by the release GitHub Action. Use `--no-commit` to skip the commit, and `--allow-dirty` only when intentionally working around unrelated local changes.
 
 ## Linting policy
 Production app/core code should stay warning-free under `npm run lint:prod`. Do not add new warnings there. If you touch test, e2e, profiling, script, config, or temp repro files, prefer cleaning local warnings opportunistically, but those areas are still tracked as full-audit debt under `npm run lint`.
