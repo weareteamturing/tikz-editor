@@ -346,7 +346,9 @@ export function Toolbar({ updateChip = null }: ToolbarProps) {
     <div className={`${css.toolbar}${isMacDesktop ? ` ${css.toolbarDesktop}` : ""}`} data-tauri-drag-region data-select="chrome">
       {showAppTitle ? (
         <>
-          <span className={css.title}>TikZ Editor</span>
+          <span className={css.title}>
+            TikZ Editor <span className={css.titleQualifier}>Web</span>
+          </span>
           <div className={css.separator} />
         </>
       ) : null}

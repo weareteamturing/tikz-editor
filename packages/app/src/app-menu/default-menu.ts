@@ -601,6 +601,13 @@ export const APP_MENU_DEFINITION = [
         commandId: APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL,
         label: "Open PGF/TikZ Manual"
       },
+      { kind: "separator", platforms: ["web"] },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.SHOW_ABOUT,
+        label: "About TikZ Editor Web",
+        platforms: ["web"]
+      },
       { kind: "separator" },
       {
         kind: "command",

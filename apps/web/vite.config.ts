@@ -8,6 +8,9 @@ export default defineConfig(({ command }) => ({
   base: command === "build" ? "/editor/web/" : "/",
   plugins: [react()],
   publicDir: path.resolve(__dirname, "../../packages/app/public"),
+  define: {
+    "import.meta.env.TIKZ_EDITOR_VERSION": JSON.stringify(process.env.npm_package_version ?? "0.1.0")
+  },
   worker: {
     format: "es"
   },

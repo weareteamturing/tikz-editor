@@ -133,6 +133,7 @@ type RuntimeInput = {
   onOpenSaveWorkspace?: () => void;
   onOpenManageWorkspaces?: () => void;
   onCheckForUpdates?: () => void | Promise<void>;
+  onShowAbout?: () => void;
   updateCheckBusy?: boolean;
 };
 
@@ -197,6 +198,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     onOpenSaveWorkspace,
     onOpenManageWorkspaces,
     onCheckForUpdates,
+    onShowAbout,
     updateCheckBusy
   } = input;
   const parseOptions = {
@@ -1007,6 +1009,10 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       enabled: canCheckForUpdates && !updateCheckBusy,
       run: () => onCheckForUpdates?.()
     },
+    [APP_MENU_COMMAND_IDS.SHOW_ABOUT]: {
+      enabled: onShowAbout != null,
+      run: () => onShowAbout?.()
+    },
     [APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL]: {
       enabled: canOpenExternalUrl,
       run: () => {
@@ -1058,6 +1064,7 @@ export function useEditorCommandRuntime(
     onOpenSaveWorkspace?: () => void;
     onOpenManageWorkspaces?: () => void;
     onCheckForUpdates?: () => void | Promise<void>;
+    onShowAbout?: () => void;
     updateCheckBusy?: boolean;
     activeHandleIdOverride?: string | null;
   } = {}
@@ -1183,6 +1190,7 @@ export function useEditorCommandRuntime(
         onShowCompiledPicture: options.onShowCompiledPicture,
         onOpenSettings: options.onOpenSettings,
         onCheckForUpdates: options.onCheckForUpdates,
+        onShowAbout: options.onShowAbout,
         updateCheckBusy: options.updateCheckBusy,
         onFocusAssistant: options.onFocusAssistant,
         onOpenInsertEquation: options.onOpenInsertEquation,
@@ -1231,6 +1239,7 @@ export function useEditorCommandRuntime(
       options.onShowCompiledPicture,
       options.onOpenSettings,
       options.onCheckForUpdates,
+      options.onShowAbout,
       options.updateCheckBusy,
       options.onFocusAssistant,
       options.onOpenInsertEquation,

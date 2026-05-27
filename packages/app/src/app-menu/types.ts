@@ -104,6 +104,7 @@ export const APP_MENU_COMMAND_IDS = {
   OPEN_GITHUB_REPOSITORY: "help.open-github-repository",
   OPEN_GITHUB_ISSUES: "help.open-github-issues",
   CHECK_FOR_UPDATES: "help.check-for-updates",
+  SHOW_ABOUT: "help.show-about",
   SHOW_COMPILED_PICTURE: "file.show-compiled-picture",
   OPEN_SETTINGS: "file.open-settings",
   CLEAR_RECENT_FILES: "file.clear-recent-files"

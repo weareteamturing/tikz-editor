@@ -599,7 +599,7 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
         if (typeof document === "undefined") {
           return;
         }
-        const baseTitle = title ?? "TikZ Editor";
+        const baseTitle = title ?? "TikZ Editor Web";
         document.title = dirty ? `• ${baseTitle}` : baseTitle;
       },
       openExternalUrl: (url) => {

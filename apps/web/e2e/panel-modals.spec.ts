@@ -28,6 +28,22 @@ test("panel modal closes on Escape even when focus is outside the panel", async 
   await expect(page.getByTestId("equation-modal")).toHaveCount(0);
 });
 
+test("help menu opens the web about modal", async ({ page }) => {
+  await expect(page.getByText("TikZ Editor Web")).toBeVisible();
+
+  await openMenuCommand(page, "help", "help.show-about");
+
+  const modal = page.getByTestId("about-modal");
+  await expect(modal).toBeVisible();
+  await expect(modal.getByRole("heading", { name: "TikZ Editor Web" })).toBeVisible();
+  await expect(modal.getByText("Version 0.1.0 (0.1.0)")).toBeVisible();
+  await expect(modal.getByText("Dominik Peters")).toBeVisible();
+  await expect(modal.getByRole("link", { name: "https://tikz.dev/editor/" })).toHaveAttribute(
+    "href",
+    "https://tikz.dev/editor/"
+  );
+});
+
 test("repeat panel closes on outside click without activating background UI", async ({ page }) => {
   await setSource(page, SAMPLE_SOURCE);
   await selectAllSceneElements(page);

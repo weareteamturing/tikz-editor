@@ -111,6 +111,11 @@ const UpdateModal = lazy(async () => {
   return { default: mod.UpdateModal };
 });
 
+const AboutModal = lazy(async () => {
+  const mod = await import("./AboutModal");
+  return { default: mod.AboutModal };
+});
+
 let startupUpdateCheckStarted = false;
 
 function menuTargetFromPlatformId(platformId: string): AppMenuPlatformTarget {
@@ -261,6 +266,7 @@ export function App() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showSaveWorkspaceModal, setShowSaveWorkspaceModal] = useState(false);
   const [showManageWorkspacesModal, setShowManageWorkspacesModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   const [availableUpdate, setAvailableUpdate] = useState<UpdateInfo | null>(null);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [updateDismissedForSession, setUpdateDismissedForSession] = useState(false);
@@ -626,6 +632,9 @@ export function App() {
     },
     onOpenManageWorkspaces: () => {
       setShowManageWorkspacesModal(true);
+    },
+    onShowAbout: () => {
+      setShowAboutModal(true);
     }
   });
 
@@ -1484,10 +1493,10 @@ export function App() {
 
   useEffect(() => {
     getActiveEditorPlatform().window?.setDocumentState?.({
-      title: "TikZ Editor",
+      title: platform.id.startsWith("desktop") ? "TikZ Editor" : "TikZ Editor Web",
       dirty: snapshot.source !== source
     });
-  }, [snapshot.source, source]);
+  }, [platform.id, snapshot.source, source]);
 
   useEffect(() => {
     if (!pendingAutoFit) {
@@ -2108,6 +2117,11 @@ export function App() {
       {showManageWorkspacesModal ? (
         <Suspense fallback={null}>
           <ManageWorkspacesModal onClose={() => { setShowManageWorkspacesModal(false); }} />
+        </Suspense>
+      ) : null}
+      {showAboutModal ? (
+        <Suspense fallback={null}>
+          <AboutModal onClose={() => { setShowAboutModal(false); }} />
         </Suspense>
       ) : null}
       {showUpdateModal && availableUpdate ? (

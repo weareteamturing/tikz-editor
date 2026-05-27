@@ -29,6 +29,10 @@
   white-space: nowrap;
 }
 
+.titleQualifier {
+  font-weight: 400;
+}
+
 .separator {
   width: 1px;
   height: 20px;
