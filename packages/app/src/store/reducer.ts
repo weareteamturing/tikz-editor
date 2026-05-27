@@ -99,6 +99,7 @@ function actionLabel(kind: HistoryEntry["kind"]): string {
     case "reorder": return "Reordered elements";
     case "align": return "Aligned elements";
     case "distribute": return "Distributed elements";
+    case "flatten-foreach": return "Flattened foreach";
   }
 }
 
@@ -848,6 +849,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         action.action.kind === "alignElements" ? "align" :
         action.action.kind === "distributeElements" ? "distribute" :
         action.action.kind === "reorderElements" ? "reorder" :
+        action.action.kind === "flattenForeach" ? "flatten-foreach" :
         action.action.kind === "groupElements" ? "add-element" :
         action.action.kind === "ungroupElements" ? "delete" :
         action.action.kind === "addElement" || action.action.kind === "addNodeAdornment" ? "add-element" :

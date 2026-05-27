@@ -4,7 +4,7 @@ import {
   type CanvasContextMenuDefinition,
   type CanvasContextMenuTarget
 } from "../context-menu";
-import type { AppMenuCommandId, AppMenuItem } from "../app-menu";
+import { APP_MENU_COMMAND_IDS, type AppMenuCommandId, type AppMenuItem } from "../app-menu";
 import type { CommandOrigin, CommandBindings } from "./editor-command-runtime";
 import { clampContextMenuAnchor, type ContextMenuAnchor } from "./canvas-panel/context-menu-target";
 import css from "./CanvasContextMenu.module.css";
@@ -86,6 +86,9 @@ function ContextMenuPopup({
         }
 
         const binding = bindings[item.commandId];
+        if (item.commandId === APP_MENU_COMMAND_IDS.FLATTEN_FOREACH && !binding.enabled) {
+          return null;
+        }
         const role = binding.checked == null ? "menuitem" : "menuitemcheckbox";
         return (
           <button

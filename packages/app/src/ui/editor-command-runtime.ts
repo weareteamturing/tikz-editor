@@ -26,6 +26,7 @@ import {
   canCutSelection,
   canDeleteSelection,
   canDuplicateSelection,
+  canFlattenForeachSelection,
   canRepeatSelection,
   canInsertMatrixColumnLeft,
   canInsertMatrixColumnRight,
@@ -45,6 +46,7 @@ import {
   deleteSelection,
   distributeSelection,
   duplicateSelection,
+  flattenForeachSelection,
   openRepeatSelection,
   groupSelection,
   joinSelectedPaths,
@@ -642,6 +644,12 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       enabled: canRepeatSelection(commandContext),
       run: () => {
         openRepeatSelection(commandContext, onOpenRepeat);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.FLATTEN_FOREACH]: {
+      enabled: canFlattenForeachSelection(commandContext),
+      run: () => {
+        flattenForeachSelection(commandContext);
       }
     },
     [APP_MENU_COMMAND_IDS.GROUP]: {

@@ -316,6 +316,9 @@ describe("canvas context menu definition", () => {
       const repeatIndex = items.findIndex(
         (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.REPEAT
       );
+      const flattenIndex = items.findIndex(
+        (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.FLATTEN_FOREACH
+      );
       const groupIndex = items.findIndex(
         (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.GROUP
       );
@@ -328,7 +331,8 @@ describe("canvas context menu definition", () => {
       expect(ungroupIndex).toBe(groupIndex + 1);
       expect(items[ungroupIndex + 1]).toEqual({ kind: "separator" });
       expect(repeatIndex).toBe(ungroupIndex + 2);
-      expect(items[repeatIndex + 1]).toEqual({ kind: "separator" });
+      expect(flattenIndex).toBe(repeatIndex + 1);
+      expect(items[flattenIndex + 1]).toEqual({ kind: "separator" });
     }
   });
 

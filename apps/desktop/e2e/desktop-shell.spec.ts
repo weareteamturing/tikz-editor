@@ -257,6 +257,35 @@ describe("desktop shell flows", () => {
     }));
   });
 
+  it("omits disabled foreach flattening from native context menus", async () => {
+    const mock = makeMockBridge();
+    const platform = createDesktopPlatformAdapter({
+      storage: { getItem: () => null, setItem: () => undefined },
+      bridge: mock.bridge
+    });
+
+    await platform.menu?.showNativeContextMenu?.({
+      items: [
+        { kind: "command", commandId: APP_MENU_COMMAND_IDS.REPEAT_LAST_ACTION, label: "Repeat Last Action" },
+        { kind: "command", commandId: APP_MENU_COMMAND_IDS.FLATTEN_FOREACH, label: "Flatten foreach" },
+        { kind: "command", commandId: APP_MENU_COMMAND_IDS.UNDO, label: "Undo" }
+      ],
+      commandStates: {
+        [APP_MENU_COMMAND_IDS.REPEAT_LAST_ACTION]: { enabled: true },
+        [APP_MENU_COMMAND_IDS.FLATTEN_FOREACH]: { enabled: false },
+        [APP_MENU_COMMAND_IDS.UNDO]: { enabled: false }
+      } as Record<string, { enabled: boolean; checked?: boolean }>
+    });
+
+    expect(mock.contextMenuPayloads).toHaveLength(1);
+    expect(mock.contextMenuPayloads[0]).toEqual(expect.objectContaining({
+      items: [
+        expect.objectContaining({ commandId: APP_MENU_COMMAND_IDS.REPEAT_LAST_ACTION }),
+        expect.objectContaining({ commandId: APP_MENU_COMMAND_IDS.UNDO, enabled: false })
+      ]
+    }));
+  });
+
   it("exposes update checks through the desktop platform", async () => {
     const mock = makeMockBridge();
     const platform = createDesktopPlatformAdapter({

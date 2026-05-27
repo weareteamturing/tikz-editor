@@ -3,7 +3,7 @@ import type {
   EvaluateOptions
 } from "../semantic/types.js";
 import type { WorldPoint, WorldBounds } from "../coords/points.js";
-import type { NodeItem, PathStatement, Statement, Span } from "../ast/types.js";
+import type { NodeItem, PathItem, PathStatement, Statement, Span } from "../ast/types.js";
 import type { SourcePatch } from "./types.js";
 import { applyEditIntent } from "./apply.js";
 import { replaceSpan } from "./patch.js";
@@ -74,6 +74,7 @@ import {
 import { parseTikzForEdit, sourceFingerprintForEdit, type EditParseOptions } from "./parse-options.js";
 import { patchesMatchSourceTransition } from "./source-patches.js";
 import type { SemanticPropertyId } from "./property-registry.js";
+import { flattenForeachInSource, type FlattenForeachTarget } from "../foreach/flatten.js";
 
 export type ResizeRole =
   | "top-left"
@@ -149,6 +150,7 @@ export type EditAction =
       horizontalStep: number;
       verticalStep: number;
     }
+  | { kind: "flattenForeach"; target: FlattenForeachTarget; recursive?: boolean; maxExpansions?: number }
   | { kind: "addTreeChild"; parentSourceId: string; afterChildIndex?: number }
   | { kind: "removeTreeChild"; childSourceId: string }
   | { kind: "addTreeSibling"; siblingSourceId: string; position: "before" | "after" }
@@ -275,6 +277,8 @@ export function applyEditAction(
         return applyUngroupElements(source, action, parseOptions);
       case "repeatElements":
         return applyRepeatElementsAction(source, action, parseOptions);
+      case "flattenForeach":
+        return applyFlattenForeachAction(source, action, parseOptions);
       case "addTreeChild":
         return applyAddTreeChildAction(source, action, parseOptions);
       case "removeTreeChild":
@@ -311,6 +315,94 @@ function normalizeResultPatches(source: string, result: EditActionResult): EditA
     ...result,
     patches: [computeReplacementPatch(source, result.newSource)]
   };
+}
+
+function applyFlattenForeachAction(
+  source: string,
+  action: Extract<EditAction, { kind: "flattenForeach" }>,
+  parseOptions: EditParseOptions
+): EditActionResult {
+  const flattened = flattenForeachInSource(source, action.target, {
+    recursive: action.recursive,
+    maxExpansions: action.maxExpansions
+  });
+
+  if (flattened.kind === "unsupported") {
+    return { kind: "unsupported", reason: flattened.reason };
+  }
+  if (flattened.kind === "error") {
+    return { kind: "error", message: flattened.message };
+  }
+
+  const selectedSourceIds = collectSourceIdsInSpan(flattened.newSource, flattened.flattenedSpan, parseOptions);
+  return {
+    kind: "success",
+    newSource: flattened.newSource,
+    patches: flattened.patches,
+    selectedSourceIds,
+    changedSourceIds: selectedSourceIds
+  };
+}
+
+function collectSourceIdsInSpan(
+  source: string,
+  span: Span,
+  parseOptions: EditParseOptions
+): string[] {
+  const parsed = parseTikzForEdit(source, parseOptions);
+  const ids: string[] = [];
+  const seen = new Set<string>();
+
+  const add = (id: string): void => {
+    if (!seen.has(id)) {
+      seen.add(id);
+      ids.push(id);
+    }
+  };
+
+  const visitStatements = (statements: readonly Statement[]): void => {
+    for (const statement of statements) {
+      if (spanContains(span, statement.span)) {
+        add(statement.id);
+      }
+
+      if (statement.kind === "Path") {
+        if (!spanContains(span, statement.span) && spansOverlap(span, statement.span)) {
+          visitPathItems(statement.items);
+        }
+        continue;
+      }
+
+      if (statement.kind === "Scope") {
+        visitStatements(statement.body);
+      }
+    }
+  };
+
+  const visitPathItems = (items: readonly PathItem[]): void => {
+    for (const item of items) {
+      if (spanContains(span, item.span)) {
+        add(item.id);
+      }
+      if (item.kind === "Node") {
+        continue;
+      }
+      if (item.kind === "ChildOperation") {
+        visitPathItems(item.body);
+      }
+    }
+  };
+
+  visitStatements(parsed.figure.body);
+  return ids;
+}
+
+function spanContains(outer: Span, inner: Span): boolean {
+  return inner.from >= outer.from && inner.to <= outer.to;
+}
+
+function spansOverlap(left: Span, right: Span): boolean {
+  return left.from < right.to && right.from < left.to;
 }
 
 function applyMoveHandle(

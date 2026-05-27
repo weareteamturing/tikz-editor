@@ -73,8 +73,9 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.FORMAT_TIKZ).toBe("edit.format-tikz");
   });
 
-  it("defines repeat, group, and ungroup command ids", () => {
+  it("defines repeat, flatten foreach, group, and ungroup command ids", () => {
     expect(APP_MENU_COMMAND_IDS.REPEAT).toBe("edit.repeat");
+    expect(APP_MENU_COMMAND_IDS.FLATTEN_FOREACH).toBe("edit.flatten-foreach");
     expect(APP_MENU_COMMAND_IDS.GROUP).toBe("edit.group");
     expect(APP_MENU_COMMAND_IDS.UNGROUP).toBe("edit.ungroup");
   });
@@ -451,6 +452,9 @@ describe("app menu definition", () => {
     const repeatIndex = items.findIndex(
       (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.REPEAT
     );
+    const flattenIndex = items.findIndex(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.FLATTEN_FOREACH
+    );
     const formatIndex = items.findIndex(
       (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.FORMAT_TIKZ
     );
@@ -461,8 +465,9 @@ describe("app menu definition", () => {
     expect(ungroupIndex).toBe(groupIndex + 1);
     expect(items[ungroupIndex + 1]?.kind).toBe("separator");
     expect(repeatIndex).toBe(ungroupIndex + 2);
-    expect(items[repeatIndex + 1]?.kind).toBe("separator");
-    expect(formatIndex).toBe(repeatIndex + 2);
+    expect(flattenIndex).toBe(repeatIndex + 1);
+    expect(items[flattenIndex + 1]?.kind).toBe("separator");
+    expect(formatIndex).toBe(flattenIndex + 2);
     expect(items[formatIndex + 1]?.kind).toBe("separator");
 
     const groupItem = items[groupIndex];

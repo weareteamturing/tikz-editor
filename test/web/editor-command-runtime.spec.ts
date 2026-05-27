@@ -251,6 +251,50 @@ describe("editor-command-runtime", () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
+  it("flattens the outer foreach loop from a generated selection", () => {
+    const source = String.raw`\begin{tikzpicture}
+\foreach \x in {0,1} {
+  \draw (\x,0) -- (\x,1);
+}
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const generated = rendered.semantic.scene.elements.find((element) => (element.origin?.foreachStack.length ?? 0) > 0);
+    expect(generated).toBeDefined();
+    if (!generated?.origin) {
+      throw new Error("Expected generated foreach scene element.");
+    }
+    const outerLoop = generated.origin.foreachStack[0];
+    expect(outerLoop).toBeDefined();
+    if (!outerLoop) {
+      throw new Error("Expected outer foreach frame.");
+    }
+
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        source,
+        dispatch,
+        snapshot: makeSnapshot(rendered, source),
+        selectedElementIds: new Set([generated.sourceRef.sourceId])
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.FLATTEN_FOREACH].enabled).toBe(true);
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.FLATTEN_FOREACH, "menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "flattenForeach",
+        target: { kind: "span", span: outerLoop.loopSpan },
+        recursive: true
+      },
+      precomputedResult: expect.objectContaining({
+        kind: "success",
+        selectedSourceIds: ["path:0", "path:1"]
+      })
+    }));
+  });
+
   it("runs commands through one shared entrypoint for menu and shortcut origins", () => {
     const dispatch = vi.fn<(action: EditorAction) => void>();
     const rendered = renderTikzToSvg(SOURCE);

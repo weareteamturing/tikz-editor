@@ -23,6 +23,7 @@ export const APP_MENU_COMMAND_IDS = {
   DELETE: "edit.delete",
   DUPLICATE: "edit.duplicate",
   REPEAT: "edit.repeat",
+  FLATTEN_FOREACH: "edit.flatten-foreach",
   GROUP: "edit.group",
   UNGROUP: "edit.ungroup",
   ROTATE_LEFT_90: "edit.rotate-left-90",

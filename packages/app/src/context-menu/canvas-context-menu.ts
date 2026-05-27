@@ -327,6 +327,11 @@ const SELECTION_COMMAND_ITEMS: readonly AppMenuItem[] = [
     commandId: APP_MENU_COMMAND_IDS.REPEAT,
     label: "Repeat..."
   },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.FLATTEN_FOREACH,
+    label: "Flatten foreach"
+  },
   { kind: "separator" },
 ];
 

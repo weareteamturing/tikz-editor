@@ -191,6 +191,11 @@ export const APP_MENU_DEFINITION = [
         commandId: APP_MENU_COMMAND_IDS.REPEAT,
         label: "Repeat..."
       },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.FLATTEN_FOREACH,
+        label: "Flatten foreach"
+      },
       { kind: "separator" },
       {
         kind: "command",

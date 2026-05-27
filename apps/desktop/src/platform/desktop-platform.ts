@@ -216,6 +216,10 @@ type NativeCommandRef = {
   };
 };
 
+function shouldHideDisabledContextMenuCommand(commandId: AppMenuCommandId, state: NativeCommandState): boolean {
+  return commandId === APP_MENU_COMMAND_IDS.FLATTEN_FOREACH && !state.enabled;
+}
+
 type NativeMenuNode = CheckMenuItem | MenuItem | PredefinedMenuItem | Submenu;
 
 function readInjectedTestEnvironment(): DesktopPlatformEnvironment {
@@ -331,6 +335,9 @@ function serializeDesktopContextMenuItems(
     }
 
     const state = commandStates[item.commandId] ?? { enabled: false };
+    if (shouldHideDisabledContextMenuCommand(item.commandId, state)) {
+      continue;
+    }
     serialized.push({
       kind: "command",
       commandId: item.commandId,
@@ -529,6 +536,9 @@ function createNativeDesktopMenuManager(options: {
     }
 
     const state = commandStates[item.commandId] ?? { enabled: false };
+    if (origin === "context-menu" && shouldHideDisabledContextMenuCommand(item.commandId, state)) {
+      return null;
+    }
     const accelerator = hasModifierAccelerator(item.accelerator) ? item.accelerator : undefined;
     const predefinedClipboardItem = nativeClipboardPredefinedItemFor(item.commandId);
 

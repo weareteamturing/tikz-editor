@@ -1234,6 +1234,7 @@ describe("editorReducer – branch edge cases", () => {
       ["reorderElements", "reorder"],
       ["alignElements", "align"],
       ["distributeElements", "distribute"],
+      ["flattenForeach", "flatten-foreach"],
       ["resizeElement", "resize"]
     ];
 

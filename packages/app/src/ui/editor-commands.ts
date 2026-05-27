@@ -22,6 +22,7 @@ import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import { parseMatrixRowsForEdit, resolveMatrixMode } from "tikz-editor/semantic/nodes/matrix";
 import type { OptionListAst } from "tikz-editor/options/types";
 import type { EditHandle, SceneElement, SceneFigure } from "tikz-editor/semantic/types";
+import type { ForeachOriginFrame } from "tikz-editor/semantic/types";
 import type { PathStatement, Statement } from "tikz-editor/ast/types";
 import type { EditorAction } from "../store/types";
 import {
@@ -358,6 +359,32 @@ export function openRepeatSelection(
   return true;
 }
 
+export function flattenForeachSelection(context: SelectionCommandContext): boolean {
+  const target = resolveFlattenForeachTarget(context);
+  if (!target) {
+    return false;
+  }
+
+  const action = {
+    kind: "flattenForeach" as const,
+    target: { kind: "span" as const, span: target.loopSpan },
+    recursive: true
+  };
+  const precomputedResult = applyEditAction(context.source, context.editHandles as EditHandle[], action, {
+    parseOptions: parseOptionsForContext(context)
+  });
+  if (precomputedResult.kind !== "success" && precomputedResult.kind !== "partial") {
+    return false;
+  }
+
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action,
+    precomputedResult
+  });
+  return true;
+}
+
 export function groupSelection(context: SelectionCommandContext): boolean {
   if (!canGroupSelection(context)) {
     return false;
@@ -505,6 +532,24 @@ export function canRepeatSelection(context: SelectionCommandContext): boolean {
     return false;
   }
   return availabilityFor(context).repeat.enabled;
+}
+
+export function canFlattenForeachSelection(context: SelectionCommandContext): boolean {
+  if (classifyMatrixCellSelection(context).hasAnyMatrixCellSelection) {
+    return false;
+  }
+  const target = resolveFlattenForeachTarget(context);
+  if (!target) {
+    return false;
+  }
+  const result = applyEditAction(context.source, context.editHandles as EditHandle[], {
+    kind: "flattenForeach",
+    target: { kind: "span", span: target.loopSpan },
+    recursive: true
+  }, {
+    parseOptions: parseOptionsForContext(context)
+  });
+  return result.kind === "success" || result.kind === "partial";
 }
 
 export function canCutSelection(context: SelectionCommandContext): boolean {
@@ -1480,6 +1525,38 @@ function resolveTransformTargetId(context: SelectionCommandContext, selectedId: 
   }
 
   return null;
+}
+
+function resolveFlattenForeachTarget(context: SelectionCommandContext): ForeachOriginFrame | null {
+  if (!context.scene || context.selectedElementIds.size === 0) {
+    return null;
+  }
+
+  const selectedElements = [...context.selectedElementIds]
+    .map((selectedId) => findSelectedSceneElement(context.scene, selectedId))
+    .filter((element): element is SceneElement => element != null);
+  if (selectedElements.length === 0) {
+    return null;
+  }
+
+  const outerFrames = selectedElements
+    .map((element) => element.origin?.foreachStack[0] ?? null)
+    .filter((frame): frame is ForeachOriginFrame => frame != null);
+  if (outerFrames.length === 0) {
+    return null;
+  }
+
+  const first = outerFrames[0];
+  if (!first) {
+    return null;
+  }
+
+  const allSameLoop = outerFrames.every((frame) =>
+    frame.loopId === first.loopId &&
+    frame.loopSpan.from === first.loopSpan.from &&
+    frame.loopSpan.to === first.loopSpan.to
+  );
+  return allSameLoop ? first : null;
 }
 
 function resolvedContextActiveFigureId(context: SelectionCommandContext): string | null | undefined {

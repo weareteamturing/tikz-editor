@@ -70,7 +70,18 @@ export type CanvasTransform = {
 };
 
 export type HistoryEntry = {
-  kind: "move" | "move-handle" | "path-edit" | "set-property" | "add-element" | "delete" | "resize" | "reorder" | "align" | "distribute";
+  kind:
+    | "move"
+    | "move-handle"
+    | "path-edit"
+    | "set-property"
+    | "add-element"
+    | "delete"
+    | "resize"
+    | "reorder"
+    | "align"
+    | "distribute"
+    | "flatten-foreach";
   label: string;
   /** Optional key used to coalesce drag updates into one undo step. */
   mergeKey?: string;
