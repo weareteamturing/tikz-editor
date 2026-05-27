@@ -1,3 +1,5 @@
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { UpdateInfo } from "../platform/types";
 import { Modal } from "./Modal";
 import css from "./UpdateModal.module.css";
@@ -66,8 +68,8 @@ export function UpdateModal({ update, phase, isWindows, onInstall, onClose, onLa
         </div>
 
         {update.body ? (
-          <div className={css.notes} data-select="text">
-            {update.body}
+          <div className={css.notes} data-testid="update-notes" data-select="text">
+            <Markdown remarkPlugins={[remarkGfm]}>{update.body}</Markdown>
           </div>
         ) : null}
 
@@ -80,7 +82,7 @@ export function UpdateModal({ update, phase, isWindows, onInstall, onClose, onLa
         {phase.status === "installing" ? (
           <div className={css.progressArea} data-testid="update-install-progress">
             <div className={css.progressHeader}>
-              <span>Installing update...</span>
+              <span>Downloading update...</span>
               {progressLabel ? <span>{progressLabel}</span> : null}
             </div>
             <div className={css.progressTrack}>

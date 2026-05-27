@@ -42,7 +42,7 @@ async function installUpdateEnv(page: Page, options: UpdateEnvOptions = {}): Pro
               version: "0.2.0",
               currentVersion: "0.1.0",
               date: "2026-05-08T12:00:00Z",
-              body: "Update notes"
+              body: "## Highlights\n\n- Update notes\n- **Bold note**"
             }
           : null,
         installUpdate: async (onProgress: (event: unknown) => void) => {
@@ -90,6 +90,14 @@ test("startup update check shows toolbar chip and opens update modal", async ({ 
   await expect(page.getByTestId("update-modal")).toBeVisible();
   await expect(page.getByText("0.2.0")).toBeVisible();
   await expect(page.getByText("Update notes")).toBeVisible();
+  const heading = page.getByRole("heading", { name: "Highlights" });
+  await expect(heading).toBeVisible();
+  await expect(page.getByText("Bold note")).toHaveCSS("font-weight", "700");
+  await expect.poll(async () => {
+    const headingFontSize = await heading.evaluate((element) => getComputedStyle(element).fontSize);
+    const notesFontSize = await page.getByTestId("update-notes").evaluate((element) => getComputedStyle(element).fontSize);
+    return headingFontSize === notesFontSize;
+  }).toBe(true);
 });
 
 test("later hides the update chip for the session", async ({ page }) => {
