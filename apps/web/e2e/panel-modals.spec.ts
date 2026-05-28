@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import {
   gotoApp,
   openMenuCommand,
@@ -6,6 +7,10 @@ import {
   selectAllSceneElements,
   setSource
 } from "./helpers";
+
+const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+  version: string;
+};
 
 const SAMPLE_SOURCE = String.raw`\begin{tikzpicture}
   \node[draw] at (0,0) {A};
@@ -36,7 +41,7 @@ test("help menu opens the web about modal", async ({ page }) => {
   const modal = page.getByTestId("about-modal");
   await expect(modal).toBeVisible();
   await expect(modal.getByRole("heading", { name: "TikZ Editor Web" })).toBeVisible();
-  await expect(modal.getByText("Version 0.1.0 (0.1.0)")).toBeVisible();
+  await expect(modal.getByText(`Version ${packageJson.version}`, { exact: true })).toBeVisible();
   await expect(modal.getByText("Dominik Peters")).toBeVisible();
   await expect(modal.getByRole("link", { name: "https://tikz.dev/editor/" })).toHaveAttribute(
     "href",
