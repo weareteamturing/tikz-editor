@@ -118,6 +118,7 @@ type RuntimeInput = {
   updateCanvasSettings: (patch: Partial<AppSettings["canvas"]>) => void;
   dispatch: Dispatch;
   onOpenExample?: () => void;
+  onOpenFromArxiv?: () => void;
   onOpenSvgExport?: (svgResult: EmitSvgResult) => void;
   onOpenPngExport?: (svgResult: EmitSvgResult) => void;
   onRequestCloseDocument?: (documentId: string) => void;
@@ -183,6 +184,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     updateCanvasSettings,
     dispatch,
     onOpenExample,
+    onOpenFromArxiv,
     onOpenSvgExport,
     onOpenPngExport,
     onRequestCloseDocument,
@@ -397,6 +399,10 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     [APP_MENU_COMMAND_IDS.OPEN_DOCUMENT]: {
       enabled: canOpen,
       run: () => { runOpenDocument(); }
+    },
+    [APP_MENU_COMMAND_IDS.OPEN_FROM_ARXIV]: {
+      enabled: typeof getActiveEditorPlatform().files?.fetchArxivSource === "function" && onOpenFromArxiv != null,
+      run: () => onOpenFromArxiv?.()
     },
     [APP_MENU_COMMAND_IDS.IMPORT_IPE]: {
       enabled: canOpen,
@@ -1049,6 +1055,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
 export function useEditorCommandRuntime(
   options: {
     onOpenExample?: () => void;
+    onOpenFromArxiv?: () => void;
     onOpenSvgExport?: (svgResult: EmitSvgResult) => void;
     onOpenPngExport?: (svgResult: EmitSvgResult) => void;
   onRequestCloseDocument?: (documentId: string) => void;
@@ -1181,6 +1188,7 @@ export function useEditorCommandRuntime(
         updateCanvasSettings,
         dispatch,
         onOpenExample: options.onOpenExample,
+        onOpenFromArxiv: options.onOpenFromArxiv,
         onOpenSvgExport: options.onOpenSvgExport,
         onOpenPngExport: options.onOpenPngExport,
         onRequestCloseDocument: options.onRequestCloseDocument,
@@ -1230,6 +1238,7 @@ export function useEditorCommandRuntime(
       updateCanvasSettings,
       dispatch,
       options.onOpenExample,
+      options.onOpenFromArxiv,
       options.onOpenSvgExport,
       options.onOpenPngExport,
       options.onRequestCloseDocument,

@@ -164,3 +164,6 @@ MATRIX_PLAN.md
 /.playwright-mcp
 /.local-notes
 /skills-lock.json
+/apps/ipad/src-tauri/target/
+/apps/ipad/src-tauri/gen/apple/build
+/apps/ipad/src-tauri/gen/apple/Externals/arm64/debug

@@ -27,11 +27,24 @@ export type StandaloneLatexExportArtifact = {
   diagnostics: StandaloneExportDiagnostic[];
 };
 
+export type MinimalTikzSourceArtifact = {
+  text: string;
+  complete: boolean;
+  diagnostics: StandaloneExportDiagnostic[];
+  definitionCount: number;
+  activeFigureSource: string;
+};
+
 export type CreateStandaloneLatexExportArtifactOptions = {
   source: string;
   activeFigureId: string | null;
   fileName?: string;
   documentClassOptions?: readonly string[];
+};
+
+export type CreateMinimalTikzSourceArtifactOptions = {
+  source: string;
+  activeFigureId: string | null;
 };
 
 function normalizeDocumentClassOptions(options: readonly string[] = []): string[] {
@@ -229,13 +242,19 @@ function renderDiagnosticsCommentBlock(diagnostics: readonly StandaloneExportDia
   return `${lines.join("\n")}\n`;
 }
 
-export function createStandaloneLatexExportArtifact(
-  options: CreateStandaloneLatexExportArtifactOptions
-): StandaloneLatexExportArtifact {
+function analyzeMinimalFigureDependencies(
+  options: CreateMinimalTikzSourceArtifactOptions
+): {
+  diagnostics: StandaloneExportDiagnostic[];
+  complete: boolean;
+  definitionChunks: string[];
+  figureSource: string;
+  requiredLibraries: readonly string[];
+} {
   const parseResult = parseTikz(options.source, {
     recover: true,
     activeFigureId: options.activeFigureId,
-    includeContextDefinitions: true,
+    includeContextDefinitions: true
   });
   const semanticResult = evaluateTikzFigure(parseResult.figure, parseResult.source);
 
@@ -274,9 +293,51 @@ export function createStandaloneLatexExportArtifact(
     usedIds.add(id);
   }
   const definitionChunks = collectDefinitionSpans(options.source, statementById, usedIds);
+  return {
+    diagnostics,
+    complete: !diagnostics.some((diagnostic) => diagnostic.severity === "error"),
+    definitionChunks,
+    figureSource,
+    requiredLibraries: semanticResult.scene.requiredTikzLibraries
+  };
+}
+
+function mergeDefinitionChunksWithInferredLibraries(
+  definitionChunks: readonly string[],
+  requiredLibraries: readonly string[]
+): string[] {
+  if (requiredLibraries.length === 0) {
+    return [...definitionChunks];
+  }
+  return [`\\usetikzlibrary{${requiredLibraries.join(",")}}`, ...definitionChunks];
+}
+
+export function createMinimalTikzSourceArtifact(
+  options: CreateMinimalTikzSourceArtifactOptions
+): MinimalTikzSourceArtifact {
+  const analysis = analyzeMinimalFigureDependencies(options);
+  const definitionChunks = mergeDefinitionChunksWithInferredLibraries(
+    analysis.definitionChunks,
+    analysis.requiredLibraries
+  );
+  const chunks = [...definitionChunks, analysis.figureSource].filter((chunk) => chunk.trim().length > 0);
+  return {
+    text: `${chunks.join("\n")}\n`,
+    complete: analysis.complete,
+    diagnostics: analysis.diagnostics,
+    definitionCount: definitionChunks.length,
+    activeFigureSource: analysis.figureSource
+  };
+}
+
+export function createStandaloneLatexExportArtifact(
+  options: CreateStandaloneLatexExportArtifactOptions
+): StandaloneLatexExportArtifact {
+  const analysis = analyzeMinimalFigureDependencies(options);
+  const definitionChunks = analysis.definitionChunks;
   const classOptions = normalizeDocumentClassOptions(options.documentClassOptions);
   const classOptionsText = classOptions.length > 0 ? `[${classOptions.join(",")}]` : "";
-  const requiredLibraries = semanticResult.scene.requiredTikzLibraries;
+  const requiredLibraries = analysis.requiredLibraries;
 
   const lines: string[] = [];
   lines.push(`\\documentclass${classOptionsText}{standalone}`);
@@ -288,16 +349,16 @@ export function createStandaloneLatexExportArtifact(
   if (definitionChunks.length > 0) {
     lines.push(definitionChunks.join("\n"));
   }
-  lines.push(figureSource);
+  lines.push(analysis.figureSource);
   lines.push("\\end{document}");
-  const diagnosticsComment = renderDiagnosticsCommentBlock(diagnostics);
+  const diagnosticsComment = renderDiagnosticsCommentBlock(analysis.diagnostics);
   const text = `${diagnosticsComment}${lines.join("\n")}\n`;
 
   return {
     fileName: normalizeStandaloneLatexExportFileName(options.fileName),
     mimeType: STANDALONE_LATEX_EXPORT_MIME_TYPE,
     text,
-    complete: !diagnostics.some((diagnostic) => diagnostic.severity === "error"),
-    diagnostics
+    complete: analysis.complete,
+    diagnostics: analysis.diagnostics
   };
 }

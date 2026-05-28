@@ -16,6 +16,7 @@ import { PT_PER_CM } from "tikz-editor/edit/format";
 import { pt, worldPoint } from "tikz-editor/coords";
 import { emitSvgModel, type SvgRenderModel } from "tikz-editor/svg";
 import type { SceneFigure } from "tikz-editor/semantic/types";
+import { createMinimalTikzSourceArtifact } from "tikz-editor/export/index";
 import { installAppProfilingRecorder, readAppProfilingSnapshot, resetAppProfilingSession } from "../profiling";
 import { AppMenuBar } from "./AppMenuBar";
 import { Toolbar } from "./Toolbar";
@@ -44,6 +45,7 @@ import { formatEquationText, type EquationNodeTarget } from "./equation-utils";
 import { useDebouncedEffect } from "./hooks/useDebouncedEffect";
 import { decideLinkedFileRefresh, isLinkedFileRef, type LinkedTextWriteResult } from "../linked-file-sync";
 import type { DocumentFileRef, DocumentSession, FileRevision } from "../store/types";
+import { createArxivVirtualFileName, type ArxivPaperSession, type ArxivTikzCandidate } from "../arxiv-source";
 import "./selection.css";
 
 const DevPanel = lazy(async () => {
@@ -54,6 +56,11 @@ const DevPanel = lazy(async () => {
 const OpenExampleModal = lazy(async () => {
   const mod = await import("./OpenExampleModal");
   return { default: mod.OpenExampleModal };
+});
+
+const OpenFromArxivModal = lazy(async () => {
+  const mod = await import("./OpenFromArxivModal");
+  return { default: mod.OpenFromArxivModal };
 });
 
 const SettingsModal = lazy(async () => {
@@ -263,6 +270,12 @@ export function App() {
   const menuTarget = menuTargetFromPlatformId(platform.id);
   const menuDefinition = useMemo(() => filterAppMenuDefinitionForTarget(APP_MENU_DEFINITION, menuTarget), [menuTarget]);
   const [showOpenExampleModal, setShowOpenExampleModal] = useState(false);
+  const [showOpenFromArxivModal, setShowOpenFromArxivModal] = useState(false);
+  const [openFromArxivSession, setOpenFromArxivSession] = useState<ArxivPaperSession>({
+    input: "",
+    paper: null,
+    selectedCandidateId: null
+  });
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showSaveWorkspaceModal, setShowSaveWorkspaceModal] = useState(false);
   const [showManageWorkspacesModal, setShowManageWorkspacesModal] = useState(false);
@@ -577,6 +590,9 @@ export function App() {
   const commandRuntime = useEditorCommandRuntime({
     onOpenExample: () => {
       setShowOpenExampleModal(true);
+    },
+    onOpenFromArxiv: () => {
+      setShowOpenFromArxivModal(true);
     },
     onOpenSvgExport: (svgResult) => {
       setSvgExportSvgResult(svgResult);
@@ -1775,6 +1791,25 @@ export function App() {
     setPendingAutoFit(true);
   };
 
+  const loadArxivCandidateIntoEditor = (candidate: ArxivTikzCandidate) => {
+    const fileName = createArxivVirtualFileName(candidate);
+    const minimalSource = createMinimalTikzSourceArtifact({
+      source: candidate.contextualSource,
+      activeFigureId: "figure:0"
+    });
+    dispatch({ type: "NEW_DOCUMENT", source: minimalSource.text, title: fileName });
+    dispatch({
+      type: "MARK_DOCUMENT_SAVED",
+      fileRef: {
+        kind: "virtual",
+        name: fileName,
+        provider: "download"
+      }
+    });
+    setShowOpenFromArxivModal(false);
+    setPendingAutoFit(true);
+  };
+
   async function handleUnsavedDecision(
     decision: UnsavedChangesDecision,
     ctx?: { intent: CloseIntent; dirtyDocumentIds: string[] }
@@ -1953,6 +1988,16 @@ export function App() {
             examples={OPEN_EXAMPLE_CATALOG}
             onClose={() => { setShowOpenExampleModal(false); }}
             onSelectExample={loadExampleIntoEditor}
+          />
+        </Suspense>
+      ) : null}
+      {showOpenFromArxivModal ? (
+        <Suspense fallback={null}>
+          <OpenFromArxivModal
+            session={openFromArxivSession}
+            onSessionChange={setOpenFromArxivSession}
+            onClose={() => { setShowOpenFromArxivModal(false); }}
+            onOpenCandidate={loadArxivCandidateIntoEditor}
           />
         </Suspense>
       ) : null}

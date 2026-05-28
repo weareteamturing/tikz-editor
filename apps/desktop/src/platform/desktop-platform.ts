@@ -14,6 +14,7 @@ import {
   type AppMenuCommandId,
   type AppMenuDefinition,
   type AppMenuItem,
+  type ArxivSourcePayload,
   type DocumentFileRef,
   type EditorPlatform,
   type FileRevision,
@@ -75,6 +76,7 @@ type DesktopLinkedTextWriteResult =
 type DesktopBridge = {
   openText: (path?: string | null, options?: { addToRecent?: boolean }) => Promise<DesktopOpenTextResult | null>;
   openBinary?: (path?: string | null, options?: { addToRecent?: boolean }) => Promise<DesktopOpenBinaryResult | null>;
+  fetchArxivSource?: (idOrUrl: string) => Promise<ArxivSourcePayload>;
   saveText: (params: {
     text: string;
     suggestedName?: string;
@@ -763,6 +765,10 @@ function createDefaultBridge(): DesktopBridge {
         addToRecent: options?.addToRecent
       });
     },
+    fetchArxivSource: async (idOrUrl) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<ArxivSourcePayload>("desktop_fetch_arxiv_source", { idOrUrl });
+    },
     saveText: async ({ text, suggestedName, path, forceSaveAs }) => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<DesktopSaveTextResult>("desktop_save_text", {
@@ -1333,6 +1339,13 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
           bytes,
           fileRef: toDesktopFileRef(opened.path, opened.name)
         };
+      },
+      fetchArxivSource: async (idOrUrl) => {
+        const fetchArxivSource = getBridge().fetchArxivSource;
+        if (!fetchArxivSource) {
+          throw new Error("Opening from arXiv is unavailable in this desktop build.");
+        }
+        return await fetchArxivSource(idOrUrl);
       },
       saveText: async (text, options) => {
         const mode = options?.mode ?? "save";

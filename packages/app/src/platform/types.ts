@@ -31,6 +31,7 @@ export type PlatformClipboard = {
 export type PlatformFileApi = {
   openText?: (options?: { addToRecent?: boolean }) => Promise<{ source: string; fileRef: DocumentFileRef | null } | null>;
   openBinary?: (options?: { addToRecent?: boolean }) => Promise<{ bytes: ArrayBuffer; fileRef: DocumentFileRef | null } | null>;
+  fetchArxivSource?: (idOrUrl: string) => Promise<ArxivSourcePayload>;
   bindOpenRequest?: (
     handler: (opened: { source: string; fileRef: DocumentFileRef | null }) => void
   ) => (() => void) | void;
@@ -52,6 +53,17 @@ export type PlatformFileApi = {
   bindLinkedFileChange?: (handler: (fileRef: DocumentFileRef) => void) => (() => void) | void;
   exportFile?: (content: BlobPart[], options: { fileName: string; mimeType: string }) => Promise<boolean>;
   clearRecentFiles?: () => Promise<void>;
+};
+
+export type ArxivSourceFile = {
+  path: string;
+  source: string;
+  size: number;
+};
+
+export type ArxivSourcePayload = {
+  id: string;
+  files: ArxivSourceFile[];
 };
 
 export type PlatformMenu = {

@@ -18,6 +18,12 @@ export const APP_MENU_DEFINITION = [
       },
       {
         kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.OPEN_FROM_ARXIV,
+        label: "Open from arXiv...",
+        platforms: ["desktop"]
+      },
+      {
+        kind: "command",
         commandId: APP_MENU_COMMAND_IDS.OPEN_EXAMPLE,
         label: "Open Example..."
       },
