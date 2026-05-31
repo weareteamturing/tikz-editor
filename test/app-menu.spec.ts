@@ -160,19 +160,23 @@ describe("app menu definition", () => {
     expect(commandItem.label).toBe("Open Example...");
   });
 
-  it("places Open Example directly below Open in the File menu", () => {
+  it("places Open Example below the file opening commands in the File menu", () => {
     const fileSection = APP_MENU_DEFINITION.find((section) => section.id === "file");
     expect(fileSection).toBeDefined();
     const items = fileSection?.items ?? [];
     const openIndex = items.findIndex(
       (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.OPEN_DOCUMENT
     );
+    const arxivIndex = items.findIndex(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.OPEN_FROM_ARXIV
+    );
     const openExampleIndex = items.findIndex(
       (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.OPEN_EXAMPLE
     );
 
     expect(openIndex).toBeGreaterThanOrEqual(0);
-    expect(openExampleIndex).toBe(openIndex + 1);
+    expect(arxivIndex).toBe(openIndex + 1);
+    expect(openExampleIndex).toBe(arxivIndex + 1);
   });
 
   it("exposes Ipe, PowerPoint, and SVG import commands in the File > Import submenu", () => {

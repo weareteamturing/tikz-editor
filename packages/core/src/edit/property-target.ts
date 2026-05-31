@@ -135,21 +135,22 @@ export function resolvePropertyTarget(source: string, elementId: string, parseOp
 }
 
 export function resolvePropertyTargetFromParseResult(
-  source: string,
+  _source: string,
   parseResult: ParseTikzResult,
   elementId: string
 ): PropertyTargetResolution {
+  const parseSource = parseResult.source;
   const normalizedId = elementId.trim();
   if (normalizedId.length === 0) {
     return { kind: "not-found", reason: "Missing element id" };
   }
 
   if (normalizedId === TIKZPICTURE_GLOBAL_TARGET_ID) {
-    return resolveFigurePropertyTargetFromParseResult(source, parseResult);
+    return resolveFigurePropertyTargetFromParseResult(parseSource, parseResult);
   }
 
   if (normalizedId.startsWith(STYLE_SOURCE_TARGET_PREFIX)) {
-    return resolveStyleSourceTarget(source, normalizedId);
+    return resolveStyleSourceTarget(parseSource, normalizedId);
   }
 
   const foreachTemplateTarget = resolveForeachTemplateTargetFromParseResult(parseResult, normalizedId);
@@ -157,16 +158,16 @@ export function resolvePropertyTargetFromParseResult(
     return { kind: "found", target: foreachTemplateTarget };
   }
 
-  const matrixCellTarget = resolveMatrixCellTargetInStatements(parseResult.figure.body, source, normalizedId);
+  const matrixCellTarget = resolveMatrixCellTargetInStatements(parseResult.figure.body, parseSource, normalizedId);
   if (matrixCellTarget) {
     return { kind: "found", target: matrixCellTarget };
   }
-  const treeChildTarget = resolveTreeChildTargetInStatements(parseResult.figure.body, source, normalizedId);
+  const treeChildTarget = resolveTreeChildTargetInStatements(parseResult.figure.body, parseSource, normalizedId);
   if (treeChildTarget) {
     return { kind: "found", target: treeChildTarget };
   }
 
-  const target = findTargetInStatements(parseResult.figure.body, source, normalizedId);
+  const target = findTargetInStatements(parseResult.figure.body, parseSource, normalizedId);
   if (!target) {
     return { kind: "not-found", reason: `No editable source target found for ${normalizedId}` };
   }

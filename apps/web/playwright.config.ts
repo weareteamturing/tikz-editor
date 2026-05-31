@@ -1,6 +1,37 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const withoutColorEnv = "env -u NO_COLOR -u FORCE_COLOR";
+const browserProjects = {
+  chromium: {
+    name: "chromium",
+    use: { ...devices["Desktop Chrome"] }
+  },
+  firefox: {
+    name: "firefox",
+    use: { ...devices["Desktop Firefox"] }
+  },
+  webkit: {
+    name: "webkit",
+    use: { ...devices["Desktop Safari"] }
+  }
+} as const;
+
+function getBrowserProjects() {
+  const requestedBrowsers = (process.env.PLAYWRIGHT_BROWSERS ?? "chromium")
+    .split(",")
+    .map((browser) => browser.trim())
+    .filter(Boolean);
+
+  const invalidBrowsers = requestedBrowsers.filter((browser) => !(browser in browserProjects));
+  if (invalidBrowsers.length > 0) {
+    throw new Error(
+      `Unsupported PLAYWRIGHT_BROWSERS value(s): ${invalidBrowsers.join(", ")}. ` +
+        `Supported browsers are: ${Object.keys(browserProjects).join(", ")}.`
+    );
+  }
+
+  return requestedBrowsers.map((browser) => browserProjects[browser as keyof typeof browserProjects]);
+}
 
 export default defineConfig({
   testDir: "./e2e",
@@ -22,10 +53,5 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120_000
   },
-  projects: [
-    {
-      name: "chromium",
-      use: { ...devices["Desktop Chrome"] }
-    }
-  ]
+  projects: getBrowserProjects()
 });
