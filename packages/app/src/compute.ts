@@ -1,21 +1,24 @@
-import type { ParseTikzResult } from "tikz-editor/parser/index";
 import type { Statement } from "tikz-editor/ast/types";
-import type {
-  IncrementalParseSession,
-  IncrementalParseStats
+import {
+  createIncrementalParseSession,
+  type IncrementalParseSession,
+  type IncrementalParseStats,
+  type ParseTikzResult
 } from "tikz-editor/parser/index";
-import type { EvaluateTikzResult } from "tikz-editor/semantic/index";
-import type { EmitSvgOptions, EmitSvgResult, SvgRenderModel } from "tikz-editor/svg/index";
+import {
+  collectGeometryInvalidation,
+  createIncrementalSemanticSession,
+  type IncrementalSemanticSession,
+  type IncrementalSemanticStats,
+  type IncrementalSemanticTrigger,
+  type EvaluateTikzResult
+} from "tikz-editor/semantic/index";
+import { emitSvg, type EmitSvgOptions, type EmitSvgResult, type SvgRenderModel } from "tikz-editor/svg/index";
 import type { EditHandle, SceneFigure } from "tikz-editor/semantic/types";
-import type { RenderDiagnostic } from "tikz-editor/render/index";
+import { renderTikzToSvgAsync, type RenderDiagnostic } from "tikz-editor/render/index";
 import type { NodeTextEngine } from "tikz-editor/text/types";
 import type { MathJaxFont } from "tikz-editor/text/mathjax-engine";
 import type { SourcePatch } from "tikz-editor/edit/types";
-import type {
-  IncrementalSemanticStats,
-  IncrementalSemanticSession,
-  IncrementalSemanticTrigger
-} from "tikz-editor/semantic/index";
 import { recordProfilingComputeTiming } from "tikz-editor/profiling";
 import { buildSourceRevisionFingerprint } from "./source-identity";
 
@@ -184,7 +187,8 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
         semanticStrategy: result.semanticStats.strategy,
         semanticFallbackReason: result.semanticStats.fallbackReason ?? null,
         recomputedStatementCount: result.semanticStats.recomputedStatementCount,
-        reusedStatementCount: result.semanticStats.reusedStatementCount
+        reusedStatementCount: result.semanticStats.reusedStatementCount,
+        phaseDurationsMs: result.phaseDurationsMs
       });
       return {
         id: request.id,
@@ -194,8 +198,11 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
       };
     }
 
-    const { renderTikzToSvgAsync } = await import("tikz-editor/render/index");
+    const phases: Record<string, number> = {};
+    let phaseStartedAt = performance.now();
     const textEngine = await getOptionalTextEngine();
+    phases.textEngine = performance.now() - phaseStartedAt;
+    phaseStartedAt = performance.now();
     const result = await renderTikzToSvgAsync(request.source, {
       parse: {
         recover: true,
@@ -206,23 +213,28 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
       svg: { padding: 18 },
       textEngine
     });
+    phases.render = performance.now() - phaseStartedAt;
     // Non-drag requests currently bypass the incremental session.
     // Reset to avoid reusing stale cached prefixes on the next drag.
     incrementalSemanticSession?.reset();
     incrementalWarmSource = request.source;
-    const parseSession = await getIncrementalParseSession();
+    phaseStartedAt = performance.now();
+    const parseSession = getIncrementalParseSession();
     parseSession.prime(result.parse, {
       activeFigureId: request.activeFigureId ?? result.parse.activeFigureId,
       includeContextDefinitions: true,
       sourceRevision: request.sourceRevision ?? null
     });
-    const semanticSession = await getIncrementalSemanticSession();
+    phases.primeParse = performance.now() - phaseStartedAt;
+    phaseStartedAt = performance.now();
+    const semanticSession = getIncrementalSemanticSession();
     semanticSession.evaluate({
       figure: result.parse.figure,
       source: request.source,
       options: { sourceFingerprint, textEngine },
       hints: { trigger: "other" }
     });
+    phases.primeSemantic = performance.now() - phaseStartedAt;
     previousSvgModel = result.svg.model;
 
     const snapshot: SessionSnapshot = {
@@ -244,7 +256,8 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
       trigger,
       durationMs: performance.now() - computeStartedAt,
       changedSourceCount: changedSourceIds.length,
-      incremental: false
+      incremental: false,
+      phaseDurationsMs: phases
     });
 
     return {
@@ -303,13 +316,14 @@ async function computeSnapshotIncremental(
   parseStats: IncrementalParseStats;
   semanticStats: IncrementalSemanticStats;
   renderDiagnostics: RenderDiagnostic[];
+  phaseDurationsMs: Record<string, number>;
 }> {
-  const [{ emitSvg }, { collectGeometryInvalidation }] = await Promise.all([
-    import("tikz-editor/svg/index"),
-    import("tikz-editor/semantic/index")
-  ]);
+  const phases: Record<string, number> = {};
+  let phaseStartedAt = performance.now();
   const textEngine = await getOptionalTextEngine();
-  const parseSession = await getIncrementalParseSession();
+  phases.textEngine = performance.now() - phaseStartedAt;
+  phaseStartedAt = performance.now();
+  const parseSession = getIncrementalParseSession();
   const parseIncremental = parseSession.evaluate({
     source,
     sourceRevision,
@@ -320,10 +334,14 @@ async function computeSnapshotIncremental(
     changedSourceIds,
     trigger
   });
+  phases.parse = performance.now() - phaseStartedAt;
   const parseResult = parseIncremental.parse;
-  const session = await getIncrementalSemanticSession();
+  phaseStartedAt = performance.now();
+  const session = getIncrementalSemanticSession();
+  phases.getSemanticSession = performance.now() - phaseStartedAt;
   let reusePreviousModel = previousSvgModel;
 
+  phaseStartedAt = performance.now();
   let incremental = session.evaluate({
     figure: parseResult.figure,
     source: parseResult.source,
@@ -334,24 +352,32 @@ async function computeSnapshotIncremental(
       trigger
     }
   });
+  phases.semantic = performance.now() - phaseStartedAt;
   let semanticResult = incremental.semantic;
   let incrementalStats = incremental.stats;
+  phaseStartedAt = performance.now();
   let affectedSourceIdsForReuse = collectSvgReuseAffectedSourceIds(
     parseResult,
     semanticResult,
     changedSourceIds,
     collectGeometryInvalidation
   );
+  phases.geometryInvalidation = performance.now() - phaseStartedAt;
 
+  phaseStartedAt = performance.now();
   let svgResult = emitSvg(semanticResult.scene, {
     padding: 18,
     textEngine,
     reuse: buildSvgReuseHints(reusePreviousModel, affectedSourceIdsForReuse)
   });
+  phases.emitSvg = performance.now() - phaseStartedAt;
   reusePreviousModel = svgResult.model;
 
+  phaseStartedAt = performance.now();
   const flushedPendingTextKeys = await textEngine?.flushPending?.();
+  phases.flushText = performance.now() - phaseStartedAt;
   if (flushedPendingTextKeys && flushedPendingTextKeys.length > 0) {
+    phaseStartedAt = performance.now();
     incremental = session.evaluate({
       figure: parseResult.figure,
       source: parseResult.source,
@@ -362,8 +388,10 @@ async function computeSnapshotIncremental(
         trigger
       }
     });
+    phases.semanticAfterTextFlush = performance.now() - phaseStartedAt;
     semanticResult = incremental.semantic;
     incrementalStats = incremental.stats;
+    phaseStartedAt = performance.now();
     const dependencyAffectedSourceIds = collectSvgReuseAffectedSourceIds(
       parseResult,
       semanticResult,
@@ -372,11 +400,14 @@ async function computeSnapshotIncremental(
     );
     const mathJaxAffectedSourceIds = collectMathJaxTextSourceIdsByCacheKeys(semanticResult, flushedPendingTextKeys);
     affectedSourceIdsForReuse = mergeSourceIds(dependencyAffectedSourceIds, mathJaxAffectedSourceIds);
+    phases.geometryInvalidationAfterTextFlush = performance.now() - phaseStartedAt;
+    phaseStartedAt = performance.now();
     svgResult = emitSvg(semanticResult.scene, {
       padding: 18,
       textEngine,
       reuse: buildSvgReuseHints(reusePreviousModel, affectedSourceIdsForReuse)
     });
+    phases.emitSvgAfterTextFlush = performance.now() - phaseStartedAt;
     reusePreviousModel = svgResult.model;
   }
 
@@ -389,7 +420,8 @@ async function computeSnapshotIncremental(
     svg: svgResult,
     parseStats: parseIncremental.stats,
     semanticStats: incrementalStats,
-    renderDiagnostics: []
+    renderDiagnostics: [],
+    phaseDurationsMs: phases
   };
 }
 
@@ -543,20 +575,18 @@ function buildSvgReuseHints(
   };
 }
 
-async function getIncrementalSemanticSession(): Promise<IncrementalSemanticSession> {
+function getIncrementalSemanticSession(): IncrementalSemanticSession {
   if (incrementalSemanticSession) {
     return incrementalSemanticSession;
   }
-  const { createIncrementalSemanticSession } = await import("tikz-editor/semantic/index");
   incrementalSemanticSession = createIncrementalSemanticSession();
   return incrementalSemanticSession;
 }
 
-async function getIncrementalParseSession(): Promise<IncrementalParseSession> {
+function getIncrementalParseSession(): IncrementalParseSession {
   if (incrementalParseSession) {
     return incrementalParseSession;
   }
-  const { createIncrementalParseSession } = await import("tikz-editor/parser/index");
   incrementalParseSession = createIncrementalParseSession();
   return incrementalParseSession;
 }
