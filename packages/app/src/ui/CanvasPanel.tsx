@@ -51,6 +51,7 @@ import { buildSnapshotEditSourceFingerprint } from "../source-identity";
 import { useEditorStore } from "../store/store";
 import type { CanvasDragKind,CanvasTransform } from "../store/types";
 import { resolveBucketFillEdit } from "./canvas-panel/bucket-fill";
+import { recordDragPatchModeFullReason } from "./canvas-panel/drag-patch-mode-debug";
 import {
 INITIAL_CANVAS_TEXT_EDIT_STATE,
 isCanvasTextInputIntentType,
@@ -2711,8 +2712,6 @@ export const CanvasPanel = memo(function CanvasPanel({
     resizeFramesBySource,
     liveResizeFramesRef,
     previousViewBoxRef,
-    activeCanvasDragKind,
-    setDragPatchMode,
     dispatchCanvasTransform,
     zoomSpeed,
     MIN_SCALE,
@@ -3057,6 +3056,10 @@ export const CanvasPanel = memo(function CanvasPanel({
       if (!activeCanvasDragKind) {
         return;
       }
+      recordDragPatchModeFullReason("svg-patch-fallback", {
+        activeCanvasDragKind,
+        reason
+      });
       setDragPatchMode("full");
       if (reason === "patch-failure") {
         setWarning("SVG patching invariant failed; using full updates for this drag.");

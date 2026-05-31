@@ -14,6 +14,7 @@ import {
   type EvaluateTikzResult
 } from "tikz-editor/semantic/index";
 import { emitSvg, type EmitSvgOptions, type EmitSvgResult, type SvgRenderModel } from "tikz-editor/svg/index";
+import type { SvgViewBox } from "tikz-editor/svg/types";
 import type { EditHandle, SceneFigure } from "tikz-editor/semantic/types";
 import { renderTikzToSvgAsync, type RenderDiagnostic } from "tikz-editor/render/index";
 import type { NodeTextEngine } from "tikz-editor/text/types";
@@ -70,6 +71,7 @@ export type ComputeRequest = {
   patchBaseRevision?: number | null;
   trigger?: IncrementalSemanticTrigger;
   kind?: "render" | "prewarm";
+  renderViewBox?: SvgViewBox | null;
 };
 
 export type ComputeResponse = {
@@ -84,6 +86,8 @@ let revisionCounter = 0;
 let incrementalSemanticSession: IncrementalSemanticSession | null = null;
 let incrementalParseSession: IncrementalParseSession | null = null;
 let textEnginePromise: Promise<NodeTextEngine | null> | null = null;
+let hasResolvedTextEngine = false;
+let resolvedTextEngine: NodeTextEngine | null = null;
 let currentMathJaxFont: MathJaxFont = "mathjax-newcm";
 let previousSvgModel: SvgRenderModel | null = null;
 let incrementalWarmSource: string | null = null;
@@ -141,7 +145,8 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
         patches,
         request.patchBaseRevision ?? null,
         trigger,
-        sourceFingerprint
+        sourceFingerprint,
+        request.renderViewBox ?? null
       );
       const snapshot: SessionSnapshot = {
         source: request.source,
@@ -200,7 +205,8 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
 
     const phases: Record<string, number> = {};
     let phaseStartedAt = performance.now();
-    const textEngine = await getOptionalTextEngine();
+    const maybeTextEngine = getOptionalTextEngine();
+    const textEngine = maybeTextEngine instanceof Promise ? await maybeTextEngine : maybeTextEngine;
     phases.textEngine = performance.now() - phaseStartedAt;
     phaseStartedAt = performance.now();
     const result = await renderTikzToSvgAsync(request.source, {
@@ -308,7 +314,8 @@ async function computeSnapshotIncremental(
   patches: SourcePatch[],
   patchBaseRevision: number | null,
   trigger: Extract<IncrementalSemanticTrigger, "drag-element" | "drag-handle">,
-  sourceFingerprint: string | undefined
+  sourceFingerprint: string | undefined,
+  renderViewBox: SvgViewBox | null
 ): Promise<{
   parse: ParseTikzResult;
   semantic: EvaluateTikzResult;
@@ -320,7 +327,8 @@ async function computeSnapshotIncremental(
 }> {
   const phases: Record<string, number> = {};
   let phaseStartedAt = performance.now();
-  const textEngine = await getOptionalTextEngine();
+  const maybeTextEngine = getOptionalTextEngine();
+  const textEngine = maybeTextEngine instanceof Promise ? await maybeTextEngine : maybeTextEngine;
   phases.textEngine = performance.now() - phaseStartedAt;
   phaseStartedAt = performance.now();
   const parseSession = getIncrementalParseSession();
@@ -368,6 +376,7 @@ async function computeSnapshotIncremental(
   let svgResult = emitSvg(semanticResult.scene, {
     padding: 18,
     textEngine,
+    viewBox: renderViewBox ?? undefined,
     reuse: buildSvgReuseHints(reusePreviousModel, affectedSourceIdsForReuse)
   });
   phases.emitSvg = performance.now() - phaseStartedAt;
@@ -405,6 +414,7 @@ async function computeSnapshotIncremental(
     svgResult = emitSvg(semanticResult.scene, {
       padding: 18,
       textEngine,
+      viewBox: renderViewBox ?? undefined,
       reuse: buildSvgReuseHints(reusePreviousModel, affectedSourceIdsForReuse)
     });
     phases.emitSvgAfterTextFlush = performance.now() - phaseStartedAt;
@@ -595,9 +605,14 @@ export function setMathJaxFont(font: MathJaxFont): void {
   if (font === currentMathJaxFont) return;
   currentMathJaxFont = font;
   textEnginePromise = null;
+  hasResolvedTextEngine = false;
+  resolvedTextEngine = null;
 }
 
-async function getOptionalTextEngine(): Promise<NodeTextEngine | null> {
+function getOptionalTextEngine(): NodeTextEngine | null | Promise<NodeTextEngine | null> {
+  if (hasResolvedTextEngine) {
+    return resolvedTextEngine;
+  }
   if (!textEnginePromise) {
     const font = currentMathJaxFont;
     textEnginePromise = (async () => {
@@ -607,7 +622,13 @@ async function getOptionalTextEngine(): Promise<NodeTextEngine | null> {
       } catch {
         return null;
       }
-    })();
+    })().then((engine) => {
+      if (font === currentMathJaxFont) {
+        hasResolvedTextEngine = true;
+        resolvedTextEngine = engine;
+      }
+      return engine;
+    });
   }
   return textEnginePromise;
 }

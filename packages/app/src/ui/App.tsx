@@ -307,6 +307,7 @@ export function App() {
   const [pendingFileConflict, setPendingFileConflict] = useState<PendingFileConflict | null>(null);
   const requestCloseIntentRef = useRef<(intent: CloseIntent) => void>(() => {});
   const computeSchedulerRef = useRef<ReturnType<typeof createSingleFlightScheduler<ComputeRequest, ComputeResponse>> | null>(null);
+  const dragRenderViewBoxRef = useRef<ComputeRequest["renderViewBox"]>(null);
   const updateCheckPromiseRef = useRef<Promise<UpdateInfo | null> | null>(null);
   const sourceRef = useRef(source);
   const snapshotRef = useRef(snapshot);
@@ -915,6 +916,13 @@ export function App() {
     [activeSourceScrubSourceId, lastEditChangedSourceIds]
   );
   const trigger = computeTrigger(activeCanvasDragKind, activeSourceScrubSourceId);
+  const isDragComputeTrigger = trigger === "drag-element" || trigger === "drag-handle";
+  if (isDragComputeTrigger && !dragRenderViewBoxRef.current && snapshot.svg?.viewBox) {
+    dragRenderViewBoxRef.current = snapshot.svg.viewBox;
+  } else if (!isDragComputeTrigger) {
+    dragRenderViewBoxRef.current = null;
+  }
+  const renderViewBox = isDragComputeTrigger ? dragRenderViewBoxRef.current ?? null : null;
   const typingComputeDelay = trigger === "other" && changedSourceIds == null
     ? (source.length > 80_000 ? 220 : 120)
     : null;
@@ -935,9 +943,10 @@ export function App() {
       changedSourceIds,
       patches: lastEditPatches ? [...lastEditPatches] : null,
       patchBaseRevision: lastEditPatchBaseRevision,
-      trigger
+      trigger,
+      renderViewBox
     });
-  }, [activeDocumentId, activeFigureId, changedSourceIds, dispatch, lastEditPatchBaseRevision, lastEditPatches, mathJaxFont, source, sourceRevision, trigger, typingComputeDelay]);
+  }, [activeDocumentId, activeFigureId, changedSourceIds, dispatch, lastEditPatchBaseRevision, lastEditPatches, mathJaxFont, renderViewBox, source, sourceRevision, trigger, typingComputeDelay]);
 
   useDebouncedEffect(() => {
     const scheduler = computeSchedulerRef.current;
