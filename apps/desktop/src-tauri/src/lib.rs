@@ -177,6 +177,19 @@ mod macos_about {
     }
 }
 
+#[cfg(target_os = "macos")]
+mod macos_activation {
+    use objc2_app_kit::NSApplication;
+    use objc2_foundation::MainThreadMarker;
+
+    pub fn activate_ignoring_other_apps() {
+        let mtm = MainThreadMarker::new().expect("app activation must run on the main thread");
+        let app = NSApplication::sharedApplication(mtm);
+        #[allow(deprecated)]
+        app.activateIgnoringOtherApps(true);
+    }
+}
+
 const MAX_RECENT_FILES: usize = 10;
 const LATEX_COMMAND_TIMEOUT_SECS: u64 = 20;
 const ARXIV_SOURCE_DOWNLOAD_TIMEOUT_SECS: u64 = 60;
@@ -184,6 +197,7 @@ const ARXIV_SOURCE_MAX_ARCHIVE_BYTES: u64 = 80 * 1024 * 1024;
 const ARXIV_SOURCE_MAX_TEXT_BYTES: u64 = 30 * 1024 * 1024;
 const ARXIV_SOURCE_MAX_FILES: usize = 2_000;
 const RECENTS_FILENAME: &str = "recent-files.json";
+const UPDATE_RELAUNCH_MARKER_FILENAME: &str = "pending-update-relaunch";
 const CONTEXT_MENU_EVENT_PREFIX: &str = "ctx::";
 const DESKTOP_OPEN_REQUESTS_CHANGED_EVENT: &str = "desktop-open-requests-changed";
 const DESKTOP_LINKED_FILE_CHANGED_EVENT: &str = "desktop-linked-file-changed";
@@ -463,6 +477,34 @@ fn save_recent_files_to_disk(app: &AppHandle, files: &[String]) {
     }
     if let Ok(raw) = serde_json::to_string_pretty(files) {
         let _ = fs::write(path, raw);
+    }
+}
+
+fn update_relaunch_marker_path(app: &AppHandle) -> Option<PathBuf> {
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|dir| dir.join(UPDATE_RELAUNCH_MARKER_FILENAME))
+}
+
+fn write_update_relaunch_marker(app: &AppHandle) -> Result<(), String> {
+    let Some(path) = update_relaunch_marker_path(app) else {
+        return Err("Could not resolve app config directory.".to_string());
+    };
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    fs::write(path, b"1").map_err(|error| error.to_string())
+}
+
+fn consume_update_relaunch_marker(app: &AppHandle) -> bool {
+    let Some(path) = update_relaunch_marker_path(app) else {
+        return false;
+    };
+    match fs::remove_file(path) {
+        Ok(()) => true,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+        Err(_) => false,
     }
 }
 
@@ -2007,6 +2049,11 @@ fn desktop_open_external(url: String, app: AppHandle) -> Result<bool, String> {
 }
 
 #[tauri::command]
+fn desktop_prepare_update_relaunch(app: AppHandle) -> Result<(), String> {
+    write_update_relaunch_marker(&app)
+}
+
+#[tauri::command]
 fn desktop_perform_snap_haptic() -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
@@ -2417,6 +2464,7 @@ pub fn run() {
             desktop_take_pending_open_requests,
             desktop_take_pending_open_failures,
             desktop_open_external,
+            desktop_prepare_update_relaunch,
             desktop_perform_snap_haptic,
             desktop_prefers_non_blinking_text_insertion_indicator,
             desktop_read_custom_clipboard_text,
@@ -2495,6 +2543,15 @@ pub fn run() {
                     radius: None,
                     color: None,
                 });
+            }
+
+            #[cfg(target_os = "macos")]
+            if consume_update_relaunch_marker(&app.handle()) {
+                macos_activation::activate_ignoring_other_apps();
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
             }
 
             Ok(())

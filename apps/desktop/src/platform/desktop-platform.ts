@@ -947,7 +947,9 @@ function createDefaultBridge(): DesktopBridge {
       pendingUpdate = null;
     },
     relaunch: async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
       const { relaunch } = await import("@tauri-apps/plugin-process");
+      await invoke("desktop_prepare_update_relaunch");
       await relaunch();
     },
     assistantEnsureDocumentThread: async ({ documentId, source, threadId, workspacePath, figurePath, previewPath }) => {
