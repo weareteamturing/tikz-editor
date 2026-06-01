@@ -589,6 +589,31 @@ fn collect_associated_file_paths(args: &[String], cwd: Option<&str>) -> Vec<Path
     out
 }
 
+fn collect_associated_file_paths_from_urls(urls: &[Url]) -> Vec<PathBuf> {
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut out: Vec<PathBuf> = Vec::new();
+
+    for url in urls {
+        if url.scheme() != "file" {
+            continue;
+        }
+        let Ok(path) = url.to_file_path() else {
+            continue;
+        };
+        if !has_supported_association_extension(&path) {
+            continue;
+        }
+
+        let key = path.to_string_lossy().to_string();
+        if !seen.insert(key) {
+            continue;
+        }
+        out.push(path);
+    }
+
+    out
+}
+
 fn read_open_text_payload_from_path(path: &Path) -> Result<OpenTextPayload, String> {
     let source = fs::read_to_string(path).map_err(|error| error.to_string())?;
     let path_string = path.to_string_lossy().to_string();
@@ -892,6 +917,15 @@ fn enqueue_pending_open_results(
 
 fn process_associated_open_requests(app: &AppHandle, args: &[String], cwd: Option<&str>) {
     let candidates = collect_associated_file_paths(args, cwd);
+    process_associated_file_paths(app, candidates);
+}
+
+fn process_associated_open_urls(app: &AppHandle, urls: &[Url]) {
+    let candidates = collect_associated_file_paths_from_urls(urls);
+    process_associated_file_paths(app, candidates);
+}
+
+fn process_associated_file_paths(app: &AppHandle, candidates: Vec<PathBuf>) {
     if candidates.is_empty() {
         return;
     }
@@ -2556,20 +2590,31 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = event {
+                process_associated_open_urls(app, &urls);
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+        });
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         changed_linked_paths_for_event, collect_associated_file_paths,
-        has_supported_association_extension, map_unsaved_changes_dialog_result,
-        validate_external_url,
+        collect_associated_file_paths_from_urls, has_supported_association_extension,
+        map_unsaved_changes_dialog_result, validate_external_url,
     };
     use rfd::MessageDialogResult;
     use std::collections::HashSet;
     use std::path::{Path, PathBuf};
+    use url::Url;
 
     #[test]
     fn validates_supported_external_urls() {
@@ -2619,6 +2664,30 @@ mod tests {
         ];
 
         let collected = collect_associated_file_paths(&args, Some("/tmp/work"));
+        let rendered: Vec<String> = collected
+            .iter()
+            .map(|path| path.to_string_lossy().to_string())
+            .collect();
+        assert_eq!(
+            rendered,
+            vec![
+                "/tmp/work/first.tikz".to_string(),
+                "/tmp/work/second.tex".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn collects_associated_paths_from_file_urls() {
+        let urls = vec![
+            Url::from_file_path("/tmp/work/first.tikz").unwrap(),
+            Url::parse("https://example.com/second.tex").unwrap(),
+            Url::from_file_path("/tmp/work/second.tex").unwrap(),
+            Url::from_file_path("/tmp/work/third.txt").unwrap(),
+            Url::from_file_path("/tmp/work/first.tikz").unwrap(),
+        ];
+
+        let collected = collect_associated_file_paths_from_urls(&urls);
         let rendered: Vec<String> = collected
             .iter()
             .map(|path| path.to_string_lossy().to_string())
