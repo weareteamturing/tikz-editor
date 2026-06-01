@@ -6,7 +6,7 @@
   "scripts": {
     "generate:example-previews": "node --import tsx scripts/generate-open-example-previews.ts",
     "debug:multiline": "node --import tsx scripts/capture-multiline-debug.ts",
-    "dev": "portless tikz npm run generate:example-previews && vite",
+    "dev": "npm run generate:example-previews && vite",
     "build": "npm run generate:example-previews && vite build",
     "test:e2e": "env -u NO_COLOR FORCE_COLOR=0 playwright test",
     "test:e2e:firefox": "env -u NO_COLOR FORCE_COLOR=0 PLAYWRIGHT_BROWSERS=firefox playwright test",
