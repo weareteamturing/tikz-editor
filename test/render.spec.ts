@@ -977,29 +977,64 @@ World};
 
   it("uses wider sentence spacing than ordinary interword spacing in wrapped paragraphs", async () => {
     const ordinary = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
-  \node[text width=100pt,align=left] at (0,0) {A B};
+  \node[text width=100pt,align=left] at (0,0) {a b};
 \end{tikzpicture}`);
     const sentence = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[text width=100pt,align=left] at (0,0) {a. B};
+\end{tikzpicture}`);
+    const lowercaseSentence = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[text width=100pt,align=left] at (0,0) {a. b};
+\end{tikzpicture}`);
+    const capitalAbbreviation = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
   \node[text width=100pt,align=left] at (0,0) {A. B};
 \end{tikzpicture}`);
 
     const ordinaryText = ordinary.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
     const sentenceText = sentence.semantic.scene.elements.find((element): element is SceneText => element.kind === "Text");
+    const lowercaseSentenceText = lowercaseSentence.semantic.scene.elements.find(
+      (element): element is SceneText => element.kind === "Text"
+    );
+    const capitalAbbreviationText = capitalAbbreviation.semantic.scene.elements.find(
+      (element): element is SceneText => element.kind === "Text"
+    );
 
     expect(ordinaryText?.kind).toBe("Text");
     expect(sentenceText?.kind).toBe("Text");
-    if (ordinaryText?.kind === "Text" && sentenceText?.kind === "Text") {
+    expect(lowercaseSentenceText?.kind).toBe("Text");
+    expect(capitalAbbreviationText?.kind).toBe("Text");
+    if (
+      ordinaryText?.kind === "Text" &&
+      sentenceText?.kind === "Text" &&
+      lowercaseSentenceText?.kind === "Text" &&
+      capitalAbbreviationText?.kind === "Text"
+    ) {
       const ordinaryReport = reportForParagraphId(
         ordinaryText.textRenderInfo?.mode === "mathjax" ? ordinaryText.textRenderInfo.paragraphId : null
       );
       const sentenceReport = reportForParagraphId(
         sentenceText.textRenderInfo?.mode === "mathjax" ? sentenceText.textRenderInfo.paragraphId : null
       );
+      const lowercaseSentenceReport = reportForParagraphId(
+        lowercaseSentenceText.textRenderInfo?.mode === "mathjax"
+          ? lowercaseSentenceText.textRenderInfo.paragraphId
+          : null
+      );
+      const capitalAbbreviationReport = reportForParagraphId(
+        capitalAbbreviationText.textRenderInfo?.mode === "mathjax"
+          ? capitalAbbreviationText.textRenderInfo.paragraphId
+          : null
+      );
       expect(ordinaryReport).not.toBeNull();
       expect(sentenceReport).not.toBeNull();
+      expect(lowercaseSentenceReport).not.toBeNull();
+      expect(capitalAbbreviationReport).not.toBeNull();
       const ordinarySpace = ordinaryReport?.runs.find((run) => run.kind === "space");
       const sentenceSpace = sentenceReport?.runs.find((run) => run.kind === "space");
+      const lowercaseSentenceSpace = lowercaseSentenceReport?.runs.find((run) => run.kind === "space");
+      const capitalAbbreviationSpace = capitalAbbreviationReport?.runs.find((run) => run.kind === "space");
       expect(sentenceSpace?.width ?? 0).toBeGreaterThan(ordinarySpace?.width ?? 0);
+      expect(lowercaseSentenceSpace?.width ?? 0).toBeGreaterThan(ordinarySpace?.width ?? 0);
+      expect(capitalAbbreviationSpace?.width ?? 0).toBeCloseTo(ordinarySpace?.width ?? 0, 6);
     }
   });
 
