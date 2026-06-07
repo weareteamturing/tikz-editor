@@ -1272,6 +1272,7 @@ describe("knuth-plass paragraph helpers", () => {
 
     expect(defaultHyphenator.hyphenate("hyphenation").length).toBeGreaterThan(0);
     expect(defaultHyphenator.hyphenate("hyphenation")).toBe(defaultHyphenator.hyphenate("Hyphenation"));
+    expect(defaultHyphenator.hyphenate("blandit")).toEqual([4]);
     expect(defaultHyphenator.hyphenate("nonasciié")).toEqual([]);
     expect(permissiveHyphenator.hyphenate("cooperation").length).toBeGreaterThanOrEqual(
       defaultHyphenator.hyphenate("cooperation").length
