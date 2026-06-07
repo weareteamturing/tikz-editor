@@ -16,6 +16,7 @@ import {
 } from "tikz-editor/edit/property-write-builders";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import { buildStylesCascadeModel } from "tikz-editor/edit/styles-cascade";
+import { resolveFigureBoundsState } from "tikz-editor/edit/figure-bounds";
 import type { SceneElement } from "tikz-editor/semantic/types";
 import { getSharedEditAnalysisView, getSharedEditAnalysisSession } from "../../edit-analysis-manager";
 import { useProjectNamedColorSwatches } from "../../project-named-colors";
@@ -261,6 +262,10 @@ export function useInspectorModel(args: {
     () => resolveTransformInspectorValues(source, TIKZPICTURE_GLOBAL_TARGET_ID, parseOptions),
     [parseOptions, source]
   );
+  const figureBoundsState = useMemo(
+    () => resolveFigureBoundsState(source, parseOptions),
+    [parseOptions, source]
+  );
 
   const selectedElementBySourceId = useMemo(() => {
     const bySource = new Map<string, SceneElement>();
@@ -452,6 +457,7 @@ export function useInspectorModel(args: {
     selectedSourceIds,
     projectNamedColorSwatches,
     globalTransformValues,
+    figureBoundsState,
     selectedElements,
     descriptors,
     descriptor,

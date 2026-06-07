@@ -20,6 +20,7 @@ import { renderTikzToSvgAsync, type RenderDiagnostic } from "tikz-editor/render/
 import type { NodeTextEngine } from "tikz-editor/text/types";
 import type { MathJaxFont } from "tikz-editor/text/mathjax-engine";
 import type { SourcePatch } from "tikz-editor/edit/types";
+import { resolveFigureBoundsState } from "tikz-editor/edit/figure-bounds";
 import { recordProfilingComputeTiming } from "tikz-editor/profiling";
 import { buildSourceRevisionFingerprint } from "./source-identity";
 
@@ -88,6 +89,14 @@ let incrementalParseSession: IncrementalParseSession | null = null;
 let textEnginePromise: Promise<NodeTextEngine | null> | null = null;
 let hasResolvedTextEngine = false;
 let resolvedTextEngine: NodeTextEngine | null = null;
+
+function resolveSvgPadding(source: string, activeFigureId: string | null | undefined): number {
+  try {
+    return resolveFigureBoundsState(source, { activeFigureId }).mode === "fixed" ? 0 : 18;
+  } catch {
+    return 18;
+  }
+}
 let currentMathJaxFont: MathJaxFont = "mathjax-newcm";
 let previousSvgModel: SvgRenderModel | null = null;
 let incrementalWarmSource: string | null = null;
@@ -216,7 +225,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
         includeContextDefinitions: true
       },
       evaluate: { sourceFingerprint },
-      svg: { padding: 18 },
+      svg: { padding: resolveSvgPadding(request.source, request.activeFigureId) },
       textEngine
     });
     phases.render = performance.now() - phaseStartedAt;
@@ -344,6 +353,7 @@ async function computeSnapshotIncremental(
   });
   phases.parse = performance.now() - phaseStartedAt;
   const parseResult = parseIncremental.parse;
+  const svgPadding = resolveSvgPadding(parseResult.source, parseResult.activeFigureId);
   phaseStartedAt = performance.now();
   const session = getIncrementalSemanticSession();
   phases.getSemanticSession = performance.now() - phaseStartedAt;
@@ -374,7 +384,7 @@ async function computeSnapshotIncremental(
 
   phaseStartedAt = performance.now();
   let svgResult = emitSvg(semanticResult.scene, {
-    padding: 18,
+    padding: svgPadding,
     textEngine,
     viewBox: renderViewBox ?? undefined,
     reuse: buildSvgReuseHints(reusePreviousModel, affectedSourceIdsForReuse)
@@ -412,7 +422,7 @@ async function computeSnapshotIncremental(
     phases.geometryInvalidationAfterTextFlush = performance.now() - phaseStartedAt;
     phaseStartedAt = performance.now();
     svgResult = emitSvg(semanticResult.scene, {
-      padding: 18,
+      padding: svgPadding,
       textEngine,
       viewBox: renderViewBox ?? undefined,
       reuse: buildSvgReuseHints(reusePreviousModel, affectedSourceIdsForReuse)

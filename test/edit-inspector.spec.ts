@@ -15,6 +15,7 @@ import {
   lineWidthPresetLabel,
   TIKZPICTURE_GLOBAL_TARGET_ID
 } from "../packages/core/src/edit/inspector.js";
+import { resolveFigureBoundsState } from "../packages/core/src/edit/figure-bounds.js";
 import {
   buildArrowTipSetPropertyMutation,
   buildFillModeSetPropertyMutations,
@@ -369,6 +370,82 @@ describe("getInspectorDescriptor", () => {
     const values = resolveTransformInspectorValues(source, TIKZPICTURE_GLOBAL_TARGET_ID);
     expect(values.xscale).toBeCloseTo(2, 6);
     expect(values.yscale).toBeCloseTo(3, 6);
+  });
+
+  it("recognizes leading simple figure bounding-box directives for empty-state inspector", () => {
+    const commandSource = String.raw`\begin{tikzpicture}
+  \useasboundingbox (0,0) rectangle (2,3);
+  \draw (0.2,0.8) rectangle (0.8,0.2);
+\end{tikzpicture}`;
+    const optionSource = String.raw`\begin{tikzpicture}
+  \path[use as bounding box] (-1,-2) rectangle (2,3);
+  \draw (0.2,0.8) rectangle (0.8,0.2);
+\end{tikzpicture}`;
+
+    const commandBounds = resolveFigureBoundsState(commandSource);
+    const optionBounds = resolveFigureBoundsState(optionSource);
+
+    expect(commandBounds).toMatchObject({ mode: "fixed", x: 0, y: 0, width: 2, height: 3 });
+    expect(optionBounds).toMatchObject({ mode: "fixed", x: -1, y: -2, width: 3, height: 5 });
+  });
+
+  it("treats bounding-box directives after earlier geometry as automatic for empty-state inspector", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (-1,-1) rectangle (1,1);
+  \useasboundingbox (0,0) rectangle (2,3);
+\end{tikzpicture}`;
+
+    expect(resolveFigureBoundsState(source)).toEqual({ mode: "auto" });
+  });
+
+  it("inserts a canonical leading bounding-box directive when fixed figure bounds are set from auto", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (-1,-1) rectangle (1,1);
+  \useasboundingbox (0,0) rectangle (2,3);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setFigureBounds",
+      mode: "fixed",
+      x: 0,
+      y: 0,
+      width: 4,
+      height: 5
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toBe(String.raw`\begin{tikzpicture}
+  \useasboundingbox (0,0) rectangle (4,5);
+  \draw (-1,-1) rectangle (1,1);
+  \useasboundingbox (0,0) rectangle (2,3);
+\end{tikzpicture}`);
+  });
+
+  it("updates and removes the canonical fixed figure bounds directive", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path[use as bounding box] (0,0) rectangle (2,3);
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const updated = applyEditAction(source, [], {
+      kind: "setFigureBounds",
+      mode: "fixed",
+      x: -1,
+      y: -2,
+      width: 3,
+      height: 4
+    });
+    expect(updated.kind).toBe("success");
+    if (updated.kind !== "success") return;
+    expect(updated.newSource).toContain(String.raw`\useasboundingbox (-1,-2) rectangle (2,2);`);
+
+    const removed = applyEditAction(updated.newSource, [], { kind: "setFigureBounds", mode: "auto" });
+    expect(removed.kind).toBe("success");
+    if (removed.kind !== "success") return;
+    expect(removed.newSource).toBe(String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`);
   });
 
   it("keeps declared color alias syntax for color flags", () => {

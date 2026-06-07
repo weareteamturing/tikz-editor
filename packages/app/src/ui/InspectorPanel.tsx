@@ -10,7 +10,7 @@ RiFontSerif,
 RiItalic
 } from "@remixicon/react";
 import { useCallback,useEffect,useMemo,useState,type JSX } from "react";
-import { formatNumber } from "tikz-editor/edit/format";
+import { CM_PER_PT, formatNumber } from "tikz-editor/edit/format";
 import {
 getInspectorDescriptor,
 NODE_INNER_SEP_DEFAULT,
@@ -92,8 +92,10 @@ export function InspectorPanel() {
 
   const {
     selectedSourceIds,
+    snapshot,
     projectNamedColorSwatches,
     globalTransformValues,
+    figureBoundsState,
     descriptor,
     multiModel,
     singlePropertyProvenance,
@@ -1357,6 +1359,114 @@ export function InspectorPanel() {
     };
   }
 
+  function currentAutoFigureBoundsCm(): { x: number; y: number; width: number; height: number } {
+    const bounds = snapshot.scene?.bounds;
+    if (!bounds) {
+      return { x: 0, y: 0, width: 1, height: 1 };
+    }
+    return {
+      x: bounds.minX * CM_PER_PT,
+      y: bounds.minY * CM_PER_PT,
+      width: Math.max(0, (bounds.maxX - bounds.minX) * CM_PER_PT),
+      height: Math.max(0, (bounds.maxY - bounds.minY) * CM_PER_PT)
+    };
+  }
+
+  function currentFigureBoundsControlsValue(): { x: number; y: number; width: number; height: number } {
+    return figureBoundsState.mode === "fixed" ? figureBoundsState : currentAutoFigureBoundsCm();
+  }
+
+  function applyFigureBoundsValue(next: { x: number; y: number; width: number; height: number }): void {
+    dispatch({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "setFigureBounds",
+        mode: "fixed",
+        x: next.x,
+        y: next.y,
+        width: Math.max(0, next.width),
+        height: Math.max(0, next.height)
+      }
+    });
+  }
+
+  function renderFigureBoundsNumberField(
+    label: string,
+    value: number,
+    key: "x" | "y" | "width" | "height",
+    disabled: boolean
+  ): JSX.Element {
+    return (
+      <div className={css.compactNumberField}>
+        <div className={css.propertyLabel}>{label}</div>
+        <div className={css.controlRow}>
+          <input
+            className={css.numberInput}
+            type="number"
+            step={0.1}
+            min={key === "width" || key === "height" ? 0 : undefined}
+            value={formatNumber(value)}
+            disabled={disabled}
+            onChange={(event) => {
+              const parsed = Number(event.currentTarget.value);
+              if (!Number.isFinite(parsed)) {
+                return;
+              }
+              applyFigureBoundsValue({
+                ...currentFigureBoundsControlsValue(),
+                [key]: parsed
+              });
+            }}
+          />
+          <span className={css.unitLabel}>cm</span>
+        </div>
+      </div>
+    );
+  }
+
+  function renderFigureBoundsControls(): JSX.Element {
+    const values = currentFigureBoundsControlsValue();
+    const fixed = figureBoundsState.mode === "fixed";
+    return (
+      <>
+        <div className={css.property}>
+          <div className={css.propertyLabel}>Mode</div>
+          <div className={css.controlRow}>
+            <select
+              className={css.numberInput}
+              value={fixed ? "fixed" : "auto"}
+              onChange={(event) => {
+                if (event.currentTarget.value === "auto") {
+                  dispatch({
+                    type: "APPLY_EDIT_ACTION",
+                    action: { kind: "setFigureBounds", mode: "auto" }
+                  });
+                  return;
+                }
+                applyFigureBoundsValue(values);
+              }}
+            >
+              <option value="auto">Auto from content</option>
+              <option value="fixed">Fixed size</option>
+            </select>
+          </div>
+        </div>
+        {fixed ? (
+          <>
+            <div className={css.compactNumberPair}>
+              {renderFigureBoundsNumberField("X", values.x, "x", false)}
+              {renderFigureBoundsNumberField("Y", values.y, "y", false)}
+            </div>
+            <div className={css.compactNumberPair}>
+              {renderFigureBoundsNumberField("Width", values.width, "width", false)}
+              {renderFigureBoundsNumberField("Height", values.height, "height", false)}
+            </div>
+          </>
+        ) : null}
+      </>
+    );
+  }
+
   function renderGlobalTransformPanel() {
     const xscale = makeGlobalTransformNumberProperty("xscale", "X scale");
     const yscale = makeGlobalTransformNumberProperty("yscale", "Y scale");
@@ -1370,6 +1480,12 @@ export function InspectorPanel() {
                 <span>Transform</span>
               </SidePanel.SectionHeader>
               <SidePanel.SectionBody>{renderSingleNumberPair(xscale, yscale)}</SidePanel.SectionBody>
+            </SidePanel.Section>
+            <SidePanel.Section>
+              <SidePanel.SectionHeader>
+                <span>Figure Bounds</span>
+              </SidePanel.SectionHeader>
+              <SidePanel.SectionBody>{renderFigureBoundsControls()}</SidePanel.SectionBody>
             </SidePanel.Section>
           </div>
         </SidePanel.Content>

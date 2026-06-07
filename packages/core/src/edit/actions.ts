@@ -75,6 +75,7 @@ import { parseTikzForEdit, sourceFingerprintForEdit, type EditParseOptions } fro
 import { patchesMatchSourceTransition } from "./source-patches.js";
 import type { SemanticPropertyId } from "./property-registry.js";
 import { flattenForeachInSource, type FlattenForeachTarget } from "../foreach/flatten.js";
+import { applySetFigureBoundsAction, type SetFigureBoundsAction } from "./figure-bounds.js";
 
 export type ResizeRole =
   | "top-left"
@@ -120,6 +121,7 @@ export type EditAction =
       commentSourceText?: string;
     }
   | { kind: "updateNodeText"; elementId: string; text: string }
+  | SetFigureBoundsAction
   | { kind: "cleanupPropertyWrites"; elementIds?: string[] }
   | { kind: "addElement"; template: ElementTemplate; at: WorldPoint }
   | { kind: "deleteElement"; elementId: string }
@@ -247,6 +249,8 @@ export function applyEditAction(
         return applySetProperty(source, action, parseOptions);
       case "updateNodeText":
         return applyUpdateNodeText(source, action, parseOptions);
+      case "setFigureBounds":
+        return applySetFigureBoundsAction(source, action, parseOptions);
       case "cleanupPropertyWrites":
         return cleanupIdiomaticPropertyWrites(source, { ...parseOptions, propertyWriteMode: "drag-end" }, action.elementIds);
       case "addElement":

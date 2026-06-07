@@ -86,4 +86,38 @@ describe("objects panel model", () => {
     expect(model.byId.get("path:3")?.label).toBe("Connector");
     expect(model.byId.get("path:4")?.label).toBe("Curve");
   });
+
+  it("labels recognized leading figure bounds as Bounding Box", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \useasboundingbox (0,0) rectangle (1,1);
+  \draw (0.2,0.8) rectangle (0.8,0.2);
+\end{tikzpicture}`;
+    const analysisView = createEditAnalysisSession().ensure(source);
+    const semantic = evaluateSemantic(source);
+    const model = buildObjectsPanelModel({
+      analysisView,
+      scene: semantic.scene,
+      selectedIds: new Set()
+    });
+
+    expect(model.byId.get("path:0")?.label).toBe("Bounding Box");
+    expect(model.byId.get("path:1")?.label).toBe("Rectangle");
+  });
+
+  it("does not label later bounding-box directives as canonical Bounding Box", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (-1,-1) rectangle (1,1);
+  \path[use as bounding box] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const analysisView = createEditAnalysisSession().ensure(source);
+    const semantic = evaluateSemantic(source);
+    const model = buildObjectsPanelModel({
+      analysisView,
+      scene: semantic.scene,
+      selectedIds: new Set()
+    });
+
+    expect(model.byId.get("path:0")?.label).toBe("Rectangle");
+    expect(model.byId.get("path:1")?.label).toBe("Rectangle");
+  });
 });
