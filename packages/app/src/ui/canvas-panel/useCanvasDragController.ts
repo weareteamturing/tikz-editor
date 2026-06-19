@@ -1044,7 +1044,9 @@ export function useCanvasDragController(params: UseCanvasDragControllerParams) {
         setToolCursorWorld(finalBend);
 
         queueSelectionForAddedElement(makeWorldPoint((drag.startWorld.x + drag.endWorld.x) / 2, (drag.startWorld.y + drag.endWorld.y) / 2));
-        const template = createBezierTemplateFromBend(drag.startWorld, drag.endWorld, finalBend);
+        const template = createBezierTemplateFromBend(drag.startWorld, drag.endWorld, finalBend, {
+          strokeColor: creationStrokeColor
+        });
         const ok = applyActionWithFeedback({
           kind: "addElement",
           template,

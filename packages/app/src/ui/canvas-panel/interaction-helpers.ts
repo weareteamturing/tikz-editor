@@ -99,8 +99,7 @@ export function createTemplateForToolDrag(
       pt((startWorld.y + endWorld.y) / 2)
     );
     if (hasDrag) {
-      const bezierTemplate = createBezierTemplateFromBend(startWorld, endWorld, bend);
-      return { ...bezierTemplate, strokeColor };
+      return createBezierTemplateFromBend(startWorld, endWorld, bend, { strokeColor });
     }
     return { kind: "bezier", strokeColor };
   }
@@ -199,14 +198,16 @@ export function resolveBezierControlsFromBend(
 export function createBezierTemplateFromBend(
   startWorld: WorldPoint,
   endWorld: WorldPoint,
-  bendWorld: WorldPoint
+  bendWorld: WorldPoint,
+  options?: { strokeColor?: string }
 ): Extract<ElementTemplate, { kind: "bezier" }> {
   const controls = resolveBezierControlsFromBend(startWorld, endWorld, bendWorld);
   return {
     kind: "bezier",
     to: controls.endWorld,
     control1: controls.control1,
-    control2: controls.control2
+    control2: controls.control2,
+    strokeColor: options?.strokeColor
   };
 }
 

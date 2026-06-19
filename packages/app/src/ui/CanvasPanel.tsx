@@ -1564,21 +1564,23 @@ export const CanvasPanel = memo(function CanvasPanel({
       return;
     }
 
-      const snippet = generateFreehandToolSource(draft, canvasTransform.scale, freehandSmoothingPx);
-      if (snippet) {
-        const firstPoint = draft.points[0];
-        const lastPoint = draft.points[draft.points.length - 1];
-        queueSelectionForAddedElement(
-          makeWorldPoint(
-            pt((firstPoint.x + lastPoint.x) / 2),
-            pt((firstPoint.y + lastPoint.y) / 2)
-          )
-        );
-        const ok = applyActionWithFeedback({
-          kind: "pasteStatements",
-          snippets: [snippet],
-          delta: makeWorldPoint(pt(0), pt(0))
-        });
+    const snippet = generateFreehandToolSource(draft, canvasTransform.scale, freehandSmoothingPx, {
+      strokeColor: creationStrokeColor
+    });
+    if (snippet) {
+      const firstPoint = draft.points[0];
+      const lastPoint = draft.points[draft.points.length - 1];
+      queueSelectionForAddedElement(
+        makeWorldPoint(
+          pt((firstPoint.x + lastPoint.x) / 2),
+          pt((firstPoint.y + lastPoint.y) / 2)
+        )
+      );
+      const ok = applyActionWithFeedback({
+        kind: "pasteStatements",
+        snippets: [snippet],
+        delta: makeWorldPoint(pt(0), pt(0))
+      });
       if (!ok.sourceChanged) {
         pendingAddedSelectionRef.current = null;
       }
@@ -1589,7 +1591,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     setFreehandDraft(null);
     setToolCursorWorld(null);
     dispatch({ type: "SET_TOOL_MODE", mode: "select" });
-  }, [applyActionWithFeedback, canvasTransform.scale, dispatch, freehandSmoothingPx, queueSelectionForAddedElement, setDragState]);
+  }, [applyActionWithFeedback, canvasTransform.scale, creationStrokeColor, dispatch, freehandSmoothingPx, queueSelectionForAddedElement, setDragState]);
 
   const finalizePathDraft = useCallback(
     (closed: boolean) => {
@@ -1626,7 +1628,7 @@ export const CanvasPanel = memo(function CanvasPanel({
           pendingAddedSelectionRef.current = null;
         }
       } else {
-        const snippet = generatePathToolSource(draft, { closed });
+        const snippet = generatePathToolSource(draft, { closed, strokeColor: creationStrokeColor });
         if (!snippet) {
           setPathDraft(null);
           setToolCursorWorld(null);
@@ -1647,7 +1649,7 @@ export const CanvasPanel = memo(function CanvasPanel({
       setToolCursorWorld(null);
       dispatch({ type: "SET_TOOL_MODE", mode: "select" });
     },
-    [applyActionWithFeedback, dispatch, setDragState]
+    [applyActionWithFeedback, creationStrokeColor, dispatch, setDragState]
   );
 
   
@@ -2641,6 +2643,7 @@ export const CanvasPanel = memo(function CanvasPanel({
     dispatch,
     selectedAddMatrixRows,
     selectedAddMatrixColumns,
+    creationStrokeColor,
     pathDraft,
     pathSegmentDraft,
     dragRef,

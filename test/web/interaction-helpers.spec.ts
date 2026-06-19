@@ -99,6 +99,17 @@ describe("interaction-helpers bezier math", () => {
     expect(template.control2).toBeDefined();
     expect(template.to).toBeDefined();
   });
+
+  it("preserves creation stroke color on bezier templates", () => {
+    const template = createBezierTemplateFromBend(
+      wp(cm(0), cm(0)),
+      wp(cm(3), cm(0)),
+      wp(cm(1.5), cm(1)),
+      { strokeColor: "red" }
+    );
+
+    expect(template.strokeColor).toBe("red");
+  });
 });
 
 describe("interaction-helpers step snapping", () => {
