@@ -118,6 +118,15 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "none",
     fixtures: ["use_as_bounding_box"]
   },
+  backgrounds_library: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["backgrounds_library"],
+    notes:
+      "V1 supports background scopes and documented end-picture background rectangle/grid/side hooks via semantic scene layers."
+  },
   arrow_tips: {
     parser: "stable",
     semantic: "stable",

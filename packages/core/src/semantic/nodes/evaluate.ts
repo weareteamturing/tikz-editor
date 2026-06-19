@@ -2513,6 +2513,7 @@ function toDecoratableNodePath(element: SceneElement): ScenePath | null {
       kind: "Path",
       id: `${element.id}:as-path`,
       runtimeId: `${element.runtimeId}:as-path`,
+      layer: element.layer,
       sourceRef: {
         sourceId: element.sourceRef.sourceId,
         sourceSpan: element.sourceRef.sourceSpan,
@@ -2532,6 +2533,7 @@ function toDecoratableNodePath(element: SceneElement): ScenePath | null {
       kind: "Path",
       id: `${element.id}:as-path`,
       runtimeId: `${element.runtimeId}:as-path`,
+      layer: element.layer,
       sourceRef: {
         sourceId: element.sourceRef.sourceId,
         sourceSpan: element.sourceRef.sourceSpan,

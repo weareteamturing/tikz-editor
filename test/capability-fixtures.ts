@@ -61,6 +61,12 @@ export const capabilityFixtures: Record<string, string> = {
   \path[use as bounding box] (0,0) rectangle (1,1);
   \fill[red] (-1,-1) rectangle (3,3);
 \end{tikzpicture}`,
+  backgrounds_library: String.raw`\begin{tikzpicture}[framed]
+  \begin{scope}[on background layer={draw=yellow}]
+    \draw (-0.2,-0.2) rectangle (1.2,0.2);
+  \end{scope}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`,
   arrow_tips: String.raw`\begin{tikzpicture}[>=Stealth]
   \draw[arrows={-Latex[open,length=10pt]}] (0,0) -- (1,0);
 \end{tikzpicture}`,

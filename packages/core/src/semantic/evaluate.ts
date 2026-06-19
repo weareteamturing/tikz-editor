@@ -45,9 +45,11 @@ import {
   createSemanticContext,
   currentFrame,
   endStatementEffectTracking,
+  listContextSceneLayers,
   listContextRequiredLibraries,
   listContextSymbolDependencyEdges,
   listContextUnresolvedSymbols,
+  markBackgroundLayerUsed,
   markDependencyOpaque,
   popFrame,
   pushFrame,
@@ -63,6 +65,12 @@ import {
   type NodeDistanceSpec,
   type NodeQuotesMode
 } from "./context.js";
+import {
+  collectBackgroundOptionEffects,
+  extractOnBackgroundLayerOptionLayers,
+  generateBackgroundHookElements,
+  makeEveryOnBackgroundLayerOptionLayer
+} from "./backgrounds.js";
 import type { SemanticDependencyGraph } from "./dependencies.js";
 import { evaluateRawCoordinate } from "./coords/evaluate.js";
 import { parseLength } from "./coords/parse-length.js";
@@ -75,7 +83,7 @@ import { expandOptionListMacros } from "./style/macro-options.js";
 import { FONT_SIZE_COMMAND_FACTORS } from "./style/constants.js";
 import { resolveDefineColorModel } from "./style/colors.js";
 import { applyMatrix, identityMatrix } from "./transform.js";
-import { cloneResolvedStyle, cloneStyleChain, diffResolvedStyle, type StyleSourceRef } from "./style-chain.js";
+import { cloneResolvedStyle, cloneStyleChain, diffResolvedStyle, type StyleSourceRef, type StyleTraceLayerInput } from "./style-chain.js";
 import { inferRequiredTikzLibraries } from "./required-tikz-libraries.js";
 import { parseBooleanishNormalized } from "../utils/booleanish.js";
 import { stripWrappingBraces } from "../utils/braces.js";
@@ -90,8 +98,10 @@ import type {
   NodeAnchorTarget,
   SceneElement,
   SceneFigure,
-  ScenePathCommand
+  ScenePathCommand,
+  SceneLayer
 } from "./types.js";
+import { BACKGROUND_SCENE_LAYER, MAIN_SCENE_LAYER } from "./types.js";
 import type { SemanticSymbolDependencyEdge, SemanticUnresolvedSymbol } from "./symbol-resolver.js";
 
 export type EvaluateTikzResult = {
@@ -164,10 +174,21 @@ export function createSemanticEvaluationRun(
     source,
     opts.sourceFingerprint
   );
+  const prePictureContextStatements = figure.body.filter((statement) => isPrePictureContextStatement(statement, figure));
+  const prePictureMacroAttribution = new WeakMap<Statement, MacroOriginFrame[]>();
+  for (const statement of prePictureContextStatements) {
+    withDependencySource(context, statement.id, () =>
+      withPgfMathRuntime(
+        { rng: context.mathRandom },
+        () => evaluateStatement(statement, context, diagnostics, featureUsage, prePictureMacroAttribution)
+      )
+    );
+  }
   const expanded = withPgfMathRuntime(
     { rng: context.mathRandom },
     () => expandForeachFigure(figure, source, opts.maxForeachExpansions ?? 10_000)
   );
+  const activeExpandedFigureBody = expanded.figureBody.filter((statement) => !isPrePictureContextStatement(statement, figure));
   for (const diagnostic of expanded.diagnostics) {
     diagnostics.push({
       severity: diagnostic.severity,
@@ -176,45 +197,39 @@ export function createSemanticEvaluationRun(
       span: diagnostic.span
     });
   }
-  const rootFramePushed = figure.options != null;
-  if (figure.options) {
+  const parent = currentFrame(context);
+  const rootCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
+  const figureSourceRef: StyleSourceRef = {
+    sourceId: `figure:${figure.span.from}:${figure.span.to}`,
+    sourceSpan: figure.options?.span ?? figure.span,
+    sourceKind: "figure-options",
+    label: "figure"
+  };
+  const rootOptionLayers = buildRootPictureOptionLayers(figure, parent, context, figureSourceRef);
+  const rootFramePushed = rootOptionLayers.length > 0;
+  if (rootFramePushed) {
     markFeature(featureUsage, "options_structured", "supported");
-    const parent = currentFrame(context);
-    const rootCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
-    const rootOptionLists = expandOptionListMacros(
-      [figure.options],
-      parent.macroBindings,
-      context.macroTraceCollector ?? undefined
-    );
-    if (containsCmOption(rootOptionLists)) {
-      markFeature(featureUsage, "transform_cm", "supported");
-    }
-    const figureSourceRef: StyleSourceRef = {
-      sourceId: `figure:${figure.span.from}:${figure.span.to}`,
-      sourceSpan: figure.options.span,
-      sourceKind: "figure-options",
-      label: "figure"
-    };
     const rootDelta = resolveContextDelta(
       parent.style,
       parent.transform,
-      [
-        {
-          kind: "scope",
-          sourceRef: figureSourceRef,
-          rawOptions: rootOptionLists
-        }
-      ],
+      rootOptionLayers,
       rootCustomStyles,
       (raw) => evaluateRawCoordinate(raw, context).world,
       parent.styleChain,
       (raw) => resolveContextColorAliasValue(context, raw)
     );
+    if (containsCmOption(rootDelta.expandedOptionLists)) {
+      markFeature(featureUsage, "transform_cm", "supported");
+    }
     const rootMeta = resolveFrameMeta(parent, rootDelta.expandedOptionLists, figureSourceRef);
+    if (collectBackgroundOptionEffects(context, rootDelta.expandedOptionLists, figureSourceRef)) {
+      markFeature(featureUsage, "backgrounds_library", "supported");
+    }
     pushFrame(context, {
       style: rootDelta.style,
       styleChain: rootDelta.chain,
       transform: rootDelta.transform,
+      layer: parent.layer,
       clipChain: [...parent.clipChain],
       pictureSizeRelevant: parent.pictureSizeRelevant,
       customStyles: rootCustomStyles,
@@ -279,7 +294,7 @@ export function createSemanticEvaluationRun(
         severity: "warning",
         code,
         message: `Figure option issue: ${code}`,
-        span: figure.options.span
+        span: figureSourceRef.sourceSpan ?? figure.span
       });
     }
   }
@@ -290,7 +305,7 @@ export function createSemanticEvaluationRun(
     context,
     diagnostics,
     featureUsage,
-    expandedFigureBody: expanded.figureBody,
+    expandedFigureBody: activeExpandedFigureBody,
     sourceStatementSpanById: buildSourceStatementSpanById(figure.body),
     statementAttribution: expanded.statementAttribution,
     statementSourceMaps: expanded.statementSourceMaps,
@@ -404,6 +419,18 @@ export function finalizeSemanticEvaluationRun(
   }
 
   const colorAliases = new Map(currentFrame(run.context).colorAliases);
+  const contentBounds = run.context.pictureBounds ?? computeBounds(elements) ?? null;
+  const generatedBackground = generateBackgroundHookElements(
+    run.context,
+    contentBounds,
+    run.context.sourceFingerprint
+  );
+  if (generatedBackground.elements.length > 0) {
+    elements.push(...generatedBackground.elements);
+  }
+  if (generatedBackground.diagnostics.length > 0) {
+    run.diagnostics.push(...generatedBackground.diagnostics);
+  }
 
   if (run.rootFramePushed) {
     popFrame(run.context);
@@ -413,6 +440,7 @@ export function finalizeSemanticEvaluationRun(
     const element = elements[index];
     elements[index] = {
       ...element,
+      layer: element.layer || MAIN_SCENE_LAYER,
       runtimeId: element.runtimeId ?? element.id,
       sourceRef: {
         ...element.sourceRef,
@@ -433,9 +461,11 @@ export function finalizeSemanticEvaluationRun(
   }
 
   markOpaqueDependencySources(elements, run.context);
+  const layers = listContextSceneLayers(run.context);
+  const orderedElements = orderSceneElementsByLayer(elements, layers);
   const inferredRequiredLibraries = inferRequiredTikzLibraries({
     featureUsage: run.featureUsage,
-    elements
+    elements: orderedElements
   });
   for (const libraryName of inferredRequiredLibraries) {
     requireContextLibrary(run.context, libraryName, null);
@@ -447,10 +477,17 @@ export function finalizeSemanticEvaluationRun(
       kind: "SceneFigure",
       span: run.figure.span,
       requiredTikzLibraries,
-      elements,
-      bounds: run.context.pictureBounds ?? computeBounds(elements),
+      layers,
+      elements: orderedElements,
+      bounds:
+        generatedBackground.elements.length > 0
+          ? computeBounds(orderedElements) ?? run.context.pictureBounds ?? undefined
+          : run.context.pictureBounds ?? computeBounds(orderedElements),
       hasStatefulGraphicsState:
-        run.featureUsage.path_clipping === "used-supported" || run.featureUsage.use_as_bounding_box === "used-supported"
+        run.featureUsage.path_clipping === "used-supported" ||
+        run.featureUsage.use_as_bounding_box === "used-supported" ||
+        run.featureUsage.backgrounds_library === "used-supported" ||
+        run.context.backgroundState.used
     },
     diagnostics: run.diagnostics,
     featureUsage: run.featureUsage,
@@ -478,6 +515,47 @@ function buildSourceStatementFirstIndexBySourceId(run: SemanticEvaluationRun): R
   return Object.fromEntries([...bySourceId.entries()].sort((a, b) => a[0].localeCompare(b[0])));
 }
 
+function buildRootPictureOptionLayers(
+  figure: TikzFigure,
+  parent: ReturnType<typeof currentFrame>,
+  context: SemanticContext,
+  figureSourceRef: StyleSourceRef
+): StyleTraceLayerInput[] {
+  const layers: StyleTraceLayerInput[] = [];
+  if (parent.customStyles.has("every picture")) {
+    const everyPictureOptions = parseStyleValueAsOptionList("every picture");
+    if (everyPictureOptions) {
+      layers.push({
+        kind: "scope",
+        sourceRef: {
+          sourceId: figureSourceRef.sourceId,
+          sourceSpan: figure.span,
+          sourceKind: "figure-options",
+          label: "every picture"
+        },
+        rawOptions: [everyPictureOptions]
+      });
+    }
+  }
+
+  if (figure.options) {
+    layers.push({
+      kind: "scope",
+      sourceRef: figureSourceRef,
+      rawOptions: expandOptionListMacros(
+        [figure.options],
+        parent.macroBindings,
+        context.macroTraceCollector ?? undefined
+      )
+    });
+  }
+  return layers;
+}
+
+function isPrePictureContextStatement(statement: Statement, figure: TikzFigure): boolean {
+  return statement.span.to <= figure.span.from;
+}
+
 function buildSourceStatementSpanById(
   statements: readonly Statement[]
 ): Map<string, { from: number; to: number }> {
@@ -502,12 +580,38 @@ function finalizeStatementElements(
 ): SceneElement[] {
   return elements.map((element) => ({
     ...element,
+    layer: element.layer || MAIN_SCENE_LAYER,
     runtimeId: element.runtimeId ?? element.id,
     sourceRef: {
       ...element.sourceRef,
       sourceFingerprint
     }
   }));
+}
+
+function assignSceneElementLayer(elements: SceneElement[], layer: string): SceneElement[] {
+  return elements.map((element) => ({
+    ...element,
+    layer
+  }));
+}
+
+function orderSceneElementsByLayer(elements: SceneElement[], layers: readonly SceneLayer[]): SceneElement[] {
+  const layerOrder = new Map(layers.map((layer) => [layer.name, layer.order]));
+  const fallbackOrder = layerOrder.get(MAIN_SCENE_LAYER) ?? Number.MAX_SAFE_INTEGER;
+  return elements
+    .map((element, index) => ({
+      element,
+      index,
+      order: layerOrder.get(element.layer || MAIN_SCENE_LAYER) ?? fallbackOrder
+    }))
+    .sort((left, right) => {
+      if (left.order !== right.order) {
+        return left.order - right.order;
+      }
+      return left.index - right.index;
+    })
+    .map((entry) => entry.element);
 }
 
 function finalizeStatementEditHandles(
@@ -784,6 +888,7 @@ function evaluateStatement(
       style: resolved.style,
       styleChain: resolved.chain,
       transform: resolved.transform,
+      layer: parent.layer,
       clipChain: [...parent.clipChain],
       pictureSizeRelevant: parent.pictureSizeRelevant,
       customStyles: scopedCustomStyles,
@@ -859,7 +964,8 @@ function evaluateStatement(
         }
       }
 
-      const elements = evaluatePathStatement(
+      const elements = assignSceneElementLayer(
+        evaluatePathStatement(
         statement,
         context,
         resolved.style,
@@ -872,6 +978,8 @@ function evaluateStatement(
             span: { from, to }
           });
         }
+        ),
+        currentFrame(context).layer
       );
       parent.clipChain = currentFrame(context).clipChain.map((clipPath) => ({
         ...clipPath,
@@ -961,11 +1069,37 @@ function evaluateStatement(
       parent.styleChain,
       (raw) => resolveContextColorAliasValue(context, raw)
     );
-    const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists, scopeSourceRef);
+    let scopeResolved = resolved;
+    let frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists, scopeSourceRef);
+    let scopeLayer = parent.layer;
+    const backgroundLayerOptionLayers = extractOnBackgroundLayerOptionLayers(resolved.expandedOptionLists, scopeSourceRef);
+    const backgroundDiagnostics: string[] = [];
+    if (backgroundLayerOptionLayers.length > 0) {
+      markFeature(featureUsage, "backgrounds_library", "supported");
+      markBackgroundLayerUsed(context);
+      scopeLayer = BACKGROUND_SCENE_LAYER;
+      const everyLayer = makeEveryOnBackgroundLayerOptionLayer(scopeSourceRef);
+      scopeResolved = resolveContextDelta(
+        resolved.style,
+        resolved.transform,
+        [everyLayer, ...backgroundLayerOptionLayers].map((layer) => ({
+          kind: "scope" as const,
+          sourceRef: layer.sourceRef,
+          rawOptions: layer.rawOptions
+        })),
+        scopedCustomStyles,
+        (raw) => evaluateRawCoordinate(raw, context).world,
+        resolved.chain,
+        (raw) => resolveContextColorAliasValue(context, raw)
+      );
+      frameMeta = resolveFrameMeta(frameMeta, scopeResolved.expandedOptionLists, scopeSourceRef);
+      backgroundDiagnostics.push(...scopeResolved.diagnostics);
+    }
     pushFrame(context, {
-      style: resolved.style,
-      styleChain: resolved.chain,
-      transform: resolved.transform,
+      style: scopeResolved.style,
+      styleChain: scopeResolved.chain,
+      transform: scopeResolved.transform,
+      layer: scopeLayer,
       clipChain: [...parent.clipChain],
       pictureSizeRelevant: parent.pictureSizeRelevant,
       customStyles: scopedCustomStyles,
@@ -1033,6 +1167,14 @@ function evaluateStatement(
         span: statement.span
       });
     }
+    for (const code of backgroundDiagnostics) {
+      diagnostics.push({
+        severity: "warning",
+        code,
+        message: `Scope background option issue: ${code}`,
+        span: statement.span
+      });
+    }
     const nested = statement.body.flatMap((entry) =>
       evaluateStatement(entry, context, diagnostics, featureUsage, statementMacroAttribution)
     );
@@ -1064,7 +1206,7 @@ function evaluateStatement(
   }
 
   if (statement.kind === "TikzSet") {
-    applyTikzSetStatement(statement, context, diagnostics);
+    applyTikzSetStatement(statement, context, diagnostics, featureUsage);
     markFeature(featureUsage, "unknown_statement", "supported");
     return [];
   }
@@ -1076,7 +1218,7 @@ function evaluateStatement(
   }
 
   if (statement.kind === "Pgfkeys") {
-    applyPgfkeysStatement(statement, context, diagnostics);
+    applyPgfkeysStatement(statement, context, diagnostics, featureUsage);
     markFeature(featureUsage, "unknown_statement", "supported");
     return [];
   }
@@ -1252,18 +1394,20 @@ function applyStandaloneCommandStatement(
 function applyTikzSetStatement(
   statement: TikzSetStatement,
   context: ReturnType<typeof createSemanticContext>,
-  diagnostics: Diagnostic[]
+  diagnostics: Diagnostic[],
+  featureUsage: FeatureUsage
 ): void {
-  applyOptionListsToCurrentFrame([statement.optionList], context, diagnostics, statement.span, statement.commandRaw, statement.id);
+  applyOptionListsToCurrentFrame([statement.optionList], context, diagnostics, statement.span, statement.commandRaw, statement.id, featureUsage);
 }
 
 function applyPgfkeysStatement(
   statement: PgfkeysStatement,
   context: ReturnType<typeof createSemanticContext>,
-  diagnostics: Diagnostic[]
+  diagnostics: Diagnostic[],
+  featureUsage: FeatureUsage
 ): void {
   const normalized = normalizePgfkeysOptionList(statement.optionList);
-  applyOptionListsToCurrentFrame([normalized], context, diagnostics, statement.span, statement.commandRaw, statement.id);
+  applyOptionListsToCurrentFrame([normalized], context, diagnostics, statement.span, statement.commandRaw, statement.id, featureUsage);
 }
 
 function applyTikzStyleStatement(
@@ -1468,7 +1612,8 @@ function applyOptionListsToCurrentFrame(
   diagnostics: Diagnostic[],
   span: { from: number; to: number },
   sourceLabel: string,
-  sourceId = `standalone:${span.from}:${span.to}`
+  sourceId = `standalone:${span.from}:${span.to}`,
+  featureUsage?: FeatureUsage
 ): void {
   const frame = currentFrame(context);
   const expandedOptionLists = expandOptionListMacros(optionLists, frame.macroBindings, context.macroTraceCollector ?? undefined);
@@ -1496,6 +1641,9 @@ function applyOptionListsToCurrentFrame(
   frame.style = resolved.style;
   frame.styleChain = resolved.chain;
   frame.transform = resolved.transform;
+  if (featureUsage && collectBackgroundOptionEffects(context, resolved.expandedOptionLists, sourceRef)) {
+    markFeature(featureUsage, "backgrounds_library", "supported");
+  }
 
   const frameMeta = resolveFrameMeta(frame, resolved.expandedOptionLists, sourceRef);
   frame.namePrefix = frameMeta.namePrefix;
