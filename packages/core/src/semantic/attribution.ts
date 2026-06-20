@@ -13,12 +13,31 @@ export function mapExpansionSpan(sourceMap: ExpansionSourceMap, span: Span): Spa
   return sourceMap.mapSpan(span) ?? sourceMap.sourceSpan;
 }
 
+function mapDiagnosticExpansionSpan(
+  sourceMap: ExpansionSourceMap,
+  diagnostic: Diagnostic,
+  ownerSpan?: Span,
+  mappedElementSpan?: Span
+): Span {
+  if (shouldUseExpansionSourceSpan(diagnostic)) {
+    return mappedElementSpan
+      ?? (ownerSpan ? sourceMap.mapSpan(ownerSpan) ?? sourceMap.sourceSpan : sourceMap.sourceSpan);
+  }
+  return mapExpansionSpan(sourceMap, diagnostic.span);
+}
+
+function shouldUseExpansionSourceSpan(diagnostic: Diagnostic): boolean {
+  return diagnostic.code?.startsWith("unsupported-option-key:") === true
+    || diagnostic.code?.startsWith("unsupported-option-flag:") === true;
+}
+
 export function remapDiagnostics(
   diagnostics: Diagnostic[],
   fromIndex: number,
   sourceMap: ExpansionSourceMap | undefined,
   args: {
     statement?: Statement;
+    elements?: readonly SceneElement[];
     pathItemSourceMaps?: WeakMap<PathItem, ExpansionSourceMap>;
   } = {}
 ): void {
@@ -42,11 +61,38 @@ export function remapDiagnostics(
     if (!effectiveSourceMap) {
       continue;
     }
+    const mappedElementSpan = shouldUseExpansionSourceSpan(diagnostic)
+      ? findMappedElementDiagnosticSpan(args.elements, diagnostic)
+      : undefined;
     diagnostics[index] = {
       ...diagnostic,
-      span: mapExpansionSpan(effectiveSourceMap, diagnostic.span)
+      span: mapDiagnosticExpansionSpan(
+        effectiveSourceMap,
+        diagnostic,
+        itemSourceMap?.span ?? args.statement?.span,
+        mappedElementSpan
+      )
     };
   }
+}
+
+function findMappedElementDiagnosticSpan(
+  elements: readonly SceneElement[] | undefined,
+  diagnostic: Diagnostic
+): Span | undefined {
+  if (!elements || elements.length === 0) {
+    return undefined;
+  }
+  const exactOwner = elements.find((element) =>
+    element.identityRef?.sourceSpan && spanContains(element.identityRef.sourceSpan, diagnostic.span)
+  );
+  if (exactOwner) {
+    return exactOwner.sourceRef.sourceSpan;
+  }
+  const overlappingOwner = elements.find((element) =>
+    element.identityRef?.sourceSpan && spansOverlap(element.identityRef.sourceSpan, diagnostic.span)
+  );
+  return overlappingOwner?.sourceRef.sourceSpan ?? elements[0]?.sourceRef.sourceSpan;
 }
 
 export function finalizeExpandedStatementElements(args: {
@@ -384,6 +430,14 @@ function collectPathItemsById(items: PathItem[], lookup: PathItemLookup): void {
 
 function spansEqual(left: Span, right: Span): boolean {
   return left.from === right.from && left.to === right.to;
+}
+
+function spanContains(outer: Span, inner: Span): boolean {
+  return outer.from <= inner.from && outer.to >= inner.to;
+}
+
+function spansOverlap(left: Span, right: Span): boolean {
+  return left.from < right.to && right.from < left.to;
 }
 
 function extractElementItemPayload(elementId: string, sourceId: string): string | undefined {

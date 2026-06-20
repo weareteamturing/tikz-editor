@@ -1,5 +1,6 @@
 import type { Span, Statement } from "../ast/types.js";
 import { renderTikzToSvg } from "../render/index.js";
+import type { SceneElement } from "../semantic/types.js";
 import { replaceSpan } from "./patch.js";
 import { parseTikzForEdit, type EditParseOptions, type PropertyWriteInteractionMode } from "./parse-options.js";
 import { resolvePropertyTarget } from "./property-target.js";
@@ -273,9 +274,14 @@ function buildPaintCommandCleanupCandidates(
   }
 
   const paint = resolvePaintOptions(source, action.elementId, parseOptions);
+  const shouldPreserveInheritedDrawSuppression = paint.drawDisabled
+    && hasInheritedRenderableDrawBeforeCommand(source, action.elementId, parseOptions);
   const commands = chooseCandidateCommands(paint);
   const candidates: CleanupCandidate[] = [];
   for (const nextCommand of commands) {
+    if (shouldPreserveInheritedDrawSuppression && commandRemovesExplicitDrawSuppression(nextCommand)) {
+      continue;
+    }
     const candidate = rewritePaintCommand(source, action.elementId, nextCommand, paint, parseOptions);
     if (candidate && candidate !== source) {
       candidates.push({
@@ -301,6 +307,10 @@ function chooseCandidateCommands(paint: PaintOptions): Array<"path" | "draw" | "
     candidates.push("draw");
   }
   return candidates.filter((candidate, index) => candidates.indexOf(candidate) === index);
+}
+
+function commandRemovesExplicitDrawSuppression(command: "path" | "draw" | "fill"): boolean {
+  return command === "path" || command === "fill";
 }
 
 function normalizedPaintCommand(command: string | undefined): "path" | "draw" | "fill" | "filldraw" | null {
@@ -451,6 +461,38 @@ function normalizeOptionValue(value: string): string {
 function isDisabledPaintValue(value: string | null): boolean {
   const normalized = value?.trim().toLowerCase() ?? "";
   return normalized === "none" || normalized === "false";
+}
+
+function hasInheritedRenderableDrawBeforeCommand(
+  source: string,
+  elementId: string,
+  parseOptions: EditParseOptions
+): boolean {
+  try {
+    const rendered = renderTikzToSvg(source, {
+      parse: {
+        recover: true,
+        activeFigureId: parseOptions.activeFigureId,
+        includeContextDefinitions: true
+      }
+    });
+    const element = rendered.semantic.scene.elements.find((candidate) => sceneElementMatchesSourceId(candidate, elementId));
+    const commandDefault = element?.styleChain.find(
+      (entry) => entry.sourceRef?.sourceKind === "command-default" && styleSourceRefMatches(entry.sourceRef.sourceId, elementId)
+    );
+    return commandDefault?.before.drawExplicit === true
+      && hasRenderableStroke(commandDefault.before);
+  } catch {
+    return false;
+  }
+}
+
+function sceneElementMatchesSourceId(element: SceneElement, sourceId: string): boolean {
+  return element.sourceRef.sourceId === sourceId || element.identityRef?.sourceId === sourceId;
+}
+
+function styleSourceRefMatches(sourceId: string, targetSourceId: string): boolean {
+  return sourceId === targetSourceId;
 }
 
 function certifyEquivalentSource(leftSource: string, rightSource: string, parseOptions: EditParseOptions): boolean {

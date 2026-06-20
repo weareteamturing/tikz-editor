@@ -2724,7 +2724,7 @@ function resolveFitOverrides(options: OptionListAst | undefined, context: Semant
       ? `,rotate=${formatFitNumber(rotateFitDegrees)}`
       : "";
   const halfHeight = bounds.height / 2;
-  const overrideRaw = `[at=(${formatFitNumber(bounds.center.x)}pt,${formatFitNumber(bounds.center.y)}pt),anchor=center,align=center,text width={${formatFitNumber(bounds.width)}pt},minimum width={${formatFitNumber(bounds.width)}pt},minimum height={${formatFitNumber(bounds.height)}pt},text height={${formatFitNumber(halfHeight)}pt},text depth={${formatFitNumber(halfHeight)}pt}${rotateSegment}]`;
+  const overrideRaw = `[at=(${formatFitNumber(bounds.center.x)}pt,${formatFitNumber(bounds.center.y)}pt),anchor=center,align=center,text width={${formatFitNumber(bounds.width)}pt},text height={${formatFitNumber(halfHeight)}pt},text depth={${formatFitNumber(halfHeight)}pt}${rotateSegment}]`;
   const overrideOptions = parseOptionListRaw(overrideRaw, fitEntry.span.from);
   return { hasFit: true, overrideOptions, diagnostics };
 }

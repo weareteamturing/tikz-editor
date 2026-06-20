@@ -2,7 +2,7 @@ import { worldBounds, worldPoint } from "../../coords/points.js";
 import type { WorldPoint, WorldBounds } from "../../coords/points.js";
 import { pt } from "../../coords/scalars.js";
 import type { CoordinateItem, EdgeFromParentOperationItem, EdgeOperationItem, GraphOperationItem, NodeItem, PathItem, PathStatement, PicOperationItem, PlotOperationItem, Span, ToOperationItem } from "../../ast/types.js";
-import type { OptionListAst } from "../../options/types.js";
+import type { OptionEntry, OptionListAst } from "../../options/types.js";
 import { parseTikz } from "../../parser/index.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import {
@@ -58,7 +58,7 @@ import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resol
 import { styleDiagnosticCode, styleDiagnosticSpan, type StyleDiagnostic } from "../style/diagnostics.js";
 import { expandOptionListMacros } from "../style/macro-options.js";
 import { cloneStyleChain, type StyleChainEntry, type StyleTraceLayerInput } from "../style-chain.js";
-import { cloneCustomStyleRegistry } from "../style/custom-styles.js";
+import { cloneCustomStyleRegistry, walkOptionEntriesWithCustomStyles } from "../style/custom-styles.js";
 import { applyPicDefinitionsFromOptionLists, clonePicDefinitionRegistry } from "../pics/registry.js";
 import { computeBounds, resolveFrameMeta } from "../evaluate.js";
 import {
@@ -81,6 +81,8 @@ import {
   evaluatePlotCoordinatePoints,
   extractPlotCoordinateEntries
 } from "./evaluate-plot.js";
+import { emitCircleOrEllipse, transformCircleGeometry, transformEllipseGeometry } from "./evaluate-shapes.js";
+import { handleChildOperationCluster } from "./evaluate-tree.js";
 
 function wp(x: number, y: number): WorldPoint {
   return worldPoint(pt(x), pt(y));
@@ -100,8 +102,68 @@ function pushStyleDiagnostic(
   const span = styleDiagnosticSpan(diagnostic, fallbackSpan);
   pushDiagnostic(code, `${messagePrefix}: ${code}`, span.from, span.to);
 }
-import { emitCircleOrEllipse, transformCircleGeometry, transformEllipseGeometry } from "./evaluate-shapes.js";
-import { handleChildOperationCluster } from "./evaluate-tree.js";
+
+function resolveOptionsForNodeAdornmentPlan(
+  options: OptionListAst | undefined,
+  frame: SemanticContext["stack"][number],
+  context: SemanticContext
+): OptionListAst | undefined {
+  if (!options) {
+    return undefined;
+  }
+
+  const macroExpanded = expandOptionListMacros([options], frame.macroBindings, context.macroTraceCollector ?? undefined);
+  const expandedEntries: OptionEntry[] = [];
+  const diagnostics: string[] = [];
+  walkOptionEntriesWithCustomStyles(
+    macroExpanded,
+    cloneCustomStyleRegistry(frame.customStyles),
+    (entry) => expandedEntries.push(entry),
+    diagnostics
+  );
+
+  const expandedOptions: OptionListAst | undefined =
+    expandedEntries.length > 0
+      ? {
+          span: options.span,
+          raw: macroExpanded.map((list) => list.raw).join(", "),
+          entries: expandedEntries
+        }
+      : undefined;
+  const rawSignature = nodeAdornmentControlSignature(options);
+  const expandedSignature = nodeAdornmentControlSignature(expandedOptions);
+  return rawSignature === expandedSignature ? options : expandedOptions;
+}
+
+function nodeAdornmentControlSignature(options: OptionListAst | undefined): string {
+  if (!options) {
+    return "";
+  }
+
+  return options.entries
+    .filter((entry) => {
+      if (entry.kind === "kv") {
+        return (
+          entry.key === "label" ||
+          entry.key === "pin" ||
+          entry.key === "label position" ||
+          entry.key === "pin position" ||
+          entry.key === "label distance" ||
+          entry.key === "pin distance" ||
+          entry.key === "pin edge" ||
+          entry.key === "quotes mean label" ||
+          entry.key === "quotes mean pin"
+        );
+      }
+      if (entry.kind === "flag") {
+        return entry.key === "quotes mean label" || entry.key === "quotes mean pin";
+      }
+      const trimmed = entry.raw.trim();
+      return trimmed.startsWith("\"") || trimmed.startsWith("'");
+    })
+    .map((entry) => entry.raw)
+    .join("\n");
+}
 
 export function evaluatePathStatement(
   statement: PathStatement,
@@ -834,13 +896,14 @@ export function evaluatePathStatement(
           pendingSegmentNodes.push(item);
           return;
         }
-        const adornmentPlan = extractNodeAdornmentPlan(item.options, {
-          quoteMode: frame.nodeQuotesMode,
-          labelPosition: frame.labelPosition,
-          pinPosition: frame.pinPosition,
-          labelDistancePt: frame.labelDistancePt,
-          pinDistancePt: frame.pinDistancePt,
-          pinEdgeRaw: frame.pinEdgeRaw
+        const adornmentOptions = resolveOptionsForNodeAdornmentPlan(item.options, treeFrameState, context);
+        const adornmentPlan = extractNodeAdornmentPlan(adornmentOptions, {
+          quoteMode: treeFrameState.nodeQuotesMode,
+          labelPosition: treeFrameState.labelPosition,
+          pinPosition: treeFrameState.pinPosition,
+          labelDistancePt: treeFrameState.labelDistancePt,
+          pinDistancePt: treeFrameState.pinDistancePt,
+          pinEdgeRaw: treeFrameState.pinEdgeRaw
         });
         const declaredNodeName = pendingNodeNameForNodeCommand ?? item.name ?? null;
         const hasFollowingTreeChildren = hasFollowingChildOperation(statement.items, currentItemIndex + 1);
@@ -1194,13 +1257,14 @@ export function evaluatePathStatement(
             return;
           }
 
-          const adornmentPlan = extractNodeAdornmentPlan(item.options, {
-            quoteMode: frame.nodeQuotesMode,
-            labelPosition: frame.labelPosition,
-            pinPosition: frame.pinPosition,
-            labelDistancePt: frame.labelDistancePt,
-            pinDistancePt: frame.pinDistancePt,
-            pinEdgeRaw: frame.pinEdgeRaw
+          const adornmentOptions = resolveOptionsForNodeAdornmentPlan(item.options, treeFrameState, context);
+          const adornmentPlan = extractNodeAdornmentPlan(adornmentOptions, {
+            quoteMode: treeFrameState.nodeQuotesMode,
+            labelPosition: treeFrameState.labelPosition,
+            pinPosition: treeFrameState.pinPosition,
+            labelDistancePt: treeFrameState.labelDistancePt,
+            pinDistancePt: treeFrameState.pinDistancePt,
+            pinEdgeRaw: treeFrameState.pinEdgeRaw
           });
           if (adornmentPlan.adornments.length === 0) {
             return;

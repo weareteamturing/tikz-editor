@@ -407,6 +407,7 @@ export function evaluateSemanticStatementByIndex(
   }
   remapDiagnostics(run.diagnostics, diagnosticsStart, statementSourceMap, {
     statement,
+    elements,
     pathItemSourceMaps: run.pathItemSourceMaps
   });
   const diagnostics = run.diagnostics.slice(diagnosticsStart);
