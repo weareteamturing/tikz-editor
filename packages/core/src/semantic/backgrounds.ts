@@ -11,6 +11,7 @@ import { makeGridElements, extractGridStepsFromOptionLists } from "./path/grid.j
 import { DEFAULT_GRID_STEP } from "./path/constants.js";
 import { makeRectangleElement } from "./path/elements.js";
 import { commandDefaultStyle, defaultStyle, parseStyleValueAsOptionList, resolveContextDelta } from "./style/resolve.js";
+import { styleDiagnosticCode, styleDiagnosticSpan, type StyleDiagnostic } from "./style/diagnostics.js";
 import type { StyleChainEntry, StyleSourceRef } from "./style-chain.js";
 import { cloneResolvedStyle, cloneStyleChain, diffResolvedStyle } from "./style-chain.js";
 import { identityMatrix } from "./transform.js";
@@ -214,12 +215,13 @@ export function generateBackgroundHookElements(
   const diagnostics: Diagnostic[] = [];
   for (const hook of hooks) {
     const resolved = resolveBackgroundHookStyle(context, hook.kind, hook.sourceRef);
-    for (const code of resolved.diagnostics) {
+    for (const styleDiagnostic of resolved.diagnostics) {
+      const code = styleDiagnosticCode(styleDiagnostic);
       diagnostics.push({
         severity: "warning",
         code,
         message: `Background option issue: ${code}`,
-        span: hook.sourceRef.sourceSpan ?? { from: 0, to: 0 }
+        span: styleDiagnosticSpan(styleDiagnostic, hook.sourceRef.sourceSpan ?? { from: 0, to: 0 })
       });
     }
 
@@ -316,7 +318,7 @@ function resolveBackgroundHookStyle(
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
   expandedOptionLists: OptionListAst[];
-  diagnostics: string[];
+  diagnostics: StyleDiagnostic[];
 } {
   const resetStyle = defaultStyle();
   const baseStyle = { ...resetStyle, ...commandDefaultStyle("path", resetStyle) };

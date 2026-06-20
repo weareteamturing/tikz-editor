@@ -29,6 +29,7 @@ import {
 import { parsePatternValue } from "./patterns.js";
 import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 import { isPicCodeOptionKey, isPicDefinitionOptionKey } from "../pics/registry.js";
+import type { StyleDiagnosticInput } from "./diagnostics.js";
 function normalizeOptionColor(valueRaw: string, style: ResolvedStyle, resolveColorAlias?: ColorAliasResolver): string {
   const currentColor = style.textColor ?? style.stroke ?? style.fill ?? "black";
   return normalizeColor(valueRaw, { currentColor, resolveAlias: resolveColorAlias });
@@ -55,7 +56,7 @@ export function applyKvEntry(
 
     let nextStyle = style;
     let nextTransform = transform;
-    const diagnostics: string[] = [];
+    const diagnostics: StyleDiagnosticInput[] = [];
     for (const entry of nested.entries) {
       const outcome = applyOptionEntry(entry, nextStyle, nextTransform);
       nextStyle = outcome.style;
@@ -896,7 +897,7 @@ function appendShadowLayers(
       }
     : seedStyle;
   let workingTransform = transform;
-  const diagnostics: string[] = [];
+  const diagnostics: StyleDiagnosticInput[] = [];
 
   if (options.preset) {
     const presetList = parseStyleValueAsOptionList(options.preset);
@@ -956,7 +957,7 @@ function applyOptionListEntries(
 ): ApplyOutcome {
   let nextStyle = style;
   let nextTransform = transform;
-  const diagnostics: string[] = [];
+  const diagnostics: StyleDiagnosticInput[] = [];
 
   for (const entry of entries) {
     const outcome = applyOptionEntry(entry, nextStyle, nextTransform);

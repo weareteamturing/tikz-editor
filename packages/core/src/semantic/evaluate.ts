@@ -7,6 +7,7 @@ import type {
   PgfkeysStatement,
   PathItem,
   PicOperationItem,
+  Span,
   TikzLibraryStatement,
   TikzSetStatement,
   TikzStyleStatement,
@@ -82,6 +83,7 @@ import { tangentAtPlacementSegment, resolvePathAttachedNodeSloped } from "./path
 import { applyNameIntersectionsDirective, collectPathIntersectionDirectives, registerNamedPath } from "./path/intersections.js";
 import { parseNodeDistance } from "./path/node-positioning.js";
 import { DEFAULT_TEXT_FONT_SIZE, defaultStyle, commandDefaultStyle, parseStyleValueAsOptionList, resolveContextDelta } from "./style/resolve.js";
+import { styleDiagnosticCode, styleDiagnosticSpan, type StyleDiagnostic } from "./style/diagnostics.js";
 import { applyCustomStyleDefinition, cloneCustomStyleRegistry } from "./style/custom-styles.js";
 import {
   applyPicDefinitionsFromOptionLists,
@@ -161,6 +163,23 @@ export type SemanticEvaluationRun = {
   rootFramePushed: boolean;
   baseDiagnosticsCount: number;
 };
+
+function pushStyleDiagnostics(
+  diagnostics: Diagnostic[],
+  styleDiagnostics: readonly StyleDiagnostic[],
+  messagePrefix: string,
+  fallbackSpan: Span
+): void {
+  for (const styleDiagnostic of styleDiagnostics) {
+    const code = styleDiagnosticCode(styleDiagnostic);
+    diagnostics.push({
+      severity: "warning",
+      code,
+      message: `${messagePrefix}: ${code}`,
+      span: styleDiagnosticSpan(styleDiagnostic, fallbackSpan)
+    });
+  }
+}
 
 export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: EvaluateOptions = {}): EvaluateTikzResult {
   const run = createSemanticEvaluationRun(figure, source, opts);
@@ -310,14 +329,7 @@ export function createSemanticEvaluationRun(
       treeDeferredEdgeFromParentPath: rootMeta.treeDeferredEdgeFromParentPath,
       treeDeferredEdgeFromParentMacro: rootMeta.treeDeferredEdgeFromParentMacro
     });
-    for (const code of rootDelta.diagnostics) {
-      diagnostics.push({
-        severity: "warning",
-        code,
-        message: `Figure option issue: ${code}`,
-        span: figureSourceRef.sourceSpan ?? figure.span
-      });
-    }
+    pushStyleDiagnostics(diagnostics, rootDelta.diagnostics, "Figure option issue", figureSourceRef.sourceSpan ?? figure.span);
   }
 
   return {
@@ -875,7 +887,9 @@ function evaluateStatement(
     if (statement.command === "shade" || statement.command === "shadedraw" || resolved.style.shadeEnabled) {
       markFeature(featureUsage, "path_shading", "supported");
     }
-    const hasUnsupportedPattern = resolved.diagnostics.some((code) => code.startsWith("unsupported-pattern:"));
+    const hasUnsupportedPattern = resolved.diagnostics.some((diagnostic) =>
+      styleDiagnosticCode(diagnostic).startsWith("unsupported-pattern:")
+    );
     if (statement.command === "pattern" || resolved.style.fillPattern || hasUnsupportedPattern) {
       markFeature(featureUsage, "path_patterns", hasUnsupportedPattern ? "unsupported" : "supported");
     }
@@ -883,14 +897,7 @@ function evaluateStatement(
       markFeature(featureUsage, "path_shadows", "supported");
     }
 
-    for (const code of resolved.diagnostics) {
-      diagnostics.push({
-        severity: "warning",
-        code,
-        message: `Path option issue: ${code}`,
-        span: statement.span
-      });
-    }
+    pushStyleDiagnostics(diagnostics, resolved.diagnostics, "Path option issue", statement.span);
     if (resolved.style.markerStart || resolved.style.markerEnd) {
       markFeature(featureUsage, "arrow_tips", "supported");
     }
@@ -1104,7 +1111,7 @@ function evaluateStatement(
     let frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists, scopeSourceRef);
     let scopeLayer = parent.layer;
     const backgroundLayerOptionLayers = extractOnBackgroundLayerOptionLayers(resolved.expandedOptionLists, scopeSourceRef);
-    const backgroundDiagnostics: string[] = [];
+    const backgroundDiagnostics: StyleDiagnostic[] = [];
     if (backgroundLayerOptionLayers.length > 0) {
       markFeature(featureUsage, "backgrounds_library", "supported");
       markBackgroundLayerUsed(context);
@@ -1192,22 +1199,8 @@ function evaluateStatement(
       treeDeferredEdgeFromParentPath: frameMeta.treeDeferredEdgeFromParentPath,
       treeDeferredEdgeFromParentMacro: frameMeta.treeDeferredEdgeFromParentMacro
     });
-    for (const code of resolved.diagnostics) {
-      diagnostics.push({
-        severity: "warning",
-        code,
-        message: `Scope option issue: ${code}`,
-        span: statement.span
-      });
-    }
-    for (const code of backgroundDiagnostics) {
-      diagnostics.push({
-        severity: "warning",
-        code,
-        message: `Scope background option issue: ${code}`,
-        span: statement.span
-      });
-    }
+    pushStyleDiagnostics(diagnostics, resolved.diagnostics, "Scope option issue", statement.span);
+    pushStyleDiagnostics(diagnostics, backgroundDiagnostics, "Scope background option issue", statement.span);
     const nested = statement.body.flatMap((entry) =>
       evaluateStatement(entry, context, diagnostics, featureUsage, statementMacroAttribution)
     );
@@ -1417,14 +1410,7 @@ function evaluatePicOperationInStatement(
     }
   }
 
-  for (const code of resolvedPicStyle.diagnostics) {
-    diagnostics.push({
-      severity: "warning",
-      code,
-      message: `Pic option issue: ${code}`,
-      span: item.optionsSpan ?? item.span
-    });
-  }
+  pushStyleDiagnostics(diagnostics, resolvedPicStyle.diagnostics, "Pic option issue", item.optionsSpan ?? item.span);
   if (containsCmOption(resolvedPicStyle.expandedOptionLists)) {
     markFeature(featureUsage, "transform_cm", "supported");
   }
@@ -2041,14 +2027,7 @@ function applyOptionListsToCurrentFrame(
   frame.treeDeferredEdgeFromParentPath = frameMeta.treeDeferredEdgeFromParentPath;
   frame.treeDeferredEdgeFromParentMacro = frameMeta.treeDeferredEdgeFromParentMacro;
 
-  for (const code of resolved.diagnostics) {
-    diagnostics.push({
-      severity: "warning",
-      code,
-      message: `${sourceLabel} option issue: ${code}`,
-      span
-    });
-  }
+  pushStyleDiagnostics(diagnostics, resolved.diagnostics, `${sourceLabel} option issue`, span);
 }
 
 function applyMacroDefinitionStatement(

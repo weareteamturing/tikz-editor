@@ -55,6 +55,7 @@ import type { DiagnosticPushFn, FeatureMarkFn, PathEvaluationOptions, PlacementS
 import { applyMatrix, identityMatrix } from "../transform.js";
 import { createEditHandle } from "../edit-handles.js";
 import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resolve.js";
+import { styleDiagnosticCode, styleDiagnosticSpan, type StyleDiagnostic } from "../style/diagnostics.js";
 import { expandOptionListMacros } from "../style/macro-options.js";
 import { cloneStyleChain, type StyleChainEntry, type StyleTraceLayerInput } from "../style-chain.js";
 import { cloneCustomStyleRegistry } from "../style/custom-styles.js";
@@ -87,6 +88,17 @@ function wp(x: number, y: number): WorldPoint {
 
 function wb(minX: number, minY: number, maxX: number, maxY: number): WorldBounds {
   return worldBounds(pt(minX), pt(minY), pt(maxX), pt(maxY));
+}
+
+function pushStyleDiagnostic(
+  pushDiagnostic: DiagnosticPushFn,
+  diagnostic: StyleDiagnostic,
+  messagePrefix: string,
+  fallbackSpan: Span
+): void {
+  const code = styleDiagnosticCode(diagnostic);
+  const span = styleDiagnosticSpan(diagnostic, fallbackSpan);
+  pushDiagnostic(code, `${messagePrefix}: ${code}`, span.from, span.to);
 }
 import { emitCircleOrEllipse, transformCircleGeometry, transformEllipseGeometry } from "./evaluate-shapes.js";
 import { handleChildOperationCluster } from "./evaluate-tree.js";
@@ -638,11 +650,12 @@ export function evaluatePathStatement(
               (raw) => resolveContextColorAliasValue(context, raw)
             )
           );
-          for (const code of resolvedEdgeStyle.diagnostics) {
+          for (const diagnostic of resolvedEdgeStyle.diagnostics) {
+            const code = styleDiagnosticCode(diagnostic);
             if (code === "unsupported-option-flag:every edge") {
               continue;
             }
-            pushDiagnostic(code, `Graph edge option issue: ${code}`, edge.span.from, edge.span.to);
+            pushStyleDiagnostic(pushDiagnostic, diagnostic, "Graph edge option issue", edge.span);
           }
 
           const handled = withDependencySource(context, graphStatement.id, () =>
@@ -779,8 +792,8 @@ export function evaluatePathStatement(
               treeFrameState.styleChain,
               (raw) => resolveContextColorAliasValue(context, raw)
             );
-            for (const code of optionResolved.diagnostics) {
-              pushDiagnostic(code, `Path option issue: ${code}`, item.span.from, item.span.to);
+            for (const diagnostic of optionResolved.diagnostics) {
+              pushStyleDiagnostic(pushDiagnostic, diagnostic, "Path option issue", item.span);
             }
 
             const optionMeta = resolveFrameMeta(treeFrameState, optionResolved.expandedOptionLists, optionSourceRef);
@@ -978,8 +991,8 @@ export function evaluatePathStatement(
                 statementStyleChain,
                 (raw) => resolveContextColorAliasValue(context, raw)
               );
-              for (const code of resolvedPinEdgeStyle.diagnostics) {
-                pushDiagnostic(code, `Pin edge option issue: ${code}`, spec.span.from, spec.span.to);
+              for (const diagnostic of resolvedPinEdgeStyle.diagnostics) {
+                pushStyleDiagnostic(pushDiagnostic, diagnostic, "Pin edge option issue", spec.span);
               }
 
               const pinEdgeHandlesStart = context.editHandles.length;
@@ -1140,8 +1153,8 @@ export function evaluatePathStatement(
               params: { ...resolvedDecorateOptions.style.decoration.params }
             }
           };
-          for (const code of resolvedDecorateOptions.diagnostics) {
-            pushDiagnostic(code, `Decorate option issue: ${code}`, item.span.from, item.span.to);
+          for (const diagnostic of resolvedDecorateOptions.diagnostics) {
+            pushStyleDiagnostic(pushDiagnostic, diagnostic, "Decorate option issue", item.span);
           }
         } else {
           operationStyle = {
@@ -1430,11 +1443,12 @@ export function evaluatePathStatement(
           statementStyleChain,
           (raw) => resolveContextColorAliasValue(context, raw)
         );
-        for (const code of resolvedEdgeStyle.diagnostics) {
+        for (const diagnostic of resolvedEdgeStyle.diagnostics) {
+          const code = styleDiagnosticCode(diagnostic);
           if (code === "unsupported-option-flag:every edge") {
             continue;
           }
-          pushDiagnostic(code, `Edge option issue: ${code}`, item.span.from, item.span.to);
+          pushStyleDiagnostic(pushDiagnostic, diagnostic, "Edge option issue", item.span);
         }
 
         const handled = applyEdgeOperation(
@@ -1509,8 +1523,8 @@ export function evaluatePathStatement(
             (raw) => resolveContextColorAliasValue(context, raw)
           );
           operationTransform = optionResolved.transform;
-          for (const code of optionResolved.diagnostics) {
-            pushDiagnostic(code, `SVG option issue: ${code}`, item.span.from, item.span.to);
+          for (const diagnostic of optionResolved.diagnostics) {
+            pushStyleDiagnostic(pushDiagnostic, diagnostic, "SVG option issue", item.span);
           }
         }
 
