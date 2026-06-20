@@ -232,6 +232,13 @@ select {
 
 .sourceToken {
   white-space: pre;
+  border-radius: 2px;
+  transition: background-color 0.5s ease;
+}
+
+.sourceToken--changed {
+  background-color: #fde68a;
+  transition: none;
 }
 
 .sourceToken--keyword {
