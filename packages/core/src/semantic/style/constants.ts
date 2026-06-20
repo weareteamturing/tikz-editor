@@ -233,6 +233,8 @@ export const NON_STYLE_OPTION_KEYS = new Set([
   "bar interval shift",
   "every node/.style",
   "every node/.append style",
+  "every pic/.style",
+  "every pic/.append style",
   "every rectangle node/.style",
   "every rectangle node/.append style",
   "every circle node/.style",

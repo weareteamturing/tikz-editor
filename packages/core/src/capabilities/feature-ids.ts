@@ -4,6 +4,7 @@ export const FEATURE_IDS = [
   "foreach_statement",
   "foreach_path_operation",
   "foreach_node_operation",
+  "pic_operation",
   "unknown_statement",
   "pgfmath_expression",
   "pgfmath_seed_commands",

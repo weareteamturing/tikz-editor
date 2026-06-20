@@ -8,6 +8,8 @@ import type { EditHandle, ResolvedStyle, SceneClipPath, SceneElement, SceneLayer
 import { BACKGROUND_SCENE_LAYER, MAIN_SCENE_LAYER } from "./types.js";
 import type { CustomStyleRegistry } from "./style/custom-styles.js";
 import { createDefaultCustomStyleRegistry } from "./style/custom-styles.js";
+import type { PicDefinitionRegistry } from "./pics/registry.js";
+import { createDefaultPicDefinitionRegistry } from "./pics/registry.js";
 import { computeSourceFingerprint } from "../utils/source-fingerprint.js";
 import type { StyleChainEntry, StyleSourceRef } from "./style-chain.js";
 import { cloneResolvedStyle } from "./style-chain.js";
@@ -122,6 +124,7 @@ export type SemanticContextFrame = {
   clipChain: SceneClipPath[];
   pictureSizeRelevant: boolean;
   customStyles: CustomStyleRegistry;
+  picDefinitions: PicDefinitionRegistry;
   colorAliases: Map<string, string>;
   macroBindings: Map<string, MacroBinding>;
   namePrefix: string;
@@ -139,6 +142,7 @@ export type SemanticContextFrame = {
   everyNodeStyles: ProvenanceOptionList[];
   everyTextNodePartStyles: ProvenanceOptionList[];
   everyFitStyles: ProvenanceOptionList[];
+  everyPicStyles: ProvenanceOptionList[];
   everyRectangleNodeStyles: ProvenanceOptionList[];
   everyCircleNodeStyles: ProvenanceOptionList[];
   everyDiamondNodeStyles: ProvenanceOptionList[];
@@ -192,6 +196,7 @@ export type SemanticContext = {
   pathStartPoint: WorldPoint | null;
   textEngine: NodeTextEngine | null;
   macroTraceCollector: MacroExpansionTraceEvent[] | null;
+  picEvaluationStack: string[];
   editHandles: EditHandle[];
   dependencyBuilder: SemanticDependencyGraphBuilder;
   dependencyActiveSourceId: string | null;
@@ -315,6 +320,7 @@ export function createSemanticContext(
         clipChain: [],
         pictureSizeRelevant: true,
         customStyles: createDefaultCustomStyleRegistry(),
+        picDefinitions: createDefaultPicDefinitionRegistry(),
         colorAliases: new Map(),
         macroBindings: new Map(),
         namePrefix: "",
@@ -336,6 +342,7 @@ export function createSemanticContext(
         everyNodeStyles: [],
         everyTextNodePartStyles: [],
         everyFitStyles: [],
+        everyPicStyles: [],
         everyRectangleNodeStyles: [],
         everyCircleNodeStyles: [],
         everyDiamondNodeStyles: [],
@@ -387,6 +394,7 @@ export function createSemanticContext(
     pathStartPoint: null,
     textEngine,
     macroTraceCollector: null,
+    picEvaluationStack: [],
     editHandles: [],
     dependencyBuilder: new SemanticDependencyGraphBuilder(),
     dependencyActiveSourceId: null,

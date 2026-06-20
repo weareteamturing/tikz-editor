@@ -1,7 +1,7 @@
 import { worldBounds, worldPoint } from "../../coords/points.js";
 import type { WorldPoint, WorldBounds } from "../../coords/points.js";
 import { pt } from "../../coords/scalars.js";
-import type { CoordinateItem, EdgeFromParentOperationItem, EdgeOperationItem, GraphOperationItem, NodeItem, PathItem, PathStatement, PlotOperationItem, Span, ToOperationItem } from "../../ast/types.js";
+import type { CoordinateItem, EdgeFromParentOperationItem, EdgeOperationItem, GraphOperationItem, NodeItem, PathItem, PathStatement, PicOperationItem, PlotOperationItem, Span, ToOperationItem } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
 import { parseTikz } from "../../parser/index.js";
 import { parseOptionListRaw } from "../../options/parse.js";
@@ -51,13 +51,14 @@ import {
   materializeNodeAdornment
 } from "./label-quotes.js";
 import { expandMacroBindings } from "../../macros/index.js";
-import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.js";
+import type { DiagnosticPushFn, FeatureMarkFn, PathEvaluationOptions, PlacementSegment } from "./types.js";
 import { applyMatrix, identityMatrix } from "../transform.js";
 import { createEditHandle } from "../edit-handles.js";
 import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resolve.js";
 import { expandOptionListMacros } from "../style/macro-options.js";
 import { cloneStyleChain, type StyleChainEntry, type StyleTraceLayerInput } from "../style-chain.js";
 import { cloneCustomStyleRegistry } from "../style/custom-styles.js";
+import { applyPicDefinitionsFromOptionLists, clonePicDefinitionRegistry } from "../pics/registry.js";
 import { computeBounds, resolveFrameMeta } from "../evaluate.js";
 import {
   applyPlotOptionLists,
@@ -96,9 +97,7 @@ export function evaluatePathStatement(
   style: ResolvedStyle,
   markFeature: FeatureMarkFn,
   pushDiagnostic: DiagnosticPushFn,
-  options: {
-    honorInitialCurrentPoint?: boolean;
-  } = {}
+  options: PathEvaluationOptions = {}
 ): SceneElement[] {
   const geometryElements: SceneElement[] = [];
   const behindNodeElements: SceneElement[] = [];
@@ -128,6 +127,7 @@ export function evaluatePathStatement(
   let pendingNamedCoordinate: { name: string } | null = null;
   let pendingSegmentPlacements: Array<{ name: string; fraction: number }> = [];
   let pendingSegmentNodes: NodeItem[] = [];
+  let pendingSegmentPics: Array<{ item: PicOperationItem; fraction: number }> = [];
   let pendingNodeNameForNodeCommand: string | null = null;
   let lastPlacementSegment: PlacementSegment | null = null;
   let previousSegmentRoundedCorners: number | null = null;
@@ -211,6 +211,30 @@ export function evaluatePathStatement(
       frontNodeElements.push(...resolvedNode.frontElements);
     }
     pendingSegmentNodes = [];
+  };
+  const emitPicOperation = (
+    item: PicOperationItem,
+    placement: WorldPoint,
+    segment: PlacementSegment | null = null
+  ): void => {
+    markFeature("pic_operation", "supported");
+    if (!options.evaluatePicOperation) {
+      markFeature("pic_operation", "unsupported");
+      pushDiagnostic("unsupported-pic-operation", "`pic` operations are parsed but not semantically implemented here.", item.span.from, item.span.to);
+      return;
+    }
+    const resolved = options.evaluatePicOperation(item, placement, segment);
+    behindNodeElements.push(...resolved.behindElements);
+    frontNodeElements.push(...resolved.frontElements);
+  };
+  const flushPendingSegmentPics = (segment: PlacementSegment | null): void => {
+    if (!segment || pendingSegmentPics.length === 0) {
+      return;
+    }
+    for (const pending of pendingSegmentPics) {
+      emitPicOperation(pending.item, pointAtPlacementSegment(segment, pending.fraction), segment);
+    }
+    pendingSegmentPics = [];
   };
   const flushPendingCircle = (sourceId: string, span: Span): void => {
     if (!pendingCircleCenter) {
@@ -738,6 +762,8 @@ export function evaluatePathStatement(
               label: "path option"
             } as const;
             const optionCustomStyles = cloneCustomStyleRegistry(treeFrameState.customStyles);
+            const optionPicDefinitions = clonePicDefinitionRegistry(treeFrameState.picDefinitions);
+            applyPicDefinitionsFromOptionLists(optionPicDefinitions, [expandedOptions], optionSourceRef);
             const optionResolved = resolveContextDelta(
               treeFrameState.style,
               treeFrameState.transform,
@@ -765,7 +791,8 @@ export function evaluatePathStatement(
               style: optionResolved.style,
               styleChain: optionResolved.chain,
               transform: optionResolved.transform,
-              customStyles: optionCustomStyles
+              customStyles: optionCustomStyles,
+              picDefinitions: optionPicDefinitions
             };
             style = treeFrameState.style;
             statementStyleChain = treeFrameState.styleChain;
@@ -1225,6 +1252,46 @@ export function evaluatePathStatement(
       }
     ],
     [
+      "PicOperation",
+      (pathItem) => {
+        const item = pathItem as PicOperationItem;
+        const placementFraction = resolveNodePositionFraction(item.options);
+        if (placementFraction != null && currentOperator) {
+          pendingSegmentPics.push({ item, fraction: placementFraction });
+          return;
+        }
+
+        const segment = placementFraction != null ? lastPlacementSegment : null;
+        const explicitPlacement = item.atRaw ? evaluateRawCoordinate(item.atRaw, context, item.atRelativePrefix) : null;
+        if (explicitPlacement) {
+          for (const code of explicitPlacement.diagnostics) {
+            pushDiagnostic(code, `Pic placement issue: ${code}`, item.atSpan?.from ?? item.span.from, item.atSpan?.to ?? item.span.to);
+          }
+          if (!explicitPlacement.world) {
+            markFeature("pic_operation", "unsupported");
+            pushDiagnostic("invalid-pic-placement", "Could not evaluate pic placement.", item.atSpan?.from ?? item.span.from, item.atSpan?.to ?? item.span.to);
+            return;
+          }
+          if (item.atSpan) {
+            const handle = createEditHandle(explicitPlacement, item.atSpan, item.id, "node-position", context);
+            if (handle) {
+              context.editHandles.push(handle);
+            }
+          }
+          emitPicOperation(item, explicitPlacement.world, segment);
+          return;
+        }
+
+        if (placementFraction != null && segment) {
+          emitPicOperation(item, pointAtPlacementSegment(segment, placementFraction), segment);
+          return;
+        }
+
+        const placement = currentPointLogical ?? context.currentPoint ?? defaultPathOrigin;
+        emitPicOperation(item, placement, null);
+      }
+    ],
+    [
       "UnknownPathItem",
       () => {}
     ],
@@ -1262,6 +1329,12 @@ export function evaluatePathStatement(
         activePath = handled.activePath;
         if (handled.segment) {
           lastPlacementSegment = handled.segment;
+        }
+        if (handled.segment) {
+          for (const pic of toItem.pics ?? []) {
+            const fraction = resolveNodePositionFraction(pic.options) ?? 0.5;
+            emitPicOperation(pic, pointAtPlacementSegment(handled.segment, fraction), handled.segment);
+          }
         }
         behindNodeElements.push(...handled.behindNodeElements);
         frontNodeElements.push(...handled.frontNodeElements);
@@ -1375,6 +1448,12 @@ export function evaluatePathStatement(
           edgeOperationStart.point,
           edgeOperationStart.coordinateRaw
         );
+        if (handled.segment) {
+          for (const pic of edgeItem.pics ?? []) {
+            const fraction = resolveNodePositionFraction(pic.options) ?? 0.5;
+            emitPicOperation(pic, pointAtPlacementSegment(handled.segment, fraction), handled.segment);
+          }
+        }
         if (handled.activePath && hasDrawablePathSegments(handled.activePath)) {
           frontNodeElements.push(...handled.behindNodeElements);
           frontNodeElements.push(handled.activePath);
@@ -1797,6 +1876,7 @@ export function evaluatePathStatement(
           lastPlacementSegment = appended.segment;
           flushPendingSegmentNodes(appended.segment);
           flushPendingSegmentPlacements(appended.segment);
+          flushPendingSegmentPics(appended.segment);
           previousSegmentRoundedCorners = appended.nextRoundedCorners;
           context.pathStartPoint = pathSourcePoint;
         } else {
@@ -1837,6 +1917,7 @@ export function evaluatePathStatement(
         lastPlacementSegment = appended.segment;
         flushPendingSegmentNodes(appended.segment);
         flushPendingSegmentPlacements(appended.segment);
+        flushPendingSegmentPics(appended.segment);
         previousSegmentRoundedCorners = appended.nextRoundedCorners;
       } else {
         activePath.commands.push({ kind: "M", to: pathTargetPoint });
@@ -2315,6 +2396,7 @@ export function evaluatePathStatement(
 
     if (
       item.kind === "Node" ||
+      item.kind === "PicOperation" ||
       item.kind === "DecorateOperation" ||
       item.kind === "CoordinateOperation"
     ) {

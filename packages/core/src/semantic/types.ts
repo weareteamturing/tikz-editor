@@ -295,9 +295,20 @@ export type ForeachOriginFrame = {
   bindings: Record<string, string>;
 };
 
+export type PicOriginFrame = {
+  invocationId: string;
+  invocationSpan: Span;
+  picType: string;
+  codeSpan?: Span;
+  codeSource: "inline" | "definition";
+  parameterized: boolean;
+};
+
 export type SceneElementOrigin = {
   foreachStack: ForeachOriginFrame[];
   foreachTemplateLocalTargetId?: string;
+  picStack?: PicOriginFrame[];
+  picTemplateLocalTargetId?: string;
   macroStack?: MacroOriginFrame[];
 };
 

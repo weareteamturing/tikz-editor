@@ -4,7 +4,9 @@
 
 @precedence {
   childContinuation,
-  childBare
+  childBare,
+  picGrouped,
+  picOptionOnly
 }
 
 TikzEnvironment {
@@ -80,8 +82,13 @@ ForeachList {
 }
 
 PathStatement {
+  PicPathStatement |
   NodePathStatement |
   PathCommand PathItem* ";"
+}
+
+PicPathStatement {
+  PicCmd PicForeachClause* PicQualifier* Group? ";"
 }
 
 NodePathStatement {
@@ -113,6 +120,7 @@ NodeCommandItem {
   LetOperation |
   CoordinateOperation |
   DecorateOperation |
+  PicOperation |
   NodeItem |
   Comment |
   OptionList |
@@ -134,6 +142,7 @@ PathItem {
   LetOperation |
   CoordinateOperation |
   DecorateOperation |
+  PicOperation |
   Comment |
   RelativeCoordinate |
   Coordinate |
@@ -175,6 +184,29 @@ NodeName {
   Coordinate
 }
 
+PicOperation {
+  PicKw PicForeachClause* OptionList? !picGrouped PicPlacement? Group |
+  PicKw PicForeachClause* OptionList !picOptionOnly
+}
+
+PicForeachClause {
+  (ForeachKw | ForeachCmd) ForeachHeaderToken* InKw ForeachList
+}
+
+PicQualifier {
+  OptionList |
+  PicPlacement |
+  PicName
+}
+
+PicPlacement {
+  AtKw CoordinateLike
+}
+
+PicName {
+  Coordinate
+}
+
 CoordinateLike {
   RelativeCoordinate |
   Coordinate
@@ -208,11 +240,11 @@ PathKeyword {
 }
 
 ToOperation {
-  ToKw OptionList? NodeItem* ToTarget
+  ToKw OptionList? (NodeItem | PicOperation)* ToTarget
 }
 
 EdgeOperation {
-  EdgeKw OptionList? NodeItem* ToTarget
+  EdgeKw OptionList? (NodeItem | PicOperation)* ToTarget
 }
 
 ChildOperation {
@@ -390,6 +422,7 @@ MacroCommandDefaultArgPart {
   InKw |
   CoordinateKw |
   DecorateKw |
+  PicKw |
   Number |
   IdentifierLike |
   GroupPunct
@@ -437,6 +470,7 @@ OptionPart {
   InKw |
   CoordinateKw |
   DecorateKw |
+  PicKw |
   IdentifierLike |
   Number |
   OptionPunct
@@ -545,6 +579,7 @@ GroupPart {
   ForeachKw |
   KnownCommand |
   NodeKw |
+  PicKw |
   ControlSymbolCmd |
   CommandName |
   ToKw |
@@ -579,6 +614,7 @@ StylePayloadPart {
   ControlSymbolCmd |
   CommandName |
   NodeKw |
+  PicKw |
   ToKw |
   ChildKw |
   FromKw |
@@ -655,6 +691,7 @@ Coordinate {
   CoordinateKw |
   DecorateKw |
   NodeKw |
+  PicKw |
   Number |
   IdentifierLike |
   "," |
@@ -692,6 +729,7 @@ KnownCommand {
   UseAsBoundingBoxCmd |
   MatrixCmd |
   NodeCmd |
+  PicCmd |
   CoordinateCmd |
   FontSizeCmd
 }
@@ -722,6 +760,7 @@ StrayToken {
   InKw |
   CoordinateKw |
   DecorateKw |
+  PicKw |
   IdentifierLike |
   PathKeyword |
   "{" |
@@ -773,6 +812,7 @@ StrayToken {
     ForeachKw,
     MatrixCmd,
     NodeCmd,
+    PicCmd,
     CoordinateCmd,
     PgfkeysCmd,
     UseTikzLibraryCmd,
@@ -814,6 +854,7 @@ StrayToken {
     SinKw,
     CosKw,
     NodeKw,
+    PicKw,
     FontSizeCmd,
     CommandName,
     Dollar,
@@ -847,6 +888,7 @@ StrayToken {
   ForeachCmd { "\\foreach" }
   ForeachKw { "foreach" }
   NodeCmd { "\\node" }
+  PicCmd { "\\pic" }
   CoordinateCmd { "\\coordinate" }
   TikzSetCmd { "\\tikzset" }
   TikzStyleCmd { "\\tikzstyle" }
@@ -921,6 +963,7 @@ StrayToken {
   CosKw { "cos" }
 
   NodeKw { "node" }
+  PicKw { "pic" }
 
   FontSizeCmd {
     "\\tiny" |

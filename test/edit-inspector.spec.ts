@@ -36,6 +36,7 @@ import {
 } from "../packages/core/src/edit/property-write-builders.js";
 import {
   makeForeachTemplateTargetId,
+  makePicTemplateTargetId,
   makeStyleSourceTargetId,
   resolveFigurePropertyTargetFromParseResult,
   resolvePropertyTarget,
@@ -960,6 +961,58 @@ describe("getInspectorDescriptor", () => {
     });
 
     expect(descriptor.readOnlyReason).toBe("This \\foreach expansion cannot be edited from the inspector.");
+  });
+
+  it("edits pic-generated elements through the shared pic template", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \tikzset{tick/.pic={\draw[line width=.4pt,blue] (0,0) -- (1,0);}}
+  \pic at (0,0) {tick};
+  \pic at (0,1) {tick};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path" && entry.origin?.picStack?.length);
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected pic-generated path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+
+    expect(descriptor.readOnlyReason).toBeUndefined();
+    expect(descriptor.writeTargetId).toMatch(/^__pic_template__:/);
+    const lineWidth = descriptor.sections
+      .flatMap((section) => section.properties)
+      .find((property) => property.kind === "lineWidth");
+    expect(lineWidth?.kind).toBe("lineWidth");
+    if (!lineWidth || lineWidth.kind !== "lineWidth") {
+      throw new Error("Expected line width property");
+    }
+    expect(lineWidth.write.writable).toBe(true);
+    if (!descriptor.writeTargetId) {
+      throw new Error("Expected a pic template write target");
+    }
+
+    const updated = applyEditAction(source, rendered.semantic.editHandles, {
+      kind: "setProperty",
+      elementId: descriptor.writeTargetId,
+      level: lineWidth.write.level,
+      key: lineWidth.write.key,
+      value: "2pt"
+    });
+    expect(updated.kind).toBe("success");
+    if (updated.kind !== "success") {
+      throw new Error("Expected pic template edit to succeed");
+    }
+    expect(updated.newSource).toContain(String.raw`\draw[line width=2pt, blue] (0,0) -- (1,0);`);
+    const rerendered = renderTikzToSvg(updated.newSource);
+    const picPaths = rerendered.semantic.scene.elements.filter((entry) => entry.kind === "Path" && entry.origin?.picStack?.length);
+    expect(picPaths).toHaveLength(2);
+    for (const path of picPaths) {
+      expect(path.style.lineWidth).toBe(2);
+    }
   });
 
   it("keeps statements after foreach editable in inspector", () => {
@@ -4255,6 +4308,8 @@ broken`;
     \node[draw] (N\x) at (\x,0) {N\x};
     \foreach \y in {1,2} { \node[fill=red] (N\x-\y) at (\x,\y) {N}; }
   }
+  \tikzset{tick/.pic={\draw[blue] (0,0) -- (1,0);}}
+  \pic at (0,0) {tick};
 \end{tikzpicture}`;
     const parseResult = parseTikz(source, { recover: true });
     expect(resolvePropertyTargetFromParseResult(source, parseResult, "")).toMatchObject({ kind: "not-found" });
@@ -4328,6 +4383,21 @@ broken`;
 
     expect(resolvePropertyTarget(source, "__foreach_template__:::")).toMatchObject({ kind: "not-found" });
     expect(resolvePropertyTarget(source, makeForeachTemplateTargetId(foreach.id, "missing"))).toMatchObject({ kind: "not-found" });
+
+    const picCode = String.raw`\draw[blue] (0,0) -- (1,0);`;
+    const picCodeFrom = source.indexOf(picCode);
+    const picTemplateId = makePicTemplateTargetId({ from: picCodeFrom, to: picCodeFrom + picCode.length }, "path:0");
+    expect(resolvePropertyTarget(source, picTemplateId)).toMatchObject({
+      kind: "found",
+      target: { kind: "pic-template", picLocalTargetId: "path:0" }
+    });
+    expect(resolvePropertyTargetFromParseResult(source, parseResult, picTemplateId)).toMatchObject({
+      kind: "found",
+      target: { kind: "pic-template", picLocalTargetId: "path:0" }
+    });
+    expect(resolvePropertyTarget(source, makePicTemplateTargetId({ from: picCodeFrom, to: picCodeFrom + picCode.length }, "missing"))).toMatchObject({
+      kind: "not-found"
+    });
   });
 
   it("covers defensive property-target resolution failures and delegated analysis views", () => {

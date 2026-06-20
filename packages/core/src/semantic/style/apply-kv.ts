@@ -28,6 +28,7 @@ import {
 } from "./option-utils.js";
 import { parsePatternValue } from "./patterns.js";
 import { parseBooleanishNormalized } from "../../utils/booleanish.js";
+import { isPicCodeOptionKey, isPicDefinitionOptionKey } from "../pics/registry.js";
 function normalizeOptionColor(valueRaw: string, style: ResolvedStyle, resolveColorAlias?: ColorAliasResolver): string {
   const currentColor = style.textColor ?? style.stroke ?? style.fill ?? "black";
   return normalizeColor(valueRaw, { currentColor, resolveAlias: resolveColorAlias });
@@ -42,6 +43,10 @@ export function applyKvEntry(
   resolveCoordinate?: (raw: string) => WorldPoint | null,
   resolveColorAlias?: ColorAliasResolver
 ): ApplyOutcome {
+  if (key === "pic type" || isPicCodeOptionKey(key) || isPicDefinitionOptionKey(key)) {
+    return { style, transform, diagnostics: [] };
+  }
+
   if (key === "every path/.style" || key === "every path/.append style") {
     const nested = parseStyleValueAsOptionList(valueRaw);
     if (!nested) {

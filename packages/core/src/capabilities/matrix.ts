@@ -37,6 +37,15 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "none",
     fixtures: ["foreach_node_basic"]
   },
+  pic_operation: {
+    parser: "partial",
+    semantic: "partial",
+    svg: "partial",
+    edit: "partial",
+    fixtures: ["pic_inline_code", "pic_simple_definition", "pic_path_placement", "pic_template_editing"],
+    notes:
+      "Supports inline pics/code, simple .pic and pics/name/.style={code=...} definitions, placement, simple transforms, and template-based inspector edits. Parameterized and built-in library pics are deferred."
+  },
   unknown_statement: {
     parser: "stable",
     semantic: "partial",

@@ -96,7 +96,7 @@ export function commandDefaultStyle(command: PathCommand, inheritedStyle: Resolv
   switch (command) {
     case "draw":
       return {
-        stroke: inheritedStyle.stroke ?? "black",
+        stroke: currentStrokeColor(inheritedStyle),
         fill: null,
         fillPattern: null,
         shadeEnabled: false,
@@ -133,7 +133,8 @@ export function commandDefaultStyle(command: PathCommand, inheritedStyle: Resolv
     case "fill":
       return {
         fill: inheritedFillColor,
-        stroke: inheritedStyle.drawExplicit ? inheritedStyle.stroke ?? "black" : null
+        stroke: null,
+        drawExplicit: false
       };
     case "filldraw":
       return {
@@ -171,6 +172,10 @@ export function commandDefaultStyle(command: PathCommand, inheritedStyle: Resolv
 
 function currentFillColor(style: ResolvedStyle): string {
   return style.fill ?? style.textColor ?? (!style.drawExplicit ? style.stroke : null) ?? "black";
+}
+
+function currentStrokeColor(style: ResolvedStyle): string {
+  return style.stroke ?? style.textColor ?? "black";
 }
 
 export { DEFAULT_TEXT_FONT_SIZE };

@@ -7,7 +7,7 @@ import type {
 } from "../foreach/types.js";
 import type { MacroOriginFrame } from "../macros/index.js";
 import type { StyleChainEntry } from "./style-chain.js";
-import type { EditHandle, SceneElement } from "./types.js";
+import type { EditHandle, PicOriginFrame, SceneElement } from "./types.js";
 
 export function mapExpansionSpan(sourceMap: ExpansionSourceMap, span: Span): Span {
   return sourceMap.mapSpan(span) ?? sourceMap.sourceSpan;
@@ -115,11 +115,19 @@ export function finalizeExpandedStatementElements(args: {
       attribution != null && attribution.sourceId !== statement.id
         ? templateLocalIdByExpandedId.get(element.sourceRef.sourceId) ?? element.sourceRef.sourceId
         : element.origin?.foreachTemplateLocalTargetId;
+    const picStack = element.origin?.picStack ? clonePicStack(element.origin.picStack) : undefined;
+    const picTemplateLocalTargetId = element.origin?.picTemplateLocalTargetId;
     const nextOrigin =
-      foreachStack.length > 0 || foreachTemplateLocalTargetId != null || (macroStack != null && macroStack.length > 0)
+      foreachStack.length > 0
+      || foreachTemplateLocalTargetId != null
+      || picTemplateLocalTargetId != null
+      || (picStack != null && picStack.length > 0)
+      || (macroStack != null && macroStack.length > 0)
         ? {
             foreachStack,
             foreachTemplateLocalTargetId,
+            picStack,
+            picTemplateLocalTargetId,
             macroStack
           }
         : undefined;
@@ -421,5 +429,24 @@ function cloneMacroOriginStack(stack: MacroOriginFrame[]): MacroOriginFrame[] {
       to: origin.definitionSpan.to
     },
     commandRaw: origin.commandRaw
+  }));
+}
+
+function clonePicStack(stack: PicOriginFrame[]): PicOriginFrame[] {
+  return stack.map((origin) => ({
+    invocationId: origin.invocationId,
+    invocationSpan: {
+      from: origin.invocationSpan.from,
+      to: origin.invocationSpan.to
+    },
+    picType: origin.picType,
+    codeSpan: origin.codeSpan
+      ? {
+          from: origin.codeSpan.from,
+          to: origin.codeSpan.to
+        }
+      : undefined,
+    codeSource: origin.codeSource,
+    parameterized: origin.parameterized
   }));
 }

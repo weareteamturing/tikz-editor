@@ -1,6 +1,7 @@
 import { TREE_CHILD_NODE_READONLY_KEYS, TREE_ROOT_LAYOUT_KEYS } from "./tree-editing.js";
 import {
   makeForeachTemplateTargetId,
+  makePicTemplateTargetId,
   resolvePropertyTarget,
   type PropertyTargetResolution
 } from "./property-target.js";
@@ -226,6 +227,8 @@ const GRID_STEP_CLEAR_KEYS = ["xstep", "x step", "ystep", "y step"] as const;
 const GRID_XSTEP_CLEAR_KEYS = ["x step"] as const;
 const GRID_YSTEP_CLEAR_KEYS = ["y step"] as const;
 const FOREACH_TEMPLATE_INFO_NOTE = "Editing the foreach template. Changes apply to all iterations.";
+const PIC_INLINE_TEMPLATE_INFO_NOTE = "Editing this inline pic code. Changes apply to this invocation.";
+const PIC_SHARED_TEMPLATE_INFO_NOTE = "Editing this shared pic template. Changes apply to all uses.";
 const FOREACH_VARIABLE_READONLY_REASON = "This property depends on foreach iteration variables and is read-only.";
 const NODE_TARGET_KINDS = new Set(["node-item", "matrix-cell", "tree-child"]);
 const NODE_PAINT_STYLE_KINDS = new Set<StyleChainEntry["kind"]>(["every-node", "every-shape"]);
@@ -3419,6 +3422,51 @@ function resolveInlineWriteTarget(
       targetKind: null,
       writable: false,
       reason: "This element comes from a macro expansion and cannot be edited directly."
+    };
+  }
+
+  const picStack = element.origin?.picStack ?? [];
+  if (picStack.length > 0) {
+    const picOrigin = picStack[picStack.length - 1];
+    if (!picOrigin) {
+      return {
+        targetId: null,
+        targetKind: null,
+        writable: false,
+        reason: "This pic expansion cannot be edited from the inspector."
+      };
+    }
+    if (picOrigin.parameterized) {
+      return {
+        targetId: null,
+        targetKind: null,
+        writable: false,
+        reason: "Parameterized pic templates are read-only."
+      };
+    }
+    if (!picOrigin.codeSpan || !element.origin?.picTemplateLocalTargetId) {
+      return {
+        targetId: null,
+        targetKind: null,
+        writable: false,
+        reason: "This pic template target could not be mapped back to source."
+      };
+    }
+    const targetId = makePicTemplateTargetId(picOrigin.codeSpan, element.origin.picTemplateLocalTargetId);
+    const resolved = resolveTarget(targetId);
+    if (resolved.kind === "found") {
+      return {
+        targetId,
+        targetKind: resolved.target.kind,
+        writable: true,
+        infoNote: picOrigin.codeSource === "inline" ? PIC_INLINE_TEMPLATE_INFO_NOTE : PIC_SHARED_TEMPLATE_INFO_NOTE
+      };
+    }
+    return {
+      targetId: null,
+      targetKind: null,
+      writable: false,
+      reason: "This pic template target could not be mapped back to source."
     };
   }
 
