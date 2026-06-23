@@ -639,6 +639,7 @@ select {
 
 .landingCodePanel {
   position: relative;
+  top: auto;
   overflow: hidden;
   border: 1px solid var(--landing-line);
   background: var(--landing-code);
