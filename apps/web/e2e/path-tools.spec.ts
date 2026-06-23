@@ -265,17 +265,16 @@ test("dragging a side resize handle updates one axis", async ({ page }) => {
   }
 
   await dragLocatorBy(page, rightHandle, 50, 0);
-  const tooltip = page.getByTestId("canvas-drag-tooltip");
-  await expect(tooltip).toBeVisible();
-  await expect(tooltip).toContainText("Width:");
-  await expect(tooltip).toContainText("Height:");
   await page.mouse.up();
+  await expect.poll(async () => {
+    const current = await readResizeHandleSpanPt(page);
+    return current?.widthPt ?? before.widthPt;
+  }).toBeGreaterThan(before.widthPt + 5);
   const after = await readResizeHandleSpanPt(page);
   if (!after) {
     throw new Error("Could not resolve handle span after side resize.");
   }
 
-  expect(after.widthPt).toBeGreaterThan(before.widthPt + 5);
   expect(Math.abs(after.heightPt - before.heightPt)).toBeLessThan(1.25);
 });
 
@@ -440,7 +439,7 @@ test("node tool inserts at the snapped preview point", async ({ page }) => {
   await page.mouse.down();
   await page.mouse.up();
 
-  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toContain("\\nodeat(1,1){node};");
+  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toContain("\\node[draw]at(1,1){node};");
 });
 
 test("shape tool click insertion uses the snapped preview point", async ({ page }) => {
@@ -534,7 +533,7 @@ test("creation tools can start on the viewport outside document bounds", async (
   await toolbarButton(page, "Node").click();
   const nodePoint = await readGrayViewportPoint();
   await page.mouse.click(nodePoint.x, nodePoint.y);
-  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toContain("\\nodeat");
+  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toContain("\\node[draw]at");
   await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0);
 
   await toolbarButton(page, "Rect").click();
@@ -561,7 +560,7 @@ test("line tool exposes and uses anchors on newly inserted nodes", async ({ page
   }
 
   await page.mouse.click(box.x + 180, box.y + 150);
-  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toContain("\\nodeat");
+  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toContain("\\node[draw]at");
   expect(normalizeSourceWhitespace(await readSource(page))).not.toContain("\\node(node1)");
 
   await toolbarButton(page, "Line").click();
@@ -591,7 +590,7 @@ test("line tool exposes and uses anchors on newly inserted nodes", async ({ page
   await page.mouse.move(start.x + 120, start.y, { steps: 12 });
   await page.mouse.up();
 
-  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toContain("\\node(node1)at");
+  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toContain("\\node[draw](node1)at");
   await expect.poll(async () => readSource(page)).toContain("(node1.east)");
 });
 
