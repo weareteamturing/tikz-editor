@@ -52,10 +52,10 @@ export default defineConfig({
     trace: "retain-on-failure"
   },
   webServer: {
-    command: `${withoutColorEnv} npm run dev -- --host 127.0.0.1 --port 4173`,
+    command: `${withoutColorEnv} npm run build -- --base / && ${withoutColorEnv} npx vite preview --host 127.0.0.1 --port 4173`,
     cwd: ".",
     url: "http://127.0.0.1:4173",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000
   },
   projects: getBrowserProjects()
