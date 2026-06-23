@@ -35,6 +35,7 @@ function getBrowserProjects() {
 
 export default defineConfig({
   testDir: "./e2e",
+  outputDir: "../../test-results/web",
   timeout: 60_000,
   expect: {
     timeout: 10_000
