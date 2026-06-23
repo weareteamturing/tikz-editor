@@ -1,6 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
+import os from "node:os";
+import path from "node:path";
 
 const withoutColorEnv = "env -u NO_COLOR -u FORCE_COLOR";
+const outputDir = process.env.PLAYWRIGHT_OUTPUT_DIR ??
+  path.join(os.tmpdir(), "tikz-editor-playwright-results", "web");
 const browserProjects = {
   chromium: {
     name: "chromium",
@@ -35,7 +39,7 @@ function getBrowserProjects() {
 
 export default defineConfig({
   testDir: "./e2e",
-  outputDir: "../../test-results/web",
+  outputDir,
   timeout: 60_000,
   expect: {
     timeout: 10_000
