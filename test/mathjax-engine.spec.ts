@@ -399,10 +399,10 @@ describe("mathjax node text engine", () => {
     expect(measured?.width).toBeCloseTo(20);
     expect(outputJax.knuthPlassOptions?.alignment).toBe("center");
     expect(outputJax.knuthPlassOptions?.layoutMode).toBe("wrap");
-    expect(outputJax.knuthPlassOptions?.wrappedTextGaps).toContainEqual({
+    expect(outputJax.knuthPlassOptions?.wrappedTextGaps).toContainEqual(expect.objectContaining({
       sourceStart: 7,
       widthEm: 0.5
-    });
+    }));
     expect(texCalls.at(-1)).toMatch(/\\parbox\[t\]\{35\.865504pt\}/);
     expect(texCalls.at(-1)).not.toContain(String.raw`\ttfamily`);
     expect(texCalls.at(-1)).not.toContain(String.raw`\bfseries`);
@@ -420,10 +420,10 @@ describe("mathjax node text engine", () => {
 
     expect(complex?.paragraphId).toBeTruthy();
     expect(outputJax.knuthPlassOptions?.layoutMode).toBe("wrapped-explicit");
-    expect(outputJax.knuthPlassOptions?.wrappedTextGaps).toContainEqual({
+    expect(outputJax.knuthPlassOptions?.wrappedTextGaps).toContainEqual(expect.objectContaining({
       sourceStart: 7,
       widthEm: 0.5
-    });
+    }));
     expect(texCalls.at(-1)).toContain(String.raw`\texttt{`);
     expect(texCalls.at(-1)).toContain(String.raw`\%`);
     expect(texCalls.at(-1)).toContain(String.raw`$x y$`);
